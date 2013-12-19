@@ -64,7 +64,7 @@ Logger::Logger() :
   _fd(stdout)
 {
   pthread_mutex_init(&_lock, NULL);
-};
+}
 
 
 Logger::Logger(const std::string& directory, const std::string& filename) :

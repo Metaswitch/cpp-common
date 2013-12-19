@@ -39,12 +39,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 
-#define LL_ERROR_STRING "Error"
-#define LL_WARNING_STRING "Warning"
-#define LL_STATUS_STRING "Status"
-#define LL_INFO_STRING "Info"
-#define LL_VERBOSE_STRING "Verbose"
-#define LL_DEBUG_STRING "Debug"
+const char* log_level[] = {"Error", "Warning", "Status", "Info", "Verbose", "Debug"};
 
 #define MAX_LOGLINE 8192
 
@@ -52,10 +47,18 @@ namespace Log
 {
   static Logger *logger = new Logger();
   static int loggingLevel = 4;
-};
+}
 
 void Log::setLoggingLevel(int level)
 {
+  if (level > DEBUG_LEVEL)
+  {
+    level = DEBUG_LEVEL;
+  }
+  else if (level < ERROR_LEVEL)
+  {
+    level = ERROR_LEVEL;
+  }
   Log::loggingLevel = level;
 }
 
@@ -78,32 +81,27 @@ void Log::write(int level, const char *module, int line_number, const char *fmt,
 
 void Log::_write(int level, const char *module, int line_number, const char *fmt, va_list args)
 {
-  if (!Log::logger) {
+  if (!Log::logger)
+  {
     return;
   }
 
-  if (level > Log::loggingLevel) {
+  if (level > Log::loggingLevel)
+  {
     return;
   }
 
   char logline[MAX_LOGLINE];
-  char* logLevel = NULL;
-
-  switch (level) {
-    case 0: logLevel = LL_ERROR_STRING; break;
-    case 1: logLevel = LL_WARNING_STRING; break;
-    case 2: logLevel = LL_STATUS_STRING; break;
-    case 3: logLevel = LL_INFO_STRING; break;
-    case 4: logLevel = LL_VERBOSE_STRING; break;
-    default: logLevel = LL_DEBUG_STRING; break;
-  }
 
   int written = 0;
 
-  if (line_number) {
-    written = snprintf(logline, MAX_LOGLINE - 2, "%s %s:%d: ", logLevel, module, line_number);
-  } else {
-    written = snprintf(logline, MAX_LOGLINE - 2, "%s %s: ", logLevel, module);
+  if (line_number)
+  {
+    written = snprintf(logline, MAX_LOGLINE - 2, "%s %s:%d: ", log_level[level], module, line_number);
+  }
+  else
+  {
+    written = snprintf(logline, MAX_LOGLINE - 2, "%s %s: ", log_level[level], module);
   }
 
   written += vsnprintf(logline + written, MAX_LOGLINE - written - 2, fmt, args);

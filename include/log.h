@@ -62,6 +62,6 @@ namespace Log
   void write(int level, const char *module, int line_number, const char *fmt, ...);
   void _write(int level, const char *module, int line_number, const char *fmt, va_list args);
   void backtrace(const char *fmt, ...);
-};
+}
 
 #endif
