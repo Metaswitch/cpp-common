@@ -64,6 +64,12 @@ void Log::setLoggingLevel(int level)
 
 void Log::setLogger(Logger *log)
 {
+  if (log != NULL)
+  {
+    // This is not a logger deregistering itself, so need to delete the old
+    // logger to avoid leaking it.
+    delete Log::logger;
+  }
   Log::logger = log;
   if (Log::logger != NULL)
   {
@@ -115,10 +121,10 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
 
 // LCOV_EXCL_START Only used in exceptional signal handlers - not hit in UT
 
-void
-Log::backtrace(const char *fmt, ...)
+void Log::backtrace(const char *fmt, ...)
 {
-  if (!Log::logger) {
+  if (!Log::logger)
+  {
     return;
   }
 
