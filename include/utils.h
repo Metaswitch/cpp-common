@@ -232,7 +232,7 @@ namespace Utils
   // @param A 7-bit identifier for the instance.
   //
   // @return A 64-bit identifier
-  uint64_t generate_unique_integer(uint32_t, uint32_t);
+  uint64_t generate_unique_integer(uint32_t deployment_id, uint32_t instance_id);
 
 } // namespace Utils
 
