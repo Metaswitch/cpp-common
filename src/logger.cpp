@@ -168,16 +168,17 @@ void Logger::write(const char* data)
 void Logger::get_timestamp(timestamp_t& ts)
 {
   struct timespec timespec;
+  struct tm dt;
   gettime(&timespec);
-  struct tm* dt = gmtime(&timespec.tv_sec);
-  ts.year = dt->tm_year;
-  ts.mon = dt->tm_mon;
-  ts.mday = dt->tm_mday;
-  ts.hour = dt->tm_hour;
-  ts.min = dt->tm_min;
-  ts.sec = dt->tm_sec;
+  gmtime_r(&timespec.tv_sec, &dt);
+  ts.year = dt.tm_year;
+  ts.mon = dt.tm_mon;
+  ts.mday = dt.tm_mday;
+  ts.hour = dt.tm_hour;
+  ts.min = dt.tm_min;
+  ts.sec = dt.tm_sec;
   ts.msec = (int)(timespec.tv_nsec / 1000000);
-  ts.yday = dt->tm_yday;
+  ts.yday = dt.tm_yday;
 }
 
 
