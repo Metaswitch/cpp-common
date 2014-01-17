@@ -225,6 +225,15 @@ namespace Utils
     static bool _already_logged;
   };
 
+  // Unique number generator.  Uses the current timestamp to generate deployment
+  // wide numbers that are guaranteed to be unique for ~8 years.
+  //
+  // @param A 3-bit identifier for the deployment.
+  // @param A 7-bit identifier for the instance.
+  //
+  // @return A 64-bit identifier
+  uint64_t generate_unique_integer(uint32_t deployment_id, uint32_t instance_id);
+
 } // namespace Utils
 
 #endif /* UTILS_H_ */
