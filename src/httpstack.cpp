@@ -154,3 +154,19 @@ void HttpStack::event_base_thread_fn()
 {
   event_base_loop(_evbase, 0);
 }
+
+std::string HttpStack::Request::body()
+{
+  char buf[1024];
+  size_t body_len = evbuffer_get_length(_req->buffer_in);
+  std::string body;
+  if (body_len > 0) {
+    int bytes = evbuffer_remove(_req->buffer_in, buf, 1024);
+    body = std::string(buf, bytes);
+  }
+  else
+  {
+    body = "";
+  };
+  return body;
+}

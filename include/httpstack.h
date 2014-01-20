@@ -62,6 +62,8 @@ public:
     inline std::string path() {return url_unescape(std::string(_req->uri->path->path));}
     inline std::string full_path() {return url_unescape(std::string(_req->uri->path->full));}
     inline std::string file() {return url_unescape(std::string((_req->uri->path->file != NULL) ? _req->uri->path->file : ""));}
+    inline htp_method method() {return evhtp_request_get_method(_req);};
+    std::string body();
     inline std::string param(const std::string& name)
     {
       const char* param = evhtp_kv_find(_req->uri->query, name.c_str());
