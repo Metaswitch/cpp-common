@@ -69,6 +69,7 @@ public:
     }
     void add_content(const std::string& content) {evbuffer_add(_req->buffer_out, content.c_str(), content.length());}
     void send_reply(int rc);
+    inline evhtp_request_t* req() {return _req;}
 
   private:
     HttpStack* _stack;
@@ -147,6 +148,7 @@ public:
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
+  virtual void send_reply(Request& req, int rc);
 
   void log(const std::string uri, int rc)
   {

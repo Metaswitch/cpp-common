@@ -43,13 +43,18 @@ HttpStack::HttpStack() {}
 
 void HttpStack::Request::send_reply(int rc)
 {
+  _stack->send_reply(*this, rc);
+}
+
+void HttpStack::send_reply(Request& req, int rc)
+{
   // Log and set up the return code.
-  _stack->log(std::string(_req->uri->path->full), rc);
-  evhtp_send_reply(_req, rc);
+  log(std::string(req.req()->uri->path->full), rc);
+  evhtp_send_reply(req.req(), rc);
 
   // Resume the request to actually send it.  This matches the function to pause the request in
   // HttpStack::handler_callback_fn.
-  evhtp_request_resume(_req);
+  evhtp_request_resume(req.req());
 }
 
 void HttpStack::initialize()
@@ -85,7 +90,7 @@ void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* fact
   evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp, path, handler_callback_fn, (void*)factory);
   if (cb == NULL)
   {
-    throw Exception("evhtp_set_cb", 0);
+    throw Exception("evhtp_set_cb", 0); // LCOV_EXCL_LINE
   }
 }
 
@@ -96,19 +101,19 @@ void HttpStack::start()
   int rc = evhtp_use_threads(_evhtp, NULL, _num_threads, this);
   if (rc != 0)
   {
-    throw Exception("evhtp_use_threads", rc);
+    throw Exception("evhtp_use_threads", rc); // LCOV_EXCL_LINE
   }
 
   rc = evhtp_bind_socket(_evhtp, _bind_address.c_str(), _bind_port, 1024);
   if (rc != 0)
   {
-    throw Exception("evhtp_bind_socket", rc);
+    throw Exception("evhtp_bind_socket", rc); // LCOV_EXCL_LINE
   }
 
   rc = pthread_create(&_event_base_thread, NULL, event_base_thread_fn, this);
   if (rc != 0)
   {
-    throw Exception("pthread_create", rc);
+    throw Exception("pthread_create", rc); // LCOV_EXCL_LINE
   }
 }
 
@@ -121,6 +126,10 @@ void HttpStack::stop()
 void HttpStack::wait_stopped()
 {
   pthread_join(_event_base_thread, NULL);
+  evhtp_free(_evhtp);
+  _evhtp = NULL;
+  event_base_free(_evbase);
+  _evbase = NULL;
 }
 
 void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
