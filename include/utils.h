@@ -182,46 +182,81 @@ namespace Utils
   class StopWatch
   {
   public:
-    inline StopWatch() : _got_start(false) {};
+    inline StopWatch() : _ok(true), _running(true), _elapsed_us(0) {}
 
     /// Starts the stop-watch, returning whether it was successful.  It's OK
-    /// to ignore the return code - it will also be returned on stop().
+    /// to ignore the return code - it will also be returned on read() and
+    /// stop().
     inline bool start()
     {
-      _got_start = (clock_gettime(CLOCK_MONOTONIC, &_start) == 0);
-      if ((!_got_start) &&
-          (!_already_logged))
+      _ok = (clock_gettime(CLOCK_MONOTONIC, &_start) == 0);
+
+      if (_ok)
+      {
+        _running = true;
+      }
+      else if(!_already_logged)
       {
         LOG_ERROR("Failed to get start timestamp: %s", strerror(errno));
         _already_logged = true;
       }
-      return _got_start;
+
+      return _ok;
     }
 
-    /// Stops the stop-watch, giving the result in result_us and returning
-    /// whether it was successful.  result_us is not valid on failure.
-    inline bool stop(unsigned long& result_us)
+    /// Stops the stop-watch, returning whether it was successful.  The recorded
+    /// time is stored internal and can be read by a subsequent call to read().
+    /// It's OK to ignore the return code to stop() - it will also be returned
+    /// on read().
+    inline bool stop()
     {
-      struct timespec now;
-      if (_got_start)
+      if (_running)
       {
-        if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
+        _ok = read(_elapsed_us);
+        _running = false;
+      }
+
+      return _ok;
+    }
+
+    /// Reads the stopwatch (which does not have to be stopped) and returns
+    /// whether this was successful. result_us is not valid on failure.
+    inline bool read(unsigned long& result_us)
+    {
+      if (!_ok)
+      {
+        return _ok;
+      }
+
+      if (_running)
+      {
+        struct timespec now;
+        _ok = (clock_gettime(CLOCK_MONOTONIC, &now) == 0);
+
+        if (_ok)
         {
           result_us = (now.tv_nsec - _start.tv_nsec) / 1000L +
                       (now.tv_sec - _start.tv_sec) * 1000000L;
-          return true;
         }
         else
         {
           LOG_ERROR("Failed to get stop timestamp: %s", strerror(errno));
         }
       }
-      return false;
+      else
+      {
+        result_us = _elapsed_us;
+      }
+
+      return _ok;
     }
 
   private:
     struct timespec _start;
-    bool _got_start;
+    bool _ok;
+    bool _running;
+    long _elapsed_us;
+
     static bool _already_logged;
   };
 
