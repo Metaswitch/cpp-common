@@ -50,7 +50,9 @@ extern "C" {
 class LastValueCache
 {
 public:
-  LastValueCache(int statcount, std::string *statnames, long poll_timeout_ms = 1000);
+  LastValueCache(int statcount,
+                 const std::string *statnames,
+                 long poll_timeout_ms = 1000);
   ~LastValueCache();
   void* get_internal_publisher(std::string statname);
   void run();
