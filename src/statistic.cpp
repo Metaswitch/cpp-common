@@ -42,8 +42,8 @@
 
 Statistic::Statistic(std::string statname, LastValueCache* lvc) :
   _statname(statname),
-  _stat_q(MAX_Q_DEPTH),
-  _publisher(lvc->get_internal_publisher(statname))
+  _publisher(lvc->get_internal_publisher(statname)),
+  _stat_q(MAX_Q_DEPTH)
 {
   LOG_DEBUG("Creating %s statistic reporter", _statname.c_str());
 

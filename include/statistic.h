@@ -44,6 +44,7 @@
 #include <pthread.h>
 
 #include "eventq.h"
+#include "zmq_lvc.h"
 
 class Statistic
 {

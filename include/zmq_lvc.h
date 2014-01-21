@@ -67,7 +67,7 @@ private:
   pthread_t _cache_thread;
   void *_context;
   int _statcount;
-  std::string *_statnames;
+  const std::string *_statnames;
   const long _poll_timeout_ms;
   volatile bool _terminate;
 

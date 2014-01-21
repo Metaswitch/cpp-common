@@ -255,7 +255,7 @@ namespace Utils
     struct timespec _start;
     bool _ok;
     bool _running;
-    long _elapsed_us;
+    unsigned long _elapsed_us;
 
     static bool _already_logged;
   };
