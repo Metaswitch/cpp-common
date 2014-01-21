@@ -47,6 +47,7 @@ Statistic::Statistic(std::string statname, LastValueCache* lvc) :
 {
   LOG_DEBUG("Creating %s statistic reporter", _statname.c_str());
 
+  // Permit a NULL LVC as this is useful for fake objects in UTs.
   if (lvc != NULL)
   {
     _publisher = lvc->get_internal_publisher(statname);
