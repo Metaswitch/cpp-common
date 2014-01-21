@@ -42,10 +42,15 @@
 
 Statistic::Statistic(std::string statname, LastValueCache* lvc) :
   _statname(statname),
-  _publisher(lvc->get_internal_publisher(statname)),
+  _publisher(NULL),
   _stat_q(MAX_Q_DEPTH)
 {
   LOG_DEBUG("Creating %s statistic reporter", _statname.c_str());
+
+  if (lvc != NULL)
+  {
+    _publisher = lvc->get_internal_publisher(statname);
+  }
 
   // Spawn a thread to handle the statistic reporting
   int rc = pthread_create(&_reporter, NULL, &reporter_thread, (void*)this);
@@ -90,27 +95,32 @@ void Statistic::reporter()
 
   while (_stat_q.pop(new_value))
   {
-    LOG_DEBUG("Send new value for statistic %s, size %d", _statname.c_str(), new_value.size());
-    std::string status = "OK";
+    if (_publisher != NULL)
+    {
+      LOG_DEBUG("Send new value for statistic %s, size %d",
+                _statname.c_str(),
+                new_value.size());
+      std::string status = "OK";
 
-    // If there's no message, just send the envelope and status line.
-    if (new_value.empty())
-    {
-      zmq_send(_publisher, _statname.c_str(), _statname.length(), ZMQ_SNDMORE);
-      zmq_send(_publisher, status.c_str(), status.length(), 0);
-    }
-    else
-    {
-      // Otherwise send the envelope, status line, and body, remembering to set SNDMORE on all
-      // but the last section.
-      zmq_send(_publisher, _statname.c_str(), _statname.length(), ZMQ_SNDMORE);
-      zmq_send(_publisher, status.c_str(), status.length(), ZMQ_SNDMORE);
-      std::vector<std::string>::iterator it;
-      for (it = new_value.begin(); it + 1 != new_value.end(); ++it)
+      // If there's no message, just send the envelope and status line.
+      if (new_value.empty())
       {
-        zmq_send(_publisher, it->c_str(), it->length(), ZMQ_SNDMORE);
+        zmq_send(_publisher, _statname.c_str(), _statname.length(), ZMQ_SNDMORE);
+        zmq_send(_publisher, status.c_str(), status.length(), 0);
       }
-      zmq_send(_publisher, it->c_str(), it->length(), 0);
+      else
+      {
+        // Otherwise send the envelope, status line, and body, remembering to
+        // set SNDMORE on all but the last section.
+        zmq_send(_publisher, _statname.c_str(), _statname.length(), ZMQ_SNDMORE);
+        zmq_send(_publisher, status.c_str(), status.length(), ZMQ_SNDMORE);
+        std::vector<std::string>::iterator it;
+        for (it = new_value.begin(); it + 1 != new_value.end(); ++it)
+        {
+          zmq_send(_publisher, it->c_str(), it->length(), ZMQ_SNDMORE);
+        }
+        zmq_send(_publisher, it->c_str(), it->length(), 0);
+      }
     }
   }
 }
