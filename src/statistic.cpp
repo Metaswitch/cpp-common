@@ -35,15 +35,15 @@
  */
 
 #include "statistic.h"
-#include "stack.h"
 #include "zmq_lvc.h"
 #include "log.h"
 
 #include <string>
 
-Statistic::Statistic(std::string statname) :
+Statistic::Statistic(std::string statname, LastValueCache* lvc) :
   _statname(statname),
-  _stat_q(MAX_Q_DEPTH)
+  _stat_q(MAX_Q_DEPTH),
+  _publisher(lvc->get_internal_publisher(statname))
 {
   LOG_DEBUG("Creating %s statistic reporter", _statname.c_str());
 
@@ -86,8 +86,6 @@ void Statistic::reporter()
 {
   LOG_DEBUG("Initializing inproc://%s statistic reporter", _statname.c_str());
 
-  _publisher = stack_data.stats_aggregator->get_internal_publisher(_statname);
-
   std::vector<std::string> new_value;
 
   while (_stat_q.pop(new_value))
@@ -115,36 +113,6 @@ void Statistic::reporter()
       zmq_send(_publisher, it->c_str(), it->length(), 0);
     }
   }
-}
-
-
-static std::string known_statnames[] = {
-  "client_count",
-  "connected_homers",
-  "connected_homesteads",
-  "connected_sprouts",
-  "latency_us",
-  "hss_latency_us",
-  "hss_digest_latency_us",
-  "hss_subscription_latency_us",
-  "xdm_latency_us",
-  "incoming_requests",
-  "rejected_overload",
-  "queue_size",  
-  "hss_user_auth_latency_us",
-  "hss_location_latency_us"};
-
-
-
-int Statistic::known_stats_count()
-{
-  return (sizeof(known_statnames) / sizeof(std::string));
-}
-
-
-std::string *Statistic::known_stats()
-{
-  return known_statnames;
 }
 
 

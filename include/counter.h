@@ -41,6 +41,7 @@
 #include <time.h>
 
 #include "statrecorder.h"
+#include "zmq_lvc.h"
 
 /// @class Counter
 ///
@@ -50,24 +51,24 @@ class Counter : public StatRecorder
 public:
 
   inline Counter(uint_fast64_t period_us = DEFAULT_PERIOD_US) :
-           StatRecorder(period_us) 
+           StatRecorder(period_us)
   {
     reset();
   }
-                     
+
   /// Increment function
   void increment(void);
 
   /// Refresh our calculations - called at the end of each period, or
   /// optionally at other times to get an up-to-date result.
   virtual void refresh(bool force = false);
- 
+
   /// Get number of results in last period.
   inline uint_fast64_t get_count() { return _last._count; }
-  
+
   virtual void reset();
 
-private:  
+private:
   /// Current accumulated count.
   struct {
     std::atomic_uint_fast64_t _timestamp_us;
@@ -78,10 +79,10 @@ private:
   struct {
     volatile uint_fast64_t _count;
   } _last;
-  
+
   virtual void read(uint_fast64_t period_us);
 };
-  
+
 /// @class StatisticCounter
 ///
 /// Counts and reports value as a zeroMQ-based statistic.
@@ -90,9 +91,11 @@ class StatisticCounter : public Counter
 public:
   /// Constructor.
   inline StatisticCounter(std::string statname,
-                              uint_fast64_t period_us = DEFAULT_PERIOD_US) :
-           Counter(period_us),
-           _statistic(statname) {}
+                          LastValueCache* lvc,
+                          uint_fast64_t period_us = DEFAULT_PERIOD_US) :
+    Counter(period_us),
+    _statistic(statname, lvc)
+  {}
 
   /// Callback whenever the accumulated statistics are refreshed. Passes
   /// values to zeroMQ.
