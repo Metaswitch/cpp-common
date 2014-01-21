@@ -62,7 +62,6 @@ ChronosConnection::~ChronosConnection()
   _http = NULL;
 }
 
-/// Retrieve user's digest data as JSON object. Caller is responsible for deleting.
 HTTPCode ChronosConnection::send_delete(const std::string& delete_identity, SAS::TrailId trail)
 {
   std::string path = "/timers/" +
