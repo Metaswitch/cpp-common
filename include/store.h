@@ -90,7 +90,7 @@ public:
   /// @param table    Name of the table to store the data.
   /// @param key      Key used to index the data within the table.
   virtual Status delete_data(const std::string& table,
-                          const std::string& key) = 0;
+                             const std::string& key) = 0;
 };
 
 #endif

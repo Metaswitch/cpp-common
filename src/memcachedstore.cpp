@@ -504,7 +504,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
 /// Delete the data for the specified namespace and key.  Writes the data
 /// unconditionally, so CAS is not needed.
 Store::Status MemcachedStore::delete_data(const std::string& table,
-                                       const std::string& key)
+                                          const std::string& key)
 {
   Store::Status status = Store::Status::OK;
 

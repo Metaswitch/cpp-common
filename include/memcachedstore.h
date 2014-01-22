@@ -82,7 +82,7 @@ public:
 
   /// Deletes the data for the specified table and key.
   Store::Status delete_data(const std::string& table,
-                         const std::string& key);
+                            const std::string& key);
 
 
   /// Updates the cluster settings
