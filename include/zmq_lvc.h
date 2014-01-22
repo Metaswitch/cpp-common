@@ -37,9 +37,6 @@
 #ifndef STATISTIC_H__
 #define STATISTIC_H__
 
-extern "C" {
-#include <pjlib.h>
-}
 #include <map>
 #include <vector>
 #include <string>
