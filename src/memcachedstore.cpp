@@ -501,6 +501,49 @@ Store::Status MemcachedStore::set_data(const std::string& table,
   return status;
 }
 
+/// Delete the data for the specified namespace and key.  Writes the data
+/// unconditionally, so CAS is not needed.
+Store::Status MemcachedStore::delete_data(const std::string& table,
+                                       const std::string& key)
+{
+  Store::Status status = Store::Status::OK;
+
+  LOG_DEBUG("Deleting key %s from table %s", key.c_str(), table.c_str());
+
+  // Construct the fully qualified key.
+  std::string fqkey = table + "\\\\" + key;
+  const char* key_ptr = fqkey.data();
+  const size_t key_len = fqkey.length();
+
+  const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::WRITE);
+  LOG_DEBUG("%d write replicas for key %s", replicas.size(), fqkey.c_str());
+
+  // First try to write the primary data record to the first responding
+  // server.
+  memcached_return_t rc = MEMCACHED_ERROR;
+  size_t ii;
+  for (ii = 0; ii < replicas.size(); ++ii)
+  {
+    LOG_DEBUG("Attempt delete to replica %d (connection %p)",
+              ii,
+              replicas[ii]);
+
+    rc = memcached_delete(replicas[ii],
+                         key_ptr,
+                         key_len,
+                         0);
+
+    if (!memcached_success(rc))
+    {
+      // Deletes are unconditional so this should never happen
+      LOG_ERROR("Delete failed to replica %d", ii);
+    }
+  }
+
+  return status;
+}
+
+
 void MemcachedStore::update_view()
 {
   // Read the memstore file.

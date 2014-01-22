@@ -80,6 +80,11 @@ public:
                          uint64_t cas,
                          int expiry);
 
+  /// Deletes the data for the specified table and key.
+  Store::Status delete_data(const std::string& table,
+                         const std::string& key);
+
+
   /// Updates the cluster settings
   void update_view();
 
