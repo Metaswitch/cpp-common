@@ -55,21 +55,18 @@ public:
   HTTPCode send_put(std::string& put_identity,
                     const std::string& timer_interval,
                     const std::string& callback_uri,
-                    const std::string& binding_id,
-                    const std::string& aor_id,
+                    const Json::Value& opaque_data,
                     SAS::TrailId trail);
   HTTPCode send_post(std::string& post_identity,
                      const std::string& timer_interval,
                      const std::string& callback_uri,
-                     const std::string& binding_id,
-                     const std::string& aor_id,
+                     const Json::Value& opaque_data,
                      SAS::TrailId trail);
  
 private:
   std::string create_body(const std::string& expires,
                           const std::string& callback_uri,
-                          const std::string& binding_id,
-                          const std::string& aor_id);
+                          const Json::Value& opaque_data);
 
   HttpConnection* _http;
 };

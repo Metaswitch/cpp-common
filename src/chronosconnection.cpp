@@ -72,13 +72,12 @@ HTTPCode ChronosConnection::send_delete(const std::string& delete_identity, SAS:
 HTTPCode ChronosConnection::send_put(std::string& put_identity,
                                      const std::string& timer_interval, 
                                      const std::string& callback_uri, 
-                                     const std::string& binding_id, 
-                                     const std::string& aor_id,
+                                     const Json::Value& opaque_data, 
                                      SAS::TrailId trail)
 {
   std::string path = "/timers/" +
                      Utils::url_escape(put_identity);
-  std::string body = create_body(timer_interval, callback_uri, binding_id, aor_id);
+  std::string body = create_body(timer_interval, callback_uri, opaque_data);
   std::map<std::string, std::string> headers;
   HTTPCode success = _http->send_put(path, body, headers, trail);
   
@@ -93,12 +92,11 @@ HTTPCode ChronosConnection::send_put(std::string& put_identity,
 HTTPCode ChronosConnection::send_post(std::string& post_identity,
                                       const std::string& timer_interval,
                                       const std::string& callback_uri,
-                                      const std::string& binding_id,
-                                      const std::string& aor_id,
+                                      const Json::Value& opaque_data,
                                       SAS::TrailId trail)
 {
   std::string path = "/timers";
-  std::string body = create_body(timer_interval, callback_uri, binding_id, aor_id);
+  std::string body = create_body(timer_interval, callback_uri, opaque_data);
   std::map<std::string, std::string> headers;
 
   HTTPCode success = _http->send_post(path, body, headers, trail);
@@ -113,17 +111,13 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
 
 std::string ChronosConnection::create_body(const std::string& interval,
                                            const std::string& uri,
-                                           const std::string& binding_id, 
-                                           const std::string& aor_id)
+                                           const Json::Value& opaque_data)
 {
   Json::Value body;
   Json::Value http;
-  Json::Value opaque;
 
-  opaque["binding_id"] = binding_id;
-  opaque["aor_id"] = aor_id;
   http["uri"] = uri;
-  http["opaque"] = opaque;
+  http["opaque"] = opaque_data;
   body["callback"]["http"] = http;
   body["timing"]["interval"] = interval;
 
