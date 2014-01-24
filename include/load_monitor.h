@@ -39,7 +39,7 @@
 
 #include <time.h>
 #include <pthread.h>
- 
+
 class TokenBucket
 {
   public:
@@ -47,7 +47,7 @@ class TokenBucket
     float rate;
     int max_size;
     bool get_token();
-    void update_rate(float new_rate); 
+    void update_rate(float new_rate);
   private:
     timespec replenish_time;
     float tokens;
@@ -59,15 +59,15 @@ class LoadMonitor
   public:
     LoadMonitor(int init_target_latency, int max_bucket_size,
                 float init_token_rate, float init_min_token_rate);
-    ~LoadMonitor();
-    bool admit_request();
-    void incr_penalties();
-    void request_complete(int latency);
+    virtual ~LoadMonitor();
+    virtual bool admit_request();
+    virtual void incr_penalties();
+    virtual void request_complete(int latency);
 
   private:
     // This must be held when accessing any of this object's member variables.
      pthread_mutex_t _lock;
-   
+
     // Number of requests processed before each adjustment of token bucket rate
     int ADJUST_PERIOD;
 
@@ -76,7 +76,7 @@ class LoadMonitor
     float DECREASE_FACTOR;
     float INCREASE_THRESHOLD;
     float INCREASE_FACTOR;
-  
+
     int accepted;
     int rejected;
     int penalties;
