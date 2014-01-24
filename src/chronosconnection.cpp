@@ -49,15 +49,13 @@
 ChronosConnection::ChronosConnection(const std::string& server) :
   _http(new HttpConnection(server,
                            false,
-                           SASEvent::TX_HSS_BASE,
-                           "",
-                           NULL))
+                           SASEvent::TX_HSS_BASE))
 {
 }
 
 
 ChronosConnection::~ChronosConnection()
-{
+{  
   delete _http;
   _http = NULL;
 }

@@ -59,6 +59,7 @@ class HttpConnection
 {
 public:
   HttpConnection(const std::string& server, bool assert_user, int sas_event_base, const std::string& stat_name, LoadMonitor* load_monitor);
+  HttpConnection(const std::string& server, bool assert_user, int sas_event_base);
   virtual ~HttpConnection();
 
   virtual long send_delete(const std::string& path, SAS::TrailId trail);
@@ -111,7 +112,7 @@ private:
   const int _sas_event_base;
   pthread_key_t _thread_local;
 
-  Statistic _statistic;
+  Statistic* _statistic;
   LoadMonitor* _load_monitor;
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock

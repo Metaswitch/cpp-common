@@ -81,17 +81,29 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
                                LoadMonitor* load_monitor) :    //< Load Monitor.
   _server(server),
   _assert_user(assert_user),
-  _sas_event_base(sas_event_base),
-  _statistic(stat_name)
+  _sas_event_base(sas_event_base)
 {
   pthread_key_create(&_thread_local, cleanup_curl);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   std::vector<std::string> no_stats;
-  _statistic.report_change(no_stats);
+  _statistic = new Statistic(stat_name);
+  _statistic->report_change(no_stats);
   _load_monitor = load_monitor;
 }
 
+HttpConnection::HttpConnection(const std::string& server,      //< Server to send HTTP requests to.
+                               bool assert_user,               //< Assert user in header?
+                               int sas_event_base) :           //< SAS events: sas_event_base - will have  SASEvent::HTTP_REQ / RSP / ERR added to it.
+  _server(server),
+  _assert_user(assert_user),
+  _sas_event_base(sas_event_base)
+{
+  pthread_key_create(&_thread_local, cleanup_curl);
+  pthread_mutex_init(&_lock, NULL);
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+  _statistic = NULL;
+}
 
 HttpConnection::~HttpConnection()
 {
@@ -104,6 +116,12 @@ HttpConnection::~HttpConnection()
     pthread_setspecific(_thread_local, NULL);
     cleanup_curl(curl);
   }
+
+  if (_statistic != NULL)
+  {
+    delete _statistic;
+    _statistic = NULL;
+  }  
 }
 
 
@@ -235,6 +253,7 @@ HTTPCode HttpConnection::get(const std::string& path,       //< Absolute path to
                              SAS::TrailId trail)          //< SAS trail to use
 {
   CURL *curl = get_curl_handle();
+
   curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
 
   return send_request(path, doc, username, trail, curl);
@@ -520,7 +539,10 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
   pthread_mutex_unlock(&_parent->_lock);
 
   // Actually report outside the mutex to avoid any risk of deadlock.
-  _parent->_statistic.report_change(new_value);
+  if (_parent->_statistic != NULL)
+  {
+    _parent->_statistic->report_change(new_value);
+  }
 }
 
 size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers)
