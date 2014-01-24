@@ -515,8 +515,9 @@ Store::Status MemcachedStore::delete_data(const std::string& table,
   const char* key_ptr = fqkey.data();
   const size_t key_len = fqkey.length();
 
-  const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::WRITE);
-  LOG_DEBUG("%d write replicas for key %s", replicas.size(), fqkey.c_str());
+  // Delete from the read replicas - read replicas are a superset of the write replicas
+  const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::READ);
+  LOG_DEBUG("Deleting from the %d read replicas for key %s", replicas.size(), fqkey.c_str());
 
   // First try to write the primary data record to the first responding
   // server.
