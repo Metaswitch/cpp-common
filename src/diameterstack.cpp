@@ -272,6 +272,57 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   *req = NULL;
 }
 
+AVP& AVP::val_json(const rapidjson::Value& data)
+{
+  for (rapidjson::Value::ConstMemberIterator it = data.MemberBegin();
+      it != data.MemberEnd();
+      ++it)
+  {
+    switch (it->value.GetType())
+    {
+    case rapidjson::kFalseType:
+    case rapidjson::kTrueType:
+    case rapidjson::kNullType:
+      LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
+      continue;
+    case rapidjson::kStringType:
+      add(Diameter::AVP(it->name.GetString()).val_str(it->value.GetString()));
+      break;
+    case rapidjson::kNumberType:
+      add(Diameter::AVP(it->name.GetString()).val_u32(it->value.GetUint()));
+      break;
+    case rapidjson::kArrayType:
+      for (rapidjson::Value::ConstValueIterator ary_it = it->value.Begin();
+          ary_it != it->value.End();
+          ary_it++)
+      {
+        switch (ary_it->GetType())
+        {
+        case rapidjson::kNullType:
+        case rapidjson::kTrueType:
+        case rapidjson::kFalseType:
+        case rapidjson::kObjectType:
+        case rapidjson::kArrayType:
+          LOG_ERROR("Invalid format for body of repeated AVP, ignoring");
+          continue;
+        case rapidjson::kNumberType:
+          add(Diameter::AVP(it->name.GetString()).val_u32(ary_it->GetUint()));
+          break;
+        case rapidjson::kStringType:
+          add(Diameter::AVP(it->name.GetString()).val_str(ary_it->GetString()));
+          break;
+        }
+      }
+      break;
+    case rapidjson::kObjectType:
+      add(Diameter::AVP(it->name.GetString()).val_json(it->value));
+      break;
+    }
+  }
+
+  return *this;
+}
+
 Message::~Message()
 {
   if (_free_on_delete)
