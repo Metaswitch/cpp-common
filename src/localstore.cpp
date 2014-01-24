@@ -180,4 +180,23 @@ Store::Status LocalStore::set_data(const std::string& table,
   return status;
 }
 
+Store::Status LocalStore::delete_data(const std::string& table,
+                                   const std::string& key)
+{
+  LOG_DEBUG("delete_data table=%s key=%s",
+            table.c_str(), key.c_str());
+
+  Store::Status status = Store::Status::OK;
+
+  // Calculate the fully qualified key.
+  std::string fqkey = table + "\\\\" + key;
+
+  pthread_mutex_lock(&_db_lock);
+
+  _db.erase(fqkey);
+
+  pthread_mutex_unlock(&_db_lock);
+
+  return status;
+}
 

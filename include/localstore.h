@@ -59,7 +59,8 @@ public:
                          const std::string& data,
                          uint64_t cas,
                          int expiry);
-
+  Store::Status delete_data(const std::string& table,
+                            const std::string& key);
 private:
   typedef struct record
   {
