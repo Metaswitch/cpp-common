@@ -41,6 +41,7 @@
 
 #include <freeDiameter/freeDiameter-host.h>
 #include <freeDiameter/libfdcore.h>
+#include <rapidjson/document.h>
 
 namespace Diameter
 {
@@ -170,6 +171,11 @@ public:
   {
     fd_msg_avp_new(type.dict(), 0, &_avp);
   }
+  AVP(const std::string& name)
+  {
+    Dictionary::AVP dict(name);
+    fd_msg_avp_new(dict.dict(), 0, &_avp);
+  }
   inline AVP(struct avp* avp) : _avp(avp) {}
   inline AVP(AVP const& avp) : _avp(avp.avp()) {}
   inline AVP& operator=(AVP const& avp) {_avp = avp.avp(); return *this;}
@@ -235,6 +241,9 @@ public:
     fd_msg_avp_setvalue(_avp, &val);
     return *this;
   }
+
+  // Populate this AVP from a JSON object
+  AVP& val_json(const rapidjson::Value& contents);
 
   inline AVP& add(AVP& avp)
   {
