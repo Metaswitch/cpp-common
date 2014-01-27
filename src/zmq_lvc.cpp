@@ -53,7 +53,7 @@
  * subscriber registers interest.  This allows a client to poll the last known value easily.
  */
 LastValueCache::LastValueCache(int statcount,
-                               std::string *statnames,
+                               const std::string *statnames,
                                long poll_timeout_ms) :  //< Poll period in milliseconds
   _statcount(statcount),
   _statnames(statnames),

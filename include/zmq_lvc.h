@@ -37,9 +37,6 @@
 #ifndef STATISTIC_H__
 #define STATISTIC_H__
 
-extern "C" {
-#include <pjlib.h>
-}
 #include <map>
 #include <vector>
 #include <string>
@@ -50,7 +47,9 @@ extern "C" {
 class LastValueCache
 {
 public:
-  LastValueCache(int statcount, std::string *statnames, long poll_timeout_ms = 1000);
+  LastValueCache(int statcount,
+                 const std::string *statnames,
+                 long poll_timeout_ms = 1000);
   ~LastValueCache();
   void* get_internal_publisher(std::string statname);
   void run();
@@ -65,7 +64,7 @@ private:
   pthread_t _cache_thread;
   void *_context;
   int _statcount;
-  std::string *_statnames;
+  const std::string *_statnames;
   const long _poll_timeout_ms;
   volatile bool _terminate;
 
