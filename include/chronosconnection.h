@@ -39,6 +39,7 @@
 
 #include <curl/curl.h>
 #include <json/value.h>
+#include "sas.h"
 
 #include "httpconnection.h"
 #include "load_monitor.h"
@@ -52,19 +53,22 @@ public:
 
   HTTPCode send_delete(const std::string& delete_id,
                        SAS::TrailId trail);
-  HTTPCode send_put(std::string& put_identity,
+  HTTPCode send_put(const std::string& put_identity,
                     const std::string& timer_interval,
+                    const std::string& repeat_for,
                     const std::string& callback_uri,
                     const Json::Value& opaque_data,
                     SAS::TrailId trail);
   HTTPCode send_post(std::string& post_identity,
                      const std::string& timer_interval,
+                     const std::string& repeat_for,
                      const std::string& callback_uri,
                      const Json::Value& opaque_data,
                      SAS::TrailId trail);
  
 private:
   std::string create_body(const std::string& expires,
+                          const std::string& repeat_for,
                           const std::string& callback_uri,
                           const Json::Value& opaque_data);
 

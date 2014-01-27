@@ -55,7 +55,7 @@ ChronosConnection::ChronosConnection(const std::string& server) :
 
 
 ChronosConnection::~ChronosConnection()
-{  
+{
   delete _http;
   _http = NULL;
 }
@@ -64,37 +64,34 @@ HTTPCode ChronosConnection::send_delete(const std::string& delete_identity, SAS:
 {
   std::string path = "/timers/" +
                      Utils::url_escape(delete_identity);
-  return _http->send_delete(path, trail); 
+  return _http->send_delete(path, trail);
 }
 
-HTTPCode ChronosConnection::send_put(std::string& put_identity,
-                                     const std::string& timer_interval, 
-                                     const std::string& callback_uri, 
-                                     const Json::Value& opaque_data, 
+HTTPCode ChronosConnection::send_put(const std::string& put_identity,
+                                     const std::string& timer_interval,
+                                     const std::string& repeat_for,
+                                     const std::string& callback_uri,
+                                     const Json::Value& opaque_data,
                                      SAS::TrailId trail)
 {
   std::string path = "/timers/" +
                      Utils::url_escape(put_identity);
-  std::string body = create_body(timer_interval, callback_uri, opaque_data);
+  std::string body = create_body(timer_interval,repeat_for,  callback_uri, opaque_data);
   std::map<std::string, std::string> headers;
   HTTPCode success = _http->send_put(path, body, headers, trail);
-  
-  if (success == HTTP_OK)
-  {
-    put_identity = headers["Location"];
-  }
-   
-  return success;
+
+   return success;
 }
 
 HTTPCode ChronosConnection::send_post(std::string& post_identity,
                                       const std::string& timer_interval,
+                                      const std::string& repeat_for,
                                       const std::string& callback_uri,
                                       const Json::Value& opaque_data,
                                       SAS::TrailId trail)
 {
   std::string path = "/timers";
-  std::string body = create_body(timer_interval, callback_uri, opaque_data);
+  std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data);
   std::map<std::string, std::string> headers;
 
   HTTPCode success = _http->send_post(path, body, headers, trail);
@@ -103,11 +100,12 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
   {
     post_identity = headers["Location"];
   }
-  
+
   return success;
 }
 
 std::string ChronosConnection::create_body(const std::string& interval,
+                                           const std::string& repeat_for,
                                            const std::string& uri,
                                            const Json::Value& opaque_data)
 {
@@ -118,6 +116,7 @@ std::string ChronosConnection::create_body(const std::string& interval,
   http["opaque"] = opaque_data;
   body["callback"]["http"] = http;
   body["timing"]["interval"] = interval;
+  body["timing"]["repeat-for"] = repeat_for;
 
   Json::FastWriter writer;
   std::string data = writer.write(body);
