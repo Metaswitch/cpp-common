@@ -109,41 +109,7 @@ public:
   const AVP DIGEST_QOP;
   const AVP EXPERIMENTAL_RESULT;
   const AVP EXPERIMENTAL_RESULT_CODE;
-};
-
-class Stack
-{
-public:
-  class Exception
-  {
-  public:
-    inline Exception(const char* func, int rc) : _func(func), _rc(rc) {};
-    const char* _func;
-    const int _rc;
-  };
-
-  static inline Stack* get_instance() {return INSTANCE;};
-  virtual void initialize();
-  virtual void configure(std::string filename);
-  virtual void advertize_application(const Dictionary::Application& app);
-  virtual void start();
-  virtual void stop();
-  virtual void wait_stopped();
-
-private:
-  static Stack* INSTANCE;
-  static Stack DEFAULT_INSTANCE;
-
-  Stack();
-  virtual ~Stack();
-
-  // Don't implement the following, to avoid copies of this instance.
-  Stack(Stack const&);
-  void operator=(Stack const&);
-
-  static void logger(int fd_log_level, const char* fmt, va_list args);
-
-  bool _initialized;
+  const AVP ACCT_INTERIM_INTERVAL;
 };
 
 class Transaction
@@ -267,16 +233,21 @@ class Message
 public:
   inline Message(const Dictionary* dict, const Dictionary::Message& type) : _dict(dict), _free_on_delete(true)
   {
-    fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_msg);
+    fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_fd_msg);
   }
-  inline Message(Dictionary* dict, struct msg* msg) : _dict(dict), _msg(msg), _free_on_delete(true) {};
-  inline Message(const Message& msg) : _dict(msg._dict), _msg(msg._msg), _free_on_delete(false) {};
+  inline Message(Dictionary* dict, struct msg* msg) : _dict(dict), _fd_msg(msg), _free_on_delete(true) {};
+  inline Message(const Message& msg) : _dict(msg._dict), _fd_msg(msg._fd_msg), _free_on_delete(false) {};
   virtual ~Message();
   inline const Dictionary* dict() const {return _dict;}
-  inline struct msg* msg() const {return _msg;}
+  inline struct msg* fd_msg() const {return _fd_msg;}
+  inline void build_response()
+  {
+    // _msg will point to the answer once this function is done.
+    fd_msg_new_answer_from_req(fd_g_config->cnf_dict, &_fd_msg, 0);
+  }
   inline Message& add_new_session_id()
   {
-    fd_msg_new_session(_msg, NULL, 0);
+    fd_msg_new_session(_fd_msg, NULL, 0);
     return *this;
   }
   inline Message& add_vendor_spec_app_id()
@@ -288,12 +259,17 @@ public:
   }
   inline Message& add_origin()
   {
-    fd_msg_add_origin(_msg, 0);
+    fd_msg_add_origin(_fd_msg, 0);
+    return *this;
+  }
+  inline Message& set_result_code(char* result_code)
+  {
+    fd_msg_rescode_set(_fd_msg, result_code, NULL, NULL, 1);
     return *this;
   }
   inline Message& add(AVP& avp)
   {
-    fd_msg_avp_add(_msg, MSG_BRW_LAST_CHILD, avp.avp());
+    fd_msg_avp_add(_fd_msg, MSG_BRW_LAST_CHILD, avp.avp());
     return *this;
   }
   bool get_str_from_avp(const Dictionary::AVP& type, std::string* str) const;
@@ -308,6 +284,10 @@ public:
   {
     return get_str_from_avp(dict()->USER_NAME, str);
   }
+  inline bool auth_session_state(int* i32) const
+  {
+    return get_i32_from_avp(dict()->AUTH_SESSION_STATE, i32);
+  }
   inline AVP::iterator begin() const;
   inline AVP::iterator begin(const Dictionary::AVP& type) const;
   inline AVP::iterator end() const;
@@ -318,7 +298,7 @@ public:
 
 private:
   const Dictionary* _dict;
-  struct msg* _msg;
+  struct msg* _fd_msg;
   bool _free_on_delete;
 };
 
@@ -327,8 +307,8 @@ class AVP::iterator
 public:
   inline iterator(const AVP& parent_avp) : _avp(find_first_child(parent_avp.avp())) {memset(&_filter_avp_data, 0, sizeof(_filter_avp_data));}
   inline iterator(const AVP& parent_avp, const Dictionary::AVP& child_type) : _filter_avp_data(get_avp_data(child_type.dict())), _avp(find_first_child(parent_avp.avp(), _filter_avp_data)) {}
-  inline iterator(const Message& parent_msg) : _avp(find_first_child(parent_msg.msg())) {memset(&_filter_avp_data, 0, sizeof(_filter_avp_data));}
-  inline iterator(const Message& parent_msg, const Dictionary::AVP& child_type) : _filter_avp_data(get_avp_data(child_type.dict())), _avp(find_first_child(parent_msg.msg(), _filter_avp_data)) {}
+  inline iterator(const Message& parent_msg) : _avp(find_first_child(parent_msg.fd_msg())) {memset(&_filter_avp_data, 0, sizeof(_filter_avp_data));}
+  inline iterator(const Message& parent_msg, const Dictionary::AVP& child_type) : _filter_avp_data(get_avp_data(child_type.dict())), _avp(find_first_child(parent_msg.fd_msg(), _filter_avp_data)) {}
   inline iterator(struct avp* avp) : _avp(avp) {memset(&_filter_avp_data, 0, sizeof(_filter_avp_data));};
   inline ~iterator() {};
 
@@ -408,6 +388,82 @@ private:
 
   struct dict_avp_data _filter_avp_data;
   AVP _avp;
+};
+
+class Stack
+{
+  public:
+    class Exception
+    {
+      public:
+        inline Exception(const char* func, int rc) : _func(func), _rc(rc) {};
+        const char* _func;
+        const int _rc;
+    };
+
+    class Handler
+    {
+      public:
+        inline Handler(Diameter::Message& msg) : _msg(msg) {}
+        virtual ~Handler() {}
+
+        virtual void run() = 0;
+        inline struct msg* fd_msg() const {return _msg.fd_msg();}
+      protected:
+        Diameter::Message _msg;
+    };
+
+    class BaseHandlerFactory
+    {
+      public:
+        BaseHandlerFactory(Dictionary *dict) : _dict(dict) {}
+        virtual Handler* create(Diameter::Message& msg) = 0;
+        Dictionary* _dict;
+    };
+
+    template <class H>
+      class HandlerFactory : public BaseHandlerFactory
+    {
+      public:
+        HandlerFactory(Dictionary* dict) : BaseHandlerFactory(dict) {};
+        Handler* create(Diameter::Message& msg) { return new H(msg); }
+    };
+
+    template <class H, class C>
+      class ConfiguredHandlerFactory : public BaseHandlerFactory
+    {
+      public:
+        ConfiguredHandlerFactory(Dictionary* dict, const C* cfg) : BaseHandlerFactory(dict), _cfg(cfg) {}
+        Handler* create(Diameter::Message& msg) { return new H(msg, _cfg); }
+      private:
+        const C* _cfg;
+    };
+
+  static inline Stack* get_instance() {return INSTANCE;};
+  virtual void initialize();
+  virtual void configure(std::string filename);
+  virtual void advertize_application(const Dictionary::Application& app);
+  virtual void register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory);
+  virtual void register_fallback_handler(const Dictionary::Application& app);
+  virtual void start();
+  virtual void stop();
+  virtual void wait_stopped();
+
+private:
+  static Stack* INSTANCE;
+  static Stack DEFAULT_INSTANCE;
+
+  Stack();
+  virtual ~Stack();
+  static int handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act);
+
+  // Don't implement the following, to avoid copies of this instance.
+  Stack(Stack const&);
+  void operator=(Stack const&);
+
+  static void logger(int fd_log_level, const char* fmt, va_list args);
+
+  bool _initialized;
 };
 
 AVP::iterator AVP::begin() const {return AVP::iterator(*this);}
