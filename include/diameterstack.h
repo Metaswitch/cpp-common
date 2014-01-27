@@ -109,6 +109,7 @@ public:
   const AVP DIGEST_QOP;
   const AVP EXPERIMENTAL_RESULT;
   const AVP EXPERIMENTAL_RESULT_CODE;
+  const AVP ACCT_INTERIM_INTERVAL;
 };
 
 class Transaction

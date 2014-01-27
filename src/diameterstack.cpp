@@ -304,6 +304,7 @@ Dictionary::Dictionary() :
   DIGEST_QOP("Digest-QoP"),
   EXPERIMENTAL_RESULT("Experimental-Result"),
   EXPERIMENTAL_RESULT_CODE("Experimental-Result-Code")
+  ACCT_INTERIM_INTERVAL("Acct-Interim-Interval");
 {
 }
 
