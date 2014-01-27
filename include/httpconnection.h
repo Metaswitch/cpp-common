@@ -58,7 +58,7 @@ typedef long HTTPCode;
 class HttpConnection
 {
 public:
-  HttpConnection(const std::string& server, bool assert_user, int sas_event_base, const std::string& stat_name, LoadMonitor* load_monitor);
+  HttpConnection(const std::string& server, bool assert_user, int sas_event_base, const std::string& stat_name, LastValueCache* lvc, LoadMonitor* load_monitor);
   HttpConnection(const std::string& server, bool assert_user, int sas_event_base);
   virtual ~HttpConnection();
 

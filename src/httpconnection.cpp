@@ -78,6 +78,7 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
                                bool assert_user,               //< Assert user in header?
                                int sas_event_base,             //< SAS events: sas_event_base - will have  SASEvent::HTTP_REQ / RSP / ERR added to it.
                                const std::string& stat_name,   //< Name of statistic to report connection info to.
+                               LastValueCache* lvc,      //< Last Value Cache to report statistics to.
                                LoadMonitor* load_monitor) :    //< Load Monitor.
   _server(server),
   _assert_user(assert_user),
@@ -87,7 +88,7 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   std::vector<std::string> no_stats;
-  _statistic = new Statistic(stat_name);
+  _statistic = new Statistic(stat_name, lvc);
   _statistic->report_change(no_stats);
   _load_monitor = load_monitor;
 }
