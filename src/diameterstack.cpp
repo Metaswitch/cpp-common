@@ -272,52 +272,52 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   *req = NULL;
 }
 
-AVP& AVP::val_json(const rapidjson::Value& data)
+AVP& AVP::val_json(const rapidjson::Value& value)
 {
-  for (rapidjson::Value::ConstMemberIterator it = data.MemberBegin();
-      it != data.MemberEnd();
-      ++it)
+  switch (value.GetType())
   {
-    switch (it->value.GetType())
-    {
     case rapidjson::kFalseType:
     case rapidjson::kTrueType:
     case rapidjson::kNullType:
       LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
-      continue;
-    case rapidjson::kStringType:
-      add(Diameter::AVP(it->name.GetString()).val_str(it->value.GetString()));
-      break;
-    case rapidjson::kNumberType:
-      add(Diameter::AVP(it->name.GetString()).val_u32(it->value.GetUint()));
       break;
     case rapidjson::kArrayType:
-      for (rapidjson::Value::ConstValueIterator ary_it = it->value.Begin();
-          ary_it != it->value.End();
-          ary_it++)
+      LOG_ERROR("Cannot store multiple values in one ACR");
+      break;
+    case rapidjson::kStringType:
+      val_str(value.GetString());
+      break;
+    case rapidjson::kNumberType:
+      val_u32(value.GetUint());
+      break;
+    case rapidjson::kObjectType:
+      for (rapidjson::Value::ConstMemberIterator it = value.MemberBegin();
+           it != value.MemberEnd();
+           ++it)
       {
-        switch (ary_it->GetType())
+        switch (it->value.GetType())
         {
-        case rapidjson::kNullType:
-        case rapidjson::kTrueType:
         case rapidjson::kFalseType:
-        case rapidjson::kObjectType:
-        case rapidjson::kArrayType:
-          LOG_ERROR("Invalid format for body of repeated AVP, ignoring");
+        case rapidjson::kTrueType:
+        case rapidjson::kNullType:
+          LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
           continue;
-        case rapidjson::kNumberType:
-          add(Diameter::AVP(it->name.GetString()).val_u32(ary_it->GetUint()));
+        case rapidjson::kArrayType:
+          for (rapidjson::Value::ConstValueIterator ary_it = it->value.Begin();
+               ary_it != it->value.End();
+               ++ary_it)
+          {
+            add(Diameter::AVP(it->name.GetString()).val_json(ary_it));
+          }
           break;
         case rapidjson::kStringType:
-          add(Diameter::AVP(it->name.GetString()).val_str(ary_it->GetString()));
+        case rapidjson::kNumberType:
+        case rapidjson::kObjectType:
+          add(Diameter::AVP(it->name.GetString()).val_json(it->value));
           break;
         }
       }
       break;
-    case rapidjson::kObjectType:
-      add(Diameter::AVP(it->name.GetString()).val_json(it->value));
-      break;
-    }
   }
 
   return *this;
