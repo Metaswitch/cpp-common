@@ -87,7 +87,7 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   std::vector<std::string> no_stats;
-  _statistic = new Statistic(stat_name);
+  _statistic = new Statistic(stat_name, NULL);
   _statistic->report_change(no_stats);
   _load_monitor = load_monitor;
 }
