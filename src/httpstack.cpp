@@ -35,6 +35,7 @@
  */
 
 #include <httpstack.h>
+#include <cstring>
 
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
@@ -104,7 +105,24 @@ void HttpStack::start()
     throw Exception("evhtp_use_threads", rc); // LCOV_EXCL_LINE
   }
 
-  rc = evhtp_bind_socket(_evhtp, _bind_address.c_str(), _bind_port, 1024);
+  // If the bind address is IPv6 evhtp needs to be told by prepending ipv6 to
+  // the  parameter.  Use getaddrinfo() to analyse the bind_address.
+  addrinfo hints;
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_UNSPEC;    // To allow both IPv4 and IPv6 addresses.
+  hints.ai_socktype = SOCK_STREAM;
+  addrinfo* servinfo = NULL;
+
+  std::string full_bind_address = _bind_address;
+  const int error_num = getaddrinfo(_bind_address.c_str(), NULL, &hints, &servinfo);
+
+  if ((error_num == 0) &&
+      (servinfo->ai_family == AF_INET6))
+  {
+    full_bind_address = "ipv6:" + full_bind_address;
+  }
+
+  rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), _bind_port, 1024);
   if (rc != 0)
   {
     throw Exception("evhtp_bind_socket", rc); // LCOV_EXCL_LINE
@@ -167,3 +185,4 @@ std::string HttpStack::Request::body()
   }
   return body;
 }
+
