@@ -94,8 +94,8 @@ void Stack::register_handler(const Dictionary::Application& app, const Dictionar
 {
   // Register a callback for messages from our application with the specified message type.
   // DISP_HOW_CC indicates that we want to match on command code (and allows us to optionally
-  //  match on application if specified). Use a pointer to our HandlerFactory to pass through
-  //  to our callback function.
+  // match on application if specified). Use a pointer to our HandlerFactory to pass through
+  // to our callback function.
   struct disp_when data;
   memset(&data, 0, sizeof(data));
   data.app = app.dict();
@@ -142,7 +142,7 @@ int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session
 int Stack::fallback_handler_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act)
 {
   // This means we have received a message of an unexpected type.
-  LOG_DEBUG("Message of unexpected type received");
+  LOG_WARN("Message of unexpected type received");
   return ENOTSUP;
 }
 
