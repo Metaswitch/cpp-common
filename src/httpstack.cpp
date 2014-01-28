@@ -34,8 +34,9 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <httpstack.h>
+#include "httpstack.h"
 #include <cstring>
+#include "log.h"
 
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
@@ -60,6 +61,7 @@ bool HttpStack::Request::get_latency(unsigned long& latency_us)
 
 void HttpStack::send_reply(Request& req, int rc)
 {
+  LOG_DEBUG("Sending response %d to request for URL %s", rc, req.req()->uri->path->full);
   // Log and set up the return code.
   log(std::string(req.req()->uri->path->full), rc);
   evhtp_send_reply(req.req(), rc);
@@ -114,6 +116,10 @@ void HttpStack::configure(const std::string& bind_address,
                           StatisticsManager* stats_manager,
                           LoadMonitor* load_monitor)
 {
+  LOG_STATUS("Configuring HTTP stack");
+  LOG_STATUS("  Bind address: %s", bind_address.c_str());
+  LOG_STATUS("  Bind port:    %u", bind_port);
+  LOG_STATUS("  Num threads:  %d", num_threads);
   _bind_address = bind_address;
   _bind_port = bind_port;
   _num_threads = num_threads;
@@ -173,12 +179,14 @@ void HttpStack::start()
 
 void HttpStack::stop()
 {
+  LOG_STATUS("Stopping HTTP stack");
   event_base_loopbreak(_evbase);
   evhtp_unbind_socket(_evhtp);
 }
 
 void HttpStack::wait_stopped()
 {
+  LOG_STATUS("Waiting for HTTP stack to stop");
   pthread_join(_event_base_thread, NULL);
   evhtp_free(_evhtp);
   _evhtp = NULL;
@@ -207,6 +215,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     evhtp_request_pause(req);
 
     // Create a Request and a Handler and kick off processing.
+    LOG_DEBUG("Handling request for URL %s", req->uri->path->full);
     Request request(this, req);
     Handler* handler = handler_factory->create(request);
     handler->run();

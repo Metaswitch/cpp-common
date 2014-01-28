@@ -83,6 +83,11 @@ private:
   void write_log_file(const char* data, const timestamp_t& ts);
   void cycle_log_file(const timestamp_t& ts);
 
+  // Two methods to use with pthread_cleanup_push to release the lock if the logging thread is
+  // forcibly killed.
+  static void release_lock(void* logger) {((Logger*)logger)->release_lock();}
+  void release_lock() {pthread_mutex_unlock(&_lock);}
+
   int _flags;
   std::string _prefix;
   int _last_hour;

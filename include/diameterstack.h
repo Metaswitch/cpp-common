@@ -257,6 +257,7 @@ public:
   virtual ~Message();
   inline const Dictionary* dict() const {return _dict;}
   inline struct msg* fd_msg() const {return _fd_msg;}
+  inline uint32_t command_code() const {return msg_hdr()->msg_code;}
   inline void build_response()
   {
     // _msg will point to the answer once this function is done.
@@ -324,6 +325,13 @@ private:
   const Dictionary* _dict;
   struct msg* _fd_msg;
   bool _free_on_delete;
+
+  inline struct msg_hdr* msg_hdr() const
+  {
+    struct msg_hdr* hdr;
+    fd_msg_hdr(_fd_msg, &hdr);
+    return hdr;
+  }
 };
 
 class AVP::iterator
