@@ -1,5 +1,5 @@
 /**
- * @file counter.h class definition for a statistics counter
+ * @file test_interposer.hpp Unit test interposer header - hooks various calls that are useful for UT.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,77 +34,15 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef COUNTER_H__
-#define COUNTER_H__
 
-#include <atomic>
-#include <time.h>
+#pragma once
 
-#include "statrecorder.h"
-#include "zmq_lvc.h"
+#include <string>
 
-/// @class Counter
-///
-/// Counts events over a set period, pushing the total number as the statistic
-class Counter : public StatRecorder
-{
-public:
+void cwtest_add_host_mapping(std::string host, std::string target);
+void cwtest_clear_host_mapping();
+void cwtest_advance_time_ms(long delta_ms);
+void cwtest_reset_time();
+void cwtest_completely_control_time();
 
-  inline Counter(uint_fast64_t period_us = DEFAULT_PERIOD_US) :
-           StatRecorder(period_us)
-  {
-    reset();
-  }
-
-  /// Increment function
-  void increment(void);
-
-  /// Refresh our calculations - called at the end of each period, or
-  /// optionally at other times to get an up-to-date result.
-  virtual void refresh(bool force = false);
-
-  /// Get number of results in last period.
-  inline uint_fast64_t get_count() { return _last._count; }
-
-  virtual void reset();
-
-private:
-  /// Current accumulated count.
-  struct {
-    std::atomic_uint_fast64_t _timestamp_us;
-    std::atomic_uint_fast64_t _count;
-  } _current;
-
-  /// Count accumulated over the previous period.
-  struct {
-    volatile uint_fast64_t _count;
-  } _last;
-
-  virtual void read(uint_fast64_t period_us);
-};
-
-/// @class StatisticCounter
-///
-/// Counts and reports value as a zeroMQ-based statistic.
-class StatisticCounter : public Counter
-{
-public:
-  /// Constructor.
-  inline StatisticCounter(std::string statname,
-                          LastValueCache* lvc,
-                          uint_fast64_t period_us = DEFAULT_PERIOD_US) :
-    Counter(period_us),
-    _statistic(statname, lvc)
-  {}
-
-  /// Callback whenever the accumulated statistics are refreshed. Passes
-  /// values to zeroMQ.
-  virtual void refreshed();
-
-private:
-  /// The zeroMQ-based statistic to report to.
-  Statistic _statistic;
-};
-
-#endif
 
