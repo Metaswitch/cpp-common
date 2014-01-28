@@ -43,6 +43,8 @@
 #include <freeDiameter/libfdcore.h>
 #include <rapidjson/document.h>
 
+#include "utils.h"
+
 namespace Diameter
 {
 class Stack;
@@ -121,11 +123,26 @@ public:
   virtual void on_response(Message& rsp) = 0;
   virtual void on_timeout() = 0;
 
+  // Methods to start and stop the duration stopwatch.  Should only be called by
+  // the diameter stack.
+  void start_timer() { _stopwatch.start(); }
+  void stop_timer() { _stopwatch.stop(); }
+
+  /// Get the duration of the transaction in microseconds.
+  ///
+  /// @param duration_us The duration. Only valid if the function returns true.
+  /// @return whether the duration was obtained successfully.
+  bool get_duration(unsigned long duration_us)
+  {
+    return _stopwatch.read(duration_us);
+  }
+
   static void on_response(void* data, struct msg** rsp);
   static void on_timeout(void* data, DiamId_t to, size_t to_len, struct msg** req);
 
 private:
   Dictionary* _dict;
+  Utils::StopWatch _stopwatch;
 };
 
 class AVP
