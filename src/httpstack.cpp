@@ -35,15 +35,27 @@
  */
 
 #include <httpstack.h>
+#include <cstring>
 
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
+bool HttpStack::_ev_using_pthreads = false;
 
-HttpStack::HttpStack() {}
+HttpStack::HttpStack() :
+  _access_logger(NULL),
+  _stats_manager(NULL),
+  _load_monitor(NULL)
+{}
 
 void HttpStack::Request::send_reply(int rc)
 {
+  stopwatch.stop();
   _stack->send_reply(*this, rc);
+}
+
+bool HttpStack::Request::get_latency(unsigned long& latency_us)
+{
+  return stopwatch.read(latency_us);
 }
 
 void HttpStack::send_reply(Request& req, int rc)
@@ -55,19 +67,40 @@ void HttpStack::send_reply(Request& req, int rc)
   // Resume the request to actually send it.  This matches the function to pause the request in
   // HttpStack::handler_callback_fn.
   evhtp_request_resume(req.req());
+
+  // Update the latency stats and throttling algorithm.
+  unsigned long latency_us = 0;
+  if (req.get_latency(latency_us))
+  {
+    if (_load_monitor != NULL)
+    {
+      _load_monitor->request_complete(latency_us);
+    }
+
+    if (_stats_manager != NULL)
+    {
+      _stats_manager->update_H_latency_us(latency_us);
+    }
+  }
 }
 
 void HttpStack::initialize()
 {
   // Initialize if we haven't already done so.  We don't do this in the
   // constructor because we can't throw exceptions on failure.
+  if (!_ev_using_pthreads)
+  {
+    // Tell libevent to use pthreads.  If you don't, it seems to disable
+    // locking, with hilarious results.
+    evthread_use_pthreads();
+    _ev_using_pthreads = true;
+  }
+
   if (!_evbase)
   {
-    // Tell libevent to use pthreads.  If you don't, it seems to disable locking, with hilarious
-    // results.
-    evthread_use_pthreads();
     _evbase = event_base_new();
   }
+
   if (!_evhtp)
   {
     _evhtp = evhtp_new(_evbase, NULL);
@@ -77,12 +110,16 @@ void HttpStack::initialize()
 void HttpStack::configure(const std::string& bind_address,
                           unsigned short bind_port,
                           int num_threads,
-                          AccessLogger* access_logger)
+                          AccessLogger* access_logger,
+                          StatisticsManager* stats_manager,
+                          LoadMonitor* load_monitor)
 {
   _bind_address = bind_address;
   _bind_port = bind_port;
   _num_threads = num_threads;
   _access_logger = access_logger;
+  _stats_manager = stats_manager;
+  _load_monitor = load_monitor;
 }
 
 void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* factory)
@@ -104,7 +141,24 @@ void HttpStack::start()
     throw Exception("evhtp_use_threads", rc); // LCOV_EXCL_LINE
   }
 
-  rc = evhtp_bind_socket(_evhtp, _bind_address.c_str(), _bind_port, 1024);
+  // If the bind address is IPv6 evhtp needs to be told by prepending ipv6 to
+  // the  parameter.  Use getaddrinfo() to analyse the bind_address.
+  addrinfo hints;
+  memset(&hints, 0, sizeof(hints));
+  hints.ai_family = AF_UNSPEC;    // To allow both IPv4 and IPv6 addresses.
+  hints.ai_socktype = SOCK_STREAM;
+  addrinfo* servinfo = NULL;
+
+  std::string full_bind_address = _bind_address;
+  const int error_num = getaddrinfo(_bind_address.c_str(), NULL, &hints, &servinfo);
+
+  if ((error_num == 0) &&
+      (servinfo->ai_family == AF_INET6))
+  {
+    full_bind_address = "ipv6:" + full_bind_address;
+  }
+
+  rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), _bind_port, 1024);
   if (rc != 0)
   {
     throw Exception("evhtp_bind_socket", rc); // LCOV_EXCL_LINE
@@ -134,14 +188,38 @@ void HttpStack::wait_stopped()
 
 void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
 {
-  // Pause the request processing (which stops it from being cancelled), as we may process this
-  // request asynchronously.  The HttpStack::Request::send_reply method resumes.
-  evhtp_request_pause(req);
+  INSTANCE->handler_callback(req, (HttpStack::BaseHandlerFactory*)handler_factory);
+}
 
-  // Create a Request and a Handler and kick off processing.
-  Request request(INSTANCE, req);
-  Handler* handler = ((HttpStack::BaseHandlerFactory*)handler_factory)->create(request);
-  handler->run();
+void HttpStack::handler_callback(evhtp_request_t* req,
+                                 HttpStack::BaseHandlerFactory* handler_factory)
+{
+  if (_stats_manager != NULL)
+  {
+    _stats_manager->incr_H_incoming_requests();
+  }
+
+  if ((_load_monitor == NULL) || _load_monitor->admit_request())
+  {
+    // Pause the request processing (which stops it from being cancelled), as we
+    // may process this request asynchronously.  The
+    // HttpStack::Request::send_reply method resumes.
+    evhtp_request_pause(req);
+
+    // Create a Request and a Handler and kick off processing.
+    Request request(this, req);
+    Handler* handler = handler_factory->create(request);
+    handler->run();
+  }
+  else
+  {
+    evhtp_send_reply(req, 503);
+
+    if (_stats_manager != NULL)
+    {
+      _stats_manager->incr_H_rejected_overload();
+    }
+  }
 }
 
 void* HttpStack::event_base_thread_fn(void* http_stack_ptr)
@@ -153,6 +231,14 @@ void* HttpStack::event_base_thread_fn(void* http_stack_ptr)
 void HttpStack::event_base_thread_fn()
 {
   event_base_loop(_evbase, 0);
+}
+
+void HttpStack::record_penalty()
+{
+  if (_load_monitor != NULL)
+  {
+    _load_monitor->incr_penalties();
+  }
 }
 
 std::string HttpStack::Request::body()
@@ -167,3 +253,4 @@ std::string HttpStack::Request::body()
   }
   return body;
 }
+

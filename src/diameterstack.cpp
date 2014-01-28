@@ -305,7 +305,8 @@ Dictionary::Dictionary() :
   DIGEST_REALM("Digest-Realm"),
   DIGEST_QOP("Digest-QoP"),
   EXPERIMENTAL_RESULT("Experimental-Result"),
-  EXPERIMENTAL_RESULT_CODE("Experimental-Result-Code")
+  EXPERIMENTAL_RESULT_CODE("Experimental-Result-Code"),
+  ACCT_INTERIM_INTERVAL("Acct-Interim-Interval")
 {
 }
 
@@ -321,6 +322,7 @@ void Transaction::on_response(void* data, struct msg** rsp)
 {
   Transaction* tsx = (Transaction*)data;
   Message msg(tsx->_dict, *rsp);
+  tsx->stop_timer();
   tsx->on_response(msg);
   delete tsx;
   // Null out the message so that freeDiameter doesn't try to send it on.
@@ -331,58 +333,59 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 {
   Transaction* tsx = (Transaction*)data;
   Message msg(tsx->_dict, *req);
+  tsx->stop_timer();
   tsx->on_timeout();
   delete tsx;
   // Null out the message so that freeDiameter doesn't try to send it on.
   *req = NULL;
 }
 
-AVP& AVP::val_json(const rapidjson::Value& data)
+AVP& AVP::val_json(const rapidjson::Value& value)
 {
-  for (rapidjson::Value::ConstMemberIterator it = data.MemberBegin();
-      it != data.MemberEnd();
-      ++it)
+  switch (value.GetType())
   {
-    switch (it->value.GetType())
-    {
     case rapidjson::kFalseType:
     case rapidjson::kTrueType:
     case rapidjson::kNullType:
       LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
-      continue;
-    case rapidjson::kStringType:
-      add(Diameter::AVP(it->name.GetString()).val_str(it->value.GetString()));
-      break;
-    case rapidjson::kNumberType:
-      add(Diameter::AVP(it->name.GetString()).val_u32(it->value.GetUint()));
       break;
     case rapidjson::kArrayType:
-      for (rapidjson::Value::ConstValueIterator ary_it = it->value.Begin();
-          ary_it != it->value.End();
-          ary_it++)
+      LOG_ERROR("Cannot store multiple values in one ACR");
+      break;
+    case rapidjson::kStringType:
+      val_str(value.GetString());
+      break;
+    case rapidjson::kNumberType:
+      val_u32(value.GetUint());
+      break;
+    case rapidjson::kObjectType:
+      for (rapidjson::Value::ConstMemberIterator it = value.MemberBegin();
+           it != value.MemberEnd();
+           ++it)
       {
-        switch (ary_it->GetType())
+        switch (it->value.GetType())
         {
-        case rapidjson::kNullType:
-        case rapidjson::kTrueType:
         case rapidjson::kFalseType:
-        case rapidjson::kObjectType:
-        case rapidjson::kArrayType:
-          LOG_ERROR("Invalid format for body of repeated AVP, ignoring");
+        case rapidjson::kTrueType:
+        case rapidjson::kNullType:
+          LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
           continue;
-        case rapidjson::kNumberType:
-          add(Diameter::AVP(it->name.GetString()).val_u32(ary_it->GetUint()));
+        case rapidjson::kArrayType:
+          for (rapidjson::Value::ConstValueIterator ary_it = it->value.Begin();
+               ary_it != it->value.End();
+               ++ary_it)
+          {
+            add(Diameter::AVP(it->name.GetString()).val_json(ary_it));
+          }
           break;
         case rapidjson::kStringType:
-          add(Diameter::AVP(it->name.GetString()).val_str(ary_it->GetString()));
+        case rapidjson::kNumberType:
+        case rapidjson::kObjectType:
+          add(Diameter::AVP(it->name.GetString()).val_json(it->value));
           break;
         }
       }
       break;
-    case rapidjson::kObjectType:
-      add(Diameter::AVP(it->name.GetString()).val_json(it->value));
-      break;
-    }
   }
 
   return *this;
@@ -482,6 +485,7 @@ void Message::send()
 
 void Message::send(Transaction* tsx)
 {
+  tsx->start_timer();
   fd_msg_send(&_fd_msg, Transaction::on_response, tsx);
   _free_on_delete = false;
 }
@@ -495,6 +499,8 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
   timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
+
+  tsx->start_timer();
   fd_msg_send_timeout(&_fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
   _free_on_delete = false;
 }
