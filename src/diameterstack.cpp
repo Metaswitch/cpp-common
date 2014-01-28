@@ -39,12 +39,10 @@
 
 using namespace Diameter;
 
-static struct disp_hdl * callback_handler = NULL; /* Handler for requests callback */
-
 Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 
-Stack::Stack() : _initialized(false)
+Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
 {
 }
 
@@ -94,14 +92,15 @@ void Stack::advertize_application(const Dictionary::Application& app)
 
 void Stack::register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory)
 {
-  // Register a callback for messages from our application with the specified message type. DISP_HOW_CC indicates that we
-  // want to match on command code (and allows us to optionally match on application if specified). Use a pointer to our
-  // HandlerFactory to pass through to our callback function.
+  // Register a callback for messages from our application with the specified message type.
+  // DISP_HOW_CC indicates that we want to match on command code (and allows us to optionally
+  // match on application if specified). Use a pointer to our HandlerFactory to pass through
+  // to our callback function.
   struct disp_when data;
   memset(&data, 0, sizeof(data));
   data.app = app.dict();
   data.command = msg.dict();
-  int rc = fd_disp_register(handler_callback_fn, DISP_HOW_CC, &data, (void *)factory, &callback_handler);
+  int rc = fd_disp_register(handler_callback_fn, DISP_HOW_CC, &data, (void *)factory, &_callback_handler);
 
   if (rc != 0)
   {
@@ -112,12 +111,11 @@ void Stack::register_handler(const Dictionary::Application& app, const Dictionar
 void Stack::register_fallback_handler(const Dictionary::Application &app)
 {
   // Register a fallback callback for messages of an unexpected type to our application
-  // so that we can log receiving an unexpected message. We use the same callback function
-  // to handle unexpected messages as expected messages, but we don't pass through a HandlerFactory.
+  // so that we can log receiving an unexpected message.
   struct disp_when data;
   memset(&data, 0, sizeof(data));
   data.app = app.dict();
-  int rc = fd_disp_register(handler_callback_fn, DISP_HOW_APPID, &data, NULL, &callback_handler);
+  int rc = fd_disp_register(fallback_handler_callback_fn, DISP_HOW_APPID, &data, NULL, &_callback_fallback_handler);
 
   if (rc != 0)
   {
@@ -125,17 +123,9 @@ void Stack::register_fallback_handler(const Dictionary::Application &app)
   }
 }
 
-
 int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act)
 {
-  if (handler_factory == NULL)
-  {
-    // This means we have received a message of an unexpected type.
-    LOG_DEBUG("Message of unexpected type received");
-    return 0;
-  }
-
-  // Convert the received message into one our Message objects, and create a new handler instance of the
+  // Convert the received message into one our Message objects, and create a new handler instance of the 
   // correct type.
   Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req);
   Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(msg);
@@ -144,9 +134,16 @@ int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session
   // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
   // Setting the action to DISP_ACT_SEND ensures that we will send this answer on without going to any other callbacks.
   // Return 0 to indicate no errors with the callback.
-  *req = handler->fd_msg();
-  *act = DISP_ACT_SEND;
+  *req = NULL;
+  *act = DISP_ACT_CONT;
   return 0;
+}
+
+int Stack::fallback_handler_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act)
+{
+  // This means we have received a message of an unexpected type.
+  LOG_WARN("Message of unexpected type received");
+  return ENOTSUP;
 }
 
 void Stack::start()
@@ -163,9 +160,14 @@ void Stack::stop()
 {
   if (_initialized)
   {
-    if (callback_handler)
+    if (_callback_handler)
     {
-      (void)fd_disp_unregister(&callback_handler, NULL);
+      (void)fd_disp_unregister(&_callback_handler, NULL);
+    }
+
+    if (_callback_fallback_handler)
+    {
+      (void)fd_disp_unregister(&_callback_fallback_handler, NULL);
     }
 
     int rc = fd_core_shutdown();
@@ -410,12 +412,12 @@ void Message::operator=(Message const& msg)
 
 // Given an AVP type, search a Diameter message for an AVP of this type. If one exists,
 // return true and set str to the string value of this AVP. Otherwise return false.
-bool Message::get_str_from_avp(const Dictionary::AVP& type, std::string* str) const
+bool Message::get_str_from_avp(const Dictionary::AVP& type, std::string& str) const
 {
   AVP::iterator avps = begin(type);
   if (avps != end())
   {
-    (*str) = avps->val_str();
+    str = avps->val_str();
     return true;
   }
   else
@@ -426,12 +428,12 @@ bool Message::get_str_from_avp(const Dictionary::AVP& type, std::string* str) co
 
 // Given an AVP type, search a Diameter message for an AVP of this type. If one exists,
 // return true and set i32 to the integer value of this AVP. Otherwise return false.
-bool Message::get_i32_from_avp(const Dictionary::AVP& type, int* i32) const
+bool Message::get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const
 {
   AVP::iterator avps = begin(type);
   if (avps != end())
   {
-    (*i32) = avps->val_i32();
+    i32 = avps->val_i32();
     return true;
   }
   else
@@ -443,9 +445,9 @@ bool Message::get_i32_from_avp(const Dictionary::AVP& type, int* i32) const
 // Get the experimental result code from the EXPERIMENTAL_RESULT_CODE AVP
 // of a Diameter message if it is present. This AVP is inside the
 // EXPERIMENTAL_RESULT AVP.
-int Message::experimental_result_code() const
+int32_t Message::experimental_result_code() const
 {
-  int experimental_result_code = 0;
+  int32_t experimental_result_code = 0;
   AVP::iterator avps = begin(dict()->EXPERIMENTAL_RESULT);
   if (avps != end())
   {
@@ -460,9 +462,9 @@ int Message::experimental_result_code() const
 
 // Get the vendor ID from the VENDOR_ID AVP of a Diameter message if it
 // is present. This AVP is inside the VENDOR_SPECIFIC_APPLICATION_ID AVP.
-int Message::vendor_id() const
+int32_t Message::vendor_id() const
 {
-  int vendor_id = 0;
+  int32_t vendor_id = 0;
   AVP::iterator avps = begin(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
   if (avps != end())
   {
