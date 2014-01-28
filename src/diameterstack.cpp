@@ -135,7 +135,7 @@ int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session
     return 0;
   }
 
-  // Convert the received message into one our Message objects, and create a new handler instance of the 
+  // Convert the received message into one our Message objects, and create a new handler instance of the
   // correct type.
   Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req);
   Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(msg);
@@ -303,8 +303,8 @@ Dictionary::Dictionary() :
   DIGEST_REALM("Digest-Realm"),
   DIGEST_QOP("Digest-QoP"),
   EXPERIMENTAL_RESULT("Experimental-Result"),
-  EXPERIMENTAL_RESULT_CODE("Experimental-Result-Code")
-  ACCT_INTERIM_INTERVAL("Acct-Interim-Interval");
+  EXPERIMENTAL_RESULT_CODE("Experimental-Result-Code"),
+  ACCT_INTERIM_INTERVAL("Acct-Interim-Interval")
 {
 }
 
