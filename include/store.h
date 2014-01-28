@@ -77,12 +77,20 @@ public:
   ///                 to the CAS value returned when the data was read, or
   ///                 zero if writing a record for the first time.
   /// @param expiry   Expiry period of the data (in seconds).  If zero the
-  ///                 data will expire immediately.
+  ///                 data will persist forever.
   virtual Status set_data(const std::string& table,
                           const std::string& key,
                           const std::string& data,
                           uint64_t cas,
                           int expiry) = 0;
+
+  /// Delete the data for the specified key in the specified namespace.
+  ///
+  /// @return         Status value indicating the result of the delete.
+  /// @param table    Name of the table to store the data.
+  /// @param key      Key used to index the data within the table.
+  virtual Status delete_data(const std::string& table,
+                             const std::string& key) = 0;
 };
 
 #endif

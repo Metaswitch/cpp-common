@@ -1,5 +1,5 @@
 /**
- * @file localstore.h Definitions for the LocalStore class
+ * @file accesslogger.h Declaration of AccessLogger class.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,44 +34,30 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef LOCALSTORE_H__
-#define LOCALSTORE_H__
+///
+///
 
-#include <map>
-#include <pthread.h>
+#ifndef ACCESSLOGGER_H__
+#define ACCESSLOGGER_H__
 
-#include "store.h"
+#include <sstream>
 
-class LocalStore : public Store
+#include "logger.h"
+
+class AccessLogger
 {
 public:
-  LocalStore();
-  virtual ~LocalStore();
+  AccessLogger(const std::string& directory);
+  ~AccessLogger();
 
-  void flush_all();
+  void log(const std::string& url,
+           int rc);
 
-  Store::Status get_data(const std::string& table,
-                         const std::string& key,
-                         std::string& data,
-                         uint64_t& cas);
-  Store::Status set_data(const std::string& table,
-                         const std::string& key,
-                         const std::string& data,
-                         uint64_t cas,
-                         int expiry);
-  Store::Status delete_data(const std::string& table,
-                            const std::string& key);
 private:
-  typedef struct record
-  {
-    std::string data;
-    uint32_t expiry;
-    uint64_t cas;
-  } Record;
+  static const int BUFFER_SIZE = 1000;
 
-  pthread_mutex_t _db_lock;
-  std::map<std::string, Record> _db;
+  Logger* _logger;
 };
 
-
 #endif
+

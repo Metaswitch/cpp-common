@@ -1,5 +1,5 @@
 /**
- * @file localstore.h Definitions for the LocalStore class
+ * @file accesslogger.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,44 +34,28 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef LOCALSTORE_H__
-#define LOCALSTORE_H__
+#include <stdio.h>
 
-#include <map>
-#include <pthread.h>
+#include "accesslogger.h"
 
-#include "store.h"
-
-class LocalStore : public Store
+AccessLogger::AccessLogger(const std::string& directory)
 {
-public:
-  LocalStore();
-  virtual ~LocalStore();
+  _logger = new Logger(directory, std::string("access"));
+  _logger->set_flags(Logger::ADD_TIMESTAMPS|Logger::FLUSH_ON_WRITE);
+}
 
-  void flush_all();
+AccessLogger::~AccessLogger()
+{
+  delete _logger;
+}
 
-  Store::Status get_data(const std::string& table,
-                         const std::string& key,
-                         std::string& data,
-                         uint64_t& cas);
-  Store::Status set_data(const std::string& table,
-                         const std::string& key,
-                         const std::string& data,
-                         uint64_t cas,
-                         int expiry);
-  Store::Status delete_data(const std::string& table,
-                            const std::string& key);
-private:
-  typedef struct record
-  {
-    std::string data;
-    uint32_t expiry;
-    uint64_t cas;
-  } Record;
-
-  pthread_mutex_t _db_lock;
-  std::map<std::string, Record> _db;
-};
-
-
-#endif
+void AccessLogger::log(const std::string& uri,
+                       int rc)
+{
+  char buf[BUFFER_SIZE];
+  snprintf(buf, sizeof(buf),
+           "%d GET %s\n",
+           rc,
+           uri.c_str());
+  _logger->write(buf);
+}
