@@ -550,7 +550,7 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
   char* headerLine = reinterpret_cast<char *>(ptr);
 
   // convert to string
-  std::string headerString(headerLine); 
+  std::string headerString(headerLine, (size * nmemb));
 
   // lowercase - 
   std::transform(headerString.begin(), headerString.end(), headerString.begin(), ::tolower);

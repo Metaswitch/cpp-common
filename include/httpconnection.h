@@ -106,7 +106,7 @@ private:
 
   CURL* get_curl_handle();
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
-  size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
+  static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
   const std::string _server;
   const bool _assert_user;
   const int _sas_event_base;
