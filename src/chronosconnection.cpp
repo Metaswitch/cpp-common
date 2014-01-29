@@ -68,8 +68,8 @@ HTTPCode ChronosConnection::send_delete(const std::string& delete_identity, SAS:
 }
 
 HTTPCode ChronosConnection::send_put(const std::string& put_identity,
-                                     const std::string& timer_interval,
-                                     const std::string& repeat_for,
+                                     uint32_t timer_interval,
+                                     uint32_t repeat_for,
                                      const std::string& callback_uri,
                                      const Json::Value& opaque_data,
                                      SAS::TrailId trail)
@@ -84,8 +84,8 @@ HTTPCode ChronosConnection::send_put(const std::string& put_identity,
 }
 
 HTTPCode ChronosConnection::send_post(std::string& post_identity,
-                                      const std::string& timer_interval,
-                                      const std::string& repeat_for,
+                                      uint32_t timer_interval,
+                                      uint32_t repeat_for,
                                       const std::string& callback_uri,
                                       const Json::Value& opaque_data,
                                       SAS::TrailId trail)
@@ -104,8 +104,26 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
   return success;
 }
 
-std::string ChronosConnection::create_body(const std::string& interval,
-                                           const std::string& repeat_for,
+HTTPCode ChronosConnection::send_put(const std::string& put_identity,
+                                     uint32_t timer_interval,
+                                     const std::string& callback_uri,
+                                     const Json::Value& opaque_data,
+                                     SAS::TrailId trail)
+{
+  return send_put(put_identity, timer_interval, timer_interval, callback_uri, opaque_data, trail);
+}
+
+HTTPCode ChronosConnection::send_post(std::string& post_identity,
+                                      uint32_t timer_interval,
+                                      const std::string& callback_uri,
+                                      const Json::Value& opaque_data,
+                                      SAS::TrailId trail)
+{
+  return send_post(post_identity, timer_interval, timer_interval, callback_uri, opaque_data, trail);
+}
+
+std::string ChronosConnection::create_body(uint32_t interval,
+                                           uint32_t repeat_for,
                                            const std::string& uri,
                                            const Json::Value& opaque_data)
 {
@@ -121,5 +139,5 @@ std::string ChronosConnection::create_body(const std::string& interval,
   Json::FastWriter writer;
   std::string data = writer.write(body);
 
-  return Utils::url_escape(data);
+  return data;
 }

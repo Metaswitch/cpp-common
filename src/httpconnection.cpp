@@ -122,7 +122,7 @@ HttpConnection::~HttpConnection()
   {
     delete _statistic;
     _statistic = NULL;
-  }  
+  }
 }
 
 
@@ -235,11 +235,11 @@ HTTPCode HttpConnection::send_put(const std::string& path, std::string body, con
 HTTPCode HttpConnection::send_post(const std::string& path, std::string body, std::map<std::string, std::string>& headers, SAS::TrailId trail)
 {
   CURL *curl = get_curl_handle();
-  struct curl_slist *slist = NULL; 
+  struct curl_slist *slist = NULL;
   slist = curl_slist_append(slist, "Content-Type: application/json");
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_POST, 1);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());   
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
   std::string json_data;
@@ -301,7 +301,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     SAS::Event http_req_event(trail, _sas_event_base + SASEvent::HTTP_REQ, 1u);
     http_req_event.add_var_param(url);
     SAS::report_event(http_req_event);
-    
+
     // Send the request.
     doc.clear();
     LOG_DEBUG("Sending HTTP request : %s (try %d) %s", url.c_str(), attempt, (recycle_conn) ? "on new connection" : "");
@@ -551,9 +551,9 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
   char* headerLine = reinterpret_cast<char *>(ptr);
 
   // convert to string
-  std::string headerString(headerLine); 
+  std::string headerString(headerLine, (size * nmemb));
 
-  // lowercase - 
+  // lowercase -
   std::transform(headerString.begin(), headerString.end(), headerString.begin(), ::tolower);
 
 
