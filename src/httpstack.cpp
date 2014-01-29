@@ -44,7 +44,7 @@ bool HttpStack::_ev_using_pthreads = false;
 
 HttpStack::HttpStack() :
   _access_logger(NULL),
-  _stats_manager(NULL),
+  _stats(NULL),
   _load_monitor(NULL)
 {}
 
@@ -79,9 +79,9 @@ void HttpStack::send_reply(Request& req, int rc)
       _load_monitor->request_complete(latency_us);
     }
 
-    if (_stats_manager != NULL)
+    if (_stats != NULL)
     {
-      _stats_manager->update_H_latency_us(latency_us);
+      _stats->update_http_latency_us(latency_us);
     }
   }
 }
@@ -113,7 +113,7 @@ void HttpStack::configure(const std::string& bind_address,
                           unsigned short bind_port,
                           int num_threads,
                           AccessLogger* access_logger,
-                          StatisticsManager* stats_manager,
+                          HttpStack::StatsInterface* stats,
                           LoadMonitor* load_monitor)
 {
   LOG_STATUS("Configuring HTTP stack");
@@ -124,7 +124,7 @@ void HttpStack::configure(const std::string& bind_address,
   _bind_port = bind_port;
   _num_threads = num_threads;
   _access_logger = access_logger;
-  _stats_manager = stats_manager;
+  _stats = stats;
   _load_monitor = load_monitor;
 }
 
@@ -202,9 +202,9 @@ void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
 void HttpStack::handler_callback(evhtp_request_t* req,
                                  HttpStack::BaseHandlerFactory* handler_factory)
 {
-  if (_stats_manager != NULL)
+  if (_stats != NULL)
   {
-    _stats_manager->incr_H_incoming_requests();
+    _stats->incr_http_incoming_requests();
   }
 
   if ((_load_monitor == NULL) || _load_monitor->admit_request())
@@ -224,9 +224,9 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   {
     evhtp_send_reply(req, 503);
 
-    if (_stats_manager != NULL)
+    if (_stats != NULL)
     {
-      _stats_manager->incr_H_rejected_overload();
+      _stats->incr_http_rejected_overload();
     }
   }
 }

@@ -44,7 +44,6 @@
 
 #include "utils.h"
 #include "accesslogger.h"
-#include "statisticsmanager.h"
 #include "load_monitor.h"
 
 class HttpStack
@@ -182,13 +181,21 @@ public:
     const C* _cfg;
   };
 
+  class StatsInterface
+  {
+  public:
+    virtual void update_http_latency_us(unsigned long latency_us) = 0;
+    virtual void incr_http_incoming_requests() = 0;
+    virtual void incr_http_rejected_overload() = 0;
+  };
+
   static inline HttpStack* get_instance() {return INSTANCE;};
   virtual void initialize();
   virtual void configure(const std::string& bind_address,
                          unsigned short port,
                          int num_threads,
                          AccessLogger* access_logger = NULL,
-                         StatisticsManager* stats_manager = NULL,
+                         StatsInterface* stats = NULL,
                          LoadMonitor* load_monitor = NULL);
   virtual void register_handler(char* path, BaseHandlerFactory* factory);
   virtual void start();
@@ -226,7 +233,7 @@ private:
   int _num_threads;
 
   AccessLogger* _access_logger;
-  StatisticsManager* _stats_manager;
+  StatsInterface* _stats;
   LoadMonitor* _load_monitor;
 
   evbase_t* _evbase;
