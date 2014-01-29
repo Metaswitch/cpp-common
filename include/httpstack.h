@@ -184,9 +184,9 @@ public:
   class StatsInterface
   {
   public:
-    void update_http_latency_us(unsigned long latency_us) = 0;
-    void incr_http_incoming_requests() = 0;
-    void incr_http_rejected_overload() = 0;
+    virtual void update_http_latency_us(unsigned long latency_us) = 0;
+    virtual void incr_http_incoming_requests() = 0;
+    virtual void incr_http_rejected_overload() = 0;
   };
 
   static inline HttpStack* get_instance() {return INSTANCE;};
@@ -195,7 +195,7 @@ public:
                          unsigned short port,
                          int num_threads,
                          AccessLogger* access_logger = NULL,
-                         StatisticsManager* stats = NULL,
+                         StatsInterface* stats = NULL,
                          LoadMonitor* load_monitor = NULL);
   virtual void register_handler(char* path, BaseHandlerFactory* factory);
   virtual void start();
@@ -233,7 +233,7 @@ private:
   int _num_threads;
 
   AccessLogger* _access_logger;
-  StatisticsManager* _stats;
+  StatsInterface* _stats;
   LoadMonitor* _load_monitor;
 
   evbase_t* _evbase;
