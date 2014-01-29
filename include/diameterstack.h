@@ -43,6 +43,8 @@
 #include <freeDiameter/libfdcore.h>
 #include <rapidjson/document.h>
 
+#include "utils.h"
+
 namespace Diameter
 {
 class Stack;
@@ -121,11 +123,26 @@ public:
   virtual void on_response(Message& rsp) = 0;
   virtual void on_timeout() = 0;
 
+  // Methods to start and stop the duration stopwatch.  Should only be called by
+  // the diameter stack.
+  void start_timer() { _stopwatch.start(); }
+  void stop_timer() { _stopwatch.stop(); }
+
+  /// Get the duration of the transaction in microseconds.
+  ///
+  /// @param duration_us The duration. Only valid if the function returns true.
+  /// @return whether the duration was obtained successfully.
+  bool get_duration(unsigned long& duration_us)
+  {
+    return _stopwatch.read(duration_us);
+  }
+
   static void on_response(void* data, struct msg** rsp);
   static void on_timeout(void* data, DiamId_t to, size_t to_len, struct msg** req);
 
 protected:
   Dictionary* _dict;
+  Utils::StopWatch _stopwatch;
 };
 
 class AVP
@@ -240,6 +257,7 @@ public:
   virtual ~Message();
   inline const Dictionary* dict() const {return _dict;}
   inline struct msg* fd_msg() const {return _fd_msg;}
+  inline uint32_t command_code() const {return msg_hdr()->msg_code;}
   inline void build_response()
   {
     // _msg will point to the answer once this function is done.
@@ -262,9 +280,12 @@ public:
     fd_msg_add_origin(_fd_msg, 0);
     return *this;
   }
-  inline Message& set_result_code(char* result_code)
+  inline Message& set_result_code(const std::string result_code)
   {
-    fd_msg_rescode_set(_fd_msg, result_code, NULL, NULL, 1);
+    // Remove const from result_code. This is safe because freeDiameter doesn't change
+    // result_code, although it is complicated to change the fd_msg_rescode_set function
+    // to accept a const argument.
+    fd_msg_rescode_set(_fd_msg, const_cast<char*>(result_code.c_str()), NULL, NULL, 1);
     return *this;
   }
   inline Message& add(AVP& avp)
@@ -272,21 +293,25 @@ public:
     fd_msg_avp_add(_fd_msg, MSG_BRW_LAST_CHILD, avp.avp());
     return *this;
   }
-  bool get_str_from_avp(const Dictionary::AVP& type, std::string* str) const;
-  bool get_i32_from_avp(const Dictionary::AVP& type, int* i32) const;
-  inline bool result_code(int* i32)
+  bool get_str_from_avp(const Dictionary::AVP& type, std::string& str) const;
+  bool get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const;
+  inline bool result_code(int32_t& i32)
   {
     return get_i32_from_avp(dict()->RESULT_CODE, i32);
   }
-  int experimental_result_code() const;
-  int vendor_id() const;
-  inline bool impi(std::string* str) const
+  int32_t experimental_result_code() const;
+  int32_t vendor_id() const;
+  inline std::string impi() const
   {
-    return get_str_from_avp(dict()->USER_NAME, str);
+    std::string str;
+    get_str_from_avp(dict()->USER_NAME, str);
+    return str;
   }
-  inline bool auth_session_state(int* i32) const
+  inline int32_t auth_session_state() const
   {
-    return get_i32_from_avp(dict()->AUTH_SESSION_STATE, i32);
+    int32_t i32;
+    get_i32_from_avp(dict()->AUTH_SESSION_STATE, i32);
+    return i32;
   }
   inline AVP::iterator begin() const;
   inline AVP::iterator begin(const Dictionary::AVP& type) const;
@@ -300,6 +325,13 @@ private:
   const Dictionary* _dict;
   struct msg* _fd_msg;
   bool _free_on_delete;
+
+  inline struct msg_hdr* msg_hdr() const
+  {
+    struct msg_hdr* hdr;
+    fd_msg_hdr(_fd_msg, &hdr);
+    return hdr;
+  }
 };
 
 class AVP::iterator
@@ -392,52 +424,51 @@ private:
 
 class Stack
 {
+public:
+  class Exception
+  {
   public:
-    class Exception
-    {
-      public:
-        inline Exception(const char* func, int rc) : _func(func), _rc(rc) {};
-        const char* _func;
-        const int _rc;
-    };
+    inline Exception(const char* func, int rc) : _func(func), _rc(rc) {};
+    const char* _func;
+    const int _rc;
+  };
 
-    class Handler
-    {
-      public:
-        inline Handler(Diameter::Message& msg) : _msg(msg) {}
-        virtual ~Handler() {}
+  class Handler
+  {
+  public:
+    inline Handler(Diameter::Message& msg) : _msg(msg) {}
+    virtual ~Handler() {}
 
-        virtual void run() = 0;
-        inline struct msg* fd_msg() const {return _msg.fd_msg();}
-      protected:
-        Diameter::Message _msg;
-    };
+    virtual void run() = 0;
+  protected:
+    Diameter::Message _msg;
+  };
 
-    class BaseHandlerFactory
-    {
-      public:
-        BaseHandlerFactory(Dictionary *dict) : _dict(dict) {}
-        virtual Handler* create(Diameter::Message& msg) = 0;
-        Dictionary* _dict;
-    };
+  class BaseHandlerFactory
+  {
+  public:
+    BaseHandlerFactory(Dictionary *dict) : _dict(dict) {}
+    virtual Handler* create(Diameter::Message& msg) = 0;
+    Dictionary* _dict;
+  };
 
-    template <class H>
-      class HandlerFactory : public BaseHandlerFactory
-    {
-      public:
-        HandlerFactory(Dictionary* dict) : BaseHandlerFactory(dict) {};
-        Handler* create(Diameter::Message& msg) { return new H(msg); }
-    };
+  template <class H>
+    class HandlerFactory : public BaseHandlerFactory
+  {
+  public:
+    HandlerFactory(Dictionary* dict) : BaseHandlerFactory(dict) {};
+    Handler* create(Diameter::Message& msg) { return new H(msg); }
+  };
 
-    template <class H, class C>
-      class ConfiguredHandlerFactory : public BaseHandlerFactory
-    {
-      public:
-        ConfiguredHandlerFactory(Dictionary* dict, const C* cfg) : BaseHandlerFactory(dict), _cfg(cfg) {}
-        Handler* create(Diameter::Message& msg) { return new H(msg, _cfg); }
-      private:
-        const C* _cfg;
-    };
+  template <class H, class C>
+    class ConfiguredHandlerFactory : public BaseHandlerFactory
+  {
+  public:
+    ConfiguredHandlerFactory(Dictionary* dict, const C* cfg) : BaseHandlerFactory(dict), _cfg(cfg) {}
+    Handler* create(Diameter::Message& msg) { return new H(msg, _cfg); }
+  private:
+    const C* _cfg;
+  };
 
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
@@ -456,6 +487,7 @@ private:
   Stack();
   virtual ~Stack();
   static int handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act);
+  static int fallback_handler_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act);
 
   // Don't implement the following, to avoid copies of this instance.
   Stack(Stack const&);
@@ -464,6 +496,8 @@ private:
   static void logger(int fd_log_level, const char* fmt, va_list args);
 
   bool _initialized;
+  struct disp_hdl* _callback_handler; /* Handler for requests callback */
+  struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
 };
 
 AVP::iterator AVP::begin() const {return AVP::iterator(*this);}

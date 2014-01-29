@@ -111,7 +111,10 @@ void Logger::write(const char* data)
   timestamp_t ts;
   get_timestamp(ts);
 
+  // Take the lock and push a cleanup handler to release it if this thread is
+  // forcibly killed while writing to the log file.
   pthread_mutex_lock(&_lock);
+  pthread_cleanup_push(Logger::release_lock, this);
 
   if ((_fd != NULL) ||
       ((_discards % LOGFILE_CHECK_FREQUENCY) == 0))
@@ -160,6 +163,7 @@ void Logger::write(const char* data)
     // LCOV_EXCL_STOP
   }
 
+  pthread_cleanup_pop(0);
   pthread_mutex_unlock(&_lock);
 }
 

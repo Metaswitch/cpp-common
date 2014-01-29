@@ -195,7 +195,7 @@ namespace Utils
       {
         _running = true;
       }
-      else if(!_already_logged)
+      else if (!_already_logged)
       {
         LOG_ERROR("Failed to get start timestamp: %s", strerror(errno));
         _already_logged = true;
