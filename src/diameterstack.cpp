@@ -142,7 +142,7 @@ int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session
 int Stack::fallback_handler_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act)
 {
   // This means we have received a message of an unexpected type.
-  LOG_WARN("Message of unexpected type received");
+  LOG_WARNING("Message of unexpected type received");
   return ENOTSUP;
 }
 
