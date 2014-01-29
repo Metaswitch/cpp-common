@@ -61,7 +61,7 @@ bool HttpStack::Request::get_latency(unsigned long& latency_us)
 
 void HttpStack::send_reply(Request& req, int rc)
 {
-  LOG_DEBUG("Sending response %d to request for URL %s", rc, req.req()->uri->path->full);
+  LOG_VERBOSE("Sending response %d to request for URL %s", rc, req.req()->uri->path->full);
   // Log and set up the return code.
   log(std::string(req.req()->uri->path->full), rc);
   evhtp_send_reply(req.req(), rc);
@@ -215,7 +215,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     evhtp_request_pause(req);
 
     // Create a Request and a Handler and kick off processing.
-    LOG_DEBUG("Handling request for URL %s", req->uri->path->full);
+    LOG_VERBOSE("Handling request for URL %s", req->uri->path->full);
     Request request(this, req);
     Handler* handler = handler_factory->create(request);
     handler->run();

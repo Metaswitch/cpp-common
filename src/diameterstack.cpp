@@ -328,8 +328,8 @@ void Transaction::on_response(void* data, struct msg** rsp)
 {
   Transaction* tsx = (Transaction*)data;
   Message msg(tsx->_dict, *rsp);
-  LOG_DEBUG("Got Diameter response of type %u - calling callback on transaction %p",
-            msg.command_code(), tsx);
+  LOG_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
+              msg.command_code(), tsx);
   tsx->stop_timer();
   tsx->on_response(msg);
   delete tsx;
@@ -341,8 +341,8 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 {
   Transaction* tsx = (Transaction*)data;
   Message msg(tsx->_dict, *req);
-  LOG_DEBUG("Diameter request of type %u timed out - calling callback on transaction %p",
-            msg.command_code(), tsx);
+  LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
+              msg.command_code(), tsx);
   tsx->stop_timer();
   tsx->on_timeout();
   delete tsx;
@@ -491,14 +491,14 @@ int32_t Message::vendor_id() const
 
 void Message::send()
 {
-  LOG_DEBUG("Sending Diameter message of type %u", command_code());
+  LOG_VERBOSE("Sending Diameter message of type %u", command_code());
   fd_msg_send(&_fd_msg, NULL, NULL);
   _free_on_delete = false;
 }
 
 void Message::send(Transaction* tsx)
 {
-  LOG_DEBUG("Sending Diameter message of type %u on transaction %p", command_code(), tsx);
+  LOG_VERBOSE("Sending Diameter message of type %u on transaction %p", command_code(), tsx);
   tsx->start_timer();
   fd_msg_send(&_fd_msg, Transaction::on_response, tsx);
   _free_on_delete = false;
@@ -506,8 +506,8 @@ void Message::send(Transaction* tsx)
 
 void Message::send(Transaction* tsx, unsigned int timeout_ms)
 {
-  LOG_DEBUG("Sending Diameter message of type %u on transaction %p with timeout %u",
-            command_code(), tsx, timeout_ms);
+  LOG_VERBOSE("Sending Diameter message of type %u on transaction %p with timeout %u",
+              command_code(), tsx, timeout_ms);
   struct timespec timeout_ts;
   // TODO: Check whether this should be CLOCK_MONOTONIC - freeDiameter uses CLOCK_REALTIME but
   //       this feels like it might suffer over time changes.
