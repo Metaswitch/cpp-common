@@ -132,7 +132,7 @@ public:
   ///
   /// @param duration_us The duration. Only valid if the function returns true.
   /// @return whether the duration was obtained successfully.
-  bool get_duration(unsigned long duration_us)
+  bool get_duration(unsigned long& duration_us)
   {
     return _stopwatch.read(duration_us);
   }
@@ -282,7 +282,7 @@ public:
   }
   inline Message& set_result_code(const std::string result_code)
   {
-    // Remove const from result_code. This is safe because freeDiameter doesn't change 
+    // Remove const from result_code. This is safe because freeDiameter doesn't change
     // result_code, although it is complicated to change the fd_msg_rescode_set function
     // to accept a const argument.
     fd_msg_rescode_set(_fd_msg, const_cast<char*>(result_code.c_str()), NULL, NULL, 1);
