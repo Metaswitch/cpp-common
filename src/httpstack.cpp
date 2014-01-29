@@ -163,6 +163,8 @@ void HttpStack::start()
   {
     full_bind_address = "ipv6:" + full_bind_address;
   }
+  
+  freeaddrinfo(servinfo);
 
   rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), _bind_port, 1024);
   if (rc != 0)
