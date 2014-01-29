@@ -56,6 +56,7 @@ void Stack::initialize()
   // constructor because we can't throw exceptions on failure.
   if (!_initialized)
   {
+    LOG_STATUS("Initializing Diameter stack");
     int rc = fd_core_initialize();
     if (rc != 0)
     {
@@ -73,6 +74,7 @@ void Stack::initialize()
 void Stack::configure(std::string filename)
 {
   initialize();
+  LOG_STATUS("Configuring Diameter stack from file %s", filename.c_str());
   int rc = fd_core_parseconf(filename.c_str());
   if (rc != 0)
   {
@@ -128,6 +130,7 @@ int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session
   // Convert the received message into one our Message objects, and create a new handler instance of the 
   // correct type.
   Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req);
+  LOG_DEBUG("Handling Diameter message of type %u", msg.command_code());
   Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(msg);
   handler->run();
 
@@ -149,6 +152,7 @@ int Stack::fallback_handler_callback_fn(struct msg** msg, struct avp* avp, struc
 void Stack::start()
 {
   initialize();
+  LOG_STATUS("Starting Diameter stack");
   int rc = fd_core_start();
   if (rc != 0)
   {
@@ -160,6 +164,7 @@ void Stack::stop()
 {
   if (_initialized)
   {
+    LOG_STATUS("Stopping Diameter stack");
     if (_callback_handler)
     {
       (void)fd_disp_unregister(&_callback_handler, NULL);
@@ -182,6 +187,7 @@ void Stack::wait_stopped()
 {
   if (_initialized)
   {
+    LOG_STATUS("Waiting for Diameter stack to stop");
     int rc = fd_core_wait_shutdown_complete();
     if (rc != 0)
     {
@@ -322,6 +328,8 @@ void Transaction::on_response(void* data, struct msg** rsp)
 {
   Transaction* tsx = (Transaction*)data;
   Message msg(tsx->_dict, *rsp);
+  LOG_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
+              msg.command_code(), tsx);
   tsx->stop_timer();
   tsx->on_response(msg);
   delete tsx;
@@ -333,6 +341,8 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 {
   Transaction* tsx = (Transaction*)data;
   Message msg(tsx->_dict, *req);
+  LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
+              msg.command_code(), tsx);
   tsx->stop_timer();
   tsx->on_timeout();
   delete tsx;
@@ -455,6 +465,7 @@ int32_t Message::experimental_result_code() const
     if (avps != end())
     {
       experimental_result_code = avps->val_i32();
+      LOG_DEBUG("Got Experimental-Result-Code %d", experimental_result_code);
     }
   }
   return experimental_result_code;
@@ -472,6 +483,7 @@ int32_t Message::vendor_id() const
     if (avps != end())
     {
       vendor_id = avps->val_i32();
+      LOG_DEBUG("Got Vendor-Id %d", vendor_id);
     }
   }
   return vendor_id;
@@ -479,12 +491,14 @@ int32_t Message::vendor_id() const
 
 void Message::send()
 {
+  LOG_VERBOSE("Sending Diameter message of type %u", command_code());
   fd_msg_send(&_fd_msg, NULL, NULL);
   _free_on_delete = false;
 }
 
 void Message::send(Transaction* tsx)
 {
+  LOG_VERBOSE("Sending Diameter message of type %u on transaction %p", command_code(), tsx);
   tsx->start_timer();
   fd_msg_send(&_fd_msg, Transaction::on_response, tsx);
   _free_on_delete = false;
@@ -492,6 +506,8 @@ void Message::send(Transaction* tsx)
 
 void Message::send(Transaction* tsx, unsigned int timeout_ms)
 {
+  LOG_VERBOSE("Sending Diameter message of type %u on transaction %p with timeout %u",
+              command_code(), tsx, timeout_ms);
   struct timespec timeout_ts;
   // TODO: Check whether this should be CLOCK_MONOTONIC - freeDiameter uses CLOCK_REALTIME but
   //       this feels like it might suffer over time changes.
