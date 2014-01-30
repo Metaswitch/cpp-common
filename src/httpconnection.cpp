@@ -553,10 +553,6 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
   // convert to string
   std::string headerString(headerLine, (size * nmemb));
 
-  // lowercase -
-  std::transform(headerString.begin(), headerString.end(), headerString.begin(), ::tolower);
-
-
   std::string key;
   std::string val;
 
@@ -573,11 +569,13 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
     val = headerString.substr(colon_loc + 1, std::string::npos);
   }
 
-  // how to remove *all* spaces - desirable?
+  // Lowercase the key (for consistency) and remove spaces
+  std::transform(key.begin(), key.end(), key.begin(), ::tolower);
   key.erase(std::remove_if(key.begin(), key.end(), ::isspace), key.end());
   val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
 
-  headers->operator[](key) = val;
+  LOG_DEBUG("Received header %s with value %s", key.c_str(), val.c_str());
+  (*headers)[key] = val;
 
   return size * nmemb;
 }

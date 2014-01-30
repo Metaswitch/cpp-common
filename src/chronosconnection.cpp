@@ -98,7 +98,10 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
 
   if (success == HTTP_OK)
   {
-    post_identity = headers["Location"];
+    // Location header has the form "http://localhost:7253/timers/abcd" - we just want the "abcd" part after "/timers/"
+    std::string timer_url = headers.at("location");
+    size_t start_of_path = timer_url.find("/timers/") + (std::string("/timers/").length());
+    post_identity = timer_url.substr(start_of_path, std::string::npos);
   }
 
   return success;
