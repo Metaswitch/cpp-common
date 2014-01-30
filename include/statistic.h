@@ -44,11 +44,12 @@
 #include <pthread.h>
 
 #include "eventq.h"
+#include "zmq_lvc.h"
 
 class Statistic
 {
 public:
-  Statistic(std::string statname);
+  Statistic(std::string statname, LastValueCache* lvc);
   ~Statistic();
 
   void report_change(std::vector<std::string> new_value);

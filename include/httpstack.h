@@ -42,7 +42,9 @@
 
 #include <evhtp.h>
 
+#include "utils.h"
 #include "accesslogger.h"
+#include "load_monitor.h"
 
 class HttpStack
 {
@@ -58,24 +60,61 @@ public:
   class Request
   {
   public:
-    Request(HttpStack* stack, evhtp_request_t* req) : _stack(stack), _req(req) {}
-    inline std::string path() {return url_unescape(std::string(_req->uri->path->path));}
-    inline std::string full_path() {return url_unescape(std::string(_req->uri->path->full));}
-    inline std::string file() {return url_unescape(std::string((_req->uri->path->file != NULL) ? _req->uri->path->file : ""));}
-    inline htp_method method() {return evhtp_request_get_method(_req);};
-    std::string body();
+    Request(HttpStack* stack, evhtp_request_t* req) :
+      _stack(stack), _req(req), stopwatch()
+    {
+      stopwatch.start();
+    }
+
+    inline std::string path()
+    {
+      return url_unescape(std::string(_req->uri->path->path));
+    }
+
+    inline std::string full_path()
+    {
+      return url_unescape(std::string(_req->uri->path->full));
+    }
+
+    inline std::string file()
+    {
+      return url_unescape(std::string((_req->uri->path->file != NULL) ?
+                                        _req->uri->path->file : ""));
+    }
+
     inline std::string param(const std::string& name)
     {
       const char* param = evhtp_kv_find(_req->uri->query, name.c_str());
       return url_unescape(std::string(param != NULL ? param : ""));
     }
-    void add_content(const std::string& content) {evbuffer_add(_req->buffer_out, content.c_str(), content.length());}
+
+    void add_content(const std::string& content)
+    {
+      evbuffer_add(_req->buffer_out, content.c_str(), content.length());
+    }
+
+    inline htp_method method() {return evhtp_request_get_method(_req);};
+    std::string body();
+
     void send_reply(int rc);
-    inline evhtp_request_t* req() {return _req;}
+    inline evhtp_request_t* req() { return _req; }
+
+    void record_penalty() { _stack->record_penalty(); }
+
+
+    /// Get the latency of the request.
+    ///
+    /// @param latency_us The latency of the request in microseconds.  Only
+    /// valid if the fucntion returns true.
+    ///
+    /// @return Whether the latency has been successfully obtained.
+    bool get_latency(unsigned long& latency_us);
 
   private:
     HttpStack* _stack;
     evhtp_request_t* _req;
+    Utils::StopWatch stopwatch;
+
     std::string url_unescape(const std::string& s)
     {
       std::string r;
@@ -112,6 +151,8 @@ public:
     virtual void run() = 0;
 
   protected:
+    void record_penalty() { _req.record_penalty(); }
+
     Request _req;
   };
 
@@ -140,17 +181,28 @@ public:
     const C* _cfg;
   };
 
+  class StatsInterface
+  {
+  public:
+    virtual void update_http_latency_us(unsigned long latency_us) = 0;
+    virtual void incr_http_incoming_requests() = 0;
+    virtual void incr_http_rejected_overload() = 0;
+  };
+
   static inline HttpStack* get_instance() {return INSTANCE;};
   virtual void initialize();
   virtual void configure(const std::string& bind_address,
                          unsigned short port,
                          int num_threads,
-                         AccessLogger* access_logger = NULL);
+                         AccessLogger* access_logger = NULL,
+                         StatsInterface* stats = NULL,
+                         LoadMonitor* load_monitor = NULL);
   virtual void register_handler(char* path, BaseHandlerFactory* factory);
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
   virtual void send_reply(Request& req, int rc);
+  void record_penalty();
 
   void log(const std::string uri, int rc)
   {
@@ -168,6 +220,8 @@ private:
   virtual ~HttpStack() {}
   static void handler_callback_fn(evhtp_request_t* req, void* handler_factory);
   static void* event_base_thread_fn(void* http_stack_ptr);
+  void handler_callback(evhtp_request_t* req,
+                        BaseHandlerFactory* handler_factory);
   void event_base_thread_fn();
 
   // Don't implement the following, to avoid copies of this instance.
@@ -177,10 +231,16 @@ private:
   std::string _bind_address;
   unsigned short _bind_port;
   int _num_threads;
+
   AccessLogger* _access_logger;
+  StatsInterface* _stats;
+  LoadMonitor* _load_monitor;
+
   evbase_t* _evbase;
   evhtp_t* _evhtp;
   pthread_t _event_base_thread;
+
+  static bool _ev_using_pthreads;
 };
 
 #endif
