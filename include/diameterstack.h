@@ -448,6 +448,10 @@ class Stack
   virtual void stop();
   virtual void wait_stopped();
 
+  virtual void send(struct msg* fd_msg);
+  virtual void send(struct msg* fd_msg, Transaction* tsx);
+  virtual void send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms);
+
 private:
   static Stack* INSTANCE;
   static Stack DEFAULT_INSTANCE;

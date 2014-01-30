@@ -220,6 +220,28 @@ void Stack::logger(int fd_log_level, const char* fmt, va_list args)
   Log::_write(log_level, "freeDiameter", 0, fmt, args);
 }
 
+void Stack::send(struct msg* fd_msg)
+{
+  fd_msg_send(&fd_msg, NULL, NULL);
+}
+
+void Stack::send(struct msg* fd_msg, Transaction* tsx)
+{
+  fd_msg_send(&fd_msg, Transaction::on_response, tsx);
+}
+
+void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
+{ 
+  struct timespec timeout_ts;
+  // TODO: Check whether this should be CLOCK_MONOTONIC - freeDiameter uses CLOCK_REALTIME but
+  //       this feels like it might suffer over time changes.
+  clock_gettime(CLOCK_REALTIME, &timeout_ts);
+  timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
+  timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
+  timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
+  fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
+}
+
 struct dict_object* Dictionary::Vendor::find(const std::string vendor)
 {
   struct dict_object* dict;
@@ -474,25 +496,21 @@ int Message::vendor_id() const
 
 void Message::send()
 {
-  fd_msg_send(&_fd_msg, NULL, NULL);
+  Stack* diameter_stack = Stack::get_instance();
+  diameter_stack->send(_fd_msg);
   _free_on_delete = false;
 }
 
 void Message::send(Transaction* tsx)
 {
-  fd_msg_send(&_fd_msg, Transaction::on_response, tsx);
+  Stack* diameter_stack = Stack::get_instance();
+  diameter_stack->send(_fd_msg, tsx);
   _free_on_delete = false;
 }
 
 void Message::send(Transaction* tsx, unsigned int timeout_ms)
 {
-  struct timespec timeout_ts;
-  // TODO: Check whether this should be CLOCK_MONOTONIC - freeDiameter uses CLOCK_REALTIME but
-  //       this feels like it might suffer over time changes.
-  clock_gettime(CLOCK_REALTIME, &timeout_ts);
-  timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
-  timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
-  timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
-  fd_msg_send_timeout(&_fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
+  Stack* diameter_stack = Stack::get_instance();
+  diameter_stack->send(_fd_msg, tsx, timeout_ms);
   _free_on_delete = false;
 }
