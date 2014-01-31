@@ -248,12 +248,12 @@ private:
 class Message
 {
 public:
-  inline Message(const Dictionary* dict, const Dictionary::Message& type) : _dict(dict), _free_on_delete(true)
+  inline Message(const Dictionary* dict, const Dictionary::Message& type, Stack* stack) : _dict(dict), _stack(stack), _free_on_delete(true)
   {
     fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_fd_msg);
   }
-  inline Message(Dictionary* dict, struct msg* msg) : _dict(dict), _fd_msg(msg), _free_on_delete(true) {};
-  inline Message(const Message& msg) : _dict(msg._dict), _fd_msg(msg._fd_msg), _free_on_delete(false) {};
+  inline Message(Dictionary* dict, struct msg* msg, Stack* stack) : _dict(dict), _fd_msg(msg), _stack(stack),  _free_on_delete(true) {};
+  inline Message(const Message& msg) : _dict(msg._dict), _fd_msg(msg._fd_msg), _stack(msg._stack),  _free_on_delete(false) {};
   virtual ~Message();
   inline const Dictionary* dict() const {return _dict;}
   inline struct msg* fd_msg() const {return _fd_msg;}
@@ -324,6 +324,7 @@ public:
 private:
   const Dictionary* _dict;
   struct msg* _fd_msg;
+  Stack* _stack;
   bool _free_on_delete;
 
   inline struct msg_hdr* msg_hdr() const
