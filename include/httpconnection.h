@@ -64,12 +64,17 @@ public:
                  const std::string& stat_name,
                  LoadMonitor* load_monitor,
                  LastValueCache* lvc);
+  HttpConnection(const std::string& server, bool assert_user, int sas_event_base);
   virtual ~HttpConnection();
 
   virtual long get(const std::string& path,
                    std::string& doc,
                    const std::string& username,
                    SAS::TrailId trail);
+  virtual long send_delete(const std::string& path, SAS::TrailId trail);
+  virtual long send_put(const std::string& path, std::string body, const std::map<std::string, std::string>& headers, SAS::TrailId trail);
+  virtual long send_post(const std::string& path, std::string body, std::map<std::string, std::string>& headers, SAS::TrailId trail);
+  virtual long send_request(const std::string& path, std::string& doc, const std::string& username, SAS::TrailId trail, CURL* curl);
 
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
@@ -109,13 +114,13 @@ private:
 
   CURL* get_curl_handle();
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
-
+  static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
   const std::string _server;
   const bool _assert_user;
   const int _sas_event_base;
   pthread_key_t _thread_local;
 
-  Statistic _statistic;
+  Statistic* _statistic;
   LoadMonitor* _load_monitor;
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock

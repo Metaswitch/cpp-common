@@ -296,7 +296,6 @@ Store::Status MemcachedStore::get_data(const std::string& table,
 
   // Read from all replicas until we get a positive result.
   memcached_return_t rc = MEMCACHED_ERROR;
-  memcached_result_st result;
   bool active_not_found = false;
   size_t failed_replicas = 0;
   size_t ii;
@@ -333,6 +332,7 @@ Store::Status MemcachedStore::get_data(const std::string& table,
     {
       // memcached_mget command was successful, so retrieve the result.
       LOG_DEBUG("Fetch result");
+      memcached_result_st result;
       memcached_result_create(replicas[replica_idx], &result);
       memcached_fetch_result(replicas[replica_idx], &result, &rc);
 
@@ -340,14 +340,13 @@ Store::Status MemcachedStore::get_data(const std::string& table,
       {
         // Found a record, so exit the read loop.
         LOG_DEBUG("Found record on replica %d", replica_idx);
+        data.assign(memcached_result_value(&result), memcached_result_length(&result));
+        cas = (active_not_found) ? 0 : memcached_result_cas(&result);
         break;
       }
-    }
-    else
-    {
-      // Free the result.
       memcached_result_free(&result);
     }
+
 
     if (rc == MEMCACHED_NOTFOUND)
     {
@@ -372,13 +371,9 @@ Store::Status MemcachedStore::get_data(const std::string& table,
     // value from the result, or zero if an earlier active replica returned
     // NOT_FOUND.  This ensures that a subsequent set operation will succeed
     // on the earlier active replica.
-    data.assign(memcached_result_value(&result), memcached_result_length(&result));
-    cas = (active_not_found) ? 0 : memcached_result_cas(&result);
     LOG_DEBUG("Read %d bytes from table %s key %s, CAS = %ld",
               data.length(), table.c_str(), key.c_str(), cas);
 
-    // Free the result.
-    memcached_result_free(&result);
   }
   else if (failed_replicas < replicas.size())
   {
