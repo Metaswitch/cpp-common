@@ -140,7 +140,7 @@ public:
   static void on_response(void* data, struct msg** rsp);
   static void on_timeout(void* data, DiamId_t to, size_t to_len, struct msg** req);
 
-private:
+protected:
   Dictionary* _dict;
   Utils::StopWatch _stopwatch;
 };

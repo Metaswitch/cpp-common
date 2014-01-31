@@ -37,6 +37,7 @@
 #include <curl/curl.h>
 #include <cassert>
 #include <iostream>
+#include <map>
 
 #include "utils.h"
 #include "log.h"
@@ -81,17 +82,29 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
                                LastValueCache* lvc) :          //< Statistics last value cache.
   _server(server),
   _assert_user(assert_user),
-  _sas_event_base(sas_event_base),
-  _statistic(stat_name, lvc)
+  _sas_event_base(sas_event_base)
 {
   pthread_key_create(&_thread_local, cleanup_curl);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   std::vector<std::string> no_stats;
-  _statistic.report_change(no_stats);
+  _statistic = new Statistic(stat_name, lvc);
+  _statistic->report_change(no_stats);
   _load_monitor = load_monitor;
 }
 
+HttpConnection::HttpConnection(const std::string& server,      //< Server to send HTTP requests to.
+                               bool assert_user,               //< Assert user in header?
+                               int sas_event_base) :           //< SAS events: sas_event_base - will have  SASEvent::HTTP_REQ / RSP / ERR added to it.
+  _server(server),
+  _assert_user(assert_user),
+  _sas_event_base(sas_event_base)
+{
+  pthread_key_create(&_thread_local, cleanup_curl);
+  pthread_mutex_init(&_lock, NULL);
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+  _statistic = NULL;
+}
 
 HttpConnection::~HttpConnection()
 {
@@ -103,6 +116,12 @@ HttpConnection::~HttpConnection()
   {
     pthread_setspecific(_thread_local, NULL);
     cleanup_curl(curl);
+  }
+
+  if (_statistic != NULL)
+  {
+    delete _statistic;
+    _statistic = NULL;
   }
 }
 
@@ -188,22 +207,74 @@ HTTPCode HttpConnection::curl_code_to_http_code(CURL* curl, CURLcode code)
   }
 }
 
+HTTPCode HttpConnection::send_delete(const std::string& path, SAS::TrailId trail)
+{
+  CURL *curl = get_curl_handle();
+
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+  std::string json_data;
+  return send_request(path, json_data, "", trail, curl);
+
+}
+
+HTTPCode HttpConnection::send_put(const std::string& path, std::string body, const std::map<std::string, std::string>& headers, SAS::TrailId trail)
+{
+  CURL *curl = get_curl_handle();
+  struct curl_slist *slist = NULL;
+  slist = curl_slist_append(slist, "Content-Type: application/json");
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
+  curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
+  std::string json_data;
+
+  return send_request(path, json_data, "", trail, curl);
+}
+
+HTTPCode HttpConnection::send_post(const std::string& path, std::string body, std::map<std::string, std::string>& headers, SAS::TrailId trail)
+{
+  CURL *curl = get_curl_handle();
+  struct curl_slist *slist = NULL;
+  slist = curl_slist_append(slist, "Content-Type: application/json");
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
+  curl_easy_setopt(curl, CURLOPT_POST, 1);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
+  curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
+  std::string json_data;
+
+  return send_request(path, json_data, "", trail, curl);
+}
+
 /// Get data; return a HTTP return code
 HTTPCode HttpConnection::get(const std::string& path,       //< Absolute path to request from server - must start with "/"
                              std::string& doc,             //< OUT: Retrieved document
                              const std::string& username,  //< Username to assert (if assertUser was true, else ignored).
                              SAS::TrailId trail)          //< SAS trail to use
 {
-  std::string url = "http://" + _server + path;
-  struct curl_slist *extra_headers = NULL;
   CURL *curl = get_curl_handle();
 
+  curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
+
+  return send_request(path, doc, username, trail, curl);
+}
+
+/// Get data; return a HTTP return code
+HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolute path to request from server - must start with "/"
+                                      std::string& doc,             //< OUT: Retrieved document
+                                      const std::string& username,  //< Username to assert (if assertUser was true, else ignored).
+                                      SAS::TrailId trail,          //< SAS trail to use
+                                      CURL* curl)
+{
+  std::string url = "http://" + _server + path;
+  struct curl_slist *extra_headers = NULL;
   PoolEntry* entry;
   CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
   assert(rc == CURLE_OK);
 
-  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
 
   if (_assert_user)
   {
@@ -233,7 +304,7 @@ HTTPCode HttpConnection::get(const std::string& path,       //< Absolute path to
 
     // Send the request.
     doc.clear();
-    LOG_DEBUG("Sending HTTP request : GET %s (try %d) %s", url.c_str(), attempt, (recycle_conn) ? "on new connection" : "");
+    LOG_DEBUG("Sending HTTP request : %s (try %d) %s", url.c_str(), attempt, (recycle_conn) ? "on new connection" : "");
     rc = curl_easy_perform(curl);
 
     if (rc == CURLE_OK)
@@ -291,7 +362,7 @@ HTTPCode HttpConnection::get(const std::string& path,       //< Absolute path to
       if ((non_fatal) && (attempt == 0))
       {
         // Loop around and try again.  Always request a fresh connection.
-        LOG_ERROR("GET %s failed at server %s : %s (%d %d) : retrying",
+        LOG_ERROR("%s failed at server %s : %s (%d %d) : retrying",
                   url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);
         recycle_conn = true;
 
@@ -304,13 +375,14 @@ HTTPCode HttpConnection::get(const std::string& path,       //< Absolute path to
       else
       {
         // Fatal error or we've already retried once - we're done!
-        LOG_ERROR("GET %s failed at server %s : %s (%d %d) : fatal",
+        LOG_ERROR("%s failed at server %s : %s (%d %d) : fatal",
                   url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);
 
         // Check whether both attempts returned 503 errors, or the error was
         // a 502 (where the HSS is overloaded)  and raise a penalty if so.
-        if ((error_is_503 && first_error_503) ||
-            ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 502)))
+        if (((error_is_503 && first_error_503) ||
+            ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 502))) &&
+            (_load_monitor != NULL))
         {
           _load_monitor->incr_penalties();
         }
@@ -319,7 +391,6 @@ HTTPCode HttpConnection::get(const std::string& path,       //< Absolute path to
       }
     }
   }
-
   curl_slist_free_all(extra_headers);
 
   if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
@@ -348,7 +419,6 @@ HTTPCode HttpConnection::get(const std::string& path,       //< Absolute path to
   }
   return http_code;
 }
-
 
 /// cURL helper - write data into string.
 size_t HttpConnection::string_store(void* ptr, size_t size, size_t nmemb, void* stream)
@@ -470,7 +540,42 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
   pthread_mutex_unlock(&_parent->_lock);
 
   // Actually report outside the mutex to avoid any risk of deadlock.
-  _parent->_statistic.report_change(new_value);
+  if (_parent->_statistic != NULL)
+  {
+    _parent->_statistic->report_change(new_value);
+  }
 }
 
+size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers)
+{
+  char* headerLine = reinterpret_cast<char *>(ptr);
 
+  // convert to string
+  std::string headerString(headerLine, (size * nmemb));
+
+  std::string key;
+  std::string val;
+
+  // find colon
+  size_t colon_loc = headerString.find(":");
+  if (colon_loc == std::string::npos)
+  {
+    key = headerString;
+    val = "";
+  }
+  else
+  {
+    key = headerString.substr(0, colon_loc);
+    val = headerString.substr(colon_loc + 1, std::string::npos);
+  }
+
+  // Lowercase the key (for consistency) and remove spaces
+  std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+  key.erase(std::remove_if(key.begin(), key.end(), ::isspace), key.end());
+  val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
+
+  LOG_DEBUG("Received header %s with value %s", key.c_str(), val.c_str());
+  (*headers)[key] = val;
+
+  return size * nmemb;
+}

@@ -49,18 +49,27 @@
 /// The map we use.
 static std::map<std::string, std::string> host_map;
 
-/// The current time offset, and the lock which guards it.
+/// Lock protecting access to our time control structures.
+static pthread_mutex_t time_lock = PTHREAD_MUTEX_INITIALIZER;
+
+/// The current time offset.  Protected by time_lock.
 static struct timespec time_offset = { 0, 0 };
-static pthread_mutex_t time_offset_lock = PTHREAD_MUTEX_INITIALIZER;
+
+// Whether time is completely controlled by the test script. Protected by
+// time_lock.
+static bool completely_control_time = false;
+
+/// When completely controlling time, these store the time at which the test
+/// scripts took control. Protected by time_lock.
+static const clockid_t supported_clock_ids[] = {CLOCK_REALTIME, CLOCK_MONOTONIC};
+static std::map<clockid_t, struct timespec> abs_timespecs;
+static time_t abs_time;
 
 /// The real functions we are interposing.
 static int (*real_getaddrinfo)(const char*, const char*, const struct addrinfo*, struct addrinfo**);
 static struct hostent* (*real_gethostbyname)(const char*);
 static int (*real_clock_gettime)(clockid_t, struct timespec *);
 static time_t (*real_time)(time_t*);
-
-// Whether time is completely controlled by the test script.
-bool completely_control_time = false;
 
 /// Helper: add two timespecs. Arbitrary aliasing is fine.
 static inline void ts_add(struct timespec& a, struct timespec& b, struct timespec& res)
@@ -86,19 +95,19 @@ void cwtest_clear_host_mapping()
 void cwtest_advance_time_ms(long delta_ms)  ///< Delta to add to the current offset applied to returned times (in ms).
 {
   struct timespec delta = { delta_ms / 1000, (delta_ms % 1000) * 1000L * 1000L };
-  pthread_mutex_lock(&time_offset_lock);
+  pthread_mutex_lock(&time_lock);
   ts_add(time_offset, delta, time_offset);
-  pthread_mutex_unlock(&time_offset_lock);
+  pthread_mutex_unlock(&time_lock);
 }
 
 /// Restore the fabric of space-time.
 void cwtest_reset_time()
 {
-  pthread_mutex_lock(&time_offset_lock);
+  pthread_mutex_lock(&time_lock);
   time_offset.tv_sec = 0;
   time_offset.tv_nsec = 0;
   completely_control_time = false;
-  pthread_mutex_unlock(&time_offset_lock);
+  pthread_mutex_unlock(&time_lock);
 }
 
 void cwtest_completely_control_time()
@@ -108,19 +117,29 @@ void cwtest_completely_control_time()
     real_clock_gettime = (int (*)(clockid_t, struct timespec *))dlsym(RTLD_NEXT, "clock_gettime");
   }
 
-  pthread_mutex_lock(&time_offset_lock);
-  completely_control_time = true;
-  real_clock_gettime(CLOCK_MONOTONIC, &time_offset);
-  pthread_mutex_unlock(&time_offset_lock);
-}
+  if (!real_time)
+  {
+    real_time = (time_t (*)(time_t*))dlsym(RTLD_NEXT, "time");
+  }
 
-bool cwtest_completely_controlling_time()
-{
-  bool control;
-  pthread_mutex_lock(&time_offset_lock);
-  control = completely_control_time;
-  pthread_mutex_unlock(&time_offset_lock);
-  return control;
+  pthread_mutex_lock(&time_lock);
+  completely_control_time = true;
+
+  // Store the time at which the test scripts took control.  Do this for both
+  // clock_gettime() and time().
+  struct timespec ts;
+  for (unsigned int i = 0;
+       i < (sizeof(supported_clock_ids) / sizeof(supported_clock_ids[0]));
+       ++i)
+  {
+    clockid_t clock_id = supported_clock_ids[i];
+    real_clock_gettime(clock_id, &ts);
+    abs_timespecs[clock_id] = ts;
+  }
+
+  abs_time = real_time(NULL);
+
+  pthread_mutex_unlock(&time_lock);
 }
 
 /// Lookup helper.  If there is a mapping of this host in host_mapping
@@ -167,17 +186,31 @@ struct hostent* gethostbyname(const char *name)
 /// Replacement clock_gettime.
 int clock_gettime(clockid_t clk_id, struct timespec *tp)
 {
-  int rc = 0;
+  int rc;
 
   if (!real_clock_gettime)
   {
     real_clock_gettime = (int (*)(clockid_t, struct timespec *))dlsym(RTLD_NEXT, "clock_gettime");
   }
 
-  if (cwtest_completely_controlling_time())
+  pthread_mutex_lock(&time_lock);
+
+  if (completely_control_time)
   {
-    tp->tv_sec = 0;
-    tp->tv_nsec = 0;
+    if (abs_timespecs.find(clk_id) != abs_timespecs.end())
+    {
+      *tp = abs_timespecs[clk_id];
+      rc = 0;
+    }
+    else
+    {
+      // We don't support this clock ID. Print a warning, and act like an
+      // invalid clock ID has been requested.
+      fprintf(stderr, "WARNING: Clock ID %d is not supported (%s:%d)\n",
+              clk_id, __FILE__, __LINE__);
+      rc = -1;
+      errno = EINVAL;
+    }
   }
   else
   {
@@ -186,10 +219,10 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp)
 
   if (!rc)
   {
-    pthread_mutex_lock(&time_offset_lock);
     ts_add(*tp, time_offset, *tp);
-    pthread_mutex_unlock(&time_offset_lock);
   }
+
+  pthread_mutex_unlock(&time_lock);
 
   return rc;
 }
@@ -198,16 +231,18 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp)
 /// Replacement time().
 time_t time(time_t* v)
 {
-  time_t rt = 0;
+  time_t rt;
 
   if (!real_time)
   {
     real_time = (time_t (*)(time_t*))dlsym(RTLD_NEXT, "time");
   }
 
-  if (cwtest_completely_controlling_time())
+  pthread_mutex_lock(&time_lock);
+
+  if (completely_control_time)
   {
-    rt = 0;
+    rt = abs_time;
   }
   else
   {
@@ -216,9 +251,8 @@ time_t time(time_t* v)
   }
 
   // Add the seconds portion of the time offset.
-  pthread_mutex_lock(&time_offset_lock);
   rt += time_offset.tv_sec;
-  pthread_mutex_unlock(&time_offset_lock);
+  pthread_mutex_unlock(&time_lock);
 
   if (v != NULL)
   {
