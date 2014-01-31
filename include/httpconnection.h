@@ -47,10 +47,12 @@
 
 typedef long HTTPCode;
 #define HTTP_OK 200
+#define HTTP_CREATED 201
 #define HTTP_BAD_RESULT 400
 #define HTTP_NOT_FOUND 404
 #define HTTP_TEMP_UNAVAILABLE 480
 #define HTTP_SERVER_ERROR 500
+#define HTTP_SERVER_UNAVAILABLE 503
 
 /// Provides managed access to data on a single HTTP server. Properly
 /// supports round-robin DNS load balancing.
