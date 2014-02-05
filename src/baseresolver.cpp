@@ -174,7 +174,7 @@ int BaseResolver::blacklist_filter(std::list<IP46Address>& addrs,
 
     int ttl = _blacklist->ttl(ai);
 
-    if ((min_ttl == 0) && (min_ttl > ttl))
+    if ((min_ttl == 0) || (min_ttl > ttl))
     {
       min_ttl = ttl;
     }

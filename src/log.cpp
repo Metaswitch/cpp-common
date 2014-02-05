@@ -35,9 +35,10 @@
  */
 
 
-#include "log.h"
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
+#include "log.h"
 
 const char* log_level[] = {"Error", "Warning", "Status", "Info", "Verbose", "Debug"};
 
@@ -100,6 +101,9 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   char logline[MAX_LOGLINE];
 
   int written = 0;
+
+  const char* mod = strrchr(module, '/');
+  module = (mod != NULL) ? mod + 1 : module;
 
   if (line_number)
   {
