@@ -50,6 +50,7 @@ typedef long HTTPCode;
 #define HTTP_CREATED 201
 #define HTTP_BAD_RESULT 400
 #define HTTP_NOT_FOUND 404
+#define HTTP_BADMETHOD 405
 #define HTTP_TEMP_UNAVAILABLE 480
 #define HTTP_SERVER_ERROR 500
 #define HTTP_SERVER_UNAVAILABLE 503
@@ -74,7 +75,7 @@ public:
                    const std::string& username,
                    SAS::TrailId trail);
   virtual long send_delete(const std::string& path, SAS::TrailId trail);
-  virtual long send_put(const std::string& path, std::string body, const std::map<std::string, std::string>& headers, SAS::TrailId trail);
+  virtual long send_put(const std::string& path, std::string body, SAS::TrailId trail);
   virtual long send_post(const std::string& path, std::string body, std::map<std::string, std::string>& headers, SAS::TrailId trail);
   virtual long send_request(const std::string& path, std::string& doc, const std::string& username, SAS::TrailId trail, CURL* curl);
 
