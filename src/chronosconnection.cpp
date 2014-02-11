@@ -67,6 +67,7 @@ HTTPCode ChronosConnection::send_delete(const std::string& delete_identity, SAS:
   {
     // Don't bother sending the timer request to Chronos, as it will just reject it 
     // with a 405
+    LOG_ERROR("Can't delete a timer with an empty timer id");
     return HTTP_BADMETHOD;
   }
  
@@ -104,9 +105,18 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
   if (success == HTTP_OK)
   {
     // Location header has the form "http://localhost:7253/timers/abcd" - we just want the "abcd" part after "/timers/"
-    std::string timer_url = headers.at("location");
-    size_t start_of_path = timer_url.find("/timers/") + (std::string("/timers/").length());
-    post_identity = timer_url.substr(start_of_path, std::string::npos);
+    std::string timer_url = headers["location"];
+ 
+    if (timer_url != "")
+    {
+      size_t start_of_path = timer_url.find("/timers/") + (std::string("/timers/").length());
+      post_identity = timer_url.substr(start_of_path, std::string::npos);
+    }
+    else
+    { 
+      return HTTP_BAD_RESULT; 
+    }
+      
   }
 
   return success;

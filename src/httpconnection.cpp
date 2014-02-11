@@ -571,10 +571,8 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
   size_t colon_loc = headerString.find(":");
   if (colon_loc == std::string::npos)
   {
-    // LCOV_EXCL_START
     key = headerString;
     val = "";
-    // LCOV_EXCL_STOP
   }
   else
   {
