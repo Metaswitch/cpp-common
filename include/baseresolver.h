@@ -111,7 +111,7 @@ class BaseResolver
 {
 public:
   BaseResolver(DnsCachedResolver* dns_client);
-  ~BaseResolver();
+  virtual ~BaseResolver();
 
   void blacklist(const AddrInfo& ai, int ttl);
 
