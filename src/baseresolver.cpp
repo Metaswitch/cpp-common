@@ -361,7 +361,7 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
             repl->replacement = replacement;
             repl->flags = naptr->flags();
             repl->transport = _services[naptr->service()];
-            ttl = ttl - time(NULL);
+            ttl = expires - time(NULL);
             terminated = true;
           }
           break;

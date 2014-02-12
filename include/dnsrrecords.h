@@ -84,6 +84,10 @@ public:
     _expires = _ttl + time(NULL);
   }
 
+  virtual ~DnsRRecord()
+  {
+  }
+
   const std::string& rrname() const { return _rrname; }
   int rrtype() const { return _rrtype; }
   int rrclass() const { return _rrclass; }

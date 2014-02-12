@@ -321,9 +321,6 @@ std::string DnsCachedResolver::display_cache()
        ++i)
   {
     const DnsCacheEntry& ce = i->second;
-    LOG_DEBUG("Displaying cache entry (%p) %s %s",
-              &ce, ce.domain.c_str(),
-              DnsRRecord::rrtype_to_string(ce.dnstype).c_str());
     oss << "Cache entry " << ce.domain
         << " type=" << DnsRRecord::rrtype_to_string(ce.dnstype)
         << " expires=" << ce.expires-now << std::endl;

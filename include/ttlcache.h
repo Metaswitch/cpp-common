@@ -63,7 +63,7 @@ class TTLCache
 {
   /// The expiry list is a multimap indexed on expiry time (in seconds since
   /// epoch).
-  typedef std::multimap<int, K> ExpiryList;
+  typedef std::multimap<time_t, K> ExpiryList;
   typedef typename ExpiryList::iterator ExpiryIterator;
 
   /// The cache itself is a map indexed on the key, where each entry contains
@@ -146,6 +146,7 @@ public:
         // Add the entry to the expiry list, and add one to the reference count
         // for this reference.
         ++entry.refs;
+        LOG_DEBUG("Adding entry to expiry list, TTL=%d, expiry time = %d", ttl, ttl + time(NULL));
         entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
 
         // Unlock the entry, so other threads can read it.
@@ -309,9 +310,12 @@ private:
 
   void evict()
   {
-    int now = time(NULL);
+    time_t now = time(NULL);
     while ((!_expiry_list.empty()) && (_expiry_list.begin()->first <= now))
     {
+      LOG_DEBUG("Time now is %d, expiry time of entry at head of expiry list is %d",
+                now, _expiry_list.begin()->first);
+
       ExpiryIterator i = _expiry_list.begin();
       KeyMapIterator j = _cache.find(i->second);
 
@@ -340,7 +344,10 @@ private:
   /// Factory object used to get and evict cache data.
   CacheFactory<K, V>* _factory;
 
-  /// Lock protecting the global structures in the cache;
+  /// Lock protecting the global structures in the cache.  This lock must be
+  /// held when accessing the global expiry list and key map structures.  It
+  /// must not be held when calling a factory get() method, but can be held
+  /// when calling an evict() method as these are assumed not to block.
   pthread_mutex_t _lock;
 
   ExpiryList _expiry_list;
