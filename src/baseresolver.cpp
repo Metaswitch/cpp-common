@@ -225,26 +225,17 @@ bool BaseResolver::parse_ip_target(const std::string& target, IP46Address& addre
   std::string ip_target = target;
   Utils::trim(ip_target);
 
-  // IPv6 target will be delimited by square brackets, so check for them and
-  // strip them if present.
-  if ((ip_target[0] == '[')  && (ip_target[ip_target.size() - 1] == ']'))
+  if (inet_pton(AF_INET6, ip_target.c_str(), &address.addr.ipv6) == 1)
   {
-    ip_target = ip_target.substr(1, ip_target.size() - 2);
-    if (inet_pton(AF_INET6, ip_target.c_str(), &address.addr.ipv6) == 1)
-    {
-      // Parsed the address as a valid IPv6 address.
-      address.af = AF_INET6;
-      rc = true;
-    }
+    // Parsed the address as a valid IPv6 address.
+    address.af = AF_INET6;
+    rc = true;
   }
-  else
+  else if (inet_pton(AF_INET, ip_target.c_str(), &address.addr.ipv4) == 1)
   {
-    if (inet_pton(AF_INET, ip_target.c_str(), &address.addr.ipv4) == 1)
-    {
-      // Parsed the address as a valid IPv4 address.
-      address.af = AF_INET;
-      rc = true;
-    }
+    // Parsed the address as a valid IPv4 address.
+    address.af = AF_INET;
+    rc = true;
   }
 
   return rc;
