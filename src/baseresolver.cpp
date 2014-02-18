@@ -196,11 +196,13 @@ int BaseResolver::blacklist_filter(std::list<IP46Address>& addrs,
 
 void BaseResolver::blacklist(const AddrInfo& ai, int ttl)
 {
+  /* Temporarily disabled due to overly-aggressive blacklisting.
+
   char buf[100];
   LOG_DEBUG("Add %s:%d transport %d to blacklist for %d seconds",
             inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
             ai.port, ai.transport, ttl);
-  _blacklist->add(ai, true, ttl);
+  _blacklist->add(ai, true, ttl); */
 }
 
 /// Selects an address at random from a list.
