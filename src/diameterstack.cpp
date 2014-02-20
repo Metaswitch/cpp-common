@@ -92,6 +92,16 @@ void Stack::advertize_application(const Dictionary::Application& app)
   }
 }
 
+void Stack::advertize_application(const Dictionary::Vendor& vendor, const Dictionary::Application& app)
+{
+  initialize();
+  int rc = fd_disp_app_support(app.dict(), vendor.dict(), 1, 0);
+  if (rc != 0)
+  {
+    throw Exception("fd_disp_app_support", rc); // LCOV_EXCL_LINE
+  }
+}
+
 void Stack::register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory)
 {
   // Register a callback for messages from our application with the specified message type.
