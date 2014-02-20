@@ -76,6 +76,7 @@ public:
                    SAS::TrailId trail);
   virtual long send_delete(const std::string& path, SAS::TrailId trail);
   virtual long send_put(const std::string& path, std::string body, SAS::TrailId trail);
+  virtual long send_put(const std::string& path, std::string body, std::string& response, SAS::TrailId trail);
   virtual long send_post(const std::string& path, std::string body, std::map<std::string, std::string>& headers, SAS::TrailId trail);
   virtual long send_request(const std::string& path, std::string& doc, const std::string& username, SAS::TrailId trail, CURL* curl);
 
