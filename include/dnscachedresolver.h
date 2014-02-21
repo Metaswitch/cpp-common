@@ -120,6 +120,7 @@ private:
 
   struct DnsCacheEntry
   {
+    int valid;
     pthread_mutex_t lock;
     bool pending_query;
     std::string domain;

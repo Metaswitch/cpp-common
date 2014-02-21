@@ -494,6 +494,7 @@ DnsCachedResolver::DnsCacheEntry* DnsCachedResolver::create_cache_entry(const st
 {
   DnsCacheEntry& ce = _cache[std::make_pair(dnstype, domain)];
   pthread_mutex_init(&ce.lock, NULL);
+  ce.valid = 3008;
   ce.domain = domain;
   ce.dnstype = dnstype;
   ce.expires = DEFAULT_NEGATIVE_CACHE_TTL + time(NULL);
@@ -504,6 +505,7 @@ DnsCachedResolver::DnsCacheEntry* DnsCachedResolver::create_cache_entry(const st
 /// Adds the cache entry to the expiry list.
 void DnsCachedResolver::add_to_expiry_list(DnsCacheEntry* ce)
 {
+  LOG_DEBUG("Adding %s to cache expiry list with expiry time of %d", ce->domain.c_str(), ce->expires);
   _cache_expiry_list.insert(std::make_pair(ce->expires, ce));
 }
 
@@ -523,6 +525,8 @@ void DnsCachedResolver::expire_cache()
 
     // Check that the record really is due for expiry and hasn't been refreshed.
     DnsCacheEntry* ce = _cache_expiry_list.begin()->second;
+    LOG_DEBUG("Removing record (type %d, expiry time %d, valid %d) from the expiry list", ce->dnstype, i->first, ce->valid);
+    LOG_DEBUG("Removing record for %s (type %d, expiry time %d, valid %d) from the expiry list", ce->domain.c_str(), ce->dnstype, i->first, ce->valid);
     if (ce->expires == i->first)
     {
       // Record really is ready to expire, so remove it from the main cache
@@ -530,6 +534,9 @@ void DnsCachedResolver::expire_cache()
       DnsCache::iterator j = _cache.find(std::make_pair(ce->dnstype, ce->domain));
       if (j != _cache.end())
       {
+        LOG_DEBUG("Pointer &(j->second) is %d, ce is %d", &(j->second), ce);
+        LOG_DEBUG("Expiring record for %s (type %d, valid %d) from the DNS cache", j->second.domain.c_str(), j->second.dnstype, j->second.valid);
+        j->second.valid = -1;
         _cache.erase(j);
       }
     }
