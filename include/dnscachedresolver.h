@@ -120,7 +120,6 @@ private:
 
   struct DnsCacheEntry
   {
-    int valid;
     pthread_mutex_t lock;
     bool pending_query;
     std::string domain;
@@ -151,7 +150,7 @@ private:
   };
 
   typedef std::pair<int, std::string> DnsCacheKey;
-  typedef std::multimap<int, DnsCacheEntry*> DnsCacheExpiryList;
+  typedef std::multimap<int, DnsCacheKey> DnsCacheExpiryList;
   typedef std::map<DnsCacheKey,
                    DnsCacheEntry,
                    DnsCacheKeyCompare> DnsCache;
