@@ -219,6 +219,8 @@ HTTPCode HttpConnection::send_delete(const std::string& path, SAS::TrailId trail
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, NULL);
   std::string json_data;
   HTTPCode status = send_request(path, json_data, "", trail, curl);
+
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL);
   curl_slist_free_all(slist);
 
   return status;
@@ -241,6 +243,8 @@ HTTPCode HttpConnection::send_put(const std::string& path, std::string body, std
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, NULL);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, NULL);
   HTTPCode status = send_request(path, response, "", trail, curl);
+
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL);
   curl_slist_free_all(slist);
 
   return status;
@@ -258,6 +262,8 @@ HTTPCode HttpConnection::send_post(const std::string& path, std::string body, st
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
   std::string json_data;
   HTTPCode status = send_request(path, json_data, "", trail, curl);
+
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL);
   curl_slist_free_all(slist);
 
   return status;
