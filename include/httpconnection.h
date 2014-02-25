@@ -117,6 +117,7 @@ private:
   };
 
   CURL* get_curl_handle();
+  void reset_curl_handle(CURL* curl);
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
   static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
   const std::string _server;
