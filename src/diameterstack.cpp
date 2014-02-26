@@ -139,7 +139,8 @@ int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session
 {
   // Convert the received message into one our Message objects, and create a new handler instance of the 
   // correct type.
-  Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req);
+  Stack* stack = Stack::get_instance();
+  Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req, stack);
   LOG_DEBUG("Handling Diameter message of type %u", msg.command_code());
   Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(msg);
   handler->run();
@@ -236,6 +237,28 @@ void Stack::logger(int fd_log_level, const char* fmt, va_list args)
       break;
   }
   Log::_write(log_level, "freeDiameter", 0, fmt, args);
+}
+
+void Stack::send(struct msg* fd_msg)
+{
+  fd_msg_send(&fd_msg, NULL, NULL);
+}
+
+void Stack::send(struct msg* fd_msg, Transaction* tsx)
+{
+  fd_msg_send(&fd_msg, Transaction::on_response, tsx);
+}
+
+void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
+{
+  struct timespec timeout_ts;
+  // TODO: Check whether this should be CLOCK_MONOTONIC - freeDiameter uses CLOCK_REALTIME but
+  //       this feels like it might suffer over time changes.
+  clock_gettime(CLOCK_REALTIME, &timeout_ts);
+  timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
+  timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
+  timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
+  fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
 }
 
 struct dict_object* Dictionary::Vendor::find(const std::string vendor)
@@ -337,7 +360,8 @@ Transaction::~Transaction()
 void Transaction::on_response(void* data, struct msg** rsp)
 {
   Transaction* tsx = (Transaction*)data;
-  Message msg(tsx->_dict, *rsp);
+  Stack* stack = Stack::get_instance();
+  Message msg(tsx->_dict, *rsp, stack);
   LOG_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
               msg.command_code(), tsx);
   tsx->stop_timer();
@@ -350,7 +374,8 @@ void Transaction::on_response(void* data, struct msg** rsp)
 void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg** req)
 {
   Transaction* tsx = (Transaction*)data;
-  Message msg(tsx->_dict, *req);
+  Stack* stack = Stack::get_instance();
+  Message msg(tsx->_dict, *req, stack);
   LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
   tsx->stop_timer();
@@ -502,7 +527,7 @@ int32_t Message::vendor_id() const
 void Message::send()
 {
   LOG_VERBOSE("Sending Diameter message of type %u", command_code());
-  fd_msg_send(&_fd_msg, NULL, NULL);
+  _stack->send(_fd_msg);
   _free_on_delete = false;
 }
 
@@ -510,7 +535,7 @@ void Message::send(Transaction* tsx)
 {
   LOG_VERBOSE("Sending Diameter message of type %u on transaction %p", command_code(), tsx);
   tsx->start_timer();
-  fd_msg_send(&_fd_msg, Transaction::on_response, tsx);
+  _stack->send(_fd_msg, tsx);
   _free_on_delete = false;
 }
 
@@ -527,6 +552,6 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
 
   tsx->start_timer();
-  fd_msg_send_timeout(&_fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
+  _stack->send(_fd_msg, tsx, timeout_ms);
   _free_on_delete = false;
 }
