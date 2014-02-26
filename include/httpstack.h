@@ -93,8 +93,8 @@ public:
       evbuffer_add(_req->buffer_out, content.c_str(), content.length());
     }
 
-    inline htp_method method() {return evhtp_request_get_method(_req);};
-    std::string body();
+    virtual htp_method method() {return evhtp_request_get_method(_req);};
+    virtual std::string body();
 
     void send_reply(int rc);
     inline evhtp_request_t* req() { return _req; }
@@ -153,7 +153,7 @@ public:
   protected:
     void record_penalty() { _req.record_penalty(); }
 
-    Request _req;
+    Request& _req;
   };
 
   class BaseHandlerFactory
