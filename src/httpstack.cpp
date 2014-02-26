@@ -61,7 +61,7 @@ bool HttpStack::Request::get_latency(unsigned long& latency_us)
 
 void HttpStack::send_reply(Request& req, int rc)
 {
-  LOG_VERBOSE("Sending response %d to request for URL %s", rc, req.req()->uri->path->full);
+  LOG_VERBOSE("Sending response %d to request for URL %s, args %s", rc, req.req()->uri->path->full, req.req()->uri->query_raw);
   // Log and set up the return code.
   log(std::string(req.req()->uri->path->full), rc);
   evhtp_send_reply(req.req(), rc);
@@ -163,7 +163,7 @@ void HttpStack::start()
   {
     full_bind_address = "ipv6:" + full_bind_address;
   }
-  
+
   freeaddrinfo(servinfo);
 
   rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), _bind_port, 1024);
@@ -217,7 +217,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     evhtp_request_pause(req);
 
     // Create a Request and a Handler and kick off processing.
-    LOG_VERBOSE("Handling request for URL %s", req->uri->path->full);
+    LOG_VERBOSE("Handling request for URL %s, args %s", req->uri->path->full, req->uri->query_raw);
     Request request(this, req);
     Handler* handler = handler_factory->create(request);
     handler->run();

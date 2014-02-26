@@ -207,17 +207,42 @@ HTTPCode HttpConnection::curl_code_to_http_code(CURL* curl, CURLcode code)
   }
 }
 
+// Reset the cURL handle to a default state, so that settings from one
+// request don't leak into another
+void HttpConnection::reset_curl_handle(CURL* curl)
+{
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL);
+  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
+  curl_easy_setopt(curl, CURLOPT_WRITEHEADER, NULL);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, NULL);
+  curl_easy_setopt(curl, CURLOPT_POST, 0);
+}
+
+
 HTTPCode HttpConnection::send_delete(const std::string& path, SAS::TrailId trail)
 {
   CURL *curl = get_curl_handle();
-
+  struct curl_slist *slist = NULL;
+  slist = curl_slist_append(slist, "Expect:");
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-  std::string json_data;
-  return send_request(path, json_data, "", trail, curl);
 
+  std::string json_data;
+  HTTPCode status = send_request(path, json_data, "", trail, curl);
+
+  curl_slist_free_all(slist);
+
+  return status;
 }
 
-HTTPCode HttpConnection::send_put(const std::string& path, std::string body, const std::map<std::string, std::string>& headers, SAS::TrailId trail)
+HTTPCode HttpConnection::send_put(const std::string& path, std::string body, SAS::TrailId trail)
+{
+  std::string unused;
+  return HttpConnection::send_put(path, body, unused, trail);
+}
+
+HTTPCode HttpConnection::send_put(const std::string& path, std::string body, std::string& response, SAS::TrailId trail)
 {
   CURL *curl = get_curl_handle();
   struct curl_slist *slist = NULL;
@@ -225,11 +250,11 @@ HTTPCode HttpConnection::send_put(const std::string& path, std::string body, con
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
-  curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
-  std::string json_data;
+  HTTPCode status = send_request(path, response, "", trail, curl);
 
-  return send_request(path, json_data, "", trail, curl);
+  curl_slist_free_all(slist);
+
+  return status;
 }
 
 HTTPCode HttpConnection::send_post(const std::string& path, std::string body, std::map<std::string, std::string>& headers, SAS::TrailId trail)
@@ -243,8 +268,11 @@ HTTPCode HttpConnection::send_post(const std::string& path, std::string body, st
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
   std::string json_data;
+  HTTPCode status = send_request(path, json_data, "", trail, curl);
 
-  return send_request(path, json_data, "", trail, curl);
+  curl_slist_free_all(slist);
+
+  return status;
 }
 
 /// Get data; return a HTTP return code
@@ -327,7 +355,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     }
     else
     {
-      LOG_DEBUG("Received HTTP error response : GET %s : %s", url.c_str(), curl_easy_strerror(rc));
+      LOG_DEBUG("Received HTTP error response : %s : %s", url.c_str(), curl_easy_strerror(rc));
 
       // Report the error to SAS
       SAS::Event http_err_event(trail, _sas_event_base + SASEvent::HTTP_ERR, 1u);
@@ -391,7 +419,6 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
       }
     }
   }
-  curl_slist_free_all(extra_headers);
 
   if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
   {
@@ -417,6 +444,9 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   {
     LOG_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
   }
+
+  reset_curl_handle(curl);
+  curl_slist_free_all(extra_headers);
   return http_code;
 }
 
