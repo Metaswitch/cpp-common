@@ -65,6 +65,7 @@ public:
     {
       stopwatch.start();
     }
+    virtual ~Request() {};
 
     inline std::string path()
     {
