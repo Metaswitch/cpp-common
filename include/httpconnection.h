@@ -46,14 +46,15 @@
 #include "load_monitor.h"
 
 typedef long HTTPCode;
-#define HTTP_OK 200
-#define HTTP_CREATED 201
-#define HTTP_BAD_RESULT 400
-#define HTTP_NOT_FOUND 404
-#define HTTP_BADMETHOD 405
-#define HTTP_TEMP_UNAVAILABLE 480
-#define HTTP_SERVER_ERROR 500
-#define HTTP_SERVER_UNAVAILABLE 503
+static const long HTTP_OK = 200;
+static const long HTTP_CREATED = 201;
+static const long HTTP_BAD_RESULT = 400;
+static const long HTTP_FORBIDDEN = 403;
+static const long HTTP_NOT_FOUND = 404;
+static const long HTTP_BADMETHOD = 405;
+static const long HTTP_TEMP_UNAVAILABLE = 480;
+static const long HTTP_SERVER_ERROR = 500;
+static const long HTTP_SERVER_UNAVAILABLE = 503;
 
 /// Provides managed access to data on a single HTTP server. Properly
 /// supports round-robin DNS load balancing.
