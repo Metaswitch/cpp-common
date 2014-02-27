@@ -475,6 +475,7 @@ public:
   virtual void initialize();
   virtual void configure(std::string filename);
   virtual void advertize_application(const Dictionary::Application& app);
+  virtual void advertize_application(const Dictionary::Vendor& vendor, const Dictionary::Application& app);
   virtual void register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory);
   virtual void register_fallback_handler(const Dictionary::Application& app);
   virtual void start();

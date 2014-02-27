@@ -118,7 +118,7 @@ void Statistic::reporter()
         std::vector<std::string>::iterator it;
         for (it = new_value.begin(); it + 1 != new_value.end(); ++it)
         {
-          zmq_send(_publisher, it->c_str(), it->length(), ZMQ_SNDMORE);
+          zmq_send(_publisher, it->c_str(), it->length(), ZMQ_SNDMORE); //LCOV_EXCL_LINE
         }
         zmq_send(_publisher, it->c_str(), it->length(), 0);
       }
