@@ -49,22 +49,22 @@ class ChronosConnection
 {
 public:
   ChronosConnection(const std::string& chronos);
-  ~ChronosConnection();
+  virtual ~ChronosConnection();
 
   virtual HTTPCode send_delete(const std::string& delete_id,
                                SAS::TrailId trail);
-  HTTPCode send_put(const std::string& put_identity,
-                    uint32_t timer_interval,
-                    uint32_t repeat_for,
-                    const std::string& callback_uri,
-                    const std::string& opaque_data,
-                    SAS::TrailId trail);
-  HTTPCode send_post(std::string& post_identity,
-                     uint32_t timer_interval,
-                     uint32_t repeat_for,
-                     const std::string& callback_uri,
-                     const std::string& opaque_data,
-                     SAS::TrailId trail);
+  virtual HTTPCode send_put(const std::string& put_identity,
+                            uint32_t timer_interval,
+                            uint32_t repeat_for,
+                            const std::string& callback_uri,
+                            const std::string& opaque_data,
+                            SAS::TrailId trail);
+  virtual HTTPCode send_post(std::string& post_identity,
+                             uint32_t timer_interval,
+                             uint32_t repeat_for,
+                             const std::string& callback_uri,
+                             const std::string& opaque_data,
+                             SAS::TrailId trail);
 
   // Versions without repeat_for (i.e. timers that only fire once)
   virtual HTTPCode send_put(const std::string& put_identity,
