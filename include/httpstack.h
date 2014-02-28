@@ -203,7 +203,7 @@ public:
   virtual void stop();
   virtual void wait_stopped();
   virtual void send_reply(Request& req, int rc);
-  void record_penalty();
+  virtual void record_penalty();
 
   void log(const std::string uri, int rc)
   {
