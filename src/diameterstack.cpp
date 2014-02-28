@@ -543,14 +543,6 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
 {
   LOG_VERBOSE("Sending Diameter message of type %u on transaction %p with timeout %u",
               command_code(), tsx, timeout_ms);
-  struct timespec timeout_ts;
-  // TODO: Check whether this should be CLOCK_MONOTONIC - freeDiameter uses CLOCK_REALTIME but
-  //       this feels like it might suffer over time changes.
-  clock_gettime(CLOCK_REALTIME, &timeout_ts);
-  timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
-  timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
-  timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
-
   tsx->start_timer();
   _stack->send(_fd_msg, tsx, timeout_ms);
   _free_on_delete = false;
