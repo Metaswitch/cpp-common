@@ -99,7 +99,7 @@ public:
     void send_reply(int rc);
     inline evhtp_request_t* req() { return _req; }
 
-    void record_penalty() { printf("Calling _stack->record_penalty(stack=%p)\n", _stack);_stack->record_penalty(); }
+    void record_penalty() { _stack->record_penalty(); }
 
 
     /// Get the latency of the request.
