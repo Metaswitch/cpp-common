@@ -452,7 +452,8 @@ void Message::operator=(Message const& msg)
   }
   _dict = msg._dict;
   _fd_msg = msg._fd_msg;
-  _free_on_delete = msg._free_on_delete;
+  _free_on_delete = false;
+  _master_msg = msg._master_msg;
 }
 
 // Given an AVP type, search a Diameter message for an AVP of this type. If one exists,
@@ -527,16 +528,16 @@ int32_t Message::vendor_id() const
 void Message::send()
 {
   LOG_VERBOSE("Sending Diameter message of type %u", command_code());
+  revoke_ownership();
   _stack->send(_fd_msg);
-  _free_on_delete = false;
 }
 
 void Message::send(Transaction* tsx)
 {
   LOG_VERBOSE("Sending Diameter message of type %u on transaction %p", command_code(), tsx);
   tsx->start_timer();
+  revoke_ownership();
   _stack->send(_fd_msg, tsx);
-  _free_on_delete = false;
 }
 
 void Message::send(Transaction* tsx, unsigned int timeout_ms)
@@ -544,6 +545,6 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
   LOG_VERBOSE("Sending Diameter message of type %u on transaction %p with timeout %u",
               command_code(), tsx, timeout_ms);
   tsx->start_timer();
+  revoke_ownership();
   _stack->send(_fd_msg, tsx, timeout_ms);
-  _free_on_delete = false;
 }
