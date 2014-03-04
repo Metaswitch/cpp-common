@@ -63,8 +63,8 @@ public:
     pthread_condattr_t cond_attr;
     pthread_condattr_init(&cond_attr);
     pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&_cond, &cond_attr);
     pthread_condattr_destroy(&cond_attr);
-    pthread_cond_init(&_cond, NULL);
 
     // Create the semaphore
     sem_init(&_sema, 0, 0);
