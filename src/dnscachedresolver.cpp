@@ -48,7 +48,7 @@
 
 DnsResult::DnsResult(const std::string& domain,
                      int dnstype,
-                     const std::list<DnsRRecord*>& records,
+                     const std::vector<DnsRRecord*>& records,
                      int ttl) :
   _domain(domain),
   _dnstype(dnstype),
@@ -56,7 +56,7 @@ DnsResult::DnsResult(const std::string& domain,
   _ttl(ttl)
 {
   // Clone the records to the result.
-  for (std::list<DnsRRecord*>::const_iterator i = records.begin();
+  for (std::vector<DnsRRecord*>::const_iterator i = records.begin();
        i != records.end();
        ++i)
   {
@@ -64,12 +64,22 @@ DnsResult::DnsResult(const std::string& domain,
   }
 }
 
+DnsResult::DnsResult(const std::string& domain,
+                     int dnstype,
+                     int ttl) :
+  _domain(domain),
+  _dnstype(dnstype),
+  _records(),
+  _ttl(ttl)
+{
+}
+
 DnsResult::~DnsResult()
 {
   while (!_records.empty())
   {
-    delete _records.front();
-    _records.pop_front();
+    delete _records.back();
+    _records.pop_back();
   }
 }
 
@@ -266,6 +276,12 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                                   ce->records,
                                   ce->expires - time(NULL)));
     }
+    else
+    {
+      // This shouldn't happen, but if it does, return an empty result set.
+      LOG_DEBUG("Return empty result set");
+      results.push_back(DnsResult(*i, dnstype, 0));
+    }
   }
 
   pthread_mutex_unlock(&_cache_lock);
@@ -274,7 +290,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
 /// Adds or updates an entry in the cache.
 void DnsCachedResolver::add_to_cache(const std::string& domain,
                                      int dnstype,
-                                     std::list<DnsRRecord*>& records)
+                                     std::vector<DnsRRecord*>& records)
 {
   pthread_mutex_lock(&_cache_lock);
 
@@ -296,12 +312,11 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   }
 
   // Copy all the records across to the cache entry.
-  while (!records.empty())
+  for (size_t ii = 0; ii < records.size(); ++ii)
   {
-    DnsRRecord* rr = records.front();
-    records.pop_front();
-    add_record_to_cache(ce, rr);
+    add_record_to_cache(ce, records[ii]);
   }
+  records.clear();
 
   // Finally make sure the record is in the expiry list.
   add_to_expiry_list(ce);
@@ -324,7 +339,7 @@ std::string DnsCachedResolver::display_cache()
     oss << "Cache entry " << ce.domain
         << " type=" << DnsRRecord::rrtype_to_string(ce.dnstype)
         << " expires=" << ce.expires-now << std::endl;
-    for (std::list<DnsRRecord*>::const_iterator i = ce.records.begin();
+    for (std::vector<DnsRRecord*>::const_iterator i = ce.records.begin();
          i != ce.records.end();
          ++i)
     {
@@ -419,7 +434,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
         }
       }
 
-      // Now process update each cache record in turn.
+      // Now update each cache record in turn.
       for (std::map<DnsCacheKey, std::list<DnsRRecord*> >::const_iterator i = sorted.begin();
            i != sorted.end();
            ++i)
@@ -544,8 +559,8 @@ void DnsCachedResolver::clear_cache_entry(DnsCacheEntry* ce)
 {
   while (!ce->records.empty())
   {
-    delete ce->records.front();
-    ce->records.pop_front();
+    delete ce->records.back();
+    ce->records.pop_back();
   }
   ce->expires = 0;
 }

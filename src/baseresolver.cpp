@@ -107,8 +107,8 @@ void BaseResolver::destroy_blacklist()
 /// @returns    The TTL of the returned records.  If no records were found
 ///             this will be the negative cache TTL.
 int BaseResolver::a_query(const std::string& hostname,
-                           int af,
-                           std::list<IP46Address>& addrs)
+                          int af,
+                          std::list<IP46Address>& addrs)
 {
   int ttl = 0;
 
@@ -116,7 +116,7 @@ int BaseResolver::a_query(const std::string& hostname,
   {
     // Do A record query only.
     DnsResult result = _dns_client->dns_query(hostname, ns_t_a);
-    for (std::list<DnsRRecord*>::const_iterator i = result.records().begin();
+    for (std::vector<DnsRRecord*>::const_iterator i = result.records().begin();
          i != result.records().end();
          ++i)
     {
@@ -132,7 +132,7 @@ int BaseResolver::a_query(const std::string& hostname,
   {
     // Do AAAA record query only.
     DnsResult result = _dns_client->dns_query(hostname, ns_t_aaaa);
-    for (std::list<DnsRRecord*>::const_iterator i = result.records().begin();
+    for (std::vector<DnsRRecord*>::const_iterator i = result.records().begin();
          i != result.records().end();
          ++i)
     {
@@ -279,7 +279,7 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
       // acceptable flags.
       std::vector<DnsNaptrRecord*> filtered;
 
-      for (std::list<DnsRRecord*>::const_iterator i = result.records().begin();
+      for (std::vector<DnsRRecord*>::const_iterator i = result.records().begin();
            i != result.records().end();
            ++i)
       {
@@ -446,7 +446,7 @@ BaseResolver::SRVSelector* BaseResolver::SRVCacheFactory::get(std::string key, i
     // We have a result, move the records to a vector and sort it on priority.
     LOG_DEBUG("SRV query returned %d records", result.records().size());
     std::vector<DnsSrvRecord*> sorted;
-    for (std::list<DnsRRecord*>::const_iterator i = result.records().begin();
+    for (std::vector<DnsRRecord*>::const_iterator i = result.records().begin();
          i != result.records().end();
          ++i)
     {
