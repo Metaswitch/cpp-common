@@ -63,6 +63,7 @@ public:
     pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
     pthread_cond_init(&_w_cond, &cond_attr);
     pthread_cond_init(&_r_cond, &cond_attr);
+    pthread_condattr_destroy(&cond_attr);
   };
 
   ~eventq()
