@@ -60,7 +60,11 @@ public:
   {
     // Create the mutex and condition.
     pthread_mutex_init(&_mutex, NULL);
-    pthread_cond_init(&_cond, NULL);
+    pthread_condattr_t cond_attr;
+    pthread_condattr_init(&cond_attr);
+    pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&_cond, &cond_attr);
+    pthread_condattr_destroy(&cond_attr);
 
     // Create the semaphore
     sem_init(&_sema, 0, 0);
@@ -111,10 +115,7 @@ public:
 
     // Wait for either the signal condition to trigger or timeout
     struct timespec ts;
-    struct timeval tp;
-    gettimeofday(&tp, NULL);
-    ts.tv_sec = tp.tv_sec;
-    ts.tv_nsec = tp.tv_usec * 1000;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
     ts.tv_sec += 1;
 
     int rc = pthread_cond_timedwait(&_cond, &_mutex, &ts);
