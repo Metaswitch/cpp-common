@@ -44,6 +44,7 @@
 #include <map>
 #include <string>
 
+#include "log.h"
 #include "test_interposer.hpp"
 
 /// The map we use.
@@ -70,6 +71,10 @@ static int (*real_getaddrinfo)(const char*, const char*, const struct addrinfo*,
 static struct hostent* (*real_gethostbyname)(const char*);
 static int (*real_clock_gettime)(clockid_t, struct timespec *);
 static time_t (*real_time)(time_t*);
+typedef int (*pthread_cond_timedwait_func_t)(pthread_cond_t*,
+                                             pthread_mutex_t*,
+                                             const struct timespec*);
+pthread_cond_timedwait_func_t real_pthread_cond_timedwait;
 
 /// Helper: add two timespecs. Arbitrary aliasing is fine.
 static inline void ts_add(struct timespec& a, struct timespec& b, struct timespec& res)
@@ -77,6 +82,23 @@ static inline void ts_add(struct timespec& a, struct timespec& b, struct timespe
   long nsec = a.tv_nsec + b.tv_nsec;
   res.tv_nsec = nsec % (1000L * 1000L * 1000L);
   res.tv_sec = (time_t)(nsec / (1000L * 1000L * 1000L)) + a.tv_sec + b.tv_sec;
+}
+
+/// Helper: subtract timespec b from timespec a. Arbitrary aliasing is fine.
+static inline void ts_sub(const struct timespec& a, const struct timespec& b, struct timespec& res)
+{
+  int carry;
+  if (a.tv_nsec > b.tv_nsec)
+  {
+    res.tv_nsec = a.tv_nsec - b.tv_nsec;
+    carry = 0;
+  }
+  else
+  {
+    res.tv_nsec = (1000L * 1000L * 1000L) - b.tv_nsec + a.tv_nsec;
+    carry = 1;
+  }
+  res.tv_sec = (time_t)a.tv_sec - b.tv_sec - carry;
 }
 
 /// Add a new mapping: lookup for host will actually lookup target.
@@ -263,4 +285,41 @@ time_t time(time_t* v)
   return rt;
 }
 
+/// Replacement pthread_cond_timedwait()
+///
+/// WARNING: This replacement calls through to the 2.3.2 version of the 
+/// real pthread_cond_timedwait, regardless of the version the calling code
+/// assumed it would be calling.  This will need updating to support other
+/// libc versions.
+///
+/// WARNING THE SECOND: This assumes that the condition variable was created
+/// with a condattr that specifies CLOCK_MONOTONIC.
+///
+/// http://blog.fesnel.com/blog/2009/08/25/preloading-with-multiple-symbol-versions/
+int pthread_cond_timedwait(pthread_cond_t* cond,
+                           pthread_mutex_t* mutex,
+                           const struct timespec* abstime)
+{
+  struct timespec fixed_time;
 
+  if (!real_pthread_cond_timedwait)
+  {
+    real_pthread_cond_timedwait = (pthread_cond_timedwait_func_t)dlvsym(RTLD_NEXT, "pthread_cond_timedwait", "GLIBC_2.3.2");
+  }
+
+  // Subtract our fake time and add the real time, this means the
+  // relative delay is correct while allowing the calling code to think
+  // it's woking with absolute time.
+  //
+  // Note we call the fake clock_gettime first, meaning that real_clock_gettime
+  // will be set before the call to it in the next line.
+  struct timespec fake_time;
+  struct timespec real_time;
+  struct timespec delta_time;
+  clock_gettime(CLOCK_MONOTONIC, &fake_time);
+  real_clock_gettime(CLOCK_MONOTONIC, &real_time);
+  ts_sub(*abstime, fake_time, delta_time);
+  ts_add(real_time, delta_time, fixed_time);
+
+  return real_pthread_cond_timedwait(cond, mutex, &fixed_time);
+}
