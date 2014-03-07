@@ -329,6 +329,41 @@ struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::s
   return dict;
 }
 
+struct dict_object* Dictionary::AVP::find(const std::vector<std::string>& vendors, const std::string avp)
+{
+  struct dict_object* dict = NULL;
+  for (std::vector<std::string>::const_iterator vendor = vendors.begin();
+       vendor != vendors.end();
+       ++vendor)
+  {
+    struct dict_avp_request avp_req;
+
+    if (!vendor->empty())
+    {
+      struct dict_object* vendor_dict = Dictionary::Vendor::find(*vendor);
+      struct dict_vendor_data vendor_data;
+      fd_dict_getval(vendor_dict, &vendor_data);
+      avp_req.avp_vendor = vendor_data.vendor_id;
+    }
+    else
+    {
+      avp_req.avp_vendor = 0;
+    }
+    avp_req.avp_name = (char*)avp.c_str();
+    fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &dict, ENOENT);
+    if (dict != NULL)
+    {
+      break;
+    }
+  }
+
+  if (dict == NULL)
+  {
+    throw Diameter::Stack::Exception(avp.c_str(), 0); // LCOV_EXCL_LINE
+  }
+  return dict;
+}
+
 Dictionary::Dictionary() :
   SESSION_ID("Session-Id"),
   VENDOR_SPECIFIC_APPLICATION_ID("Vendor-Specific-Application-Id"),
@@ -385,14 +420,18 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   *req = NULL;
 }
 
-AVP& AVP::val_json(const rapidjson::Value& value)
+AVP& AVP::val_json(const std::vector<std::string>& vendors,
+                   const rapidjson::Value& value)
 {
   switch (value.GetType())
   {
     case rapidjson::kFalseType:
     case rapidjson::kTrueType:
+      LOG_ERROR("Invalid format (true/false) in JSON block (%d)",
+                avp_hdr()->avp_code);
+      break;
     case rapidjson::kNullType:
-      LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
+      LOG_ERROR("Invalid NULL in JSON block, ignoring");
       break;
     case rapidjson::kArrayType:
       LOG_ERROR("Cannot store multiple values in one ACR");
@@ -401,7 +440,7 @@ AVP& AVP::val_json(const rapidjson::Value& value)
       val_str(value.GetString());
       break;
     case rapidjson::kNumberType:
-      val_u32(value.GetUint());
+      val_u64(value.GetUint64());
       break;
     case rapidjson::kObjectType:
       for (rapidjson::Value::ConstMemberIterator it = value.MemberBegin();
@@ -412,21 +451,23 @@ AVP& AVP::val_json(const rapidjson::Value& value)
         {
         case rapidjson::kFalseType:
         case rapidjson::kTrueType:
-        case rapidjson::kNullType:
           LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
           continue;
+        case rapidjson::kNullType:
+          LOG_ERROR("Invalid NULL in JSON block, ignoring");
+          break;
         case rapidjson::kArrayType:
           for (rapidjson::Value::ConstValueIterator ary_it = it->value.Begin();
                ary_it != it->value.End();
                ++ary_it)
           {
-            add(Diameter::AVP(it->name.GetString()).val_json(ary_it));
+            add(Diameter::AVP(vendors, it->name.GetString()).val_json(vendors, *ary_it));
           }
           break;
         case rapidjson::kStringType:
         case rapidjson::kNumberType:
         case rapidjson::kObjectType:
-          add(Diameter::AVP(it->name.GetString()).val_json(it->value));
+          add(Diameter::AVP(vendors, it->name.GetString()).val_json(vendors, it->value));
           break;
         }
       }
