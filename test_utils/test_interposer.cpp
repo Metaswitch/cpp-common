@@ -292,6 +292,9 @@ time_t time(time_t* v)
 /// assumed it would be calling.  This will need updating to support other
 /// libc versions.
 ///
+/// WARNING THE SECOND: This assumes that the condition variable was created
+/// with a condattr that specifies CLOCK_MONOTONIC.
+///
 /// http://blog.fesnel.com/blog/2009/08/25/preloading-with-multiple-symbol-versions/
 int pthread_cond_timedwait(pthread_cond_t* cond,
                            pthread_mutex_t* mutex,
@@ -304,19 +307,19 @@ int pthread_cond_timedwait(pthread_cond_t* cond,
     real_pthread_cond_timedwait = (pthread_cond_timedwait_func_t)dlvsym(RTLD_NEXT, "pthread_cond_timedwait", "GLIBC_2.3.2");
   }
 
-  pthread_mutex_lock(&time_lock);
-
-  if (completely_control_time)
-  {
-    LOG_ERROR("Can't completely control time when using pthread_cond_timedwait");
-    fixed_time = *abstime;
-  }
-  else
-  {
-    ts_sub(*abstime, time_offset, fixed_time);
-  }
-
-  pthread_mutex_unlock(&time_lock);
+  // Subtract our fake time and add the real time, this means the
+  // relative delay is correct while allowing the calling code to think
+  // it's woking with absolute time.
+  //
+  // Note we call the fake clock_gettime first, meaning that real_clock_gettime
+  // will be set before the call to it in the next line.
+  struct timespec fake_time;
+  struct timespec real_time;
+  struct timespec delta_time;
+  clock_gettime(CLOCK_MONOTONIC, &fake_time);
+  real_clock_gettime(CLOCK_MONOTONIC, &real_time);
+  ts_sub(*abstime, fake_time, delta_time);
+  ts_add(real_time, delta_time, fixed_time);
 
   return real_pthread_cond_timedwait(cond, mutex, &fixed_time);
 }
