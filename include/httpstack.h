@@ -65,6 +65,7 @@ public:
     {
       stopwatch.start();
     }
+    virtual ~Request() {};
 
     inline std::string path()
     {
@@ -93,8 +94,8 @@ public:
       evbuffer_add(_req->buffer_out, content.c_str(), content.length());
     }
 
-    inline htp_method method() {return evhtp_request_get_method(_req);};
-    std::string body();
+    virtual htp_method method() {return evhtp_request_get_method(_req);};
+    virtual std::string body();
 
     void send_reply(int rc);
     inline evhtp_request_t* req() { return _req; }
@@ -153,7 +154,7 @@ public:
   protected:
     void record_penalty() { _req.record_penalty(); }
 
-    Request _req;
+    Request& _req;
   };
 
   class BaseHandlerFactory
@@ -202,7 +203,7 @@ public:
   virtual void stop();
   virtual void wait_stopped();
   virtual void send_reply(Request& req, int rc);
-  void record_penalty();
+  virtual void record_penalty();
 
   void log(const std::string uri, int rc)
   {

@@ -1,5 +1,5 @@
 /**
- * @file zmq_lvc.h
+ * @file fakelogger.cpp Fake logger (for testing).
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,48 +34,102 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef STATISTIC_H__
-#define STATISTIC_H__
+///
+///----------------------------------------------------------------------------
 
-#include <map>
-#include <vector>
-#include <string>
-#include <zmq.h>
+#include <iostream>
+#include <stdlib.h>
+#include <string.h>
 
-#define ZMQ_NEW_SUBSCRIPTION_MARKER 1
+#include "fakelogger.hpp"
 
-class LastValueCache
+const int DEFAULT_LOGGING_LEVEL = 4;
+
+using namespace std;
+
+FakeLogger::FakeLogger() :
+  _noisy(isNoisy())
 {
-public:
-  LastValueCache(int statcount,
-                 const std::string *statnames,
-                 std::string zmq_port,
-                 long poll_timeout_ms = 1000);
-  ~LastValueCache();
-  void* get_internal_publisher(std::string statname);
-  void run();
+  pthread_mutex_init(&_logger_lock, NULL);
 
-private:
-  void clear_cache(void *entry);
-  void replay_cache(void *entry);
+  Log::setLogger(this);
+  Log::setLoggingLevel(howNoisy());
+}
 
-  void **_subscriber;
-  void *_publisher;
-  std::map<void *, std::vector<zmq_msg_t *>> _cache;
-  pthread_t _cache_thread;
-  void *_context;
-  int _statcount;
-  const std::string *_statnames;
-  std::string _zmq_port;
-  const long _poll_timeout_ms;
-  volatile bool _terminate;
+FakeLogger::FakeLogger(bool noisy) :
+  _noisy(noisy)
+{
+  pthread_mutex_init(&_logger_lock, NULL);
 
-  /// A bound 0MQ socket per statistic, for use by the internal
-  // publishers. At most one thread may use each socket at
-  // a time.
-  std::map<std::string, void*> _internal_publishers;
+  Log::setLogger(this);
+  Log::setLoggingLevel(DEFAULT_LOGGING_LEVEL);
+}
 
-  static void* last_value_cache_entry_func(void *);
-};
+FakeLogger::~FakeLogger()
+{
+  pthread_mutex_destroy(&_logger_lock);
+  Log::setLogger(NULL);
+}
 
-#endif
+void FakeLogger::write(const char* data)
+{
+  string line(data);
+
+  if (*line.rbegin() != '\n') {
+    line.push_back('\n');
+  }
+
+  pthread_mutex_lock(&_logger_lock);
+
+  _lastlog.append(line);
+
+  pthread_mutex_unlock(&_logger_lock);
+
+  if (_noisy)
+  {
+    cout << line;
+  }
+
+}
+
+void FakeLogger::flush()
+{
+}
+
+bool FakeLogger::contains(const char* needle)
+{
+  pthread_mutex_lock(&_logger_lock);
+
+  bool result = _lastlog.find(needle) != string::npos;
+
+  pthread_mutex_unlock(&_logger_lock);
+
+  return result;
+}
+
+bool FakeLogger::isNoisy()
+{
+  // Turn on noisy logging iff NOISY=T or NOISY=Y in the environment.
+  char* val = getenv("NOISY");
+  return ((val != NULL) && (strchr("TtYy", val[0]) != NULL));
+}
+
+int FakeLogger::howNoisy()
+{
+  // Set logging to the specified level if specified in the environment.
+  // NOISY=T:5 sets the level to 5.
+  char* val = getenv("NOISY");
+  int level = DEFAULT_LOGGING_LEVEL;
+
+  if (val != NULL)
+  {
+    val = strchr(val, ':');
+
+    if (val != NULL)
+    {
+      level = strtol(val + 1, NULL, 10);
+    }
+  }
+
+  return level;
+}

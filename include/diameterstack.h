@@ -248,20 +248,26 @@ private:
 class Message
 {
 public:
-  inline Message(const Dictionary* dict, const Dictionary::Message& type) : _dict(dict), _free_on_delete(true)
+  inline Message(const Dictionary* dict, const Dictionary::Message& type, Stack* stack) : _dict(dict), _stack(stack), _free_on_delete(true), _master_msg(this)
   {
     fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_fd_msg);
   }
-  inline Message(Dictionary* dict, struct msg* msg) : _dict(dict), _fd_msg(msg), _free_on_delete(true) {};
-  inline Message(const Message& msg) : _dict(msg._dict), _fd_msg(msg._fd_msg), _free_on_delete(false) {};
+  inline Message(Dictionary* dict, struct msg* msg, Stack* stack) : _dict(dict), _fd_msg(msg), _stack(stack),  _free_on_delete(true), _master_msg(this) {};
+  inline Message(const Message& msg) : _dict(msg._dict), _fd_msg(msg._fd_msg), _stack(msg._stack),  _free_on_delete(false), _master_msg(msg._master_msg) {};
   virtual ~Message();
   inline const Dictionary* dict() const {return _dict;}
   inline struct msg* fd_msg() const {return _fd_msg;}
   inline uint32_t command_code() const {return msg_hdr()->msg_code;}
-  inline void build_response()
+  inline void build_response(Message &msg)
   {
+    // When we construct an answer from a request, freeDiameter associates
+    // the request with the new answer, so we only need to keep track of the
+    // answer.
+    msg.revoke_ownership();
+
     // _msg will point to the answer once this function is done.
     fd_msg_new_answer_from_req(fd_g_config->cnf_dict, &_fd_msg, 0);
+    claim_ownership();
   }
   inline Message& add_new_session_id()
   {
@@ -324,7 +330,20 @@ public:
 private:
   const Dictionary* _dict;
   struct msg* _fd_msg;
+  Stack* _stack;
   bool _free_on_delete;
+  Message* _master_msg;
+
+  inline void revoke_ownership()
+  {
+    _master_msg->_free_on_delete = false;
+  }
+
+  inline void claim_ownership()
+  {
+    _free_on_delete = true;
+    _master_msg = this;
+  }
 
   inline struct msg_hdr* msg_hdr() const
   {
@@ -480,6 +499,10 @@ public:
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
+
+  virtual void send(struct msg* fd_msg);
+  virtual void send(struct msg* fd_msg, Transaction* tsx);
+  virtual void send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms);
 
 private:
   static Stack* INSTANCE;

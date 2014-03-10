@@ -1,5 +1,5 @@
 /**
- * @file zmq_lvc.h
+ * @file fakelogger.hpp Header file for fake logger (for testing).
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,48 +34,37 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef STATISTIC_H__
-#define STATISTIC_H__
+///
+///----------------------------------------------------------------------------
 
-#include <map>
-#include <vector>
+#pragma once
+
 #include <string>
-#include <zmq.h>
+#include "log.h"
+#include "logger.h"
 
-#define ZMQ_NEW_SUBSCRIPTION_MARKER 1
-
-class LastValueCache
+/// Logger that records what is written.
+class FakeLogger : public Logger
 {
 public:
-  LastValueCache(int statcount,
-                 const std::string *statnames,
-                 std::string zmq_port,
-                 long poll_timeout_ms = 1000);
-  ~LastValueCache();
-  void* get_internal_publisher(std::string statname);
-  void run();
+  /// Get a logger with the default behaviour.
+  FakeLogger();
+
+  /// Get a logger that is explicitly noisy or not.
+  FakeLogger(bool noisy);
+
+  virtual ~FakeLogger();
+
+  void write(const char* data);
+  void flush();
+
+  bool contains(const char* needle);
+
+  static bool isNoisy();
+  static int howNoisy();
 
 private:
-  void clear_cache(void *entry);
-  void replay_cache(void *entry);
-
-  void **_subscriber;
-  void *_publisher;
-  std::map<void *, std::vector<zmq_msg_t *>> _cache;
-  pthread_t _cache_thread;
-  void *_context;
-  int _statcount;
-  const std::string *_statnames;
-  std::string _zmq_port;
-  const long _poll_timeout_ms;
-  volatile bool _terminate;
-
-  /// A bound 0MQ socket per statistic, for use by the internal
-  // publishers. At most one thread may use each socket at
-  // a time.
-  std::map<std::string, void*> _internal_publishers;
-
-  static void* last_value_cache_entry_func(void *);
+  pthread_mutex_t _logger_lock;
+  std::string _lastlog;
+  bool _noisy;
 };
-
-#endif
