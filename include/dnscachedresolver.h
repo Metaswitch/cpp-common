@@ -59,7 +59,7 @@ public:
 
   const std::string& domain() const { return _domain; }
   int dnstype() const { return _dnstype; }
-  const std::vector<DnsRRecord*>& records() const { return _records; }
+  std::vector<DnsRRecord*>& records() { return _records; }
   int ttl() const { return _ttl; }
 
 private:

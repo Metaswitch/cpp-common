@@ -45,7 +45,6 @@
 #include "log.h"
 #include "dnscachedresolver.h"
 #include "ttlcache.h"
-#include "pwselector.h"
 
 struct IP46Address
 {
@@ -123,17 +122,28 @@ protected:
   void destroy_srv_cache();
   void destroy_blacklist();
 
-  /// Does an A/AAAA record DNS query for the specified target domain name.
-  int a_query(const std::string& target, int af, std::list<IP46Address>& addrs);
+  /// Does an SRV record resolution for the specified SRV name, selecting
+  // appropriate targets.
+  void srv_resolve(const std::string& srv_name,
+                   int af,
+                   int transport,
+                   int retries,
+                   std::vector<AddrInfo>& targets);
 
-  /// Filters out any addresses that are blacklisted for the selected port and
-  /// transport.  Returns the minimum blacklist TTL for any address in the
-  /// list.
-  int blacklist_filter(std::list<IP46Address>& addrs, int port, int transport);
+  /// Does an A/AAAA record resolution for the specified name, selecting
+  /// appropriate targets.
+  void a_resolve(const std::string& name,
+                 int af,
+                 int port,
+                 int transport,
+                 int retries,
+                 std::vector<AddrInfo>& targets);
 
-  const IP46Address& select_address(const std::list<IP46Address>& addrs);
-
+  /// Parses a target name to see if it is a valid IPv4 or IPv6 address.
   bool parse_ip_target(const std::string& target, IP46Address& address);
+
+  /// Converts a DNS A or AAAA record to an IP46Address structure.
+  IP46Address to_ip46(const DnsRRecord* rr);
 
   /// Holds the results of applying NAPTR replacement on a target domain name.
   struct NAPTRReplacement
@@ -174,32 +184,62 @@ protected:
   typedef TTLCache<std::string, NAPTRReplacement*> NAPTRCache;
   NAPTRCache* _naptr_cache;
 
-  /// The SRVSelectors implement priority/weighted selection of host/port pairs.
-  typedef PWSelector<std::pair<std::string, int> > SRVSelector;
+  /// The SRVPriorityList holds the result of an SRV lookup sorted into
+  /// priority groups.
+  struct SRV
+  {
+    std::string target;
+    int port;
+    int priority;
+    int weight;
+  };
+  typedef std::map<int, std::vector<SRV> > SRVPriorityList;
 
   /// Factory class to handle populating and evicting entries from the SRV
   /// cache.
-  class SRVCacheFactory : public CacheFactory<std::string, SRVSelector*>
+  class SRVCacheFactory : public CacheFactory<std::string, SRVPriorityList*>
   {
   public:
     SRVCacheFactory(int default_ttl, DnsCachedResolver* dns_client);
     ~SRVCacheFactory();
 
-    SRVSelector* get(std::string key, int&ttl);
-    void evict(std::string key, SRVSelector* value);
+    SRVPriorityList* get(std::string key, int&ttl);
+    void evict(std::string key, SRVPriorityList* value);
 
   private:
-    static bool compare_srv_priority(DnsSrvRecord* r1, DnsSrvRecord* r2);
+    static bool compare_srv_priority(DnsRRecord* r1, DnsRRecord* r2);
 
     int _default_ttl;
     DnsCachedResolver* _dns_client;
   };
   SRVCacheFactory* _srv_factory;
 
-  /// The SRV cache holds a cache of SRVSelectors indexed on the SRV domain
+  /// The SRV cache holds a cache of SRVPriorityLists indexed on the SRV domain
   /// name (that is, a domain of the form _<service>._<transport>.<target>).
-  typedef TTLCache<std::string, SRVSelector*> SRVCache;
+  typedef TTLCache<std::string, SRVPriorityList*> SRVCache;
   SRVCache* _srv_cache;
+
+  /// The SRVWeightedSelector class is a temporary class used to implemented
+  /// selection of SRV records at a single priority level according to the
+  /// weighting of each record.
+  class SRVWeightedSelector
+  {
+  public:
+    /// Constructor.
+    SRVWeightedSelector(const std::vector<SRV>& srvs);
+
+    /// Destructor.
+    ~SRVWeightedSelector();
+
+    /// Selects an entry and sets its weight to zero.
+    int select();
+
+    /// Returns the current total weight of the items in the selector.
+    int total_weight();
+
+  private:
+    std::vector<int> _tree;
+  };
 
   /// The global blacklist holds a list of transport/IP address/port
   /// combinations which have been blacklisted because the destination is
