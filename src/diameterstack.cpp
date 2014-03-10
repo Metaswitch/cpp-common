@@ -421,6 +421,7 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 }
 
 AVP& AVP::val_json(const std::vector<std::string>& vendors,
+                   const Diameter::Dictionary::AVP& dict,
                    const rapidjson::Value& value)
 {
   switch (value.GetType())
@@ -440,7 +441,39 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
       val_str(value.GetString());
       break;
     case rapidjson::kNumberType:
-      val_u64(value.GetUint64());
+      // Parse the value out of the JSON as the appropriate type
+      // for for AVP.
+      switch (dict.base_type())
+      {
+      case AVP_TYPE_GROUPED:
+        LOG_ERROR("Cannot store integer in grouped AVP");
+        break;
+      case AVP_TYPE_OCTETSTRING:
+        // The only time this occurs is for types that have custom
+        // encoders (e.g. TIME types).  In those cases, Uint64 is
+        // the correct format.
+        val_u64(value.GetUint64());
+        break;
+      case AVP_TYPE_INTEGER32:
+        val_i32(value.GetInt());
+        break;
+      case AVP_TYPE_INTEGER64:
+        val_i64(value.GetInt64());
+        break;
+      case AVP_TYPE_UNSIGNED32:
+        val_u32(value.GetUint());
+        break;
+      case AVP_TYPE_UNSIGNED64:
+        val_u64(value.GetUint64());
+        break;
+      case AVP_TYPE_FLOAT32:
+      case AVP_TYPE_FLOAT64:
+        LOG_ERROR("Floating point AVPs are not supported");
+        break;
+      default:
+        LOG_ERROR("Unexpected AVP type"); // LCOV_EXCL_LINE
+        break;
+      }
       break;
     case rapidjson::kObjectType:
       for (rapidjson::Value::ConstMemberIterator it = value.MemberBegin();
@@ -461,13 +494,17 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
                ary_it != it->value.End();
                ++ary_it)
           {
-            add(Diameter::AVP(vendors, it->name.GetString()).val_json(vendors, *ary_it));
+            Diameter::Dictionary::AVP new_dict(vendors, it->name.GetString());
+            Diameter::AVP avp(new_dict);
+            add(avp.val_json(vendors, new_dict, *ary_it));
           }
           break;
         case rapidjson::kStringType:
         case rapidjson::kNumberType:
         case rapidjson::kObjectType:
-          add(Diameter::AVP(vendors, it->name.GetString()).val_json(vendors, it->value));
+          Diameter::Dictionary::AVP new_dict(vendors, it->name.GetString());
+          Diameter::AVP avp(new_dict);
+          add(avp.val_json(vendors, new_dict, it->value));
           break;
         }
       }

@@ -41,6 +41,7 @@
 
 #include <freeDiameter/freeDiameter-host.h>
 #include <freeDiameter/libfdcore.h>
+#include <freeDiameter/libfdproto.h>
 #include <rapidjson/document.h>
 
 #include "utils.h"
@@ -89,14 +90,28 @@ public:
   class AVP : public Object
   {
   public:
-    inline AVP(const std::string avp) : Object(find(avp)) {};
+    inline AVP(const std::string avp) : Object(find(avp))
+    {
+      fd_dict_getval(dict(), &_avp_data);
+    };
     inline AVP(const std::string vendor, 
-               const std::string avp) : Object(find(vendor, avp)) {};
+               const std::string avp) : Object(find(vendor, avp))
+    {
+      fd_dict_getval(dict(), &_avp_data);
+    };
     inline AVP(const std::vector<std::string>& vendors,
-               const std::string avp) : Object(find(vendors, avp)) {};
+               const std::string avp) : Object(find(vendors, avp))
+    {
+      fd_dict_getval(dict(), &_avp_data);
+    };
     static struct dict_object* find(const std::string avp);
     static struct dict_object* find(const std::string vendor, const std::string avp);
     static struct dict_object* find(const std::vector<std::string>& vendor, const std::string avp);
+
+    inline enum dict_avp_basetype base_type() const { return _avp_data.avp_basetype; };
+
+  private:
+    struct dict_avp_data _avp_data;
   };
 
   Dictionary();
@@ -157,23 +172,6 @@ public:
   inline AVP(const Dictionary::AVP& type)
   {
     fd_msg_avp_new(type.dict(), 0, &_avp);
-  }
-  AVP(const std::string& name)
-  {
-    Dictionary::AVP dict(name);
-    fd_msg_avp_new(dict.dict(), 0, &_avp);
-  }
-  AVP(const std::string& vendor,
-      const std::string& name)
-  {
-    Dictionary::AVP dict(vendor, name);
-    fd_msg_avp_new(dict.dict(), 0, &_avp);
-  }
-  AVP(const std::vector<std::string>& vendors,
-      const std::string& name)
-  {
-    Dictionary::AVP dict(vendors, name);
-    fd_msg_avp_new(dict.dict(), 0, &_avp);
   }
 
   inline AVP(struct avp* avp) : _avp(avp) {}
@@ -236,6 +234,7 @@ public:
 
   // Populate this AVP from a JSON object
   AVP& val_json(const std::vector<std::string>& vendors, 
+                const Diameter::Dictionary::AVP& dict,
                 const rapidjson::Value& contents);
 
   inline AVP& add(AVP& avp)
