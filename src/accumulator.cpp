@@ -135,10 +135,10 @@ void StatisticAccumulator::refreshed()
   // Simply construct a vector of mean, variance and water marks and pass it
   // to zeroMQ.
   std::vector<std::string> values;
-  values.push_back(std::to_string(get_n()));
   values.push_back(std::to_string(get_mean()));
   values.push_back(std::to_string(get_variance()));
   values.push_back(std::to_string(get_lwm()));
   values.push_back(std::to_string(get_hwm()));
+  values.push_back(std::to_string(get_n()));
   _statistic.report_change(values);
 }
