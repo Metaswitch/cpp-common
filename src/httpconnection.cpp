@@ -262,6 +262,7 @@ HTTPCode HttpConnection::send_post(const std::string& path, std::string body, st
   CURL *curl = get_curl_handle();
   struct curl_slist *slist = NULL;
   slist = curl_slist_append(slist, "Content-Type: application/json");
+  slist = curl_slist_append(slist, "Expect: ");
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_POST, 1);
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
