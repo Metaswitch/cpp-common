@@ -139,5 +139,6 @@ void StatisticAccumulator::refreshed()
   values.push_back(std::to_string(get_variance()));
   values.push_back(std::to_string(get_lwm()));
   values.push_back(std::to_string(get_hwm()));
+  values.push_back(std::to_string(get_n()));
   _statistic.report_change(values);
 }

@@ -49,6 +49,7 @@ class LastValueCache
 public:
   LastValueCache(int statcount,
                  const std::string *statnames,
+                 std::string zmq_port,
                  long poll_timeout_ms = 1000);
   ~LastValueCache();
   void* get_internal_publisher(std::string statname);
@@ -65,6 +66,7 @@ private:
   void *_context;
   int _statcount;
   const std::string *_statnames;
+  std::string _zmq_port;
   const long _poll_timeout_ms;
   volatile bool _terminate;
 
