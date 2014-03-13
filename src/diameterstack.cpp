@@ -137,12 +137,10 @@ void Stack::register_fallback_handler(const Dictionary::Application &app)
 
 int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act)
 {
-  // Convert the received message into one our Message objects, and create a new handler instance of the 
-  // correct type.
-  Stack* stack = Stack::get_instance();
-  Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req, stack);
-  LOG_DEBUG("Handling Diameter message of type %u", msg.command_code());
-  Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(msg);
+  // Create and run the correct handler based on the received message and the dictionary
+  // object we've passed through.
+  Dictionary* dict = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict;
+  Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(dict, req);
   handler->run();
 
   // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
