@@ -214,7 +214,9 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
         more = false;
         AddrInfo ai;
         ai.transport = transport;
-        for (size_t ii = 0; ii < srvs.size(); ++ii)
+        for (size_t ii = 0;
+             (ii < srvs.size()) && (targets.size() < (size_t)retries);
+             ++ii)
         {
           ai.port = srvs[ii]->port;
           if (!active_addr[ii].empty())
@@ -222,6 +224,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             ai.address = active_addr[ii].back();
             active_addr[ii].pop_back();
             targets.push_back(ai);
+            LOG_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
           }
           if (!blacklist_addr[ii].empty())
           {
@@ -232,8 +235,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
 
           more = more || ((!active_addr[ii].empty()) || (!blacklist_addr[ii].empty()));
         }
-      }
 
+      }
       if (targets.size() >= (size_t)retries)
       {
         // We have enough targets so don't move to the next priority level.
@@ -268,6 +271,9 @@ void BaseResolver::a_resolve(const std::string& hostname,
                              int retries,
                              std::vector<AddrInfo>& targets)
 {
+  // Clear the list of targets just in case.
+  targets.clear();
+
   // Accumulate blacklisted targets in case they are needed.
   std::vector<AddrInfo> blacklisted_targets;
 
@@ -275,6 +281,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
   DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa);
 
   // Randomize the records in the result.
+  LOG_DEBUG("Found %ld A/AAAA records, randomizing", result.records().size());
   std::random_shuffle(result.records().begin(), result.records().end());
 
   // Loop through the records in the result picking non-blacklisted targets.
@@ -290,6 +297,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
     {
       // Address isn't blacklisted, so copy across to the target list.
       targets.push_back(ai);
+      LOG_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
     }
     else
     {
@@ -300,6 +308,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
     if (targets.size() >= (size_t)retries)
     {
       // We have enough targets so stop looking at records.
+      LOG_DEBUG("Have enough targets");
       break;
     }
   }
@@ -313,6 +322,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
     {
       to_copy = blacklisted_targets.size();
     }
+    LOG_DEBUG("Adding %ld servers from blacklist", to_copy);
     for (size_t ii = 0; ii < to_copy; ++ii)
     {
       targets.push_back(blacklisted_targets[ii]);
