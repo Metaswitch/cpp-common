@@ -231,6 +231,9 @@ protected:
     /// Destructor.
     ~SRVWeightedSelector();
 
+    /// Renders the current state of the tree as a string.
+    std::string to_string() const;
+
     /// Selects an entry and sets its weight to zero.
     int select();
 

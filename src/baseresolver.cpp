@@ -37,6 +37,8 @@
 #include <time.h>
 
 #include <algorithm>
+#include <sstream>
+#include <iomanip>
 
 #include "log.h"
 #include "utils.h"
@@ -137,14 +139,14 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
 
   if (srv_list != NULL)
   {
-    LOG_DEBUG("SRV list found, %d priority levels", srv_list->size());
+    LOG_VERBOSE("SRV list found, %d priority levels", srv_list->size());
 
     // Select the SRV records in priority/weighted order.
     for (SRVPriorityList::const_iterator i = srv_list->begin();
          i != srv_list->end();
          ++i)
     {
-      LOG_DEBUG("Processing %d SRVs with priority %d", i->second.size(), i->first);
+      LOG_VERBOSE("Processing %d SRVs with priority %d", i->second.size(), i->first);
 
       std::vector<const SRV*> srvs;
       srvs.reserve(i->second.size());
@@ -156,6 +158,10 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       while (selector.total_weight() > 0)
       {
         int ii = selector.select();
+        LOG_DEBUG("Selected SRV %s:%d, weight = %d",
+                  i->second[ii].target.c_str(),
+                  i->second[ii].port,
+                  i->second[ii].weight);
         srvs.push_back(&i->second[ii]);
       }
 
@@ -166,6 +172,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       {
         a_targets.push_back(srvs[ii]->target);
       }
+      LOG_VERBOSE("Do A record look-ups for %ld SRVs", a_targets.size());
       _dns_client->dns_query(a_targets,
                              (af == AF_INET) ? ns_t_a : ns_t_aaaa,
                              a_results);
@@ -177,6 +184,10 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       for (size_t ii = 0; ii < srvs.size(); ++ii)
       {
         DnsResult& a_result = a_results[ii];
+        LOG_DEBUG("SRV %s:%d returned %ld IP addresses",
+                  srvs[ii]->target.c_str(),
+                  srvs[ii]->port,
+                  a_result.records().size());
         std::vector<IP46Address>& active = active_addr[ii];
         std::vector<IP46Address>& blacklist = blacklist_addr[ii];
         active.reserve(a_result.records().size());
@@ -224,7 +235,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             ai.address = active_addr[ii].back();
             active_addr[ii].pop_back();
             targets.push_back(ai);
-            LOG_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
+            LOG_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
           }
           if (!blacklist_addr[ii].empty())
           {
@@ -253,6 +264,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       {
         to_copy = blacklisted_targets.size();
       }
+      LOG_VERBOSE("Adding %ld servers from blacklist", to_copy);
       for (size_t ii = 0; ii < to_copy; ++ii)
       {
         targets.push_back(blacklisted_targets[ii]);
@@ -615,9 +627,6 @@ BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string ke
       srv.port = srv_record->port();
       srv.priority = srv_record->priority();
       srv.weight = srv_record->weight();
-      LOG_DEBUG("Added target %s:%d to priority %d with weight %d",
-                srv.target.c_str(), srv.port, srv.priority, srv.weight);
-      LOG_DEBUG("Now %d SRVs at priority %d", plist.size(), srv.priority);
 
       // Adjust the weight.  Any items which have weight 0 are increase to
       // weight of one, and non-zero weights are multiplied by 100.  This gives
@@ -626,7 +635,6 @@ BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string ke
       // are non-zero weights the zero weighted items have a small (but not
       // specified in RFC2782) chance of selection.
       srv.weight = (srv.weight == 0) ? 1 : srv.weight * 100;
-      LOG_DEBUG("Weight adjusted to %d", srv.weight);
     }
   }
   else
@@ -671,6 +679,20 @@ BaseResolver::SRVWeightedSelector::~SRVWeightedSelector()
 {
 }
 
+std::string BaseResolver::SRVWeightedSelector::to_string() const
+{
+  std::ostringstream oss;
+  for (size_t ii = 0; ii < _tree.size(); ++ii)
+  {
+    oss << _tree[ii];
+    if (ii != _tree.size()-1)
+    {
+      oss << ", ";
+    }
+  }
+  return oss.str();
+}
+
 int BaseResolver::SRVWeightedSelector::select()
 {
   // Search the tree to find the item with the smallest cumulative weight that
@@ -703,15 +725,21 @@ int BaseResolver::SRVWeightedSelector::select()
     }
   }
 
+  // Calculate the weight of the selected entry by subtracting the weight of
+  // its left and right subtrees.
+  int weight = _tree[ii] -
+               (((2*ii + 1) < _tree.size()) ? _tree[2*ii + 1] : 0) -
+               (((2*ii + 2) < _tree.size()) ? _tree[2*ii + 2] : 0);
+
   // Update the tree to set the weight of the selection to zero so it isn't
   // selected again.
+  _tree[ii] -= weight;
   int p = ii;
   while (p > 0)
   {
     p = (p - 1)/2;
-    _tree[p] -= _tree[ii];
+    _tree[p] -= weight;
   }
-  _tree[ii] = 0;
 
   return ii;
 }
