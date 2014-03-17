@@ -199,7 +199,7 @@ public:
                          StatsInterface* stats = NULL,
                          LoadMonitor* load_monitor = NULL);
   virtual void register_handler(char* path, BaseHandlerFactory* factory);
-  virtual void start();
+  virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
   virtual void wait_stopped();
   virtual void send_reply(Request& req, int rc);
