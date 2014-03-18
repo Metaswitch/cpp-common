@@ -495,10 +495,10 @@ int32_t Message::experimental_result_code() const
   AVP::iterator avps = begin(dict()->EXPERIMENTAL_RESULT);
   if (avps != end())
   {
-    avps = avps->begin(dict()->EXPERIMENTAL_RESULT_CODE);
-    if (avps != end())
+    AVP::iterator avps2 = avps->begin(dict()->EXPERIMENTAL_RESULT_CODE);
+    if (avps2 != avps->end())
     {
-      experimental_result_code = avps->val_i32();
+      experimental_result_code = avps2->val_i32();
       LOG_DEBUG("Got Experimental-Result-Code %d", experimental_result_code);
     }
   }
@@ -513,10 +513,10 @@ int32_t Message::vendor_id() const
   AVP::iterator avps = begin(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
   if (avps != end())
   {
-    avps = avps->begin(dict()->VENDOR_ID);
-    if (avps != end())
+    AVP::iterator avps2 = avps->begin(dict()->VENDOR_ID);
+    if (avps2 != avps->end())
     {
-      vendor_id = avps->val_i32();
+      vendor_id = avps2->val_i32();
       LOG_DEBUG("Got Vendor-Id %d", vendor_id);
     }
   }
