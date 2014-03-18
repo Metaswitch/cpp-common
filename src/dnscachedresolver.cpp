@@ -511,7 +511,7 @@ DnsCachedResolver::DnsCacheEntry* DnsCachedResolver::create_cache_entry(const st
   pthread_mutex_init(&ce.lock, NULL);
   ce.domain = domain;
   ce.dnstype = dnstype;
-  ce.expires = DEFAULT_NEGATIVE_CACHE_TTL + time(NULL);
+  ce.expires = 0;
   ce.pending_query = false;
   return &ce;
 }
@@ -568,9 +568,11 @@ void DnsCachedResolver::clear_cache_entry(DnsCacheEntry* ce)
 /// Adds a DNS RR to a cache entry.
 void DnsCachedResolver::add_record_to_cache(DnsCacheEntry* ce, DnsRRecord* rr)
 {
+  LOG_DEBUG("Adding record to cache entry, TTL=%d, expiry=%ld", rr->ttl(), rr->expires());
   if ((ce->expires == 0) ||
       (ce->expires > rr->expires()))
   {
+    LOG_DEBUG("Update cache entry expiry to %ld", rr->expires());
     ce->expires = rr->expires();
   }
   ce->records.push_back(rr);
