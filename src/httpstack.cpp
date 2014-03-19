@@ -137,11 +137,11 @@ void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* fact
   }
 }
 
-void HttpStack::start()
+void HttpStack::start(evhtp_thread_init_cb init_cb)
 {
   initialize();
 
-  int rc = evhtp_use_threads(_evhtp, NULL, _num_threads, this);
+  int rc = evhtp_use_threads(_evhtp, init_cb, _num_threads, this);
   if (rc != 0)
   {
     throw Exception("evhtp_use_threads", rc); // LCOV_EXCL_LINE
