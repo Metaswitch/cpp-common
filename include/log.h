@@ -40,12 +40,12 @@
 
 #include "logger.h"
 
-#define LOG_ERROR(...) Log::write(Log::ERROR_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_WARNING(...) Log::write(Log::WARNING_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_STATUS(...) Log::write(Log::STATUS_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_INFO(...) Log::write(Log::INFO_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_VERBOSE(...) Log::write(Log::VERBOSE_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define LOG_DEBUG(...) Log::write(Log::DEBUG_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_ERROR(...) if (Log::enabled(Log::ERROR_LEVEL)) Log::write(Log::ERROR_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_WARNING(...) if (Log::enabled(Log::WARNING_LEVEL)) Log::write(Log::WARNING_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_STATUS(...) if (Log::enabled(Log::STATUS_LEVEL)) Log::write(Log::STATUS_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_INFO(...) if (Log::enabled(Log::INFO_LEVEL)) Log::write(Log::INFO_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_VERBOSE(...) if (Log::enabled(Log::VERBOSE_LEVEL)) Log::write(Log::VERBOSE_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
+#define LOG_DEBUG(...) if (Log::enabled(Log::DEBUG_LEVEL)) Log::write(Log::DEBUG_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
 #define LOG_BACKTRACE(...) Log::backtrace(__VA_ARGS__)
 
 namespace Log
@@ -57,6 +57,12 @@ namespace Log
   const int VERBOSE_LEVEL = 4;
   const int DEBUG_LEVEL = 5;
 
+  extern int loggingLevel;
+
+  inline bool enabled(int level)
+  {
+    return (level <= loggingLevel);
+  }
   void setLoggingLevel(int level);
   void setLogger(Logger *log);
   void write(int level, const char *module, int line_number, const char *fmt, ...);

@@ -47,7 +47,7 @@ const char* log_level[] = {"Error", "Warning", "Status", "Info", "Verbose", "Deb
 namespace Log
 {
   static Logger *logger = new Logger();
-  static int loggingLevel = 4;
+  int loggingLevel = 4;
 }
 
 void Log::setLoggingLevel(int level)
