@@ -206,7 +206,7 @@ struct hostent* gethostbyname(const char *name)
 }
 
 /// Replacement clock_gettime.
-int clock_gettime(clockid_t clk_id, struct timespec *tp)
+int clock_gettime(clockid_t clk_id, struct timespec *tp) throw ()
 {
   int rc;
 
@@ -251,7 +251,7 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp)
 
 
 /// Replacement time().
-time_t time(time_t* v)
+time_t time(time_t* v) throw ()
 {
   time_t rt;
 
