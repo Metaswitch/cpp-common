@@ -187,7 +187,7 @@ ongoing_registers:#{msg[1]}
 ongoing_registers_delta:#{msg[5]}
 call_attempts:#{msg[2]}
 call_attempts_delta:#{msg[6]}
-successful_calls:#{msg[4]}
+successful_calls:#{msg[3]}
 successful_calls_delta:#{msg[7]}
     EOF
   end
