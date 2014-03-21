@@ -480,32 +480,39 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
            it != value.MemberEnd();
            ++it)
       {
-        switch (it->value.GetType())
+        try
         {
-        case rapidjson::kFalseType:
-        case rapidjson::kTrueType:
-          LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
-          continue;
-        case rapidjson::kNullType:
-          LOG_ERROR("Invalid NULL in JSON block, ignoring");
-          break;
-        case rapidjson::kArrayType:
-          for (rapidjson::Value::ConstValueIterator ary_it = it->value.Begin();
-               ary_it != it->value.End();
-               ++ary_it)
+          switch (it->value.GetType())
           {
+          case rapidjson::kFalseType:
+          case rapidjson::kTrueType:
+            LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
+            continue;
+          case rapidjson::kNullType:
+            LOG_ERROR("Invalid NULL in JSON block, ignoring");
+            break;
+          case rapidjson::kArrayType:
+            for (rapidjson::Value::ConstValueIterator ary_it = it->value.Begin();
+                 ary_it != it->value.End();
+                 ++ary_it)
+            {
+              Diameter::Dictionary::AVP new_dict(vendors, it->name.GetString());
+              Diameter::AVP avp(new_dict);
+              add(avp.val_json(vendors, new_dict, *ary_it));
+            }
+            break;
+          case rapidjson::kStringType:
+          case rapidjson::kNumberType:
+          case rapidjson::kObjectType:
             Diameter::Dictionary::AVP new_dict(vendors, it->name.GetString());
             Diameter::AVP avp(new_dict);
-            add(avp.val_json(vendors, new_dict, *ary_it));
+            add(avp.val_json(vendors, new_dict, it->value));
+            break;
           }
-          break;
-        case rapidjson::kStringType:
-        case rapidjson::kNumberType:
-        case rapidjson::kObjectType:
-          Diameter::Dictionary::AVP new_dict(vendors, it->name.GetString());
-          Diameter::AVP avp(new_dict);
-          add(avp.val_json(vendors, new_dict, it->value));
-          break;
+        }
+        catch (Diameter::Stack::Exception e)
+        {
+          LOG_WARNING("AVP %s not recognised, ignoring", it->value.GetString());
         }
       }
       break;
