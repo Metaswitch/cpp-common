@@ -41,6 +41,10 @@
 #include <curl/curl.h>
 #include <sas.h>
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+
 #include "utils.h"
 #include "statistic.h"
 #include "load_monitor.h"
@@ -71,7 +75,7 @@ public:
   HttpConnection(const std::string& server, bool assert_user, int sas_event_base);
   virtual ~HttpConnection();
 
-  virtual long get(const std::string& path,
+ virtual long get(const std::string& path,
                    std::string& doc,
                    const std::string& username,
                    SAS::TrailId trail);
@@ -83,6 +87,7 @@ public:
 
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
+  static void cleanup_uuid(void* uuid_gen);
 
 private:
 
@@ -121,10 +126,14 @@ private:
   void reset_curl_handle(CURL* curl);
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
   static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
+
+  boost::uuids::uuid get_random_uuid();
+
   const std::string _server;
   const bool _assert_user;
   const int _sas_event_base;
-  pthread_key_t _thread_local;
+  pthread_key_t _curl_thread_local;
+  pthread_key_t _uuid_thread_local;
 
   Statistic* _statistic;
   LoadMonitor* _load_monitor;

@@ -48,10 +48,10 @@ HttpStack::HttpStack() :
   _load_monitor(NULL)
 {}
 
-void HttpStack::Request::send_reply(int rc)
+void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
 {
   stopwatch.stop();
-  _stack->send_reply(*this, rc);
+  _stack->send_reply(*this, rc, trail);
 }
 
 bool HttpStack::Request::get_latency(unsigned long& latency_us)
@@ -59,11 +59,13 @@ bool HttpStack::Request::get_latency(unsigned long& latency_us)
   return stopwatch.read(latency_us);
 }
 
-void HttpStack::send_reply(Request& req, int rc)
+void HttpStack::send_reply(Request& req, int rc, SAS::TrailId trail)
 {
   LOG_VERBOSE("Sending response %d to request for URL %s, args %s", rc, req.req()->uri->path->full, req.req()->uri->query_raw);
-  // Log and set up the return code.
+
   log(std::string(req.req()->uri->path->full), rc);
+  sas_log_tx_http_rsp(trail, req, rc);
+
   evhtp_send_reply(req.req(), rc);
 
   // Resume the request to actually send it.  This matches the function to pause the request in
@@ -204,6 +206,11 @@ void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
 void HttpStack::handler_callback(evhtp_request_t* req,
                                  HttpStack::BaseHandlerFactory* handler_factory)
 {
+  Request request(this, req);
+
+  SAS::TrailId trail = SAS::new_trail(0);
+  sas_log_rx_http_req(trail, request, handler_factory);
+
   if (_stats != NULL)
   {
     _stats->incr_http_incoming_requests();
@@ -218,8 +225,8 @@ void HttpStack::handler_callback(evhtp_request_t* req,
 
     // Create a Request and a Handler and kick off processing.
     LOG_VERBOSE("Handling request for URL %s, args %s", req->uri->path->full, req->uri->query_raw);
-    Request request(this, req);
     Handler* handler = handler_factory->create(request);
+    handler->set_trail(trail);
     handler->run();
   }
   else
@@ -265,3 +272,21 @@ std::string HttpStack::Request::body()
   return body;
 }
 
+void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
+                                    HttpStack::Request& req,
+                                    HttpStack::BaseHandlerFactory* handler_factory)
+{
+  std::string correlator = req.header("X-SAS-HTTP-Transaction-ID");
+  if (correlator != "")
+  {
+    SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
+    corr_marker.add_var_param(correlator);
+    SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
+  }
+}
+
+void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
+                                    HttpStack::Request& req,
+                                    int rc)
+{
+}

@@ -45,6 +45,7 @@
 #include "utils.h"
 #include "accesslogger.h"
 #include "load_monitor.h"
+#include "sas.h"
 
 class HttpStack
 {
@@ -89,6 +90,12 @@ public:
       return url_unescape(std::string(param != NULL ? param : ""));
     }
 
+    inline std::string header(const std::string& name)
+    {
+      const char* val = evhtp_header_find(_req->headers_in, name.c_str());
+      return std::string((val != NULL ? val : ""));
+    }
+
     void add_content(const std::string& content)
     {
       evbuffer_add(_req->buffer_out, content.c_str(), content.length());
@@ -97,7 +104,7 @@ public:
     virtual htp_method method() {return evhtp_request_get_method(_req);};
     virtual std::string body();
 
-    void send_reply(int rc);
+    void send_reply(int rc, SAS::TrailId trail);
     inline evhtp_request_t* req() { return _req; }
 
     void record_penalty() { _stack->record_penalty(); }
@@ -150,11 +157,14 @@ public:
     virtual ~Handler() {}
 
     virtual void run() = 0;
+    inline void set_trail(SAS::TrailId trail) { _trail = trail; }
+    inline SAS::TrailId trail() { return _trail; }
 
   protected:
     void record_penalty() { _req.record_penalty(); }
 
     Request& _req;
+    SAS::TrailId _trail;
   };
 
   class BaseHandlerFactory
@@ -202,7 +212,7 @@ public:
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
   virtual void wait_stopped();
-  virtual void send_reply(Request& req, int rc);
+  virtual void send_reply(Request& req, int rc, SAS::TrailId trail);
   virtual void record_penalty();
 
   void log(const std::string uri, int rc)
@@ -224,7 +234,12 @@ private:
   void handler_callback(evhtp_request_t* req,
                         BaseHandlerFactory* handler_factory);
   void event_base_thread_fn();
-
+  void sas_log_rx_http_req(SAS::TrailId trail, 
+                           Request& req, 
+                           BaseHandlerFactory* handler_factory);
+  void sas_log_tx_http_rsp(SAS::TrailId trail, 
+                           HttpStack::Request& req,
+                           int rc);
   // Don't implement the following, to avoid copies of this instance.
   HttpStack(HttpStack const&);
   void operator=(HttpStack const&);

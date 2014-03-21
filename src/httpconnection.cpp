@@ -84,7 +84,8 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
   _assert_user(assert_user),
   _sas_event_base(sas_event_base)
 {
-  pthread_key_create(&_thread_local, cleanup_curl);
+  pthread_key_create(&_curl_thread_local, cleanup_curl);
+  pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   std::vector<std::string> no_stats;
@@ -100,7 +101,8 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
   _assert_user(assert_user),
   _sas_event_base(sas_event_base)
 {
-  pthread_key_create(&_thread_local, cleanup_curl);
+  pthread_key_create(&_curl_thread_local, cleanup_curl);
+  pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   _statistic = NULL;
@@ -111,11 +113,20 @@ HttpConnection::~HttpConnection()
   // Clean up this thread's connection now, rather than waiting for
   // pthread_exit.  This is to support use by single-threaded code
   // (e.g., UTs), where pthread_exit is never called.
-  CURL* curl = pthread_getspecific(_thread_local);
+  CURL* curl = pthread_getspecific(_curl_thread_local);
   if (curl != NULL)
   {
-    pthread_setspecific(_thread_local, NULL);
-    cleanup_curl(curl);
+    pthread_setspecific(_curl_thread_local, NULL);
+    cleanup_curl(curl); curl = NULL;
+  }
+
+  boost::uuids::random_generator* uuid_gen =
+    (boost::uuids::random_generator*)pthread_getspecific(_uuid_thread_local);
+
+  if (uuid_gen != NULL)
+  {
+    pthread_setspecific(_uuid_thread_local, NULL);
+    cleanup_uuid(uuid_gen); uuid_gen = NULL;
   }
 
   if (_statistic != NULL)
@@ -129,12 +140,12 @@ HttpConnection::~HttpConnection()
 /// Get the thread-local curl handle if it exists, and create it if not.
 CURL* HttpConnection::get_curl_handle()
 {
-  CURL* curl = pthread_getspecific(_thread_local);
+  CURL* curl = pthread_getspecific(_curl_thread_local);
   if (curl == NULL)
   {
     curl = curl_easy_init();
     LOG_DEBUG("Allocated CURL handle %p", curl);
-    pthread_setspecific(_thread_local, curl);
+    pthread_setspecific(_curl_thread_local, curl);
 
     // Create our private data
     PoolEntry* entry = new PoolEntry(this);
@@ -304,11 +315,21 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
 
+  // Create a UUID to use for SAS correlation. Log it to SAS and add it to the
+  // HTTP request we are about to send.
+  boost::uuids::uuid uuid = get_random_uuid();
+  std::string uuid_str = boost::uuids::to_string(uuid);
+  SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
+  corr_marker.add_var_param(uuid_str);
+  SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
+  extra_headers = curl_slist_append(extra_headers, ("X-SAS-HTTP-Transaction-ID: " + uuid_str).c_str());
+
   if (_assert_user)
   {
     extra_headers = curl_slist_append(extra_headers, ("X-XCAP-Asserted-Identity: " + username).c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
   }
+
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
 
   // Determine whether to recycle the connection, based on
   // previously-calculated deadline.
@@ -409,7 +430,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
         // Check whether both attempts returned 503 errors, or the error was
         // a 502 (where the HSS is overloaded)  and raise a penalty if so.
         if (((error_is_503 && first_error_503) ||
-            ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 502))) &&
+             ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 502))) &&
             (_load_monitor != NULL))
         {
           _load_monitor->incr_penalties();
@@ -608,4 +629,26 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
   (*headers)[key] = val;
 
   return size * nmemb;
+}
+
+void HttpConnection::cleanup_uuid(void *uuid_gen)
+{
+  delete (boost::uuids::random_generator*)uuid_gen; uuid_gen = NULL;
+}
+
+boost::uuids::uuid HttpConnection::get_random_uuid()
+{
+  // Get the factory from thread local data (creating it if it doesn't exist).
+  boost::uuids::random_generator* uuid_gen;
+  uuid_gen =
+    (boost::uuids::random_generator*)pthread_getspecific(_uuid_thread_local);
+
+  if (uuid_gen == NULL)
+  {
+    uuid_gen = new boost::uuids::random_generator();
+    pthread_setspecific(_uuid_thread_local, uuid_gen);
+  }
+
+  // _uuid_gen_ is a pointer to a callable object that returns a UUID.
+  return (*uuid_gen)();
 }
