@@ -58,8 +58,12 @@ public:
     _terminated(false)
   {
     pthread_mutex_init(&_m, NULL);
-    pthread_cond_init(&_w_cond, NULL);
-    pthread_cond_init(&_r_cond, NULL);
+    pthread_condattr_t cond_attr;
+    pthread_condattr_init(&cond_attr);
+    pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&_w_cond, &cond_attr);
+    pthread_cond_init(&_r_cond, &cond_attr);
+    pthread_condattr_destroy(&cond_attr);
   };
 
   ~eventq()
