@@ -136,12 +136,12 @@ void cwtest_completely_control_time()
 {
   if (!real_clock_gettime)
   {
-    real_clock_gettime = (int (*)(clockid_t, struct timespec *))dlsym(RTLD_NEXT, "clock_gettime");
+    real_clock_gettime = (int (*)(clockid_t, struct timespec *))(intptr_t)dlsym(RTLD_NEXT, "clock_gettime");
   }
 
   if (!real_time)
   {
-    real_time = (time_t (*)(time_t*))dlsym(RTLD_NEXT, "time");
+    real_time = (time_t (*)(time_t*))(intptr_t)dlsym(RTLD_NEXT, "time");
   }
 
   pthread_mutex_lock(&time_lock);
@@ -188,7 +188,7 @@ int getaddrinfo(const char *node,
 {
   if (!real_getaddrinfo)
   {
-    real_getaddrinfo = (int(*)(const char*, const char*, const struct addrinfo*, struct addrinfo**))dlsym(RTLD_NEXT, "getaddrinfo");
+    real_getaddrinfo = (int(*)(const char*, const char*, const struct addrinfo*, struct addrinfo**))(intptr_t)dlsym(RTLD_NEXT, "getaddrinfo");
   }
 
   return real_getaddrinfo(host_lookup(node).c_str(), service, (const struct addrinfo*)hints, (struct addrinfo**)res);
@@ -199,20 +199,20 @@ struct hostent* gethostbyname(const char *name)
 {
   if (!real_gethostbyname)
   {
-    real_gethostbyname = (struct hostent*(*)(const char*))dlsym(RTLD_NEXT, "gethostbyname");
+    real_gethostbyname = (struct hostent*(*)(const char*))(intptr_t)dlsym(RTLD_NEXT, "gethostbyname");
   }
 
   return real_gethostbyname(host_lookup(name).c_str());
 }
 
 /// Replacement clock_gettime.
-int clock_gettime(clockid_t clk_id, struct timespec *tp)
+int clock_gettime(clockid_t clk_id, struct timespec *tp) throw ()
 {
   int rc;
 
   if (!real_clock_gettime)
   {
-    real_clock_gettime = (int (*)(clockid_t, struct timespec *))dlsym(RTLD_NEXT, "clock_gettime");
+    real_clock_gettime = (int (*)(clockid_t, struct timespec *))(intptr_t)dlsym(RTLD_NEXT, "clock_gettime");
   }
 
   pthread_mutex_lock(&time_lock);
@@ -251,13 +251,13 @@ int clock_gettime(clockid_t clk_id, struct timespec *tp)
 
 
 /// Replacement time().
-time_t time(time_t* v)
+time_t time(time_t* v) throw ()
 {
   time_t rt;
 
   if (!real_time)
   {
-    real_time = (time_t (*)(time_t*))dlsym(RTLD_NEXT, "time");
+    real_time = (time_t (*)(time_t*))(intptr_t)dlsym(RTLD_NEXT, "time");
   }
 
   pthread_mutex_lock(&time_lock);
@@ -304,7 +304,7 @@ int pthread_cond_timedwait(pthread_cond_t* cond,
 
   if (!real_pthread_cond_timedwait)
   {
-    real_pthread_cond_timedwait = (pthread_cond_timedwait_func_t)dlvsym(RTLD_NEXT, "pthread_cond_timedwait", "GLIBC_2.3.2");
+    real_pthread_cond_timedwait = (pthread_cond_timedwait_func_t)(intptr_t)dlvsym(RTLD_NEXT, "pthread_cond_timedwait", "GLIBC_2.3.2");
   }
 
   // Subtract our fake time and add the real time, this means the
