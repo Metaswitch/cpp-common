@@ -236,7 +236,7 @@ HTTPCode HttpConnection::send_delete(const std::string& path, SAS::TrailId trail
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
 
   std::string json_data;
-  HTTPCode status = send_request(path, json_data, "", trail, curl);
+  HTTPCode status = send_request(path, json_data, "", trail, "DELETE", curl);
 
   curl_slist_free_all(slist);
 
@@ -257,7 +257,7 @@ HTTPCode HttpConnection::send_put(const std::string& path, std::string body, std
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-  HTTPCode status = send_request(path, response, "", trail, curl);
+  HTTPCode status = send_request(path, response, "", trail, "PUT", curl);
 
   curl_slist_free_all(slist);
 
@@ -275,7 +275,7 @@ HTTPCode HttpConnection::send_post(const std::string& path, std::string body, st
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
   std::string json_data;
-  HTTPCode status = send_request(path, json_data, "", trail, curl);
+  HTTPCode status = send_request(path, json_data, "", trail, "POST", curl);
 
   curl_slist_free_all(slist);
 
@@ -292,14 +292,15 @@ HTTPCode HttpConnection::get(const std::string& path,       //< Absolute path to
 
   curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
 
-  return send_request(path, doc, username, trail, curl);
+  return send_request(path, doc, username, trail, "GET", curl);
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolute path to request from server - must start with "/"
-                                      std::string& doc,             //< OUT: Retrieved document
-                                      const std::string& username,  //< Username to assert (if assertUser was true, else ignored).
+HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute path to request from server - must start with "/"
+                                      std::string& doc,            //< OUT: Retrieved document
+                                      const std::string& username, //< Username to assert (if assertUser was true, else ignored).
                                       SAS::TrailId trail,          //< SAS trail to use
+                                      const char* method_str,      // The method, used for logging.
                                       CURL* curl)
 {
   std::string url = "http://" + _server + path;
@@ -342,18 +343,30 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   {
     curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, recycle_conn ? 1L : 0L);
 
-    // TODO Report the request to SAS.
+    // Report the request to SAS.
+    SAS::Event tx_http_req(trail, SASEvent::TX_HTTP_REQ, 0);
+    tx_http_req.add_var_param(method_str);
+    tx_http_req.add_var_param(url);
+    tx_http_req.add_var_param(doc);
+    SAS::report_event(tx_http_req);
 
     // Send the request.
     doc.clear();
     LOG_DEBUG("Sending HTTP request : %s (try %d) %s", url.c_str(), attempt, (recycle_conn) ? "on new connection" : "");
     rc = curl_easy_perform(curl);
 
+    long http_rc = 0;
+    if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
+    {
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
+    }
+
     if (rc == CURLE_OK)
     {
       LOG_DEBUG("Received HTTP response : %s", doc.c_str());
 
-      // TODO Report the response to SAS.
+      // Report the response to SAS.
+      sas_log_http_rsp(trail, curl, http_rc, method_str, url, doc, 0);
 
       if (recycle_conn)
       {
@@ -367,13 +380,20 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     {
       LOG_DEBUG("Received HTTP error response : %s : %s", url.c_str(), curl_easy_strerror(rc));
 
-      // TODO Report the error to SAS
-
-      long http_rc = 0;
       if (rc == CURLE_HTTP_RETURNED_ERROR)
       {
-        // Get the HTTP error code returned from the server.
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
+        // Report the response to SAS
+        sas_log_http_rsp(trail, curl, http_rc, method_str, url, doc, 0);
+      }
+      else
+      {
+        // Report the error to SAS.
+        SAS::Event http_err(trail, SASEvent::HTTP_REQ_ERROR, 0);
+        tx_http_req.add_var_param(method_str);
+        tx_http_req.add_var_param(url);
+        tx_http_req.add_static_param(rc);
+        tx_http_req.add_var_param(curl_easy_strerror(rc));
+        SAS::report_event(http_err);
       }
 
       bool error_is_503 = ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 503));
@@ -635,4 +655,20 @@ boost::uuids::uuid HttpConnection::get_random_uuid()
 
   // _uuid_gen_ is a pointer to a callable object that returns a UUID.
   return (*uuid_gen)();
+}
+
+void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
+                                      CURL* curl,
+                                      long http_rc,
+                                      const char* method_str,
+                                      std::string& url,
+                                      std::string& doc,
+                                      uint32_t instance_id)
+{
+  SAS::Event rx_http_rsp(trail, SASEvent::RX_HTTP_RSP, instance_id);
+  rx_http_rsp.add_var_param(method_str);
+  rx_http_rsp.add_var_param(url);
+  rx_http_rsp.add_var_param(doc);
+  rx_http_rsp.add_static_param(http_rc);
+  SAS::report_event(rx_http_rsp);
 }

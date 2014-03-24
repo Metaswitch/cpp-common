@@ -37,6 +37,7 @@
 #include "httpstack.h"
 #include <cstring>
 #include "log.h"
+#include "sasevent.h"
 
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
@@ -283,10 +284,28 @@ void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
     corr_marker.add_var_param(correlator);
     SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
   }
+
+  SAS::Event rx_http_req(trail, SASEvent::RX_HTTP_REQ, 0);
+  rx_http_req.add_static_param(req.req()->method);
+  rx_http_req.add_var_param(req.full_path());
+  rx_http_req.add_var_param(req.body());
+  SAS::report_event(rx_http_req);
 }
 
 void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
                                     HttpStack::Request& req,
                                     int rc)
 {
+  SAS::Event tx_http_rsp(trail, SASEvent::TX_HTTP_RSP, 0);
+  tx_http_rsp.add_static_param(rc);
+  tx_http_rsp.add_static_param(req.req()->method);
+  tx_http_rsp.add_var_param(req.full_path());
+
+  // The response body is stored in an evbuffer in libevhtp.
+  uint8_t buffer[0xFFFF];
+  ev_ssize_t buffer_len;
+  buffer_len = evbuffer_copyout(req.req()->buffer_out, buffer, sizeof(buffer));
+  tx_http_rsp.add_var_param(buffer_len, buffer);
+
+  SAS::report_event(tx_http_rsp);
 }

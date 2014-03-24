@@ -82,11 +82,18 @@ public:
   virtual long send_put(const std::string& path, std::string body, SAS::TrailId trail);
   virtual long send_put(const std::string& path, std::string body, std::string& response, SAS::TrailId trail);
   virtual long send_post(const std::string& path, std::string body, std::map<std::string, std::string>& headers, SAS::TrailId trail);
-  virtual long send_request(const std::string& path, std::string& doc, const std::string& username, SAS::TrailId trail, CURL* curl);
+  virtual long send_request(const std::string& path, std::string& doc, const std::string& username, SAS::TrailId trail, const char* method_str, CURL* curl);
 
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
+  static void sas_log_http_rsp(SAS::TrailId trail,
+                               CURL* curl,
+                               long http_rc,
+                               const char* method_str,
+                               std::string& url,
+                               std::string& doc,
+                               uint32_t instance_id);
 
 private:
 
