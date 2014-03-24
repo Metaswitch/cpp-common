@@ -377,9 +377,13 @@ void DnsCachedResolver::dns_response(const std::string& domain,
   LOG_DEBUG("Received DNS response for %s type %s",
             domain.c_str(), DnsRRecord::rrtype_to_string(dnstype).c_str());
 
-  // Find the relevant node in the cache and clear out any old records.
+  // Find the relevant node in the cache.
   DnsCacheEntry* ce = get_cache_entry(domain, dnstype);
-  clear_cache_entry(ce);
+
+  // Note that if the request failed or the response failed to parse the expiry
+  // time in the cache record is left unchanged.  If it is an existing record
+  // it will expire according to the current expiry value, if it is a new
+  // record it will expire immediately.
 
   if (status == ARES_SUCCESS)
   {
@@ -387,8 +391,10 @@ void DnsCachedResolver::dns_response(const std::string& domain,
     DnsParser parser(abuf, alen);
     if (parser.parse())
     {
-      // Parsing was successful, so process the answers and the additional
-      // data.
+      // Parsing was successful, so clear out any old records, then process
+      // the answers and additional data.
+      clear_cache_entry(ce);
+
       while (!parser.answers().empty())
       {
         DnsRRecord* rr = parser.answers().front();
@@ -460,18 +466,16 @@ void DnsCachedResolver::dns_response(const std::string& domain,
         // Finally make sure the record is in the expiry list.
         add_to_expiry_list(ace);
       }
-    }
-    else
-    {
-      // Parsing failed, so ignore this response.
-    }
-  }
 
-  if ((ce->records.empty()) &&
-      (ce->expires == 0))
-  {
-    // We didn't get an SOA record, so use a default negative cache timeout.
-    ce->expires = DEFAULT_NEGATIVE_CACHE_TTL + time(NULL);
+      // If there were no records set the expiry period so we cache a negative
+      // entry to prevent immediate retries.
+      if ((ce->records.empty()) &&
+          (ce->expires == 0))
+      {
+        // We didn't get an SOA record, so use a default negative cache timeout.
+        ce->expires = DEFAULT_NEGATIVE_CACHE_TTL + time(NULL);
+      }
+    }
   }
 
   // Add the record to the expiry list.
