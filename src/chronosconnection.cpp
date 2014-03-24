@@ -48,8 +48,7 @@
 
 ChronosConnection::ChronosConnection(const std::string& server) :
   _http(new HttpConnection(server,
-                           false,
-                           SASEvent::TX_HSS_BASE))
+                           false))
 {
 }
 

@@ -68,11 +68,10 @@ class HttpConnection
 public:
   HttpConnection(const std::string& server,
                  bool assert_user,
-                 int sas_event_base,
                  const std::string& stat_name,
                  LoadMonitor* load_monitor,
                  LastValueCache* lvc);
-  HttpConnection(const std::string& server, bool assert_user, int sas_event_base);
+  HttpConnection(const std::string& server, bool assert_user);
   virtual ~HttpConnection();
 
  virtual long get(const std::string& path,
@@ -131,7 +130,6 @@ private:
 
   const std::string _server;
   const bool _assert_user;
-  const int _sas_event_base;
   pthread_key_t _curl_thread_local;
   pthread_key_t _uuid_thread_local;
 

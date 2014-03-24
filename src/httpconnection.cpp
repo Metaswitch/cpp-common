@@ -76,13 +76,11 @@ static const double CONNECTION_AGE_MS = 60 * 1000.0;
 
 HttpConnection::HttpConnection(const std::string& server,      //< Server to send HTTP requests to.
                                bool assert_user,               //< Assert user in header?
-                               int sas_event_base,             //< SAS events: sas_event_base - will have  SASEvent::HTTP_REQ / RSP / ERR added to it.
                                const std::string& stat_name,   //< Name of statistic to report connection info to.
                                LoadMonitor* load_monitor,      //< Load Monitor.
                                LastValueCache* lvc) :          //< Statistics last value cache.
   _server(server),
-  _assert_user(assert_user),
-  _sas_event_base(sas_event_base)
+  _assert_user(assert_user)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -95,11 +93,9 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
 }
 
 HttpConnection::HttpConnection(const std::string& server,      //< Server to send HTTP requests to.
-                               bool assert_user,               //< Assert user in header?
-                               int sas_event_base) :           //< SAS events: sas_event_base - will have  SASEvent::HTTP_REQ / RSP / ERR added to it.
+                               bool assert_user) :             //< Assert user in header?
   _server(server),
-  _assert_user(assert_user),
-  _sas_event_base(sas_event_base)
+  _assert_user(assert_user)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -346,10 +342,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   {
     curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, recycle_conn ? 1L : 0L);
 
-    // Report the request to SAS.
-    SAS::Event http_req_event(trail, _sas_event_base + SASEvent::HTTP_REQ, 1u);
-    http_req_event.add_var_param(url);
-    SAS::report_event(http_req_event);
+    // TODO Report the request to SAS.
 
     // Send the request.
     doc.clear();
@@ -360,11 +353,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     {
       LOG_DEBUG("Received HTTP response : %s", doc.c_str());
 
-      // Report the response to SAS.
-      SAS::Event http_rsp_event(trail, _sas_event_base + SASEvent::HTTP_RSP, 1u);
-      http_rsp_event.add_var_param(url);
-      http_rsp_event.add_var_param(doc);
-      SAS::report_event(http_rsp_event);
+      // TODO Report the response to SAS.
 
       if (recycle_conn)
       {
@@ -378,12 +367,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     {
       LOG_DEBUG("Received HTTP error response : %s : %s", url.c_str(), curl_easy_strerror(rc));
 
-      // Report the error to SAS
-      SAS::Event http_err_event(trail, _sas_event_base + SASEvent::HTTP_ERR, 1u);
-      http_err_event.add_static_param(rc);
-      http_err_event.add_var_param(url);
-      http_err_event.add_var_param(curl_easy_strerror(rc));
-      SAS::report_event(http_err_event);
+      // TODO Report the error to SAS
 
       long http_rc = 0;
       if (rc == CURLE_HTTP_RETURNED_ERROR)
