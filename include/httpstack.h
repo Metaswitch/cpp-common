@@ -157,6 +157,13 @@ public:
     virtual ~Handler() {}
 
     virtual void run() = 0;
+
+    /// Send an HTTP reply. Calls through to Request::Send_reply, picking up
+    /// the trail ID from the handler.
+    ///
+    /// @param status_code the HTTP status code to use on the reply.
+    void send_http_reply(int status_code) { _req.send_reply(status_code, trail()); }
+
     inline void set_trail(SAS::TrailId trail) { _trail = trail; }
     inline SAS::TrailId trail() { return _trail; }
 
@@ -234,10 +241,10 @@ private:
   void handler_callback(evhtp_request_t* req,
                         BaseHandlerFactory* handler_factory);
   void event_base_thread_fn();
-  void sas_log_rx_http_req(SAS::TrailId trail, 
-                           Request& req, 
+  void sas_log_rx_http_req(SAS::TrailId trail,
+                           Request& req,
                            BaseHandlerFactory* handler_factory);
-  void sas_log_tx_http_rsp(SAS::TrailId trail, 
+  void sas_log_tx_http_rsp(SAS::TrailId trail,
                            HttpStack::Request& req,
                            int rc);
   // Don't implement the following, to avoid copies of this instance.
