@@ -428,14 +428,14 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
   {
     case rapidjson::kFalseType:
     case rapidjson::kTrueType:
-      LOG_ERROR("Invalid format (true/false) in JSON block (%d)",
+      LOG_ERROR("Invalid format (true/false) in JSON block (%d), ignoring",
                 avp_hdr()->avp_code);
       break;
     case rapidjson::kNullType:
       LOG_ERROR("Invalid NULL in JSON block, ignoring");
       break;
     case rapidjson::kArrayType:
-      LOG_ERROR("Cannot store multiple values in one ACR");
+      LOG_ERROR("Cannot store multiple values in one ACR, ignoring");
       break;
     case rapidjson::kStringType:
       val_str(value.GetString());
@@ -446,7 +446,7 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
       switch (dict.base_type())
       {
       case AVP_TYPE_GROUPED:
-        LOG_ERROR("Cannot store integer in grouped AVP");
+        LOG_ERROR("Cannot store integer in grouped AVP, ignoring");
         break;
       case AVP_TYPE_OCTETSTRING:
         // The only time this occurs is for types that have custom
@@ -468,10 +468,10 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
         break;
       case AVP_TYPE_FLOAT32:
       case AVP_TYPE_FLOAT64:
-        LOG_ERROR("Floating point AVPs are not supported");
+        LOG_ERROR("Floating point AVPs are not supportedi, ignoring");
         break;
       default:
-        LOG_ERROR("Unexpected AVP type"); // LCOV_EXCL_LINE
+        LOG_ERROR("Unexpected AVP type, ignoring"); // LCOV_EXCL_LINE
         break;
       }
       break;
