@@ -41,6 +41,7 @@
 
 #include <freeDiameter/freeDiameter-host.h>
 #include <freeDiameter/libfdcore.h>
+#include <freeDiameter/libfdproto.h>
 #include <rapidjson/document.h>
 
 #include "utils.h"
@@ -89,10 +90,28 @@ public:
   class AVP : public Object
   {
   public:
-    inline AVP(const std::string avp) : Object(find(avp)) {};
-    inline AVP(const std::string vendor, const std::string avp) : Object(find(vendor, avp)) {};
+    inline AVP(const std::string avp) : Object(find(avp))
+    {
+      fd_dict_getval(dict(), &_avp_data);
+    };
+    inline AVP(const std::string vendor, 
+               const std::string avp) : Object(find(vendor, avp))
+    {
+      fd_dict_getval(dict(), &_avp_data);
+    };
+    inline AVP(const std::vector<std::string>& vendors,
+               const std::string avp) : Object(find(vendors, avp))
+    {
+      fd_dict_getval(dict(), &_avp_data);
+    };
     static struct dict_object* find(const std::string avp);
     static struct dict_object* find(const std::string vendor, const std::string avp);
+    static struct dict_object* find(const std::vector<std::string>& vendor, const std::string avp);
+
+    inline enum dict_avp_basetype base_type() const { return _avp_data.avp_basetype; };
+
+  private:
+    struct dict_avp_data _avp_data;
   };
 
   Dictionary();
@@ -154,11 +173,7 @@ public:
   {
     fd_msg_avp_new(type.dict(), 0, &_avp);
   }
-  AVP(const std::string& name)
-  {
-    Dictionary::AVP dict(name);
-    fd_msg_avp_new(dict.dict(), 0, &_avp);
-  }
+
   inline AVP(struct avp* avp) : _avp(avp) {}
   inline AVP(AVP const& avp) : _avp(avp.avp()) {}
   inline AVP& operator=(AVP const& avp) {_avp = avp.avp(); return *this;}
@@ -198,35 +213,29 @@ public:
   }
   inline AVP& val_i32(int32_t i32)
   {
-    union avp_value val;
-    val.i32 = i32;
-    fd_msg_avp_setvalue(_avp, &val);
+    fd_msg_avp_value_encode(&i32, _avp);
     return *this;
   }
   inline AVP& val_i64(int64_t i64)
   {
-    union avp_value val;
-    val.i64 = i64;
-    fd_msg_avp_setvalue(_avp, &val);
+    fd_msg_avp_value_encode(&i64, _avp);
     return *this;
   }
   inline AVP& val_u32(uint32_t u32)
   {
-    union avp_value val;
-    val.u32 = u32;
-    fd_msg_avp_setvalue(_avp, &val);
+    fd_msg_avp_value_encode(&u32, _avp);
     return *this;
   }
   inline AVP& val_u64(uint64_t u64)
   {
-    union avp_value val;
-    val.u64 = u64;
-    fd_msg_avp_setvalue(_avp, &val);
+    fd_msg_avp_value_encode(&u64, _avp);
     return *this;
   }
 
   // Populate this AVP from a JSON object
-  AVP& val_json(const rapidjson::Value& contents);
+  AVP& val_json(const std::vector<std::string>& vendors, 
+                const Diameter::Dictionary::AVP& dict,
+                const rapidjson::Value& contents);
 
   inline AVP& add(AVP& avp)
   {
