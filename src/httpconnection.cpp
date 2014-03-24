@@ -219,14 +219,22 @@ void HttpConnection::reset_curl_handle(CURL* curl)
   curl_easy_setopt(curl, CURLOPT_POST, 0);
 }
 
-
 HTTPCode HttpConnection::send_delete(const std::string& path, SAS::TrailId trail)
+{
+  return send_delete(path, "", trail);
+}
+
+HTTPCode HttpConnection::send_delete(const std::string& path, const std::string& body, SAS::TrailId trail)
 {
   CURL *curl = get_curl_handle();
   struct curl_slist *slist = NULL;
   slist = curl_slist_append(slist, "Expect:");
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+  if (!body.empty())
+  {
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+  }
 
   std::string json_data;
   HTTPCode status = send_request(path, json_data, "", trail, curl);

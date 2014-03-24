@@ -137,12 +137,10 @@ void Stack::register_fallback_handler(const Dictionary::Application &app)
 
 int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act)
 {
-  // Convert the received message into one our Message objects, and create a new handler instance of the 
-  // correct type.
-  Stack* stack = Stack::get_instance();
-  Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req, stack);
-  LOG_DEBUG("Handling Diameter message of type %u", msg.command_code());
-  Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(msg);
+  // Create and run the correct handler based on the received message and the dictionary
+  // object we've passed through.
+  Dictionary* dict = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict;
+  Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(dict, req);
   handler->run();
 
   // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
@@ -582,10 +580,10 @@ int32_t Message::experimental_result_code() const
   AVP::iterator avps = begin(dict()->EXPERIMENTAL_RESULT);
   if (avps != end())
   {
-    avps = avps->begin(dict()->EXPERIMENTAL_RESULT_CODE);
-    if (avps != end())
+    AVP::iterator avps2 = avps->begin(dict()->EXPERIMENTAL_RESULT_CODE);
+    if (avps2 != avps->end())
     {
-      experimental_result_code = avps->val_i32();
+      experimental_result_code = avps2->val_i32();
       LOG_DEBUG("Got Experimental-Result-Code %d", experimental_result_code);
     }
   }
@@ -600,10 +598,10 @@ int32_t Message::vendor_id() const
   AVP::iterator avps = begin(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
   if (avps != end())
   {
-    avps = avps->begin(dict()->VENDOR_ID);
-    if (avps != end())
+    AVP::iterator avps2 = avps->begin(dict()->VENDOR_ID);
+    if (avps2 != avps->end())
     {
-      vendor_id = avps->val_i32();
+      vendor_id = avps2->val_i32();
       LOG_DEBUG("Got Vendor-Id %d", vendor_id);
     }
   }
