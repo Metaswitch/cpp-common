@@ -254,14 +254,16 @@ void HttpStack::record_penalty()
 
 std::string HttpStack::Request::body()
 {
-  std::string body = "";
-  char buf[1024];
-  int bytes;
-  while (evbuffer_get_length(_req->buffer_in) > 0)
+  if (_body.empty())
   {
-    bytes = evbuffer_remove(_req->buffer_in, buf, 1024);
-    body.append(buf, bytes);
+    char buf[1024];
+    int bytes;
+    while (evbuffer_get_length(_req->buffer_in) > 0)
+    {
+      bytes = evbuffer_remove(_req->buffer_in, buf, 1024);
+      _body.append(buf, bytes);
+    }
   }
-  return body;
+  return _body;
 }
 
