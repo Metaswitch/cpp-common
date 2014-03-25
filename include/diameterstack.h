@@ -137,7 +137,7 @@ public:
 class Transaction
 {
 public:
-  Transaction(Dictionary* dict);
+  Transaction(Dictionary* dict, SAS::TrailId);
   virtual ~Transaction();
 
   virtual void on_response(Message& rsp) = 0;
