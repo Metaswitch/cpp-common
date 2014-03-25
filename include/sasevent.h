@@ -47,7 +47,7 @@ namespace SASEvent {
   // Event spaces.
   //
   const int COMMON_BASE = 0x000000;
-  const int SPROUT_BASE = 0x800000;
+  const int SPROUT_BASE = 0x810000;
 
   //
   // Common events and protocol flows.
