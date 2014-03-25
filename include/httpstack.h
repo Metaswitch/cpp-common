@@ -120,9 +120,9 @@ public:
     bool get_latency(unsigned long& latency_us);
 
   protected:
+    htp_method _method;
     std::string _body;
     bool _body_set;
-    htp_method _method;
 
   private:
     HttpStack* _stack;
