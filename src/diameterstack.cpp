@@ -385,7 +385,7 @@ Dictionary::Dictionary() :
 {
 }
 
-Transaction::Transaction(Dictionary* dict, SAS::TrailId trail) : 
+Transaction::Transaction(Dictionary* dict, SAS::TrailId trail) :
   _dict(dict), _trail(trail)
 {
 }
@@ -649,7 +649,9 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
 
 void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
 {
-  SAS::Event event(trail, SASEvent::DIAMETER_RX_MSG, instance_id);
+  SAS::Event event(trail,
+                   (is_request() ? SASEvent::DIAMETER_RX_REQ : SASEvent::DIAMETER_RX_RSP),
+                   instance_id);
 
   event.add_static_param(command_code());
 
@@ -670,7 +672,9 @@ void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
 
 void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
 {
-  SAS::Event event(trail, SASEvent::DIAMETER_TX_MSG, instance_id);
+  SAS::Event event(trail,
+                   (is_request() ? SASEvent::DIAMETER_TX_REQ : SASEvent::DIAMETER_TX_RSP),
+                   instance_id);
 
   event.add_static_param(command_code());
 
@@ -691,7 +695,7 @@ void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
 
 void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
 {
-  SAS::Event event(trail, SASEvent::DIAMETER_TIMEOUT, instance_id);
+  SAS::Event event(trail, SASEvent::DIAMETER_REQ_TIMEOUT, instance_id);
 
   event.add_static_param(command_code());
 

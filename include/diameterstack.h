@@ -356,6 +356,7 @@ public:
     free(buf); buf = NULL;
     return rc;
   }
+  inline bool is_request() { return bool(msg_hdr()->msg_flags & CMD_FLAG_REQUEST); }
 
   inline AVP::iterator begin() const;
   inline AVP::iterator begin(const Dictionary::AVP& type) const;
