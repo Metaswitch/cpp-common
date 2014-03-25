@@ -61,7 +61,7 @@ public:
   {
   public:
     Request(HttpStack* stack, evhtp_request_t* req) :
-      _stack(stack), _req(req), stopwatch()
+    _method(htp_method_UNKNOWN), _body_set(false), _stack(stack), _req(req), stopwatch()
     {
       stopwatch.start();
     }
@@ -94,8 +94,16 @@ public:
       evbuffer_add(_req->buffer_out, content.c_str(), content.length());
     }
 
-    virtual htp_method method() {return evhtp_request_get_method(_req);};
-    virtual std::string body();
+    htp_method method()
+    {
+      if (_method == htp_method_UNKNOWN)
+      {
+        _method = evhtp_request_get_method(_req);
+      };
+      return _method;
+    }
+
+    std::string body();
 
     void send_reply(int rc);
     inline evhtp_request_t* req() { return _req; }
@@ -110,6 +118,11 @@ public:
     ///
     /// @return Whether the latency has been successfully obtained.
     bool get_latency(unsigned long& latency_us);
+
+  protected:
+    std::string _body;
+    bool _body_set;
+    htp_method _method;
 
   private:
     HttpStack* _stack;
@@ -154,7 +167,7 @@ public:
   protected:
     void record_penalty() { _req.record_penalty(); }
 
-    Request& _req;
+    Request _req;
   };
 
   class BaseHandlerFactory
