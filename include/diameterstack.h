@@ -361,7 +361,7 @@ public:
   inline AVP::iterator begin() const;
   inline AVP::iterator begin(const Dictionary::AVP& type) const;
   inline AVP::iterator end() const;
-  virtual void send();
+  virtual void send(SAS::TrailId trail);
   virtual void send(Transaction* tsx);
   virtual void send(Transaction* tsx, unsigned int timeout_ms);
   void operator=(Message const&);
@@ -498,16 +498,17 @@ public:
   class Handler
   {
   public:
-    inline Handler(Diameter::Message& msg) : _msg(msg) {}
+    inline Handler(Diameter::Message& msg) : _msg(msg), _trail(0) {}
     virtual ~Handler() {}
 
     virtual void run() = 0;
 
-    // TODO Return an actual trail.
-    SAS::TrailId trail() { return 0; }
+    void set_trail(SAS::TrailId trail) { _trail = trail; }
+    SAS::TrailId trail() { return _trail; }
 
   protected:
     Diameter::Message _msg;
+    SAS::TrailId _trail;
   };
 
   class BaseHandlerFactory

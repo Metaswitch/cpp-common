@@ -142,8 +142,13 @@ int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session
   // correct type.
   Stack* stack = Stack::get_instance();
   Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req, stack);
+
   LOG_DEBUG("Handling Diameter message of type %u", msg.command_code());
+  SAS::TrailId trail = SAS::new_trail(0);
+  msg.sas_log_rx(trail, 0);
+
   Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(msg);
+  handler->set_trail(trail);
   handler->run();
 
   // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
@@ -618,11 +623,12 @@ int32_t Message::vendor_id() const
   return vendor_id;
 }
 
-void Message::send()
+void Message::send(SAS::TrailId trail)
 {
   LOG_VERBOSE("Sending Diameter message of type %u", command_code());
   revoke_ownership();
 
+  sas_log_tx(trail, 0);
   _stack->send(_fd_msg);
 }
 
