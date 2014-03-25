@@ -52,25 +52,29 @@ namespace SASEvent {
   //
   // Common events and protocol flows.
   //
-  const int RX_SIP_MSG = COMMON_BASE + 0;
-  const int TX_SIP_MSG = COMMON_BASE + 1;
+  const int RX_SIP_MSG = COMMON_BASE + 0x000000;
+  const int TX_SIP_MSG = COMMON_BASE + 0x000001;
 
-  const int TX_HTTP_REQ = COMMON_BASE + 2;
-  const int RX_HTTP_REQ = COMMON_BASE + 3;
-  const int TX_HTTP_RSP = COMMON_BASE + 4;
-  const int RX_HTTP_RSP = COMMON_BASE + 5;
-  const int HTTP_REQ_ERROR = COMMON_BASE + 6;
+  const int TX_HTTP_REQ = COMMON_BASE + 0x000002;
+  const int RX_HTTP_REQ = COMMON_BASE + 0x000003;
+  const int TX_HTTP_RSP = COMMON_BASE + 0x000004;
+  const int RX_HTTP_RSP = COMMON_BASE + 0x000005;
+  const int HTTP_REQ_ERROR = COMMON_BASE + 0x000006;
+
+  const int DIAMETER_TX_MSG = COMMON_BASE + 0x000007;
+  const int DIAMETER_RX_MSG = COMMON_BASE + 0x000008;
+  const int DIAMETER_TIMEOUT = COMMON_BASE + 0x000009;
 
   //
   // Sprout events.
   //
-  const int ENUM_START = SPROUT_BASE + 0;
-  const int ENUM_MATCH = SPROUT_BASE + 1;
-  const int ENUM_INCOMPLETE = SPROUT_BASE + 2;
-  const int ENUM_COMPLETE = SPROUT_BASE + 3;
-  const int TX_ENUM_REQ = SPROUT_BASE + 4;
-  const int RX_ENUM_RSP = SPROUT_BASE + 5;
-  const int RX_ENUM_ERR = SPROUT_BASE + 6;
+  const int ENUM_START = SPROUT_BASE + 0x000000;
+  const int ENUM_MATCH = SPROUT_BASE + 0x000001;
+  const int ENUM_INCOMPLETE = SPROUT_BASE + 0x000002;
+  const int ENUM_COMPLETE = SPROUT_BASE + 0x000003;
+  const int TX_ENUM_REQ = SPROUT_BASE + 0x000004;
+  const int RX_ENUM_RSP = SPROUT_BASE + 0x000005;
+  const int RX_ENUM_ERR = SPROUT_BASE + 0x000006;
 
 } // namespace SASEvent
 

@@ -36,6 +36,7 @@
 
 #include "diameterstack.h"
 #include "log.h"
+#include "sasevent.h"
 
 using namespace Diameter;
 
@@ -137,7 +138,7 @@ void Stack::register_fallback_handler(const Dictionary::Application &app)
 
 int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act)
 {
-  // Convert the received message into one our Message objects, and create a new handler instance of the 
+  // Convert the received message into one our Message objects, and create a new handler instance of the
   // correct type.
   Stack* stack = Stack::get_instance();
   Message msg(((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict, *req, stack);
@@ -384,7 +385,8 @@ Dictionary::Dictionary() :
 {
 }
 
-Transaction::Transaction(Dictionary* dict) : _dict(dict)
+Transaction::Transaction(Dictionary* dict, SAS::TrailId trail) : 
+  _dict(dict), _trail(trail)
 {
 }
 
@@ -397,8 +399,11 @@ void Transaction::on_response(void* data, struct msg** rsp)
   Transaction* tsx = (Transaction*)data;
   Stack* stack = Stack::get_instance();
   Message msg(tsx->_dict, *rsp, stack);
+
   LOG_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
               msg.command_code(), tsx);
+  msg.sas_log_rx(tsx->trail(), 0);
+
   tsx->stop_timer();
   tsx->on_response(msg);
   delete tsx;
@@ -411,8 +416,11 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   Transaction* tsx = (Transaction*)data;
   Stack* stack = Stack::get_instance();
   Message msg(tsx->_dict, *req, stack);
+
   LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
+  msg.sas_log_timeout(tsx->trail(), 0);
+
   tsx->stop_timer();
   tsx->on_timeout();
   delete tsx;
@@ -614,6 +622,7 @@ void Message::send()
 {
   LOG_VERBOSE("Sending Diameter message of type %u", command_code());
   revoke_ownership();
+
   _stack->send(_fd_msg);
 }
 
@@ -622,6 +631,8 @@ void Message::send(Transaction* tsx)
   LOG_VERBOSE("Sending Diameter message of type %u on transaction %p", command_code(), tsx);
   tsx->start_timer();
   revoke_ownership();
+
+  sas_log_tx(tsx->trail(), 0);
   _stack->send(_fd_msg, tsx);
 }
 
@@ -631,5 +642,66 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
               command_code(), tsx, timeout_ms);
   tsx->start_timer();
   revoke_ownership();
+
+  sas_log_tx(tsx->trail(), 0);
   _stack->send(_fd_msg, tsx, timeout_ms);
+}
+
+void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
+{
+  SAS::Event event(trail, SASEvent::DIAMETER_RX_MSG, instance_id);
+
+  event.add_static_param(command_code());
+
+  std::string content;
+  get_content(content);
+  event.add_var_param(content);
+
+  std::string origin_host;
+  get_origin_host(origin_host);
+  event.add_var_param(origin_host);
+
+  std::string origin_realm;
+  get_origin_realm(origin_realm);
+  event.add_var_param(origin_realm);
+
+  SAS::report_event(event);
+}
+
+void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
+{
+  SAS::Event event(trail, SASEvent::DIAMETER_TX_MSG, instance_id);
+
+  event.add_static_param(command_code());
+
+  std::string content;
+  get_content(content);
+  event.add_var_param(content);
+
+  std::string destination_host;
+  get_destination_realm(destination_host);
+  event.add_var_param(destination_host);
+
+  std::string destination_realm;
+  get_destination_host(destination_realm);
+  event.add_var_param(destination_realm);
+
+  SAS::report_event(event);
+}
+
+void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
+{
+  SAS::Event event(trail, SASEvent::DIAMETER_TIMEOUT, instance_id);
+
+  event.add_static_param(command_code());
+
+  std::string destination_host;
+  get_destination_host(destination_host);
+  event.add_var_param(destination_host);
+
+  std::string destination_realm;
+  get_destination_realm(destination_realm);
+  event.add_var_param(destination_realm);
+
+  SAS::report_event(event);
 }
