@@ -502,6 +502,10 @@ public:
     virtual ~Handler() {}
 
     virtual void run() = 0;
+
+    // TODO Return an actual trail.
+    SAS::TrailId trail() { return 0; }
+
   protected:
     Diameter::Message _msg;
   };
