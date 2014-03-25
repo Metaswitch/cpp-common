@@ -61,7 +61,7 @@ public:
   {
   public:
     Request(HttpStack* stack, evhtp_request_t* req) :
-    _method_set(false), _stack(stack), _req(req), stopwatch()
+    _method(htp_method_UNKNOWN), _body_set(false), _stack(stack), _req(req), stopwatch()
     {
       stopwatch.start();
     }
@@ -96,9 +96,8 @@ public:
 
     htp_method method()
     {
-      if (!_method_set)
+      if (_method == htp_method_UNKNOWN)
       {
-        _method_set = true;
         _method = evhtp_request_get_method(_req);
       };
       return _method;
@@ -122,8 +121,8 @@ public:
 
   protected:
     std::string _body;
+    bool _body_set;
     htp_method _method;
-    bool _method_set;
 
   private:
     HttpStack* _stack;

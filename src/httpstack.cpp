@@ -254,8 +254,9 @@ void HttpStack::record_penalty()
 
 std::string HttpStack::Request::body()
 {
-  if (_body.empty())
+  if (!_body_set)
   {
+    _body_set = true;
     char buf[1024];
     int bytes;
     while (evbuffer_get_length(_req->buffer_in) > 0)
