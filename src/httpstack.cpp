@@ -65,7 +65,7 @@ void HttpStack::send_reply(Request& req, int rc, SAS::TrailId trail)
   LOG_VERBOSE("Sending response %d to request for URL %s, args %s", rc, req.req()->uri->path->full, req.req()->uri->query_raw);
 
   log(std::string(req.req()->uri->path->full), rc);
-  sas_log_tx_http_rsp(trail, req, rc);
+  sas_log_tx_http_rsp(trail, req, rc, 0);
 
   evhtp_send_reply(req.req(), rc);
 
@@ -210,7 +210,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   Request request(this, req);
 
   SAS::TrailId trail = SAS::new_trail(0);
-  sas_log_rx_http_req(trail, request, handler_factory);
+  sas_log_rx_http_req(trail, request, handler_factory, 0);
 
   if (_stats != NULL)
   {
@@ -232,6 +232,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   }
   else
   {
+    sas_log_overload(trail, request, 503, 0);
     evhtp_send_reply(req, 503);
 
     if (_stats != NULL)
@@ -275,17 +276,18 @@ std::string HttpStack::Request::body()
 
 void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
                                     HttpStack::Request& req,
-                                    HttpStack::BaseHandlerFactory* handler_factory)
+                                    HttpStack::BaseHandlerFactory* handler_factory,
+                                    uint32_t instance_id);
 {
   std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);
   if (correlator != "")
   {
-    SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
+    SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, instance_id);
     corr_marker.add_var_param(correlator);
     SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
   }
 
-  SAS::Event rx_http_req(trail, SASEvent::RX_HTTP_REQ, 0);
+  SAS::Event rx_http_req(trail, SASEvent::RX_HTTP_REQ, instance_id);
   rx_http_req.add_static_param(req.req()->method);
   rx_http_req.add_var_param(req.full_path());
   rx_http_req.add_var_param(req.body());
@@ -294,9 +296,10 @@ void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
 
 void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
                                     HttpStack::Request& req,
-                                    int rc)
+                                    int rc,
+                                    uint32_t instance_id)
 {
-  SAS::Event tx_http_rsp(trail, SASEvent::TX_HTTP_RSP, 0);
+  SAS::Event tx_http_rsp(trail, SASEvent::TX_HTTP_RSP, instance_id);
   tx_http_rsp.add_static_param(rc);
   tx_http_rsp.add_static_param(req.req()->method);
   tx_http_rsp.add_var_param(req.full_path());
@@ -308,4 +311,16 @@ void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
   tx_http_rsp.add_var_param(buffer_len, buffer);
 
   SAS::report_event(tx_http_rsp);
+}
+
+void HttpStack::sas_log_overload(SAS::TrailId trail,
+                                 HttpStack::Request& req,
+                                 int rc,
+                                 uint32_t instance_id)
+{
+  SAS::Event event(trail, SASEvent::HTTP_REJECTED_OVERLOAD, instance_id);
+  event.add_static_param(rc);
+  event.add_static_param(req.req()->method);
+  event.add_var_param(req.full_path());
+  SAS::report_event(event);
 }
