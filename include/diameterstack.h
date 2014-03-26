@@ -498,7 +498,9 @@ public:
   class Handler
   {
   public:
-    inline Handler(Diameter::Message& msg) : _msg(msg), _trail(0) {}
+    inline Handler(Dictionary* dict, struct msg** fd_msg) : 
+      _msg(dict, *fd_msg, Stack::get_instance()), _trail(0) 
+    {}
     virtual ~Handler() {}
 
     virtual void run() = 0;
@@ -515,7 +517,7 @@ public:
   {
   public:
     BaseHandlerFactory(Dictionary *dict) : _dict(dict) {}
-    virtual Handler* create(Diameter::Message& msg) = 0;
+    virtual Handler* create(Dictionary* dict, struct msg** fd_msg) = 0;
     Dictionary* _dict;
   };
 
@@ -532,7 +534,7 @@ public:
   {
   public:
     ConfiguredHandlerFactory(Dictionary* dict, const C* cfg) : BaseHandlerFactory(dict), _cfg(cfg) {}
-    Handler* create(Diameter::Message& msg) { return new H(msg, _cfg); }
+    Handler* create(Dictionary* dict, struct msg** fd_msg) { return new H(dict, fd_msg, _cfg); }
   private:
     const C* _cfg;
   };

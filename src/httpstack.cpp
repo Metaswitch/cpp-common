@@ -266,15 +266,18 @@ void HttpStack::record_penalty()
 
 std::string HttpStack::Request::body()
 {
-  std::string body = "";
-  char buf[1024];
-  int bytes;
-  while (evbuffer_get_length(_req->buffer_in) > 0)
+  if (!_body_set)
   {
-    bytes = evbuffer_remove(_req->buffer_in, buf, 1024);
-    body.append(buf, bytes);
+    _body_set = true;
+    char buf[1024];
+    int bytes;
+    while (evbuffer_get_length(_req->buffer_in) > 0)
+    {
+      bytes = evbuffer_remove(_req->buffer_in, buf, 1024);
+      _body.append(buf, bytes);
+    }
   }
-  return body;
+  return _body;
 }
 
 void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,

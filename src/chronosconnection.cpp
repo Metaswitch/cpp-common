@@ -46,7 +46,8 @@
 #include "httpconnection.h"
 #include "chronosconnection.h"
 
-ChronosConnection::ChronosConnection(const std::string& server) :
+ChronosConnection::ChronosConnection(const std::string& server, std::string callback_host) :
+  _callback_host(callback_host),
   _http(new HttpConnection(server,
                            false,
                            SASEvent::HttpLogLevel::PROTOCOL))
@@ -142,13 +143,13 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
 
 std::string ChronosConnection::create_body(uint32_t interval,
                                            uint32_t repeat_for,
-                                           const std::string& uri,
+                                           const std::string& path,
                                            const std::string& opaque_data)
 {
   Json::Value body;
   Json::Value http;
 
-  http["uri"] = uri;
+  http["uri"] = "http://" + _callback_host + path;
   http["opaque"] = opaque_data;
   body["callback"]["http"] = http;
   body["timing"]["interval"] = interval;

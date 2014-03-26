@@ -63,7 +63,7 @@ public:
   {
   public:
     Request(HttpStack* stack, evhtp_request_t* req) :
-      _stack(stack), _req(req), stopwatch()
+    _method(htp_method_UNKNOWN), _body_set(false), _stack(stack), _req(req), stopwatch()
     {
       stopwatch.start();
     }
@@ -102,8 +102,16 @@ public:
       evbuffer_add(_req->buffer_out, content.c_str(), content.length());
     }
 
-    virtual htp_method method() {return evhtp_request_get_method(_req);};
-    virtual std::string body();
+    htp_method method()
+    {
+      if (_method == htp_method_UNKNOWN)
+      {
+        _method = evhtp_request_get_method(_req);
+      };
+      return _method;
+    }
+
+    std::string body();
 
     void send_reply(int rc, SAS::TrailId trail);
     inline evhtp_request_t* req() { return _req; }
@@ -121,6 +129,11 @@ public:
 
     void set_sas_log_level(SASEvent::HttpLogLevel level) { _sas_log_level = level; }
     SASEvent::HttpLogLevel get_sas_log_level() { return _sas_log_level; }
+
+  protected:
+    htp_method _method;
+    std::string _body;
+    bool _body_set;
 
   private:
     HttpStack* _stack;
@@ -175,8 +188,8 @@ public:
   protected:
     void record_penalty() { _req.record_penalty(); }
 
-    Request& _req;
     SAS::TrailId _trail;
+    Request _req;
   };
 
   class BaseHandlerFactory

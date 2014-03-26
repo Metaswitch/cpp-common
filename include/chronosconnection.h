@@ -1,5 +1,5 @@
 /**
- * @file chronosconnection.h 
+ * @file chronosconnection.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -48,7 +48,7 @@
 class ChronosConnection
 {
 public:
-  ChronosConnection(const std::string& chronos);
+  ChronosConnection(const std::string& chronos, std::string callback_host);
   virtual ~ChronosConnection();
 
   virtual HTTPCode send_delete(const std::string& delete_id,
@@ -77,7 +77,8 @@ public:
                              const std::string& callback_uri,
                              const std::string& opaque_data,
                              SAS::TrailId trail);
- 
+  std::string _callback_host;
+
 private:
   std::string create_body(uint32_t expires,
                           uint32_t repeat_for,
