@@ -34,6 +34,13 @@
  * as those licenses appear in the file license-openssl.
  */
 
+#ifndef RANDOM_UUID_H__
+#define RANDOM_UUID_H__
+
+#include <boost/uuid/uuid.hpp>            // uuid class
+#include <boost/uuid/uuid_generators.hpp> // generators
+#include <fstream>
+
 /// Generator of random UUIDs.
 ///
 /// This is a wrapper around the boost::uuids::random_generator, except that we
@@ -71,3 +78,5 @@ private:
   boost::mt19937 _prng;
   boost::uuids::random_generator* _gen;
 };
+
+#endif
