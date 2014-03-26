@@ -46,15 +46,22 @@ namespace SASEvent {
   // Name of the HTTP header we use to correlate the client and server in SAS.
   const std::string HTTP_BRANCH_HEADER_NAME = "X-SAS-HTTP-Branch-ID";
 
-  //
+  // The levels at which clearwater nodes may log HTTP messages.
+  enum struct HttpLogLevel
+  {
+    DETAIL = 40,
+    PROTOCOL = 60
+  };
+
+  //----------------------------------------------------------------------------
   // Event spaces.
-  //
+  //----------------------------------------------------------------------------
   const int COMMON_BASE = 0x000000;
   const int SPROUT_BASE = 0x810000;
 
-  //
+  //----------------------------------------------------------------------------
   // Common events and protocol flows.
-  //
+  //----------------------------------------------------------------------------
   const int RX_SIP_MSG = COMMON_BASE + 0x000000;
   const int TX_SIP_MSG = COMMON_BASE + 0x000001;
 
@@ -65,15 +72,24 @@ namespace SASEvent {
   const int HTTP_REQ_ERROR = COMMON_BASE + 0x000006;
   const int HTTP_REJECTED_OVERLOAD = COMMON_BASE + 0x000007;
 
-  const int DIAMETER_TX_REQ = COMMON_BASE + 0x000008;
-  const int DIAMETER_RX_REQ = COMMON_BASE + 0x000009;
-  const int DIAMETER_TX_RSP = COMMON_BASE + 0x00000A;
-  const int DIAMETER_RX_RSP = COMMON_BASE + 0x00000B;
-  const int DIAMETER_REQ_TIMEOUT = COMMON_BASE + 0x00000C;
+  // Duplicates of the above HTTP events, but logged at detail level (40)
+  // rather than protocol level (60).
+  const int TX_HTTP_REQ_DETAIL = COMMON_BASE + 0x000008;
+  const int RX_HTTP_REQ_DETAIL = COMMON_BASE + 0x000009;
+  const int TX_HTTP_RSP_DETAIL = COMMON_BASE + 0x00000A;
+  const int RX_HTTP_RSP_DETAIL = COMMON_BASE + 0x00000B;
+  const int HTTP_REQ_ERROR_DETAIL = COMMON_BASE + 0x00000C;
+  const int HTTP_REJECTED_OVERLOAD_DETAIL = COMMON_BASE + 0x00000D;
 
-  //
+  const int DIAMETER_TX_REQ = COMMON_BASE + 0x00000E;
+  const int DIAMETER_RX_REQ = COMMON_BASE + 0x00000F;
+  const int DIAMETER_TX_RSP = COMMON_BASE + 0x000010;
+  const int DIAMETER_RX_RSP = COMMON_BASE + 0x000011;
+  const int DIAMETER_REQ_TIMEOUT = COMMON_BASE + 0x000012;
+
+  //----------------------------------------------------------------------------
   // Sprout events.
-  //
+  //----------------------------------------------------------------------------
   const int ENUM_START = SPROUT_BASE + 0x000000;
   const int ENUM_MATCH = SPROUT_BASE + 0x000001;
   const int ENUM_INCOMPLETE = SPROUT_BASE + 0x000002;

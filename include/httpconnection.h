@@ -48,6 +48,7 @@
 #include "utils.h"
 #include "statistic.h"
 #include "load_monitor.h"
+#include "sasevent.h"
 
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
@@ -70,11 +71,14 @@ public:
                  bool assert_user,
                  const std::string& stat_name,
                  LoadMonitor* load_monitor,
-                 LastValueCache* lvc);
-  HttpConnection(const std::string& server, bool assert_user);
+                 LastValueCache* lvc,
+                 SASEvent::HttpLogLevel);
+  HttpConnection(const std::string& server,
+                 bool assert_user,
+                 SASEvent::HttpLogLevel);
   virtual ~HttpConnection();
 
- virtual long get(const std::string& path,
+  virtual long get(const std::string& path,
                    std::string& doc,
                    const std::string& username,
                    SAS::TrailId trail);
@@ -87,13 +91,13 @@ public:
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
-  static void sas_log_http_rsp(SAS::TrailId trail,
-                               CURL* curl,
-                               long http_rc,
-                               const char* method_str,
-                               std::string& url,
-                               std::string& doc,
-                               uint32_t instance_id);
+  void sas_log_http_rsp(SAS::TrailId trail,
+                        CURL* curl,
+                        long http_rc,
+                        const char* method_str,
+                        std::string& url,
+                        std::string& doc,
+                        uint32_t instance_id);
 
 private:
 
@@ -144,6 +148,7 @@ private:
   LoadMonitor* _load_monitor;
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock
+  SASEvent::HttpLogLevel _sas_log_level;
 
   friend class PoolEntry; // so it can update stats
 };

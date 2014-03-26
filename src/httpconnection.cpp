@@ -42,7 +42,6 @@
 #include "utils.h"
 #include "log.h"
 #include "sas.h"
-#include "sasevent.h"
 #include "httpconnection.h"
 #include "load_monitor.h"
 
@@ -73,14 +72,23 @@ static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
 /// Poisson-distributed with this mean inter-arrival time.
 static const double CONNECTION_AGE_MS = 60 * 1000.0;
 
-
-HttpConnection::HttpConnection(const std::string& server,      //< Server to send HTTP requests to.
-                               bool assert_user,               //< Assert user in header?
-                               const std::string& stat_name,   //< Name of statistic to report connection info to.
-                               LoadMonitor* load_monitor,      //< Load Monitor.
-                               LastValueCache* lvc) :          //< Statistics last value cache.
+/// Create an HTTP connection object.
+///
+/// @param server Server to send HTTP requests to.
+/// @param assert_user Assert user in header?
+/// @param stat_name Name of statistic to report connection info to.
+/// @param load_monitor Load Monitor.
+/// @param lvc Statistics last value cache.
+/// @param sas_log_level the level to log HTTP flows at (protocol/detail).
+HttpConnection::HttpConnection(const std::string& server,
+                               bool assert_user,
+                               const std::string& stat_name,
+                               LoadMonitor* load_monitor,
+                               LastValueCache* lvc,
+                               SASEvent::HttpLogLevel sas_log_level) :
   _server(server),
-  _assert_user(assert_user)
+  _assert_user(assert_user),
+  _sas_log_level(sas_log_level)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -92,10 +100,17 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
   _load_monitor = load_monitor;
 }
 
-HttpConnection::HttpConnection(const std::string& server,      //< Server to send HTTP requests to.
-                               bool assert_user) :             //< Assert user in header?
+/// Create an HTTP connection object.
+///
+/// @param server Server to send HTTP requests to.
+/// @param assert_user Assert user in header?
+/// @param sas_log_level the level to log HTTP flows at (protocol/detail).
+HttpConnection::HttpConnection(const std::string& server,
+                               bool assert_user,
+                               SASEvent::HttpLogLevel sas_log_level) :
   _server(server),
-  _assert_user(assert_user)
+  _assert_user(assert_user),
+  _sas_log_level(sas_log_level)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -306,8 +321,10 @@ HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute 
   std::string url = "http://" + _server + path;
   struct curl_slist *extra_headers = NULL;
   PoolEntry* entry;
+  int event_id;
   CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
   assert(rc == CURLE_OK);
+
 
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
@@ -346,7 +363,9 @@ HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute 
     curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, recycle_conn ? 1L : 0L);
 
     // Report the request to SAS.
-    SAS::Event tx_http_req(trail, SASEvent::TX_HTTP_REQ, 0);
+    event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                   SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
+    SAS::Event tx_http_req(trail, event_id,  0);
     tx_http_req.add_var_param(method_str);
     tx_http_req.add_var_param(url);
     tx_http_req.add_var_param(doc);
@@ -390,7 +409,9 @@ HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute 
       else
       {
         // Report the error to SAS.
-        SAS::Event http_err(trail, SASEvent::HTTP_REQ_ERROR, 0);
+        event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                       SASEvent::HTTP_REQ_ERROR : SASEvent::HTTP_REQ_ERROR_DETAIL);
+        SAS::Event http_err(trail, event_id, 0);
         tx_http_req.add_var_param(method_str);
         tx_http_req.add_var_param(url);
         tx_http_req.add_static_param(rc);
@@ -667,7 +688,9 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
                                       std::string& doc,
                                       uint32_t instance_id)
 {
-  SAS::Event rx_http_rsp(trail, SASEvent::RX_HTTP_RSP, instance_id);
+  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                    SASEvent::RX_HTTP_RSP : SASEvent::RX_HTTP_RSP_DETAIL);
+  SAS::Event rx_http_rsp(trail, event_id, instance_id);
   rx_http_rsp.add_var_param(method_str);
   rx_http_rsp.add_var_param(url);
   rx_http_rsp.add_var_param(doc);

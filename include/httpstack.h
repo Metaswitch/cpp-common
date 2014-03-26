@@ -46,6 +46,7 @@
 #include "accesslogger.h"
 #include "load_monitor.h"
 #include "sas.h"
+#include "sasevent.h"
 
 class HttpStack
 {
@@ -118,10 +119,14 @@ public:
     /// @return Whether the latency has been successfully obtained.
     bool get_latency(unsigned long& latency_us);
 
+    void set_sas_log_level(SASEvent::HttpLogLevel level) { _sas_log_level = level; }
+    SASEvent::HttpLogLevel get_sas_log_level() { return _sas_log_level; }
+
   private:
     HttpStack* _stack;
     evhtp_request_t* _req;
     Utils::StopWatch stopwatch;
+    SASEvent::HttpLogLevel _sas_log_level;
 
     std::string url_unescape(const std::string& s)
     {
@@ -179,6 +184,10 @@ public:
   public:
     BaseHandlerFactory() {}
     virtual Handler* create(Request& req) = 0;
+    virtual SASEvent::HttpLogLevel sas_log_level(Request& req)
+    {
+      return SASEvent::HttpLogLevel::PROTOCOL;
+    }
   };
 
   template <class H>
@@ -187,6 +196,13 @@ public:
   public:
     HandlerFactory() : BaseHandlerFactory() {}
     Handler* create(Request& req) { return new H(req); }
+
+    /// Return the level to log the HTTP transaction at for a given request.
+    /// This default implementation logs everything at protocol level (60).
+    virtual SASEvent::HttpLogLevel sas_log_level(Request& req)
+    {
+      return SASEvent::HttpLogLevel::PROTOCOL;
+    }
   };
 
   template <class H, class C>

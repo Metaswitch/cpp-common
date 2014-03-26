@@ -37,7 +37,6 @@
 #include "httpstack.h"
 #include <cstring>
 #include "log.h"
-#include "sasevent.h"
 
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
@@ -209,6 +208,10 @@ void HttpStack::handler_callback(evhtp_request_t* req,
 {
   Request request(this, req);
 
+  // Work out whether to log this request at protocol level (60) or detail
+  // level (40).
+  request.set_sas_log_level(handler_factory->sas_log_level(request));
+
   SAS::TrailId trail = SAS::new_trail(0);
   sas_log_rx_http_req(trail, request, handler_factory, 0);
 
@@ -287,7 +290,9 @@ void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
     SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
   }
 
-  SAS::Event rx_http_req(trail, SASEvent::RX_HTTP_REQ, instance_id);
+  int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
+                  SASEvent::RX_HTTP_REQ : SASEvent::RX_HTTP_REQ_DETAIL);
+  SAS::Event rx_http_req(trail, event_id, instance_id);
   rx_http_req.add_static_param(req.req()->method);
   rx_http_req.add_var_param(req.full_path());
   rx_http_req.add_var_param(req.body());
@@ -299,7 +304,9 @@ void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
                                     int rc,
                                     uint32_t instance_id)
 {
-  SAS::Event tx_http_rsp(trail, SASEvent::TX_HTTP_RSP, instance_id);
+  int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
+                  SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
+  SAS::Event tx_http_rsp(trail, event_id, instance_id);
   tx_http_rsp.add_static_param(rc);
   tx_http_rsp.add_static_param(req.req()->method);
   tx_http_rsp.add_var_param(req.full_path());
@@ -318,7 +325,10 @@ void HttpStack::sas_log_overload(SAS::TrailId trail,
                                  int rc,
                                  uint32_t instance_id)
 {
-  SAS::Event event(trail, SASEvent::HTTP_REJECTED_OVERLOAD, instance_id);
+  int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
+                  SASEvent::HTTP_REJECTED_OVERLOAD :
+                  SASEvent::HTTP_REJECTED_OVERLOAD_DETAIL);
+  SAS::Event event(trail, event_id, instance_id);
   event.add_static_param(rc);
   event.add_static_param(req.req()->method);
   event.add_var_param(req.full_path());
