@@ -251,6 +251,7 @@ private:
                            uint32_t instance_id);
   void sas_log_overload(SAS::TrailId trail,
                         HttpStack::Request& req,
+                        int rc,
                         uint32_t instance_id);
   // Don't implement the following, to avoid copies of this instance.
   HttpStack(HttpStack const&);

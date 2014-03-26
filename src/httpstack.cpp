@@ -277,7 +277,7 @@ std::string HttpStack::Request::body()
 void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
                                     HttpStack::Request& req,
                                     HttpStack::BaseHandlerFactory* handler_factory,
-                                    uint32_t instance_id);
+                                    uint32_t instance_id)
 {
   std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);
   if (correlator != "")
