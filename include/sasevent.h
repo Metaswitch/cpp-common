@@ -41,7 +41,7 @@
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE = "org.projectclearwater";
+  const std::string CURRENT_RESOURCE_BUNDLE = "org.projectclearwater.20140326";
 
   //
   // Event spaces.
