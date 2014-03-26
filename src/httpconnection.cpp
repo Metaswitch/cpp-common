@@ -324,7 +324,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute 
                                       std::string& doc,            //< OUT: Retrieved document
                                       const std::string& username, //< Username to assert (if assertUser was true, else ignored).
                                       SAS::TrailId trail,          //< SAS trail to use
-                                      const char* method_str,      // The method, used for logging.
+                                      const std::string& method_str,     // The method, used for logging.
                                       CURL* curl)
 {
   std::string url = "http://" + _server + path;
@@ -692,9 +692,9 @@ boost::uuids::uuid HttpConnection::get_random_uuid()
 void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
                                       CURL* curl,
                                       long http_rc,
-                                      const char* method_str,
-                                      std::string& url,
-                                      std::string& doc,
+                                      const std::string& method_str,
+                                      const std::string& url,
+                                      const std::string& doc,
                                       uint32_t instance_id)
 {
   int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
