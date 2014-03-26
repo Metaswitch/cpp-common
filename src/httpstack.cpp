@@ -277,7 +277,7 @@ void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
                                     HttpStack::Request& req,
                                     HttpStack::BaseHandlerFactory* handler_factory)
 {
-  std::string correlator = req.header("X-SAS-HTTP-Transaction-ID");
+  std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);
   if (correlator != "")
   {
     SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);

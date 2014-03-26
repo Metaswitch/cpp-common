@@ -319,11 +319,13 @@ HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute 
   SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
-  extra_headers = curl_slist_append(extra_headers, ("X-SAS-HTTP-Transaction-ID: " + uuid_str).c_str());
+  extra_headers = curl_slist_append(extra_headers,
+                                    (SASEvent::HTTP_BRANCH_HEADER_NAME + ": " + uuid_str).c_str());
 
   if (_assert_user)
   {
-    extra_headers = curl_slist_append(extra_headers, ("X-XCAP-Asserted-Identity: " + username).c_str());
+    extra_headers = curl_slist_append(extra_headers,
+                                      ("X-XCAP-Asserted-Identity: " + username).c_str());
   }
 
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
