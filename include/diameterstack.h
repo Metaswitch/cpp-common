@@ -370,13 +370,6 @@ public:
   void sas_log_tx(SAS::TrailId trail, uint32_t instance_id);
   void sas_log_timeout(SAS::TrailId trail, uint32_t instance_id);
 
-private:
-  const Dictionary* _dict;
-  struct msg* _fd_msg;
-  Stack* _stack;
-  bool _free_on_delete;
-  Message* _master_msg;
-
   inline void revoke_ownership()
   {
     _master_msg->_free_on_delete = false;
@@ -387,6 +380,13 @@ private:
     _free_on_delete = true;
     _master_msg = this;
   }
+
+private:
+  const Dictionary* _dict;
+  struct msg* _fd_msg;
+  Stack* _stack;
+  bool _free_on_delete;
+  Message* _master_msg;
 
   inline struct msg_hdr* msg_hdr() const
   {
