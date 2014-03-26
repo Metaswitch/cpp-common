@@ -44,6 +44,7 @@
 #include "sas.h"
 #include "httpconnection.h"
 #include "load_monitor.h"
+#include "random_uuid.h"
 
 /// Total time to wait for a response from the server before giving
 /// up.  This is the value that affects the user experience, so should
@@ -131,8 +132,8 @@ HttpConnection::~HttpConnection()
     cleanup_curl(curl); curl = NULL;
   }
 
-  boost::uuids::random_generator* uuid_gen =
-    (boost::uuids::random_generator*)pthread_getspecific(_uuid_thread_local);
+  RandomUUIDGenerator* uuid_gen =
+    (RandomUUIDGenerator*)pthread_getspecific(_uuid_thread_local);
 
   if (uuid_gen != NULL)
   {
@@ -660,19 +661,19 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
 
 void HttpConnection::cleanup_uuid(void *uuid_gen)
 {
-  delete (boost::uuids::random_generator*)uuid_gen; uuid_gen = NULL;
+  delete (RandomUUIDGenerator*)uuid_gen; uuid_gen = NULL;
 }
 
 boost::uuids::uuid HttpConnection::get_random_uuid()
 {
   // Get the factory from thread local data (creating it if it doesn't exist).
-  boost::uuids::random_generator* uuid_gen;
+  RandomUUIDGenerator* uuid_gen;
   uuid_gen =
-    (boost::uuids::random_generator*)pthread_getspecific(_uuid_thread_local);
+    (RandomUUIDGenerator*)pthread_getspecific(_uuid_thread_local);
 
   if (uuid_gen == NULL)
   {
-    uuid_gen = new boost::uuids::random_generator();
+    uuid_gen = new RandomUUIDGenerator();
     pthread_setspecific(_uuid_thread_local, uuid_gen);
   }
 
