@@ -47,10 +47,10 @@
 #include "chronosconnection.h"
 
 ChronosConnection::ChronosConnection(const std::string& server, std::string callback_host) :
+  _callback_host(callback_host),
   _http(new HttpConnection(server,
                            false,
-                           SASEvent::TX_HSS_BASE)),
-  _callback_host(callback_host)
+                           SASEvent::TX_HSS_BASE))
 {
 }
 
