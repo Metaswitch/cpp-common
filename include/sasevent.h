@@ -89,7 +89,19 @@ namespace SASEvent {
   const int DIAMETER_RX_RSP = COMMON_BASE + 0x000012;
   const int DIAMETER_REQ_TIMEOUT = COMMON_BASE + 0x000013;
 
-  //----------------------------------------------------------------------------
+
+  const int MEMCACHED_GET_START = COMMON_BASE + 0x000100;
+  const int MEMCACHED_GET_SUCCESS = COMMON_BASE + 0x000101;
+  const int MEMCACHED_GET_NOT_FOUND = COMMON_BASE + 0x000102;
+  const int MEMCACHED_GET_ERROR = COMMON_BASE + 0x000103;
+
+  const int MEMCACHED_SET_START = COMMON_BASE + 0x000104;
+  const int MEMCACHED_SET_CONTENTION = COMMON_BASE + 0x000105;
+  const int MEMCACHED_SET_FAILED = COMMON_BASE + 0x000106;
+
+  const int MEMCACHED_DELETE = COMMON_BASE + 0x000107;
+
+//----------------------------------------------------------------------------
   // Sprout events.
   //----------------------------------------------------------------------------
   const int ENUM_START = SPROUT_BASE + 0x000000;
