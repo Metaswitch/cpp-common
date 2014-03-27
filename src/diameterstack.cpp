@@ -143,7 +143,7 @@ int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session
 
   SAS::TrailId trail = SAS::new_trail(0);
 
-  // Create a new message object so and raise the necessary SAS logs. 
+  // Create a new message object so and raise the necessary SAS logs.
   Message msg(dict, *req, stack);
   msg.sas_log_rx(trail, 0);
   msg.revoke_ownership();
@@ -659,15 +659,10 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
 
 void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
 {
-  SAS::Event event(trail,
-                   (is_request() ? SASEvent::DIAMETER_RX_REQ : SASEvent::DIAMETER_RX_RSP),
-                   instance_id);
+  int event_id = (is_request() ? SASEvent::DIAMETER_RX_REQ : SASEvent::DIAMETER_RX_RSP);
+  SAS::Event event(trail, event_id, instance_id);
 
   event.add_static_param(command_code());
-
-  std::string content;
-  get_content(content);
-  event.add_var_param(content);
 
   std::string origin_host;
   get_origin_host(origin_host);
@@ -677,20 +672,20 @@ void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
   get_origin_realm(origin_realm);
   event.add_var_param(origin_realm);
 
+  if (!is_request())
+  {
+    sas_add_response_params(event);
+  }
+
   SAS::report_event(event);
 }
 
 void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
 {
-  SAS::Event event(trail,
-                   (is_request() ? SASEvent::DIAMETER_TX_REQ : SASEvent::DIAMETER_TX_RSP),
-                   instance_id);
+  int event_id = (is_request() ? SASEvent::DIAMETER_TX_REQ : SASEvent::DIAMETER_TX_RSP);
+  SAS::Event event(trail, event_id, instance_id);
 
   event.add_static_param(command_code());
-
-  std::string content;
-  get_content(content);
-  event.add_var_param(content);
 
   std::string destination_host;
   get_destination_realm(destination_host);
@@ -700,7 +695,27 @@ void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
   get_destination_host(destination_realm);
   event.add_var_param(destination_realm);
 
+  if (!is_request())
+  {
+    sas_add_response_params(event);
+  }
+
   SAS::report_event(event);
+}
+
+void Message::sas_add_response_params(SAS::Event& event)
+{
+  // For a response, add the result code and experimental result code to the SAS
+  // event.  If either isn't present we log a value of 0 amd let the decoder
+  // explain that the code was not present.
+  int32_t result = 0;
+  int32_t exp_result = 0;
+
+  result_code(result);
+  event.add_static_param(result);
+
+  exp_result = experimental_result_code();
+  event.add_static_param(exp_result);
 }
 
 void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)

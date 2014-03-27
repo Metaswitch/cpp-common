@@ -337,25 +337,6 @@ public:
   inline bool get_origin_realm(std::string& str) { return get_str_from_avp(_dict->ORIGIN_REALM, str); }
   inline bool get_destination_host(std::string& str) { return get_str_from_avp(_dict->DESTINATION_HOST, str); }
   inline bool get_destination_realm(std::string& str) { return get_str_from_avp(_dict->DESTINATION_REALM, str); }
-  inline bool get_content(std::string& content)
-  {
-    uint8_t *buf = NULL;
-    size_t len;
-    bool rc;
-
-    if(fd_msg_bufferize(_fd_msg, &buf, &len) == 0)
-    {
-      content.assign((char*)buf, len);
-      rc = true;
-    }
-    else
-    {
-      rc = false;
-    }
-
-    free(buf); buf = NULL;
-    return rc;
-  }
   inline bool is_request() { return bool(msg_hdr()->msg_flags & CMD_FLAG_REQUEST); }
 
   inline AVP::iterator begin() const;
@@ -368,6 +349,7 @@ public:
 
   void sas_log_rx(SAS::TrailId trail, uint32_t instance_id);
   void sas_log_tx(SAS::TrailId trail, uint32_t instance_id);
+  void sas_add_response_params(SAS::Event& event);
   void sas_log_timeout(SAS::TrailId trail, uint32_t instance_id);
 
   inline void revoke_ownership()
