@@ -58,6 +58,7 @@ namespace SASEvent {
   //----------------------------------------------------------------------------
   const int COMMON_BASE = 0x000000;
   const int SPROUT_BASE = 0x810000;
+  const int RALF_BASE = 0x830000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
@@ -97,6 +98,26 @@ namespace SASEvent {
   const int TX_ENUM_REQ = SPROUT_BASE + 0x000004;
   const int RX_ENUM_RSP = SPROUT_BASE + 0x000005;
   const int RX_ENUM_ERR = SPROUT_BASE + 0x000006;
+
+  // Ralf events
+
+  const int NEW_RF_SESSION = RALF_BASE + 0x000;
+  const int CONTINUED_RF_SESSION = RALF_BASE + 0x100;
+  const int END_RF_SESSION = RALF_BASE + 0x200;
+
+  const int BILLING_REQUEST_SENT = RALF_BASE + 0x300;
+
+  const int INTERIM_TIMER_POPPED = RALF_BASE + 0x400;
+  const int INTERIM_TIMER_CREATED = RALF_BASE + 0x500;
+  const int INTERIM_TIMER_RENEWED = RALF_BASE + 0x600;
+
+  const int INCOMING_REQUEST = RALF_BASE + 0x700;
+  const int REQUEST_REJECTED = RALF_BASE + 0x800;
+
+  const int CDF_FAILOVER = RALF_BASE + 0x900;
+  const int BILLING_REQUEST_NOT_SENT = RALF_BASE + 0xA00;
+  const int BILLING_REQUEST_REJECTED = RALF_BASE + 0xB00;
+  const int BILLING_REQUEST_SUCCEEDED = RALF_BASE + 0xC00;
 
 } // namespace SASEvent
 
