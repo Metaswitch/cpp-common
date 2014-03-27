@@ -41,9 +41,14 @@
 #include <curl/curl.h>
 #include <sas.h>
 
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+
 #include "utils.h"
 #include "statistic.h"
 #include "load_monitor.h"
+#include "sasevent.h"
 
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
@@ -64,11 +69,13 @@ class HttpConnection
 public:
   HttpConnection(const std::string& server,
                  bool assert_user,
-                 int sas_event_base,
                  const std::string& stat_name,
                  LoadMonitor* load_monitor,
-                 LastValueCache* lvc);
-  HttpConnection(const std::string& server, bool assert_user, int sas_event_base);
+                 LastValueCache* lvc,
+                 SASEvent::HttpLogLevel);
+  HttpConnection(const std::string& server,
+                 bool assert_user,
+                 SASEvent::HttpLogLevel);
   virtual ~HttpConnection();
 
   virtual long get(const std::string& path,
@@ -80,10 +87,23 @@ public:
   virtual long send_put(const std::string& path, std::string body, SAS::TrailId trail);
   virtual long send_put(const std::string& path, std::string body, std::string& response, SAS::TrailId trail);
   virtual long send_post(const std::string& path, std::string body, std::map<std::string, std::string>& headers, SAS::TrailId trail);
-  virtual long send_request(const std::string& path, std::string& doc, const std::string& username, SAS::TrailId trail, CURL* curl);
+  virtual long send_request(const std::string& path,
+                            std::string& doc,
+                            const std::string& username,
+                            SAS::TrailId trail,
+                            const std::string& method_str,
+                            CURL* curl);
 
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
+  static void cleanup_uuid(void* uuid_gen);
+  void sas_log_http_rsp(SAS::TrailId trail,
+                        CURL* curl,
+                        long http_rc,
+                        const std::string& method_str,
+                        const std::string& url,
+                        const std::string& doc,
+                        uint32_t instance_id);
 
 private:
 
@@ -122,15 +142,19 @@ private:
   void reset_curl_handle(CURL* curl);
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
   static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
+
+  boost::uuids::uuid get_random_uuid();
+
   const std::string _server;
   const bool _assert_user;
-  const int _sas_event_base;
-  pthread_key_t _thread_local;
+  pthread_key_t _curl_thread_local;
+  pthread_key_t _uuid_thread_local;
 
   Statistic* _statistic;
   LoadMonitor* _load_monitor;
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock
+  SASEvent::HttpLogLevel _sas_log_level;
 
   friend class PoolEntry; // so it can update stats
 };

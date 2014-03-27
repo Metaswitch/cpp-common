@@ -42,9 +42,9 @@
 #include "utils.h"
 #include "log.h"
 #include "sas.h"
-#include "sasevent.h"
 #include "httpconnection.h"
 #include "load_monitor.h"
+#include "random_uuid.h"
 
 /// Total time to wait for a response from the server before giving
 /// up.  This is the value that affects the user experience, so should
@@ -73,18 +73,26 @@ static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
 /// Poisson-distributed with this mean inter-arrival time.
 static const double CONNECTION_AGE_MS = 60 * 1000.0;
 
-
-HttpConnection::HttpConnection(const std::string& server,      //< Server to send HTTP requests to.
-                               bool assert_user,               //< Assert user in header?
-                               int sas_event_base,             //< SAS events: sas_event_base - will have  SASEvent::HTTP_REQ / RSP / ERR added to it.
-                               const std::string& stat_name,   //< Name of statistic to report connection info to.
-                               LoadMonitor* load_monitor,      //< Load Monitor.
-                               LastValueCache* lvc) :          //< Statistics last value cache.
+/// Create an HTTP connection object.
+///
+/// @param server Server to send HTTP requests to.
+/// @param assert_user Assert user in header?
+/// @param stat_name Name of statistic to report connection info to.
+/// @param load_monitor Load Monitor.
+/// @param lvc Statistics last value cache.
+/// @param sas_log_level the level to log HTTP flows at (protocol/detail).
+HttpConnection::HttpConnection(const std::string& server,
+                               bool assert_user,
+                               const std::string& stat_name,
+                               LoadMonitor* load_monitor,
+                               LastValueCache* lvc,
+                               SASEvent::HttpLogLevel sas_log_level) :
   _server(server),
   _assert_user(assert_user),
-  _sas_event_base(sas_event_base)
+  _sas_log_level(sas_log_level)
 {
-  pthread_key_create(&_thread_local, cleanup_curl);
+  pthread_key_create(&_curl_thread_local, cleanup_curl);
+  pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   std::vector<std::string> no_stats;
@@ -93,14 +101,20 @@ HttpConnection::HttpConnection(const std::string& server,      //< Server to sen
   _load_monitor = load_monitor;
 }
 
-HttpConnection::HttpConnection(const std::string& server,      //< Server to send HTTP requests to.
-                               bool assert_user,               //< Assert user in header?
-                               int sas_event_base) :           //< SAS events: sas_event_base - will have  SASEvent::HTTP_REQ / RSP / ERR added to it.
+/// Create an HTTP connection object.
+///
+/// @param server Server to send HTTP requests to.
+/// @param assert_user Assert user in header?
+/// @param sas_log_level the level to log HTTP flows at (protocol/detail).
+HttpConnection::HttpConnection(const std::string& server,
+                               bool assert_user,
+                               SASEvent::HttpLogLevel sas_log_level) :
   _server(server),
   _assert_user(assert_user),
-  _sas_event_base(sas_event_base)
+  _sas_log_level(sas_log_level)
 {
-  pthread_key_create(&_thread_local, cleanup_curl);
+  pthread_key_create(&_curl_thread_local, cleanup_curl);
+  pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   _statistic = NULL;
@@ -111,11 +125,20 @@ HttpConnection::~HttpConnection()
   // Clean up this thread's connection now, rather than waiting for
   // pthread_exit.  This is to support use by single-threaded code
   // (e.g., UTs), where pthread_exit is never called.
-  CURL* curl = pthread_getspecific(_thread_local);
+  CURL* curl = pthread_getspecific(_curl_thread_local);
   if (curl != NULL)
   {
-    pthread_setspecific(_thread_local, NULL);
-    cleanup_curl(curl);
+    pthread_setspecific(_curl_thread_local, NULL);
+    cleanup_curl(curl); curl = NULL;
+  }
+
+  RandomUUIDGenerator* uuid_gen =
+    (RandomUUIDGenerator*)pthread_getspecific(_uuid_thread_local);
+
+  if (uuid_gen != NULL)
+  {
+    pthread_setspecific(_uuid_thread_local, NULL);
+    cleanup_uuid(uuid_gen); uuid_gen = NULL;
   }
 
   if (_statistic != NULL)
@@ -129,12 +152,12 @@ HttpConnection::~HttpConnection()
 /// Get the thread-local curl handle if it exists, and create it if not.
 CURL* HttpConnection::get_curl_handle()
 {
-  CURL* curl = pthread_getspecific(_thread_local);
+  CURL* curl = pthread_getspecific(_curl_thread_local);
   if (curl == NULL)
   {
     curl = curl_easy_init();
     LOG_DEBUG("Allocated CURL handle %p", curl);
-    pthread_setspecific(_thread_local, curl);
+    pthread_setspecific(_curl_thread_local, curl);
 
     // Create our private data
     PoolEntry* entry = new PoolEntry(this);
@@ -237,7 +260,7 @@ HTTPCode HttpConnection::send_delete(const std::string& path, const std::string&
   }
 
   std::string json_data;
-  HTTPCode status = send_request(path, json_data, "", trail, curl);
+  HTTPCode status = send_request(path, json_data, "", trail, "DELETE", curl);
 
   curl_slist_free_all(slist);
 
@@ -258,7 +281,7 @@ HTTPCode HttpConnection::send_put(const std::string& path, std::string body, std
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
   curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-  HTTPCode status = send_request(path, response, "", trail, curl);
+  HTTPCode status = send_request(path, response, "", trail, "PUT", curl);
 
   curl_slist_free_all(slist);
 
@@ -276,7 +299,7 @@ HTTPCode HttpConnection::send_post(const std::string& path, std::string body, st
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
   std::string json_data;
-  HTTPCode status = send_request(path, json_data, "", trail, curl);
+  HTTPCode status = send_request(path, json_data, "", trail, "POST", curl);
 
   curl_slist_free_all(slist);
 
@@ -293,30 +316,45 @@ HTTPCode HttpConnection::get(const std::string& path,       //< Absolute path to
 
   curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
 
-  return send_request(path, doc, username, trail, curl);
+  return send_request(path, doc, username, trail, "GET", curl);
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolute path to request from server - must start with "/"
-                                      std::string& doc,             //< OUT: Retrieved document
-                                      const std::string& username,  //< Username to assert (if assertUser was true, else ignored).
+HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute path to request from server - must start with "/"
+                                      std::string& doc,            //< OUT: Retrieved document
+                                      const std::string& username, //< Username to assert (if assertUser was true, else ignored).
                                       SAS::TrailId trail,          //< SAS trail to use
+                                      const std::string& method_str,     // The method, used for logging.
                                       CURL* curl)
 {
   std::string url = "http://" + _server + path;
   struct curl_slist *extra_headers = NULL;
   PoolEntry* entry;
+  int event_id;
   CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
   assert(rc == CURLE_OK);
+
 
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
 
+  // Create a UUID to use for SAS correlation. Log it to SAS and add it to the
+  // HTTP request we are about to send.
+  boost::uuids::uuid uuid = get_random_uuid();
+  std::string uuid_str = boost::uuids::to_string(uuid);
+  SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
+  corr_marker.add_var_param(uuid_str);
+  SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
+  extra_headers = curl_slist_append(extra_headers,
+                                    (SASEvent::HTTP_BRANCH_HEADER_NAME + ": " + uuid_str).c_str());
+
   if (_assert_user)
   {
-    extra_headers = curl_slist_append(extra_headers, ("X-XCAP-Asserted-Identity: " + username).c_str());
-    curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
+    extra_headers = curl_slist_append(extra_headers,
+                                      ("X-XCAP-Asserted-Identity: " + username).c_str());
   }
+
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
 
   // Determine whether to recycle the connection, based on
   // previously-calculated deadline.
@@ -334,24 +372,31 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, recycle_conn ? 1L : 0L);
 
     // Report the request to SAS.
-    SAS::Event http_req_event(trail, _sas_event_base + SASEvent::HTTP_REQ, 1u);
-    http_req_event.add_var_param(url);
-    SAS::report_event(http_req_event);
+    event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                   SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
+    SAS::Event tx_http_req(trail, event_id,  0);
+    tx_http_req.add_var_param(method_str);
+    tx_http_req.add_var_param(url);
+    tx_http_req.add_var_param(doc);
+    SAS::report_event(tx_http_req);
 
     // Send the request.
     doc.clear();
     LOG_DEBUG("Sending HTTP request : %s (try %d) %s", url.c_str(), attempt, (recycle_conn) ? "on new connection" : "");
     rc = curl_easy_perform(curl);
 
+    long http_rc = 0;
+    if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
+    {
+      curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
+    }
+
     if (rc == CURLE_OK)
     {
       LOG_DEBUG("Received HTTP response : %s", doc.c_str());
 
       // Report the response to SAS.
-      SAS::Event http_rsp_event(trail, _sas_event_base + SASEvent::HTTP_RSP, 1u);
-      http_rsp_event.add_var_param(url);
-      http_rsp_event.add_var_param(doc);
-      SAS::report_event(http_rsp_event);
+      sas_log_http_rsp(trail, curl, http_rc, method_str, url, doc, 0);
 
       if (recycle_conn)
       {
@@ -365,18 +410,22 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     {
       LOG_DEBUG("Received HTTP error response : %s : %s", url.c_str(), curl_easy_strerror(rc));
 
-      // Report the error to SAS
-      SAS::Event http_err_event(trail, _sas_event_base + SASEvent::HTTP_ERR, 1u);
-      http_err_event.add_static_param(rc);
-      http_err_event.add_var_param(url);
-      http_err_event.add_var_param(curl_easy_strerror(rc));
-      SAS::report_event(http_err_event);
-
-      long http_rc = 0;
       if (rc == CURLE_HTTP_RETURNED_ERROR)
       {
-        // Get the HTTP error code returned from the server.
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
+        // Report the response to SAS
+        sas_log_http_rsp(trail, curl, http_rc, method_str, url, doc, 0);
+      }
+      else
+      {
+        // Report the error to SAS.
+        event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                       SASEvent::HTTP_REQ_ERROR : SASEvent::HTTP_REQ_ERROR_DETAIL);
+        SAS::Event http_err(trail, event_id, 0);
+        http_err.add_var_param(method_str);
+        http_err.add_var_param(url);
+        http_err.add_static_param(rc);
+        http_err.add_var_param(curl_easy_strerror(rc));
+        SAS::report_event(http_err);
       }
 
       bool error_is_503 = ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 503));
@@ -417,7 +466,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
         // Check whether both attempts returned 503 errors, or the error was
         // a 502 (where the HSS is overloaded)  and raise a penalty if so.
         if (((error_is_503 && first_error_503) ||
-            ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 502))) &&
+             ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 502))) &&
             (_load_monitor != NULL))
         {
           _load_monitor->incr_penalties();
@@ -616,4 +665,44 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
   (*headers)[key] = val;
 
   return size * nmemb;
+}
+
+void HttpConnection::cleanup_uuid(void *uuid_gen)
+{
+  delete (RandomUUIDGenerator*)uuid_gen; uuid_gen = NULL;
+}
+
+boost::uuids::uuid HttpConnection::get_random_uuid()
+{
+  // Get the factory from thread local data (creating it if it doesn't exist).
+  RandomUUIDGenerator* uuid_gen;
+  uuid_gen =
+    (RandomUUIDGenerator*)pthread_getspecific(_uuid_thread_local);
+
+  if (uuid_gen == NULL)
+  {
+    uuid_gen = new RandomUUIDGenerator();
+    pthread_setspecific(_uuid_thread_local, uuid_gen);
+  }
+
+  // _uuid_gen_ is a pointer to a callable object that returns a UUID.
+  return (*uuid_gen)();
+}
+
+void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
+                                      CURL* curl,
+                                      long http_rc,
+                                      const std::string& method_str,
+                                      const std::string& url,
+                                      const std::string& doc,
+                                      uint32_t instance_id)
+{
+  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                    SASEvent::RX_HTTP_RSP : SASEvent::RX_HTTP_RSP_DETAIL);
+  SAS::Event rx_http_rsp(trail, event_id, instance_id);
+  rx_http_rsp.add_var_param(method_str);
+  rx_http_rsp.add_var_param(url);
+  rx_http_rsp.add_var_param(doc);
+  rx_http_rsp.add_static_param(http_rc);
+  SAS::report_event(rx_http_rsp);
 }
