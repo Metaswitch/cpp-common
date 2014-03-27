@@ -53,18 +53,19 @@
 class DnsResult
 {
 public:
-  DnsResult(const std::string& domain, int dnstype, const std::list<DnsRRecord*>& records, int ttl);
+  DnsResult(const std::string& domain, int dnstype, const std::vector<DnsRRecord*>& records, int ttl);
+  DnsResult(const std::string& domain, int dnstype, int ttl);
   ~DnsResult();
 
   const std::string& domain() const { return _domain; }
   int dnstype() const { return _dnstype; }
-  const std::list<DnsRRecord*>& records() const { return _records; }
+  std::vector<DnsRRecord*>& records() { return _records; }
   int ttl() const { return _ttl; }
 
 private:
   std::string _domain;
   int _dnstype;
-  std::list<DnsRRecord*> _records;
+  std::vector<DnsRRecord*> _records;
   int _ttl;
 };
 
@@ -86,7 +87,7 @@ public:
   /// Adds or updates an entry in the cache.
   void add_to_cache(const std::string& domain,
                     int dnstype,
-                    std::list<DnsRRecord*>& records);
+                    std::vector<DnsRRecord*>& records);
 
   /// Display the current status of the cache.
   std::string display_cache();
@@ -125,7 +126,7 @@ private:
     std::string domain;
     int dnstype;
     int expires;
-    std::list<DnsRRecord*> records;
+    std::vector<DnsRRecord*> records;
   };
 
   class DnsCacheKeyCompare
