@@ -58,6 +58,7 @@ namespace SASEvent {
   //----------------------------------------------------------------------------
   const int COMMON_BASE = 0x000000;
   const int SPROUT_BASE = 0x810000;
+  const int HOMESTEAD_BASE = 0x820000;
   const int RALF_BASE = 0x830000;
 
   //----------------------------------------------------------------------------
@@ -98,6 +99,43 @@ namespace SASEvent {
   const int TX_ENUM_REQ = SPROUT_BASE + 0x000004;
   const int RX_ENUM_RSP = SPROUT_BASE + 0x000005;
   const int RX_ENUM_ERR = SPROUT_BASE + 0x000006;
+
+  // Homestead events
+
+  const int INVALID_SCHEME = HOMESTEAD_BASE + 0x0000;
+  const int NO_IMPU_AKA = HOMESTEAD_BASE + 0x0010;
+  const int NO_AV_CACHE = HOMESTEAD_BASE + 0x0020;
+  const int NO_AV_HSS = HOMESTEAD_BASE + 0x0030;
+  const int INVALID_REG_TYPE = HOMESTEAD_BASE + 0x0040;
+  const int SUB_NOT_REG = HOMESTEAD_BASE + 0x0050;
+  const int NO_SUB_CACHE = HOMESTEAD_BASE + 0x0060;
+  const int NO_REG_DATA_CACHE = HOMESTEAD_BASE + 0x0070;
+  const int REG_DATA_HSS_SUCCESS = HOMESTEAD_BASE + 0x0080;
+  const int REG_DATA_HSS_FAIL = HOMESTEAD_BASE + 0x0090;
+  const int ICSCF_NO_HSS = HOMESTEAD_BASE + 0x00A0;
+  const int REG_STATUS_HSS_FAIL = HOMESTEAD_BASE + 0x00B0;
+  const int LOC_INFO_HSS_FAIL = HOMESTEAD_BASE + 0x00C0;
+  const int INVALID_DEREG_REASON = HOMESTEAD_BASE + 0x00D0;
+  const int NO_IMPU_DEREG = HOMESTEAD_BASE + 0x00E0;
+  const int DEREG_FAIL = HOMESTEAD_BASE + 0x00F0;
+  const int DEREG_SUCCESS = HOMESTEAD_BASE + 0x0100;
+  const int UPDATED_IMS_SUBS = HOMESTEAD_BASE + 0x0110;
+  const int CASS_CONNECT_FAIL = HOMESTEAD_BASE + 0x0120;
+  const int CACHE_GET_AV = HOMESTEAD_BASE + 0x0130;
+  const int CACHE_GET_AV_SUCCESS = HOMESTEAD_BASE + 0x0140;
+  const int CACHE_PUT_ASSOC_IMPU = HOMESTEAD_BASE + 0x0150;
+  const int CACHE_GET_ASSOC_IMPU = HOMESTEAD_BASE + 0x0160;
+  const int CACHE_GET_ASSOC_IMPU_SUCCESS = HOMESTEAD_BASE + 0x0170;
+  const int CACHE_GET_ASSOC_IMPU_FAIL = HOMESTEAD_BASE + 0x0180;
+  const int CACHE_GET_IMS_SUB = HOMESTEAD_BASE + 0x0190;
+  const int CACHE_GET_IMS_SUB_SUCCESS = HOMESTEAD_BASE + 0x01A0;
+  const int CACHE_ASSOC_IMPI = HOMESTEAD_BASE + 0x01B0;
+  const int CACHE_PUT_IMS_SUB = HOMESTEAD_BASE + 0x01C0;
+  const int CACHE_DELETE_IMPUS = HOMESTEAD_BASE + 0x01D0;
+  const int CACHE_GET_ASSOC_PRIMARY_IMPUS = HOMESTEAD_BASE + 0x01E0;
+  const int CACHE_GET_ASSOC_PRIMARY_IMPUS_SUCCESS = HOMESTEAD_BASE + 0x01F0;
+  const int CACHE_DISASSOC_REG_SET = HOMESTEAD_BASE + 0x0200;
+  const int CACHE_DELETE_IMPI_MAP = HOMESTEAD_BASE + 0x0210;
 
   // Ralf events
 
