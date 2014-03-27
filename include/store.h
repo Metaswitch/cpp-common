@@ -36,7 +36,7 @@
 
 #ifndef STORE_H_
 #define STORE_H_
-
+#include "sas.h"
 
 /// @class Store
 ///
@@ -65,7 +65,8 @@ public:
   virtual Status get_data(const std::string& table,
                           const std::string& key,
                           std::string& data,
-                          uint64_t& cas) = 0;
+                          uint64_t& cas,
+                          SAS::TrailId trail = 0) = 0;
 
   /// Sets the data for the specified key in the specified namespace.
   ///
@@ -82,7 +83,8 @@ public:
                           const std::string& key,
                           const std::string& data,
                           uint64_t cas,
-                          int expiry) = 0;
+                          int expiry,
+                          SAS::TrailId trail = 0) = 0;
 
   /// Delete the data for the specified key in the specified namespace.
   ///
@@ -90,7 +92,8 @@ public:
   /// @param table    Name of the table to store the data.
   /// @param key      Key used to index the data within the table.
   virtual Status delete_data(const std::string& table,
-                             const std::string& key) = 0;
+                             const std::string& key,
+                             SAS::TrailId trail = 0) = 0;
 };
 
 #endif
