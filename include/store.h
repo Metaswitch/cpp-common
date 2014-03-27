@@ -66,7 +66,7 @@ public:
                           const std::string& key,
                           std::string& data,
                           uint64_t& cas,
-                          SAS::TrailId trail) = 0;
+                          SAS::TrailId trail = 0) = 0;
 
   /// Sets the data for the specified key in the specified namespace.
   ///
@@ -84,7 +84,7 @@ public:
                           const std::string& data,
                           uint64_t cas,
                           int expiry,
-                          SAS::TrailId trail) = 0;
+                          SAS::TrailId trail = 0) = 0;
 
   /// Delete the data for the specified key in the specified namespace.
   ///
@@ -93,7 +93,7 @@ public:
   /// @param key      Key used to index the data within the table.
   virtual Status delete_data(const std::string& table,
                              const std::string& key,
-                             SAS::TrailId trail) = 0;
+                             SAS::TrailId trail = 0) = 0;
 };
 
 #endif
