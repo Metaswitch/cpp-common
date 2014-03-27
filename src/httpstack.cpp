@@ -296,9 +296,16 @@ void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
   int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::RX_HTTP_REQ : SASEvent::RX_HTTP_REQ_DETAIL);
   SAS::Event rx_http_req(trail, event_id, instance_id);
+
+  // Copy the var params into local variables to ensure they still exist when
+  // we call report_event.
+  std::string body = req.body();
+  std::string full_path = req.full_path();
+
   rx_http_req.add_static_param(req.method());
-  rx_http_req.add_var_param(req.full_path());
-  rx_http_req.add_var_param(req.body());
+  rx_http_req.add_var_param(full_path);
+  rx_http_req.add_var_param(body);
+
   SAS::report_event(rx_http_req);
 }
 
@@ -310,9 +317,14 @@ void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
   int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::TX_HTTP_RSP : SASEvent::TX_HTTP_RSP_DETAIL);
   SAS::Event tx_http_rsp(trail, event_id, instance_id);
+
+  // Copy the var params into local variables to ensure they still exist when
+  // we call report_event.
+  std::string full_path = req.full_path();
+
   tx_http_rsp.add_static_param(rc);
   tx_http_rsp.add_static_param(req.method());
-  tx_http_rsp.add_var_param(req.full_path());
+  tx_http_rsp.add_var_param(full_path);
 
   // The response body is stored in an evbuffer in libevhtp which we need to
   // copy out into a local buffer.  Note that the longest permitted SAS message
@@ -334,8 +346,13 @@ void HttpStack::sas_log_overload(SAS::TrailId trail,
                   SASEvent::HTTP_REJECTED_OVERLOAD :
                   SASEvent::HTTP_REJECTED_OVERLOAD_DETAIL);
   SAS::Event event(trail, event_id, instance_id);
+
+  // Copy the var params into local variables to ensure they still exist when
+  // we call report_event.
+  std::string full_path = req.full_path();
+
   event.add_static_param(rc);
   event.add_static_param(req.method());
-  event.add_var_param(req.full_path());
+  event.add_var_param(full_path);
   SAS::report_event(event);
 }
