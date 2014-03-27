@@ -62,30 +62,30 @@ namespace SASEvent {
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
   //----------------------------------------------------------------------------
-  const int RX_SIP_MSG = COMMON_BASE + 0x000000;
-  const int TX_SIP_MSG = COMMON_BASE + 0x000001;
+  const int RX_SIP_MSG = COMMON_BASE + 0x000001;
+  const int TX_SIP_MSG = COMMON_BASE + 0x000002;
 
-  const int TX_HTTP_REQ = COMMON_BASE + 0x000002;
-  const int RX_HTTP_REQ = COMMON_BASE + 0x000003;
-  const int TX_HTTP_RSP = COMMON_BASE + 0x000004;
-  const int RX_HTTP_RSP = COMMON_BASE + 0x000005;
-  const int HTTP_REQ_ERROR = COMMON_BASE + 0x000006;
-  const int HTTP_REJECTED_OVERLOAD = COMMON_BASE + 0x000007;
+  const int TX_HTTP_REQ = COMMON_BASE + 0x000003;
+  const int RX_HTTP_REQ = COMMON_BASE + 0x000004;
+  const int TX_HTTP_RSP = COMMON_BASE + 0x000005;
+  const int RX_HTTP_RSP = COMMON_BASE + 0x000006;
+  const int HTTP_REQ_ERROR = COMMON_BASE + 0x000007;
+  const int HTTP_REJECTED_OVERLOAD = COMMON_BASE + 0x000008;
 
   // Duplicates of the above HTTP events, but logged at detail level (40)
   // rather than protocol level (60).
-  const int TX_HTTP_REQ_DETAIL = COMMON_BASE + 0x000008;
-  const int RX_HTTP_REQ_DETAIL = COMMON_BASE + 0x000009;
-  const int TX_HTTP_RSP_DETAIL = COMMON_BASE + 0x00000A;
-  const int RX_HTTP_RSP_DETAIL = COMMON_BASE + 0x00000B;
-  const int HTTP_REQ_ERROR_DETAIL = COMMON_BASE + 0x00000C;
-  const int HTTP_REJECTED_OVERLOAD_DETAIL = COMMON_BASE + 0x00000D;
+  const int TX_HTTP_REQ_DETAIL = COMMON_BASE + 0x000009;
+  const int RX_HTTP_REQ_DETAIL = COMMON_BASE + 0x00000A;
+  const int TX_HTTP_RSP_DETAIL = COMMON_BASE + 0x00000B;
+  const int RX_HTTP_RSP_DETAIL = COMMON_BASE + 0x00000C;
+  const int HTTP_REQ_ERROR_DETAIL = COMMON_BASE + 0x00000D;
+  const int HTTP_REJECTED_OVERLOAD_DETAIL = COMMON_BASE + 0x00000E;
 
-  const int DIAMETER_TX_REQ = COMMON_BASE + 0x00000E;
-  const int DIAMETER_RX_REQ = COMMON_BASE + 0x00000F;
-  const int DIAMETER_TX_RSP = COMMON_BASE + 0x000010;
-  const int DIAMETER_RX_RSP = COMMON_BASE + 0x000011;
-  const int DIAMETER_REQ_TIMEOUT = COMMON_BASE + 0x000012;
+  const int DIAMETER_TX_REQ = COMMON_BASE + 0x00000F;
+  const int DIAMETER_RX_REQ = COMMON_BASE + 0x000010;
+  const int DIAMETER_TX_RSP = COMMON_BASE + 0x000011;
+  const int DIAMETER_RX_RSP = COMMON_BASE + 0x000012;
+  const int DIAMETER_REQ_TIMEOUT = COMMON_BASE + 0x000013;
 
   //----------------------------------------------------------------------------
   // Sprout events.
