@@ -294,6 +294,8 @@ public:
                     &session,
                     NULL);
     fd_msg_sess_set(_fd_msg, session);
+    Diameter::AVP session_id_avp(dict()->SESSION_ID);
+    session_id_avp.val_str(session_id);
     return *this;
   }
   inline Message& add_vendor_spec_app_id()
