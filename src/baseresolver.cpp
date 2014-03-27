@@ -43,7 +43,8 @@
 #include "log.h"
 #include "utils.h"
 #include "baseresolver.h"
-
+#include "sas.h"
+#include "sasevent.h"
 
 BaseResolver::BaseResolver(DnsCachedResolver* dns_client) :
   _naptr_factory(),
@@ -124,7 +125,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
                                int af,
                                int transport,
                                int retries,
-                               std::vector<AddrInfo>& targets)
+                               std::vector<AddrInfo>& targets,
+                               SAS::TrailId trail)
 {
   // Accumulate blacklisted targets in case they are needed.
   std::vector<AddrInfo> blacklisted_targets;
@@ -136,6 +138,10 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   // a reference, so the list cannot be updated until we have finished with
   // it.
   SRVPriorityList* srv_list = _srv_cache->get(srv_name);
+
+  std::string targetlist_str;
+  std::string blacklist_str;
+  std::string added_from_blacklist_str;
 
   if (srv_list != NULL)
   {
@@ -168,6 +174,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       // Do A/AAAA record look-ups for the selected SRV targets.
       std::vector<std::string> a_targets;
       std::vector<DnsResult> a_results;
+
       for (size_t ii = 0; ii < srvs.size(); ++ii)
       {
         a_targets.push_back(srvs[ii]->target);
@@ -181,6 +188,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       // and blacklisted addresses, in randomized order.
       std::vector<std::vector<IP46Address> > active_addr(srvs.size());
       std::vector<std::vector<IP46Address> > blacklist_addr(srvs.size());
+
       for (size_t ii = 0; ii < srvs.size(); ++ii)
       {
         DnsResult& a_result = a_results[ii];
@@ -192,12 +200,14 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
         std::vector<IP46Address>& blacklist = blacklist_addr[ii];
         active.reserve(a_result.records().size());
         blacklist.reserve(a_result.records().size());
+
         for (size_t jj = 0; jj < a_result.records().size(); ++jj)
         {
           AddrInfo ai;
           ai.transport = transport;
           ai.port = srvs[ii]->port;
           ai.address = to_ip46(a_result.records()[jj]);
+
           if (_blacklist->ttl(ai) == 0)
           {
             // Address isn't blacklisted, so copy across to the active list.
@@ -225,32 +235,55 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
         more = false;
         AddrInfo ai;
         ai.transport = transport;
+
         for (size_t ii = 0;
              (ii < srvs.size()) && (targets.size() < (size_t)retries);
              ++ii)
         {
           ai.port = srvs[ii]->port;
+
           if (!active_addr[ii].empty())
           {
             ai.address = active_addr[ii].back();
             active_addr[ii].pop_back();
             targets.push_back(ai);
+            char buf[100];
+            std::string targetee = inet_ntop(ai.address.af,
+                                             &ai.address.addr,
+                                             buf, sizeof(buf));
+            std::string tg = "[" + targetee + ":" + std::to_string(ai.port) + "]";
+            targetlist_str = targetlist_str + tg;
+
             LOG_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
           }
+
           if (!blacklist_addr[ii].empty())
           {
             ai.address = blacklist_addr[ii].back();
             blacklist_addr[ii].pop_back();
             blacklisted_targets.push_back(ai);
+            char buf[100];
+            std::string blacklistee = inet_ntop(ai.address.af,
+                                                &ai.address.addr,
+                                                buf, sizeof(buf));
+            std::string bl = "[" + blacklistee + ":" + std::to_string(ai.port) + "]";
+            blacklist_str = blacklist_str + bl;
           }
 
           more = more || ((!active_addr[ii].empty()) || (!blacklist_addr[ii].empty()));
         }
 
       }
+
       if (targets.size() >= (size_t)retries)
       {
         // We have enough targets so don't move to the next priority level.
+        SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
+        event.add_var_param(srv_name);
+        event.add_var_param(targetlist_str);
+        event.add_var_param(blacklist_str);
+        event.add_var_param(added_from_blacklist_str);
+        SAS::report_event(event);
         break;
       }
     }
@@ -260,17 +293,33 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
     if (targets.size() < (size_t)retries)
     {
       size_t to_copy = (size_t)retries - targets.size();
+
       if (to_copy > blacklisted_targets.size())
       {
         to_copy = blacklisted_targets.size();
       }
+
       LOG_VERBOSE("Adding %ld servers from blacklist", to_copy);
+
       for (size_t ii = 0; ii < to_copy; ++ii)
       {
         targets.push_back(blacklisted_targets[ii]);
+        char buf[100];
+        std::string blacklistee = inet_ntop(blacklisted_targets[ii].address.af,
+                                            &blacklisted_targets[ii].address.addr,
+                                            buf, sizeof(buf));
+        std::string bl = "[" + blacklistee + ":" + std::to_string(blacklisted_targets[ii].port) + "]";
+        added_from_blacklist_str = added_from_blacklist_str + bl;
       }
     }
   }
+
+  SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
+  event.add_var_param(srv_name);
+  event.add_var_param(targetlist_str);
+  event.add_var_param(blacklist_str);
+  event.add_var_param(added_from_blacklist_str);
+  SAS::report_event(event);
 
   _srv_cache->dec_ref(srv_name);
 }
@@ -281,7 +330,8 @@ void BaseResolver::a_resolve(const std::string& hostname,
                              int port,
                              int transport,
                              int retries,
-                             std::vector<AddrInfo>& targets)
+                             std::vector<AddrInfo>& targets,
+                             SAS::TrailId trail)
 {
   // Clear the list of targets just in case.
   targets.clear();
@@ -300,6 +350,10 @@ void BaseResolver::a_resolve(const std::string& hostname,
   AddrInfo ai;
   ai.transport = transport;
   ai.port = port;
+  std::string targetlist_str;
+  std::string blacklist_str;
+  std::string added_from_blacklist_str;
+
   for (std::vector<DnsRRecord*>::const_iterator i = result.records().begin();
        i != result.records().end();
        ++i)
@@ -309,18 +363,28 @@ void BaseResolver::a_resolve(const std::string& hostname,
     {
       // Address isn't blacklisted, so copy across to the target list.
       targets.push_back(ai);
+      targetlist_str = targetlist_str + (*i)->to_string() + ";";
       LOG_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
     }
     else
     {
       // Address is blacklisted, so copy to blacklisted list.
       blacklisted_targets.push_back(ai);
+      blacklist_str = blacklist_str + (*i)->to_string() + ";";
     }
 
     if (targets.size() >= (size_t)retries)
     {
       // We have enough targets so stop looking at records.
       LOG_DEBUG("Have enough targets");
+
+      SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
+      event.add_var_param(hostname);
+      event.add_var_param(targetlist_str);
+      event.add_var_param(blacklist_str);
+      event.add_var_param(added_from_blacklist_str);
+      SAS::report_event(event);
+
       break;
     }
   }
@@ -334,12 +398,27 @@ void BaseResolver::a_resolve(const std::string& hostname,
     {
       to_copy = blacklisted_targets.size();
     }
+
     LOG_DEBUG("Adding %ld servers from blacklist", to_copy);
+
     for (size_t ii = 0; ii < to_copy; ++ii)
     {
       targets.push_back(blacklisted_targets[ii]);
+      char buf[100];
+      std::string blacklistee = inet_ntop(blacklisted_targets[ii].address.af,
+                                          &blacklisted_targets[ii].address.addr,
+                                          buf, sizeof(buf));
+      std::string bl = "[" + blacklistee + ":" + std::to_string(blacklisted_targets[ii].port) + "]";
+      added_from_blacklist_str = added_from_blacklist_str + bl;
     }
   }
+
+  SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
+  event.add_var_param(hostname);
+  event.add_var_param(targetlist_str);
+  event.add_var_param(blacklist_str);
+  event.add_var_param(added_from_blacklist_str);
+  SAS::report_event(event);
 }
 
 /// Converts a DNS A or AAAA record to an IP46Address structure.
