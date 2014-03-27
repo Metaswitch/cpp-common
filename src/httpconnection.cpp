@@ -421,10 +421,10 @@ HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute 
         event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                        SASEvent::HTTP_REQ_ERROR : SASEvent::HTTP_REQ_ERROR_DETAIL);
         SAS::Event http_err(trail, event_id, 0);
-        tx_http_req.add_var_param(method_str);
-        tx_http_req.add_var_param(url);
-        tx_http_req.add_static_param(rc);
-        tx_http_req.add_var_param(curl_easy_strerror(rc));
+        http_err.add_var_param(method_str);
+        http_err.add_var_param(url);
+        http_err.add_static_param(rc);
+        http_err.add_var_param(curl_easy_strerror(rc));
         SAS::report_event(http_err);
       }
 
