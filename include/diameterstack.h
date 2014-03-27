@@ -283,6 +283,19 @@ public:
     fd_msg_new_session(_fd_msg, NULL, 0);
     return *this;
   }
+  inline Message& add_session_id(const std::string& session_id)
+  {
+    struct session* session;
+
+    // Horrible casting to get round freeDiameter's poor use of types to
+    // represent SIDs.
+    fd_sess_fromsid((uint8_t*)const_cast<char*>(session_id.data()),
+                    session_id.length(),
+                    &session,
+                    NULL);
+    fd_msg_sess_set(_fd_msg, session);
+    return *this;
+  }
   inline Message& add_vendor_spec_app_id()
   {
     Diameter::AVP vendor_specific_application_id(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
