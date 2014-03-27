@@ -308,7 +308,7 @@ void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
                                     uint32_t instance_id)
 {
   int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
-                  SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
+                  SASEvent::TX_HTTP_RSP : SASEvent::TX_HTTP_RSP_DETAIL);
   SAS::Event tx_http_rsp(trail, event_id, instance_id);
   tx_http_rsp.add_static_param(rc);
   tx_http_rsp.add_static_param(req.method());
