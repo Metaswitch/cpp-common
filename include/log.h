@@ -61,7 +61,12 @@ namespace Log
 
   inline bool enabled(int level)
   {
+#ifdef UNIT_TEST
+    // Always force log parameter evaluation for unit tests
+    return true;
+#else
     return (level <= loggingLevel);
+#endif
   }
   void setLoggingLevel(int level);
   void setLogger(Logger *log);
