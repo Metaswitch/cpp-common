@@ -278,12 +278,16 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       if (targets.size() >= (size_t)retries)
       {
         // We have enough targets so don't move to the next priority level.
-        SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
-        event.add_var_param(srv_name);
-        event.add_var_param(targetlist_str);
-        event.add_var_param(blacklist_str);
-        event.add_var_param(added_from_blacklist_str);
-        SAS::report_event(event);
+        if (trail != 0)
+        {
+          SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
+          event.add_var_param(srv_name);
+          event.add_var_param(targetlist_str);
+          event.add_var_param(blacklist_str);
+          event.add_var_param(added_from_blacklist_str);
+          SAS::report_event(event);
+        }
+
         break;
       }
     }
@@ -314,12 +318,15 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
     }
   }
 
-  SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
-  event.add_var_param(srv_name);
-  event.add_var_param(targetlist_str);
-  event.add_var_param(blacklist_str);
-  event.add_var_param(added_from_blacklist_str);
-  SAS::report_event(event);
+  if (trail != 0)
+  {
+    SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
+    event.add_var_param(srv_name);
+    event.add_var_param(targetlist_str);
+    event.add_var_param(blacklist_str);
+    event.add_var_param(added_from_blacklist_str);
+    SAS::report_event(event);
+  }
 
   _srv_cache->dec_ref(srv_name);
 }
@@ -378,12 +385,15 @@ void BaseResolver::a_resolve(const std::string& hostname,
       // We have enough targets so stop looking at records.
       LOG_DEBUG("Have enough targets");
 
-      SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
-      event.add_var_param(hostname);
-      event.add_var_param(targetlist_str);
-      event.add_var_param(blacklist_str);
-      event.add_var_param(added_from_blacklist_str);
-      SAS::report_event(event);
+      if (trail != 0)
+      {
+        SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
+        event.add_var_param(hostname);
+        event.add_var_param(targetlist_str);
+        event.add_var_param(blacklist_str);
+        event.add_var_param(added_from_blacklist_str);
+        SAS::report_event(event);
+      }
 
       break;
     }
@@ -413,12 +423,15 @@ void BaseResolver::a_resolve(const std::string& hostname,
     }
   }
 
-  SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
-  event.add_var_param(hostname);
-  event.add_var_param(targetlist_str);
-  event.add_var_param(blacklist_str);
-  event.add_var_param(added_from_blacklist_str);
-  SAS::report_event(event);
+  if (trail != 0)
+  {
+    SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
+    event.add_var_param(hostname);
+    event.add_var_param(targetlist_str);
+    event.add_var_param(blacklist_str);
+    event.add_var_param(added_from_blacklist_str);
+    SAS::report_event(event);
+  }
 }
 
 /// Converts a DNS A or AAAA record to an IP46Address structure.
