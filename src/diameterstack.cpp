@@ -688,11 +688,11 @@ void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
   event.add_static_param(command_code());
 
   std::string destination_host;
-  get_destination_realm(destination_host);
+  get_destination_host(destination_host);
   event.add_var_param(destination_host);
 
   std::string destination_realm;
-  get_destination_host(destination_realm);
+  get_destination_realm(destination_realm);
   event.add_var_param(destination_realm);
 
   if (!is_request())
