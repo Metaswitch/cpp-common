@@ -278,27 +278,15 @@ public:
     fd_msg_new_answer_from_req(fd_g_config->cnf_dict, &_fd_msg, 0);
     claim_ownership();
   }
+
+  // Add a Session-ID to a message (either a new one or a specified).
   inline Message& add_new_session_id()
   {
     fd_msg_new_session(_fd_msg, NULL, 0);
     return *this;
   }
-  inline Message& add_session_id(const std::string& session_id)
-  {
-    struct session* session;
+  Message& add_session_id(const std::string& session_id);
 
-    // Horrible casting to get round freeDiameter's poor use of types to
-    // represent SIDs.
-    fd_sess_fromsid((uint8_t*)const_cast<char*>(session_id.data()),
-                    session_id.length(),
-                    &session,
-                    NULL);
-    fd_msg_sess_set(_fd_msg, session);
-    Diameter::AVP session_id_avp(dict()->SESSION_ID);
-    session_id_avp.val_str(session_id);
-    add(session_id_avp);
-    return *this;
-  }
   inline Message& add_vendor_spec_app_id()
   {
     Diameter::AVP vendor_specific_application_id(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
