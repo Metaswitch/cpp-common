@@ -510,7 +510,7 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
         }
         catch (Diameter::Stack::Exception e)
         {
-          LOG_WARNING("AVP %s not recognised, ignoring", it->value.GetString());
+          LOG_WARNING("AVP %s not recognised, ignoring", it->name.GetString());
         }
       }
       break;
