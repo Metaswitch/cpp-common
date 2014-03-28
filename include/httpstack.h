@@ -45,6 +45,8 @@
 #include "utils.h"
 #include "accesslogger.h"
 #include "load_monitor.h"
+#include "sas.h"
+#include "sasevent.h"
 
 class HttpStack
 {
@@ -89,6 +91,12 @@ public:
       return url_unescape(std::string(param != NULL ? param : ""));
     }
 
+    inline std::string header(const std::string& name)
+    {
+      const char* val = evhtp_header_find(_req->headers_in, name.c_str());
+      return std::string((val != NULL ? val : ""));
+    }
+
     void add_content(const std::string& content)
     {
       evbuffer_add(_req->buffer_out, content.c_str(), content.length());
@@ -105,7 +113,7 @@ public:
 
     std::string body();
 
-    void send_reply(int rc);
+    void send_reply(int rc, SAS::TrailId trail);
     inline evhtp_request_t* req() { return _req; }
 
     void record_penalty() { _stack->record_penalty(); }
@@ -119,6 +127,9 @@ public:
     /// @return Whether the latency has been successfully obtained.
     bool get_latency(unsigned long& latency_us);
 
+    void set_sas_log_level(SASEvent::HttpLogLevel level) { _sas_log_level = level; }
+    SASEvent::HttpLogLevel get_sas_log_level() { return _sas_log_level; }
+
   protected:
     htp_method _method;
     std::string _body;
@@ -128,6 +139,7 @@ public:
     HttpStack* _stack;
     evhtp_request_t* _req;
     Utils::StopWatch stopwatch;
+    SASEvent::HttpLogLevel _sas_log_level;
 
     std::string url_unescape(const std::string& s)
     {
@@ -164,9 +176,19 @@ public:
 
     virtual void run() = 0;
 
+    /// Send an HTTP reply. Calls through to Request::Send_reply, picking up
+    /// the trail ID from the handler.
+    ///
+    /// @param status_code the HTTP status code to use on the reply.
+    void send_http_reply(int status_code) { _req.send_reply(status_code, trail()); }
+
+    inline void set_trail(SAS::TrailId trail) { _trail = trail; }
+    inline SAS::TrailId trail() { return _trail; }
+
   protected:
     void record_penalty() { _req.record_penalty(); }
 
+    SAS::TrailId _trail;
     Request _req;
   };
 
@@ -175,6 +197,10 @@ public:
   public:
     BaseHandlerFactory() {}
     virtual Handler* create(Request& req) = 0;
+    virtual SASEvent::HttpLogLevel sas_log_level(Request& req)
+    {
+      return SASEvent::HttpLogLevel::PROTOCOL;
+    }
   };
 
   template <class H>
@@ -183,6 +209,13 @@ public:
   public:
     HandlerFactory() : BaseHandlerFactory() {}
     Handler* create(Request& req) { return new H(req); }
+
+    /// Return the level to log the HTTP transaction at for a given request.
+    /// This default implementation logs everything at protocol level (60).
+    virtual SASEvent::HttpLogLevel sas_log_level(Request& req)
+    {
+      return SASEvent::HttpLogLevel::PROTOCOL;
+    }
   };
 
   template <class H, class C>
@@ -215,7 +248,7 @@ public:
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
   virtual void wait_stopped();
-  virtual void send_reply(Request& req, int rc);
+  virtual void send_reply(Request& req, int rc, SAS::TrailId trail);
   virtual void record_penalty();
 
   void log(const std::string uri, int rc)
@@ -237,7 +270,18 @@ private:
   void handler_callback(evhtp_request_t* req,
                         BaseHandlerFactory* handler_factory);
   void event_base_thread_fn();
-
+  void sas_log_rx_http_req(SAS::TrailId trail,
+                           Request& req,
+                           BaseHandlerFactory* handler_factory,
+                           uint32_t instance_id);
+  void sas_log_tx_http_rsp(SAS::TrailId trail,
+                           HttpStack::Request& req,
+                           int rc,
+                           uint32_t instance_id);
+  void sas_log_overload(SAS::TrailId trail,
+                        HttpStack::Request& req,
+                        int rc,
+                        uint32_t instance_id);
   // Don't implement the following, to avoid copies of this instance.
   HttpStack(HttpStack const&);
   void operator=(HttpStack const&);

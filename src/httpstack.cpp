@@ -48,10 +48,10 @@ HttpStack::HttpStack() :
   _load_monitor(NULL)
 {}
 
-void HttpStack::Request::send_reply(int rc)
+void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
 {
   stopwatch.stop();
-  _stack->send_reply(*this, rc);
+  _stack->send_reply(*this, rc, trail);
 }
 
 bool HttpStack::Request::get_latency(unsigned long& latency_us)
@@ -59,11 +59,13 @@ bool HttpStack::Request::get_latency(unsigned long& latency_us)
   return stopwatch.read(latency_us);
 }
 
-void HttpStack::send_reply(Request& req, int rc)
+void HttpStack::send_reply(Request& req, int rc, SAS::TrailId trail)
 {
   LOG_VERBOSE("Sending response %d to request for URL %s, args %s", rc, req.req()->uri->path->full, req.req()->uri->query_raw);
-  // Log and set up the return code.
+
   log(std::string(req.req()->uri->path->full), rc);
+  sas_log_tx_http_rsp(trail, req, rc, 0);
+
   evhtp_send_reply(req.req(), rc);
 
   // Resume the request to actually send it.  This matches the function to pause the request in
@@ -204,6 +206,15 @@ void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
 void HttpStack::handler_callback(evhtp_request_t* req,
                                  HttpStack::BaseHandlerFactory* handler_factory)
 {
+  Request request(this, req);
+
+  // Work out whether to log this request at protocol level (60) or detail
+  // level (40).
+  request.set_sas_log_level(handler_factory->sas_log_level(request));
+
+  SAS::TrailId trail = SAS::new_trail(0);
+  sas_log_rx_http_req(trail, request, handler_factory, 0);
+
   if (_stats != NULL)
   {
     _stats->incr_http_incoming_requests();
@@ -218,12 +229,13 @@ void HttpStack::handler_callback(evhtp_request_t* req,
 
     // Create a Request and a Handler and kick off processing.
     LOG_VERBOSE("Handling request for URL %s, args %s", req->uri->path->full, req->uri->query_raw);
-    Request request(this, req);
     Handler* handler = handler_factory->create(request);
+    handler->set_trail(trail);
     handler->run();
   }
   else
   {
+    sas_log_overload(trail, request, 503, 0);
     evhtp_send_reply(req, 503);
 
     if (_stats != NULL)
@@ -268,3 +280,79 @@ std::string HttpStack::Request::body()
   return _body;
 }
 
+void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
+                                    HttpStack::Request& req,
+                                    HttpStack::BaseHandlerFactory* handler_factory,
+                                    uint32_t instance_id)
+{
+  std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);
+  if (correlator != "")
+  {
+    SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, instance_id);
+    corr_marker.add_var_param(correlator);
+    SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
+  }
+
+  int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
+                  SASEvent::RX_HTTP_REQ : SASEvent::RX_HTTP_REQ_DETAIL);
+  SAS::Event rx_http_req(trail, event_id, instance_id);
+
+  // Copy the var params into local variables to ensure they still exist when
+  // we call report_event.
+  std::string body = req.body();
+  std::string full_path = req.full_path();
+
+  rx_http_req.add_static_param(req.method());
+  rx_http_req.add_var_param(full_path);
+  rx_http_req.add_var_param(body);
+
+  SAS::report_event(rx_http_req);
+}
+
+void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
+                                    HttpStack::Request& req,
+                                    int rc,
+                                    uint32_t instance_id)
+{
+  int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
+                  SASEvent::TX_HTTP_RSP : SASEvent::TX_HTTP_RSP_DETAIL);
+  SAS::Event tx_http_rsp(trail, event_id, instance_id);
+
+  // Copy the var params into local variables to ensure they still exist when
+  // we call report_event.
+  std::string full_path = req.full_path();
+
+  tx_http_rsp.add_static_param(rc);
+  tx_http_rsp.add_static_param(req.method());
+  tx_http_rsp.add_var_param(full_path);
+
+  // The response body is stored in an evbuffer in libevhtp which we need to
+  // copy out into a local buffer.  Note that the longest permitted SAS message
+  // is 0xFFFF bytes, so don't bother copying out any more than that.
+  uint8_t buffer[0xFFFF];
+  ev_ssize_t buffer_len;
+  buffer_len = evbuffer_copyout(req.req()->buffer_out, buffer, sizeof(buffer));
+  tx_http_rsp.add_var_param(buffer_len, buffer);
+
+  SAS::report_event(tx_http_rsp);
+}
+
+void HttpStack::sas_log_overload(SAS::TrailId trail,
+                                 HttpStack::Request& req,
+                                 int rc,
+                                 uint32_t instance_id)
+{
+  int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
+                  SASEvent::HTTP_REJECTED_OVERLOAD :
+                  SASEvent::HTTP_REJECTED_OVERLOAD_DETAIL);
+  SAS::Event event(trail, event_id, instance_id);
+
+  // Copy the var params into local variables to ensure they still exist when
+  // we call report_event.
+  std::string full_path = req.full_path();
+
+  event.add_static_param(rc);
+  event.add_static_param(req.method());
+  event.add_var_param(full_path);
+  SAS::report_event(event);
+}

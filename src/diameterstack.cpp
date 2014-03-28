@@ -36,6 +36,7 @@
 
 #include "diameterstack.h"
 #include "log.h"
+#include "sasevent.h"
 
 using namespace Diameter;
 
@@ -137,10 +138,21 @@ void Stack::register_fallback_handler(const Dictionary::Application &app)
 
 int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act)
 {
+  Stack* stack = Stack::get_instance();
+  Dictionary* dict = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict;
+
+  SAS::TrailId trail = SAS::new_trail(0);
+
+  // Create a new message object so and raise the necessary SAS logs.
+  Message msg(dict, *req, stack);
+  msg.sas_log_rx(trail, 0);
+  msg.revoke_ownership();
+
   // Create and run the correct handler based on the received message and the dictionary
   // object we've passed through.
-  Dictionary* dict = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict;
   Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(dict, req);
+  handler->set_trail(trail);
+
   handler->run();
 
   // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
@@ -382,7 +394,8 @@ Dictionary::Dictionary() :
 {
 }
 
-Transaction::Transaction(Dictionary* dict) : _dict(dict)
+Transaction::Transaction(Dictionary* dict, SAS::TrailId trail) :
+  _dict(dict), _trail(trail)
 {
 }
 
@@ -395,8 +408,11 @@ void Transaction::on_response(void* data, struct msg** rsp)
   Transaction* tsx = (Transaction*)data;
   Stack* stack = Stack::get_instance();
   Message msg(tsx->_dict, *rsp, stack);
+
   LOG_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
               msg.command_code(), tsx);
+  msg.sas_log_rx(tsx->trail(), 0);
+
   tsx->stop_timer();
   tsx->on_response(msg);
   delete tsx;
@@ -409,8 +425,11 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   Transaction* tsx = (Transaction*)data;
   Stack* stack = Stack::get_instance();
   Message msg(tsx->_dict, *req, stack);
+
   LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
+  msg.sas_log_timeout(tsx->trail(), 0);
+
   tsx->stop_timer();
   tsx->on_timeout();
   delete tsx;
@@ -608,10 +627,12 @@ int32_t Message::vendor_id() const
   return vendor_id;
 }
 
-void Message::send()
+void Message::send(SAS::TrailId trail)
 {
   LOG_VERBOSE("Sending Diameter message of type %u", command_code());
   revoke_ownership();
+
+  sas_log_tx(trail, 0);
   _stack->send(_fd_msg);
 }
 
@@ -620,6 +641,8 @@ void Message::send(Transaction* tsx)
   LOG_VERBOSE("Sending Diameter message of type %u on transaction %p", command_code(), tsx);
   tsx->start_timer();
   revoke_ownership();
+
+  sas_log_tx(tsx->trail(), 0);
   _stack->send(_fd_msg, tsx);
 }
 
@@ -629,5 +652,85 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
               command_code(), tsx, timeout_ms);
   tsx->start_timer();
   revoke_ownership();
+
+  sas_log_tx(tsx->trail(), 0);
   _stack->send(_fd_msg, tsx, timeout_ms);
+}
+
+void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
+{
+  int event_id = (is_request() ? SASEvent::DIAMETER_RX_REQ : SASEvent::DIAMETER_RX_RSP);
+  SAS::Event event(trail, event_id, instance_id);
+
+  event.add_static_param(command_code());
+
+  std::string origin_host;
+  get_origin_host(origin_host);
+  event.add_var_param(origin_host);
+
+  std::string origin_realm;
+  get_origin_realm(origin_realm);
+  event.add_var_param(origin_realm);
+
+  if (!is_request())
+  {
+    sas_add_response_params(event);
+  }
+
+  SAS::report_event(event);
+}
+
+void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
+{
+  int event_id = (is_request() ? SASEvent::DIAMETER_TX_REQ : SASEvent::DIAMETER_TX_RSP);
+  SAS::Event event(trail, event_id, instance_id);
+
+  event.add_static_param(command_code());
+
+  std::string destination_host;
+  get_destination_realm(destination_host);
+  event.add_var_param(destination_host);
+
+  std::string destination_realm;
+  get_destination_host(destination_realm);
+  event.add_var_param(destination_realm);
+
+  if (!is_request())
+  {
+    sas_add_response_params(event);
+  }
+
+  SAS::report_event(event);
+}
+
+void Message::sas_add_response_params(SAS::Event& event)
+{
+  // For a response, add the result code and experimental result code to the SAS
+  // event.  If either isn't present we log a value of 0 amd let the decoder
+  // explain that the code was not present.
+  int32_t result = 0;
+  int32_t exp_result = 0;
+
+  result_code(result);
+  event.add_static_param(result);
+
+  exp_result = experimental_result_code();
+  event.add_static_param(exp_result);
+}
+
+void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
+{
+  SAS::Event event(trail, SASEvent::DIAMETER_REQ_TIMEOUT, instance_id);
+
+  event.add_static_param(command_code());
+
+  std::string destination_host;
+  get_destination_host(destination_host);
+  event.add_var_param(destination_host);
+
+  std::string destination_realm;
+  get_destination_realm(destination_realm);
+  event.add_var_param(destination_realm);
+
+  SAS::report_event(event);
 }

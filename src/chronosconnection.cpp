@@ -50,7 +50,7 @@ ChronosConnection::ChronosConnection(const std::string& server, std::string call
   _callback_host(callback_host),
   _http(new HttpConnection(server,
                            false,
-                           SASEvent::TX_HSS_BASE))
+                           SASEvent::HttpLogLevel::PROTOCOL))
 {
 }
 

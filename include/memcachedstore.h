@@ -51,6 +51,8 @@ extern "C" {
 #include "store.h"
 #include "memcachedstoreview.h"
 #include "updater.h"
+#include "sas.h"
+#include "sasevent.h"
 
 /// @class MemcachedStore
 ///
@@ -71,18 +73,21 @@ public:
   Store::Status get_data(const std::string& table,
                          const std::string& key,
                          std::string& data,
-                         uint64_t& cas);
+                         uint64_t& cas,
+                         SAS::TrailId trail = 0);
 
   /// Sets the data for the specified table and key.
   Store::Status set_data(const std::string& table,
                          const std::string& key,
                          const std::string& data,
                          uint64_t cas,
-                         int expiry);
+                         int expiry,
+                         SAS::TrailId trail = 0);
 
   /// Deletes the data for the specified table and key.
   Store::Status delete_data(const std::string& table,
-                            const std::string& key);
+                            const std::string& key,
+                            SAS::TrailId trail = 0);
 
 
   /// Updates the cluster settings

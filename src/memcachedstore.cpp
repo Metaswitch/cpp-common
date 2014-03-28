@@ -281,7 +281,8 @@ void MemcachedStore::cleanup_connection(void* p)
 Store::Status MemcachedStore::get_data(const std::string& table,
                                        const std::string& key,
                                        std::string& data,
-                                       uint64_t& cas)
+                                       uint64_t& cas,
+                                       SAS::TrailId trail)
 {
   Store::Status status = Store::Status::OK;
 
@@ -292,6 +293,14 @@ Store::Status MemcachedStore::get_data(const std::string& table,
   const size_t key_len = fqkey.length();
 
   const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::READ);
+
+  if (trail != 0)
+  {
+    SAS::Event start(trail, SASEvent::MEMCACHED_GET_START, 0);
+    start.add_var_param(fqkey);
+    SAS::report_event(start);
+  }
+
   LOG_DEBUG("%d read replicas for key %s", replicas.size(), fqkey.c_str());
 
   // Read from all replicas until we get a positive result.
@@ -367,6 +376,13 @@ Store::Status MemcachedStore::get_data(const std::string& table,
 
   if (memcached_success(rc))
   {
+    if (trail != 0)
+    {
+      SAS::Event got_data(trail, SASEvent::MEMCACHED_GET_SUCCESS, 0);
+      got_data.add_var_param(fqkey);
+      got_data.add_var_param(data);
+      SAS::report_event(got_data);
+    }
     // Return the data and CAS value.  The CAS value is either set to the CAS
     // value from the result, or zero if an earlier active replica returned
     // NOT_FOUND.  This ensures that a subsequent set operation will succeed
@@ -378,12 +394,27 @@ Store::Status MemcachedStore::get_data(const std::string& table,
   else if (failed_replicas < replicas.size())
   {
     // At least one replica returned NOT_FOUND.
+    if (trail != 0)
+    {
+      SAS::Event not_found(trail, SASEvent::MEMCACHED_GET_NOT_FOUND, 0);
+      not_found.add_var_param(fqkey);
+      SAS::report_event(not_found);
+    }
+
     LOG_DEBUG("At least one replica returned not found, so return NOT_FOUND");
     status = Store::Status::NOT_FOUND;
   }
   else
   {
-    // All replicas returned an error, so log the error and return the failure.
+    // All replicas returned an error, so log the error and return the
+    // failure.
+    if (trail != 0)
+    {
+      SAS::Event err(trail, SASEvent::MEMCACHED_GET_ERROR, 0);
+      err.add_var_param(fqkey);
+      SAS::report_event(err);
+    }
+
     LOG_ERROR("Failed to read data for %s from %d replicas",
               fqkey.c_str(), replicas.size());
     status = Store::Status::ERROR;
@@ -400,7 +431,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
                                        const std::string& key,
                                        const std::string& data,
                                        uint64_t cas,
-                                       int expiry)
+                                       int expiry,
+                                       SAS::TrailId trail)
 {
   Store::Status status = Store::Status::OK;
 
@@ -413,6 +445,15 @@ Store::Status MemcachedStore::set_data(const std::string& table,
   const size_t key_len = fqkey.length();
 
   const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::WRITE);
+
+  if (trail != 0)
+  {
+    SAS::Event start(trail, SASEvent::MEMCACHED_SET_START, 0);
+    start.add_var_param(fqkey);
+    start.add_var_param(data);
+    SAS::report_event(start);
+  }
+
   LOG_DEBUG("%d write replicas for key %s", replicas.size(), fqkey.c_str());
 
   // Calculate the rough expected expiry time.  We store this in the flags
@@ -499,6 +540,13 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       if ((rc == MEMCACHED_NOTSTORED) ||
           (rc == MEMCACHED_DATA_EXISTS))
       {
+        if (trail != 0)
+        {
+          SAS::Event err(trail, SASEvent::MEMCACHED_SET_CONTENTION, 0);
+          err.add_var_param(fqkey);
+          SAS::report_event(err);
+        }
+
         // A NOT_STORED or EXISTS response indicates a concurrent write failure,
         // so return this to the application immediately - don't go on to
         // other replicas.
@@ -533,6 +581,13 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       (rc != MEMCACHED_NOTSTORED) &&
       (rc != MEMCACHED_DATA_EXISTS))
   {
+    if (trail != 0)
+    {
+      SAS::Event err(trail, SASEvent::MEMCACHED_SET_FAILED, 0);
+      err.add_var_param(fqkey);
+      SAS::report_event(err);
+    }
+
     LOG_ERROR("Failed to write data for %s to %d replicas",
               fqkey.c_str(), replicas.size());
     status = Store::Status::ERROR;
@@ -544,7 +599,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
 /// Delete the data for the specified namespace and key.  Writes the data
 /// unconditionally, so CAS is not needed.
 Store::Status MemcachedStore::delete_data(const std::string& table,
-                                          const std::string& key)
+                                          const std::string& key,
+                                          SAS::TrailId trail)
 {
   Store::Status status = Store::Status::OK;
 
@@ -557,6 +613,14 @@ Store::Status MemcachedStore::delete_data(const std::string& table,
 
   // Delete from the read replicas - read replicas are a superset of the write replicas
   const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::READ);
+
+  if (trail != 0)
+  {
+    SAS::Event start(trail, SASEvent::MEMCACHED_DELETE, 0);
+    start.add_var_param(fqkey);
+    SAS::report_event(start);
+  }
+
   LOG_DEBUG("Deleting from the %d read replicas for key %s", replicas.size(), fqkey.c_str());
 
   // First try to write the primary data record to the first responding
