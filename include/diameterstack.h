@@ -499,7 +499,7 @@ public:
   {
   public:
     BaseHandlerFactory(Dictionary *dict) : _dict(dict) {}
-    virtual Handler* create(Dictionary* dict, struct msg** fd_msg) = 0;
+    virtual Handler* create(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail) = 0;
     Dictionary* _dict;
   };
 
@@ -508,7 +508,10 @@ public:
   {
   public:
     HandlerFactory(Dictionary* dict) : BaseHandlerFactory(dict) {};
-    Handler* create(Diameter::Message& msg) { return new H(msg); }
+    Handler* create(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail)
+    {
+      return new H(fd_msg, trail);
+    }
   };
 
   template <class H, class C>
@@ -516,7 +519,10 @@ public:
   {
   public:
     ConfiguredHandlerFactory(Dictionary* dict, const C* cfg) : BaseHandlerFactory(dict), _cfg(cfg) {}
-    Handler* create(Dictionary* dict, struct msg** fd_msg) { return new H(dict, fd_msg, _cfg); }
+    Handler* create(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail)
+    {
+      return new H(dict, fd_msg, _cfg, trail);
+    }
   private:
     const C* _cfg;
   };

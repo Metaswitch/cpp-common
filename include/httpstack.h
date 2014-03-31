@@ -171,7 +171,7 @@ public:
   class Handler
   {
   public:
-    inline Handler(Request& req, SAS::TrailId trail) : _req(req), _trail(trail)
+    inline Handler(Request& req, SAS::TrailId trail) : _req(req), _trail(trail) {}
     virtual ~Handler() {}
 
     virtual void run() = 0;
@@ -187,15 +187,15 @@ public:
   protected:
     void record_penalty() { _req.record_penalty(); }
 
-    SAS::TrailId _trail;
     Request _req;
+    SAS::TrailId _trail;
   };
 
   class BaseHandlerFactory
   {
   public:
     BaseHandlerFactory() {}
-    virtual Handler* create(Request& req) = 0;
+    virtual Handler* create(Request& req, SAS::TrailId trail) = 0;
 
     /// Return the level to log the HTTP transaction at for a given request.
     /// This default implementation logs everything at protocol level (60).
@@ -210,7 +210,10 @@ public:
   {
   public:
     HandlerFactory() : BaseHandlerFactory() {}
-    Handler* create(Request& req) { return new H(req); }
+    Handler* create(Request& req, SAS::TrailId trail)
+    {
+      return new H(req, trail);
+    }
   };
 
   template <class H, class C>
@@ -218,7 +221,11 @@ public:
   {
   public:
     ConfiguredHandlerFactory(const C* cfg) : BaseHandlerFactory(), _cfg(cfg) {}
-    Handler* create(Request& req) { return new H(req, _cfg); }
+    Handler* create(Request& req, SAS::TrailId trail)
+    {
+      return new H(req, _cfg, trail);
+    }
+
   private:
     const C* _cfg;
   };

@@ -229,8 +229,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
 
     // Create a Request and a Handler and kick off processing.
     LOG_VERBOSE("Handling request for URL %s, args %s", req->uri->path->full, req->uri->query_raw);
-    Handler* handler = handler_factory->create(request);
-    handler->set_trail(trail);
+    Handler* handler = handler_factory->create(request, trail);
     handler->run();
   }
   else
