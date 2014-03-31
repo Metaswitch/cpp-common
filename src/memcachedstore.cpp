@@ -381,6 +381,7 @@ Store::Status MemcachedStore::get_data(const std::string& table,
       SAS::Event got_data(trail, SASEvent::MEMCACHED_GET_SUCCESS, 0);
       got_data.add_var_param(fqkey);
       got_data.add_var_param(data);
+      got_data.add_static_param(cas);
       SAS::report_event(got_data);
     }
     // Return the data and CAS value.  The CAS value is either set to the CAS
@@ -451,6 +452,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     SAS::Event start(trail, SASEvent::MEMCACHED_SET_START, 0);
     start.add_var_param(fqkey);
     start.add_var_param(data);
+    got_data.add_static_param(cas);
+    got_data.add_static_param(expiry);
     SAS::report_event(start);
   }
 
