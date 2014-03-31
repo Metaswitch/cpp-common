@@ -452,8 +452,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     SAS::Event start(trail, SASEvent::MEMCACHED_SET_START, 0);
     start.add_var_param(fqkey);
     start.add_var_param(data);
-    got_data.add_static_param(cas);
-    got_data.add_static_param(expiry);
+    start.add_static_param(cas);
+    start.add_static_param(expiry);
     SAS::report_event(start);
   }
 
