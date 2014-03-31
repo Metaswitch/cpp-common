@@ -1,8 +1,9 @@
 /**
- * @file localstore.h Definitions for the LocalStore class
+ * @file saslogger.h Utility function to log out errors in
+ * the SAS connection
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2013-2014 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,47 +35,11 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef LOCALSTORE_H__
-#define LOCALSTORE_H__
+#ifndef SAS_LOGGER_H__
+#define SAS_LOGGER_H__
 
-#include <map>
-#include <pthread.h>
+#include "sas.h"
 
-#include "store.h"
-
-class LocalStore : public Store
-{
-public:
-  LocalStore();
-  virtual ~LocalStore();
-
-  void flush_all();
-
-  Store::Status get_data(const std::string& table,
-                         const std::string& key,
-                         std::string& data,
-                         uint64_t& cas,
-                         SAS::TrailId trail = 0);
-  Store::Status set_data(const std::string& table,
-                         const std::string& key,
-                         const std::string& data,
-                         uint64_t cas,
-                         int expiry,
-                         SAS::TrailId trail = 0);
-  Store::Status delete_data(const std::string& table,
-                            const std::string& key,
-                            SAS::TrailId trail = 0);
-private:
-  typedef struct record
-  {
-    std::string data;
-    uint32_t expiry;
-    uint64_t cas;
-  } Record;
-
-  pthread_mutex_t _db_lock;
-  std::map<std::string, Record> _db;
-};
-
+void sas_write(SAS::log_level_t sas_level, const char *module, int line_number, const char *fmt, ...);
 
 #endif

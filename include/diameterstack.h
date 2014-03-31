@@ -45,6 +45,7 @@
 #include <rapidjson/document.h>
 
 #include "utils.h"
+#include "sas.h"
 
 namespace Diameter
 {
@@ -94,7 +95,7 @@ public:
     {
       fd_dict_getval(dict(), &_avp_data);
     };
-    inline AVP(const std::string vendor, 
+    inline AVP(const std::string vendor,
                const std::string avp) : Object(find(vendor, avp))
     {
       fd_dict_getval(dict(), &_avp_data);
@@ -136,7 +137,7 @@ public:
 class Transaction
 {
 public:
-  Transaction(Dictionary* dict);
+  Transaction(Dictionary* dict, SAS::TrailId);
   virtual ~Transaction();
 
   virtual void on_response(Message& rsp) = 0;
@@ -159,9 +160,12 @@ public:
   static void on_response(void* data, struct msg** rsp);
   static void on_timeout(void* data, DiamId_t to, size_t to_len, struct msg** req);
 
+  SAS::TrailId trail() { return _trail; }
+
 protected:
   Dictionary* _dict;
   Utils::StopWatch _stopwatch;
+  SAS::TrailId _trail;
 };
 
 class AVP
@@ -233,7 +237,7 @@ public:
   }
 
   // Populate this AVP from a JSON object
-  AVP& val_json(const std::vector<std::string>& vendors, 
+  AVP& val_json(const std::vector<std::string>& vendors,
                 const Diameter::Dictionary::AVP& dict,
                 const rapidjson::Value& contents);
 
@@ -332,20 +336,24 @@ public:
     get_i32_from_avp(dict()->AUTH_SESSION_STATE, i32);
     return i32;
   }
+
+  inline bool get_origin_host(std::string& str) { return get_str_from_avp(_dict->ORIGIN_HOST, str); }
+  inline bool get_origin_realm(std::string& str) { return get_str_from_avp(_dict->ORIGIN_REALM, str); }
+  inline bool get_destination_host(std::string& str) { return get_str_from_avp(_dict->DESTINATION_HOST, str); }
+  inline bool get_destination_realm(std::string& str) { return get_str_from_avp(_dict->DESTINATION_REALM, str); }
+  inline bool is_request() { return bool(msg_hdr()->msg_flags & CMD_FLAG_REQUEST); }
+
   inline AVP::iterator begin() const;
   inline AVP::iterator begin(const Dictionary::AVP& type) const;
   inline AVP::iterator end() const;
-  virtual void send();
+  virtual void send(SAS::TrailId trail);
   virtual void send(Transaction* tsx);
   virtual void send(Transaction* tsx, unsigned int timeout_ms);
   void operator=(Message const&);
 
-private:
-  const Dictionary* _dict;
-  struct msg* _fd_msg;
-  Stack* _stack;
-  bool _free_on_delete;
-  Message* _master_msg;
+  void sas_log_rx(SAS::TrailId trail, uint32_t instance_id=0);
+  void sas_log_tx(SAS::TrailId trail, uint32_t instance_id=0);
+  void sas_log_timeout(SAS::TrailId trail, uint32_t instance_id=0);
 
   inline void revoke_ownership()
   {
@@ -358,12 +366,21 @@ private:
     _master_msg = this;
   }
 
+private:
+  const Dictionary* _dict;
+  struct msg* _fd_msg;
+  Stack* _stack;
+  bool _free_on_delete;
+  Message* _master_msg;
+
   inline struct msg_hdr* msg_hdr() const
   {
     struct msg_hdr* hdr;
     fd_msg_hdr(_fd_msg, &hdr);
     return hdr;
   }
+
+  void sas_add_response_params(SAS::Event& event);
 };
 
 class AVP::iterator
@@ -468,19 +485,25 @@ public:
   class Handler
   {
   public:
-    inline Handler(Dictionary* dict, struct msg** fd_msg) : _msg(dict, *fd_msg, Stack::get_instance()) {}
+    inline Handler(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail) :
+      _msg(dict, *fd_msg, Stack::get_instance()), _trail(trail)
+    {}
     virtual ~Handler() {}
 
     virtual void run() = 0;
+
+    SAS::TrailId trail() { return _trail; }
+
   protected:
     Diameter::Message _msg;
+    SAS::TrailId _trail;
   };
 
   class BaseHandlerFactory
   {
   public:
     BaseHandlerFactory(Dictionary *dict) : _dict(dict) {}
-    virtual Handler* create(Dictionary* dict, struct msg** fd_msg) = 0;
+    virtual Handler* create(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail) = 0;
     Dictionary* _dict;
   };
 
@@ -489,7 +512,10 @@ public:
   {
   public:
     HandlerFactory(Dictionary* dict) : BaseHandlerFactory(dict) {};
-    Handler* create(Diameter::Message& msg) { return new H(msg); }
+    Handler* create(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail)
+    {
+      return new H(fd_msg, trail);
+    }
   };
 
   template <class H, class C>
@@ -497,7 +523,10 @@ public:
   {
   public:
     ConfiguredHandlerFactory(Dictionary* dict, const C* cfg) : BaseHandlerFactory(dict), _cfg(cfg) {}
-    Handler* create(Dictionary* dict, struct msg** fd_msg) { return new H(dict, fd_msg, _cfg); }
+    Handler* create(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail)
+    {
+      return new H(dict, fd_msg, _cfg, trail);
+    }
   private:
     const C* _cfg;
   };

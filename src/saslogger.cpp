@@ -1,8 +1,9 @@
 /**
- * @file localstore.h Definitions for the LocalStore class
+ * @file saslogger.cpp Utility function to log out errors in
+ * the SAS connection
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2013-2014 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,47 +35,45 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef LOCALSTORE_H__
-#define LOCALSTORE_H__
+#include <cstdarg>
 
-#include <map>
-#include <pthread.h>
+#include "log.h"
+#include "saslogger.h"
 
-#include "store.h"
+// LCOV_EXCL_START
 
-class LocalStore : public Store
+void sas_write(SAS::log_level_t sas_level, const char *module, int line_number, const char *fmt, ...)
 {
-public:
-  LocalStore();
-  virtual ~LocalStore();
+  int level;
+  va_list args;
 
-  void flush_all();
+  switch (sas_level) {
+    case SAS::LOG_LEVEL_DEBUG:
+      level = Log::DEBUG_LEVEL;
+      break;
+    case SAS::LOG_LEVEL_VERBOSE:
+      level = Log::VERBOSE_LEVEL;
+      break;
+    case SAS::LOG_LEVEL_INFO:
+      level = Log::INFO_LEVEL;
+      break;
+    case SAS::LOG_LEVEL_STATUS:
+      level = Log::STATUS_LEVEL;
+      break;
+    case SAS::LOG_LEVEL_WARNING:
+      level = Log::WARNING_LEVEL;
+      break;
+    case SAS::LOG_LEVEL_ERROR:
+      level = Log::ERROR_LEVEL;
+      break;
+    default:
+      LOG_ERROR("Unknown SAS log level %d, treating as error level", sas_level);
+      level = Log::ERROR_LEVEL;
+    }
 
-  Store::Status get_data(const std::string& table,
-                         const std::string& key,
-                         std::string& data,
-                         uint64_t& cas,
-                         SAS::TrailId trail = 0);
-  Store::Status set_data(const std::string& table,
-                         const std::string& key,
-                         const std::string& data,
-                         uint64_t cas,
-                         int expiry,
-                         SAS::TrailId trail = 0);
-  Store::Status delete_data(const std::string& table,
-                            const std::string& key,
-                            SAS::TrailId trail = 0);
-private:
-  typedef struct record
-  {
-    std::string data;
-    uint32_t expiry;
-    uint64_t cas;
-  } Record;
+  va_start(args, fmt);
+  Log::_write(level, module, line_number, fmt, args);
+  va_end(args);
+}
 
-  pthread_mutex_t _db_lock;
-  std::map<std::string, Record> _db;
-};
-
-
-#endif
+// LCOV_EXCL_STOP
