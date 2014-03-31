@@ -282,11 +282,15 @@ public:
     fd_msg_new_answer_from_req(fd_g_config->cnf_dict, &_fd_msg, 0);
     claim_ownership();
   }
+
+  // Add a Session-ID to a message (either a new one or a specified).
   inline Message& add_new_session_id()
   {
     fd_msg_new_session(_fd_msg, NULL, 0);
     return *this;
   }
+  Message& add_session_id(const std::string& session_id);
+
   inline Message& add_vendor_spec_app_id()
   {
     Diameter::AVP vendor_specific_application_id(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
