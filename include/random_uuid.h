@@ -47,10 +47,18 @@
 /// explicitly use a pseudo random number generator (prng) that is just seeded
 /// from /dev/urandom as opposed to the default boost implementation that uses
 /// uninitialzed memory (and causes valgrind errors).
+///
+/// This class has the same threadsafety as boost::uuids::random_generator. TO
+/// quote from
+/// http://www.boost.org/doc/libs/1_53_0/libs/uuid/uuid.html#Design%20notes
+///
+/// "All functions are re-entrant. Classes are as thread-safe as an int. That is
+/// an instance can not be shared between threads without proper
+/// synchronization."
 class RandomUUIDGenerator
 {
 public:
-  RandomUUIDGenerator() : _prng(), _gen(NULL)
+  RandomUUIDGenerator() : _prng()
   {
     // Get a seed value by reading from /dev/urandom.
     uint32_t seed;

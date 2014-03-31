@@ -171,18 +171,17 @@ public:
   class Handler
   {
   public:
-    inline Handler(Request& req) : _req(req) {}
+    inline Handler(Request& req, SAS::TrailId trail) : _req(req), _trail(trail)
     virtual ~Handler() {}
 
     virtual void run() = 0;
 
-    /// Send an HTTP reply. Calls through to Request::Send_reply, picking up
+    /// Send an HTTP reply. Calls through to Request::send_reply, picking up
     /// the trail ID from the handler.
     ///
     /// @param status_code the HTTP status code to use on the reply.
     void send_http_reply(int status_code) { _req.send_reply(status_code, trail()); }
 
-    inline void set_trail(SAS::TrailId trail) { _trail = trail; }
     inline SAS::TrailId trail() { return _trail; }
 
   protected:
@@ -197,6 +196,9 @@ public:
   public:
     BaseHandlerFactory() {}
     virtual Handler* create(Request& req) = 0;
+
+    /// Return the level to log the HTTP transaction at for a given request.
+    /// This default implementation logs everything at protocol level (60).
     virtual SASEvent::HttpLogLevel sas_log_level(Request& req)
     {
       return SASEvent::HttpLogLevel::PROTOCOL;
@@ -209,13 +211,6 @@ public:
   public:
     HandlerFactory() : BaseHandlerFactory() {}
     Handler* create(Request& req) { return new H(req); }
-
-    /// Return the level to log the HTTP transaction at for a given request.
-    /// This default implementation logs everything at protocol level (60).
-    virtual SASEvent::HttpLogLevel sas_log_level(Request& req)
-    {
-      return SASEvent::HttpLogLevel::PROTOCOL;
-    }
   };
 
   template <class H, class C>

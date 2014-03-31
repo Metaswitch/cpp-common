@@ -664,6 +664,9 @@ void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
 
   event.add_static_param(command_code());
 
+  // Get origin host and realm.  No need to check return codes from these
+  // functions - if they fail they leave the dest string empty which is what we
+  // want.
   std::string origin_host;
   get_origin_host(origin_host);
   event.add_var_param(origin_host);
@@ -687,6 +690,9 @@ void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
 
   event.add_static_param(command_code());
 
+  // Get destination host and realm.  No need to check return codes from these
+  // functions - if they fail they leave the dest string empty which is what we
+  // want.
   std::string destination_host;
   get_destination_host(destination_host);
   event.add_var_param(destination_host);

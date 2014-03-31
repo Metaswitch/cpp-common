@@ -480,14 +480,13 @@ public:
   class Handler
   {
   public:
-    inline Handler(Dictionary* dict, struct msg** fd_msg) : 
-      _msg(dict, *fd_msg, Stack::get_instance()), _trail(0) 
+    inline Handler(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail) :
+      _msg(dict, *fd_msg, Stack::get_instance()), _trail(trail)
     {}
     virtual ~Handler() {}
 
     virtual void run() = 0;
 
-    void set_trail(SAS::TrailId trail) { _trail = trail; }
     SAS::TrailId trail() { return _trail; }
 
   protected:
