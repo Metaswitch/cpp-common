@@ -248,10 +248,10 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             active_addr[ii].pop_back();
             targets.push_back(ai);
             char buf[100];
-            std::string targetee = inet_ntop(ai.address.af,
-                                             &ai.address.addr,
-                                             buf, sizeof(buf));
-            std::string tg = "[" + targetee + ":" + std::to_string(ai.port) + "]";
+            std::string target = inet_ntop(ai.address.af,
+                                           &ai.address.addr,
+                                           buf, sizeof(buf));
+            std::string tg = "Address - \"" + target + "\". Port - \"" + std::to_string(ai.port) + "\"";
             targetlist_str = targetlist_str + tg;
 
             LOG_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
@@ -840,4 +840,3 @@ int BaseResolver::SRVWeightedSelector::total_weight()
 {
   return _tree[0];
 }
-

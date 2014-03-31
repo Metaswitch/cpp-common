@@ -410,6 +410,9 @@ HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute 
     {
       LOG_DEBUG("Received HTTP error response : %s : %s", url.c_str(), curl_easy_strerror(rc));
 
+      char* remote_ip;
+      curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &remote_ip);
+
       if (rc == CURLE_HTTP_RETURNED_ERROR)
       {
         // Report the response to SAS
@@ -425,6 +428,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute 
         http_err.add_var_param(url);
         http_err.add_static_param(rc);
         http_err.add_var_param(curl_easy_strerror(rc));
+        http_err.add_var_param(remote_ip);
         SAS::report_event(http_err);
       }
 
@@ -440,9 +444,6 @@ HTTPCode HttpConnection::send_request(const std::string& path,     //< Absolute 
                         (rc == CURLE_SEND_ERROR) ||
                         (rc == CURLE_RECV_ERROR) ||
                         (error_is_503));
-
-      char* remote_ip;
-      curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &remote_ip);
 
       if ((non_fatal) && (attempt == 0))
       {
