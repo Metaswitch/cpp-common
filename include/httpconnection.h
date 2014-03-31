@@ -103,7 +103,7 @@ public:
                         const std::string& method_str,
                         const std::string& url,
                         const std::string& doc,
-                        uint32_t instance_id);
+                        uint32_t instance_id=0);
 
 private:
 

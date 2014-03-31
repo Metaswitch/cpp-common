@@ -347,10 +347,9 @@ public:
   virtual void send(Transaction* tsx, unsigned int timeout_ms);
   void operator=(Message const&);
 
-  void sas_log_rx(SAS::TrailId trail, uint32_t instance_id);
-  void sas_log_tx(SAS::TrailId trail, uint32_t instance_id);
-  void sas_add_response_params(SAS::Event& event);
-  void sas_log_timeout(SAS::TrailId trail, uint32_t instance_id);
+  void sas_log_rx(SAS::TrailId trail, uint32_t instance_id=0);
+  void sas_log_tx(SAS::TrailId trail, uint32_t instance_id=0);
+  void sas_log_timeout(SAS::TrailId trail, uint32_t instance_id=0);
 
   inline void revoke_ownership()
   {
@@ -376,6 +375,8 @@ private:
     fd_msg_hdr(_fd_msg, &hdr);
     return hdr;
   }
+
+  void sas_add_response_params(SAS::Event& event);
 };
 
 class AVP::iterator

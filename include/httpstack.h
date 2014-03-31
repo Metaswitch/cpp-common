@@ -268,15 +268,15 @@ private:
   void sas_log_rx_http_req(SAS::TrailId trail,
                            Request& req,
                            BaseHandlerFactory* handler_factory,
-                           uint32_t instance_id);
+                           uint32_t instance_id=0);
   void sas_log_tx_http_rsp(SAS::TrailId trail,
                            HttpStack::Request& req,
                            int rc,
-                           uint32_t instance_id);
+                           uint32_t instance_id=0);
   void sas_log_overload(SAS::TrailId trail,
                         HttpStack::Request& req,
                         int rc,
-                        uint32_t instance_id);
+                        uint32_t instance_id=0);
   // Don't implement the following, to avoid copies of this instance.
   HttpStack(HttpStack const&);
   void operator=(HttpStack const&);
