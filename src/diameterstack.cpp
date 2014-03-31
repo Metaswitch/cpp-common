@@ -150,9 +150,7 @@ int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session
 
   // Create and run the correct handler based on the received message and the dictionary
   // object we've passed through.
-  Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(dict, req);
-  handler->set_trail(trail);
-
+  Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(dict, req, trail);
   handler->run();
 
   // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
