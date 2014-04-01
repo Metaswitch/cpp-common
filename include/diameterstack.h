@@ -53,6 +53,7 @@ class Stack;
 class Transaction;
 class AVP;
 class Message;
+class PeerListener;
 
 class Dictionary
 {
@@ -471,6 +472,36 @@ private:
   AVP _avp;
 };
 
+class Peer
+{
+public:
+  Peer(std::string host,
+       std::string endpoint = null,
+       uint16_t port = 0,
+       std::string realm = null,
+       uint32_t idle_time = 0,
+       PeerListener* listener = null);
+
+  struct peer_info& info() const;
+  std::string host() const;
+  std::string endpoint() const;
+  uint16_t port() const;
+  std::string realm() const;
+  uint32_t idle_time() const;
+  PeerListener* listener() const;
+
+private:
+  struct peer_info _info;
+  PeerListener* _listener;
+};
+
+class PeerListener
+{
+public:
+  virtual void connectionSucceeded(Peer* peer) = 0;
+  virtual void connectionFailed(Peer* peer) = 0;
+};
+
 class Stack
 {
 public:
@@ -546,6 +577,9 @@ public:
   virtual void send(struct msg* fd_msg, Transaction* tsx);
   virtual void send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms);
 
+  void add(Peer* peer);
+  void remove(Peer* peer);
+
 private:
   static Stack* INSTANCE;
   static Stack DEFAULT_INSTANCE;
@@ -561,9 +595,13 @@ private:
 
   static void logger(int fd_log_level, const char* fmt, va_list args);
 
+  void fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
+  static void fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
+
   bool _initialized;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
+  std::vector<Peer*> _peers;
 };
 
 AVP::iterator AVP::begin() const {return AVP::iterator(*this);}
