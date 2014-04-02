@@ -376,6 +376,8 @@ Dictionary::Dictionary() :
   SESSION_ID("Session-Id"),
   VENDOR_SPECIFIC_APPLICATION_ID("Vendor-Specific-Application-Id"),
   VENDOR_ID("Vendor-Id"),
+  AUTH_APPLICATION_ID("Auth-Application-Id"),
+  ACCT_APPLICATION_ID("Acct-Application-Id"),
   AUTH_SESSION_STATE("Auth-Session-State"),
   ORIGIN_REALM("Origin-Realm"),
   ORIGIN_HOST("Origin-Host"),
@@ -433,6 +435,38 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   delete tsx;
   // Null out the message so that freeDiameter doesn't try to send it on.
   *req = NULL;
+}
+
+// Given an AVP type, search an AVP for a child of this type. If one exists, return true
+// and set str to the string value of the child AVP. Otherwise return false.
+bool AVP::get_str_from_avp(const Dictionary::AVP& type, std::string& str) const
+{
+  AVP::iterator avps = begin(type);
+  if (avps != end())
+  {
+    str = avps->val_str();
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+// Given an AVP type, search an AVP for a child of this type. If one exists, return true
+// and set i32 to the integer value of the child AVP. Otherwise return false.
+bool AVP::get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const
+{
+  AVP::iterator avps = begin(type);
+  if (avps != end())
+  {
+    i32 = avps->val_i32();
+    return true;
+  }
+  else
+  {
+    return false;
+  }
 }
 
 AVP& AVP::val_json(const std::vector<std::string>& vendors,
