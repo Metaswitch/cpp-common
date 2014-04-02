@@ -61,7 +61,8 @@ ChronosConnection::~ChronosConnection()
   _http = NULL;
 }
 
-HTTPCode ChronosConnection::send_delete(const std::string& delete_identity, SAS::TrailId trail)
+HTTPCode ChronosConnection::send_delete(const std::string& delete_identity,
+                                        SAS::TrailId trail)
 {
   // The delete identity can be an empty string when a previous put/post has failed.
   if (delete_identity == "")
@@ -77,7 +78,7 @@ HTTPCode ChronosConnection::send_delete(const std::string& delete_identity, SAS:
   return _http->send_delete(path, trail);
 }
 
-HTTPCode ChronosConnection::send_put(const std::string& put_identity,
+HTTPCode ChronosConnection::send_put(std::string& put_identity,
                                      uint32_t timer_interval,
                                      uint32_t repeat_for,
                                      const std::string& callback_uri,
@@ -86,8 +87,28 @@ HTTPCode ChronosConnection::send_put(const std::string& put_identity,
 {
   std::string path = "/timers/" +
                      Utils::url_escape(put_identity);
-  std::string body = create_body(timer_interval,repeat_for,  callback_uri, opaque_data);
-  return _http->send_put(path, body, trail);
+  std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data);
+  std::map<std::string, std::string> headers;
+  std::string unused_response;
+
+  HTTPCode rc = _http->send_put(path, headers, unused_response, body, trail);
+
+  if (rc == HTTP_OK)
+  {
+    // Try and get the location header from the response
+    std::string timer_url = get_location_header(headers);
+
+    if (timer_url != "")
+    {
+      put_identity = timer_url;
+    }
+    else
+    {
+      return HTTP_BAD_RESULT;
+    }
+  }
+
+  return rc;
 }
 
 HTTPCode ChronosConnection::send_post(std::string& post_identity,
@@ -100,30 +121,29 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
   std::string path = "/timers";
   std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data);
   std::map<std::string, std::string> headers;
+  std::string unused_response;
 
-  HTTPCode success = _http->send_post(path, body, headers, trail);
+  HTTPCode rc = _http->send_post(path, headers, unused_response, body, trail);
 
-  if (success == HTTP_OK)
+  if (rc == HTTP_OK)
   {
-    // Location header has the form "http://localhost:7253/timers/abcd" - we just want the "abcd" part after "/timers/"
-    std::string timer_url = headers["location"];
+    // Try and get the location header from the response
+    std::string timer_url = get_location_header(headers);
 
     if (timer_url != "")
     {
-      size_t start_of_path = timer_url.find("/timers/") + (std::string("/timers/").length());
-      post_identity = timer_url.substr(start_of_path, std::string::npos);
+      post_identity = timer_url;
     }
     else
     {
       return HTTP_BAD_RESULT;
     }
-
   }
 
-  return success;
+  return rc;
 }
 
-HTTPCode ChronosConnection::send_put(const std::string& put_identity,
+HTTPCode ChronosConnection::send_put(std::string& put_identity,
                                      uint32_t timer_interval,
                                      const std::string& callback_uri,
                                      const std::string& opaque_data,
@@ -159,4 +179,17 @@ std::string ChronosConnection::create_body(uint32_t interval,
   std::string data = writer.write(body);
 
   return data;
+}
+
+std::string ChronosConnection::get_location_header(std::map<std::string, std::string> headers)
+{
+  std::string timer_url = headers["location"];
+
+  if (timer_url != "")
+  {
+    size_t start_of_path = timer_url.find("/timers/") + (std::string("/timers/").length());
+    timer_url = timer_url.substr(start_of_path, std::string::npos);
+  }
+
+  return timer_url;
 }
