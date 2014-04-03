@@ -43,6 +43,30 @@ using namespace Diameter;
 Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 
+Peer::Peer(AddrInfo addr_info,
+           std::string host,
+           std::string endpoint,
+           uint16_t port,
+           std::string realm,
+           uint32_t idle_time,
+           PeerListener* listener) :
+           _listener(listener)
+{
+  // TODO: These parameters need to be put in the correct part of the
+  // _info structure. Similarly for the getters in the header file.
+  _addr_info = addr_info;
+  _info.pi_diamid = host.c_str();
+  _info.pi_diamidlen = host.length();
+  _info.pi_endpoints = endpoint;
+  _info.config.pic_port = port;
+  _info.config.pic_realm = realm;
+  if (idle_time != 0)
+  {
+    _info.config.pic_lft = idle_time;
+    _info.config.pic_flags.exp = idle_time;
+  }
+}
+
 Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
 {
 }
@@ -68,8 +92,46 @@ void Stack::initialize()
     {
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
+    rc = fd_hook_register(HOOK_PEER_CONNECT_SUCCESS, fd_hook_cb, this, NULL, &_peer_success_cb_hdlr);
+    rc = fd_hook_register(HOOK_PEER_CONNECT_FAILED, fd_hook_cb, this, NULL, &_peer_failure_cb_hdlr);
     _initialized = true;
   }
+}
+
+void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr)
+{
+  ((Diameter::Stack*)stack_ptr)->fd_hook_cb(type, msg, peer, other, pmd);
+}
+
+void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd)
+{
+  DiamId_t host =  peer->info.pi_diamid;
+  for (std::vector<Peer*>::iterator i = _peers.begin();
+       i != _peers.end();
+       i++)
+  {
+    if (host == (*i)->info().pi_diamid)
+    {
+      if (type == HOOK_PEER_CONNECT_SUCCESS)
+      {
+        LOG_DEBUG("Successfully connected to %s", host);
+        (*i)->listener()->connection_succeeded(*i);
+      }
+      else if (type == HOOK_PEER_CONNECT_FAILED)
+      {
+        LOG_DEBUG("Failed to connect to %s", host);
+        (*i)->listener()->connection_failed(*i);
+      }
+      else
+      {
+        LOG_ERROR("Unexpected hook type on callback from freeDiameter: %d", type);
+      }
+      return;
+    }
+  }
+
+  LOG_DEBUG("Unexpected host on callback from freeDiameter: %s", host);
+  return;
 }
 
 void Stack::configure(std::string filename)
@@ -194,6 +256,16 @@ void Stack::stop()
       (void)fd_disp_unregister(&_callback_fallback_handler, NULL);
     }
 
+    if (_peer_success_cb_hdlr)
+    {
+      fd_hook_unregister(_peer_success_cb_hdlr);
+    }
+
+    if (_peer_failure_cb_hdlr)
+    {
+      fd_hook_unregister(_peer_failure_cb_hdlr);
+    }
+
     int rc = fd_core_shutdown();
     if (rc != 0)
     {
@@ -267,6 +339,20 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
   fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
+}
+
+void Stack::add(Peer* peer)
+{
+  _peers.push_back(peer);
+  fd_peer_add(&peer->info(), "", NULL, NULL);
+}
+
+void Stack::remove(Peer* peer)
+{
+  // Remove the peer from _peers.
+  _peers.erase(std::remove(_peers.begin(), _peers.end(), peer), _peers.end());
+  char* pi_diamid = peer->host();
+  fd_peer_remove(peer->host(), );
 }
 
 struct dict_object* Dictionary::Vendor::find(const std::string vendor)

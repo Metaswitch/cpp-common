@@ -46,6 +46,7 @@
 
 #include "utils.h"
 #include "sas.h"
+#include "baseresolver.h"
 
 namespace Diameter
 {
@@ -475,22 +476,25 @@ private:
 class Peer
 {
 public:
-  Peer(std::string host,
-       std::string endpoint = null,
+  Peer(AddrInfo ai,
+       std::string host,
+       std::string endpoint = NULL,
        uint16_t port = 0,
-       std::string realm = null,
+       std::string realm = NULL,
        uint32_t idle_time = 0,
-       PeerListener* listener = null);
+       PeerListener* listener = NULL);
 
-  struct peer_info& info() const;
-  std::string host() const;
-  std::string endpoint() const;
-  uint16_t port() const;
-  std::string realm() const;
-  uint32_t idle_time() const;
-  PeerListener* listener() const;
+  AddrInfo addr_info() const {return _addr_info;}
+  inline struct peer_info& info() {return _info;}
+  char* host() const {return _info.pi_diamid;}
+  std::string endpoint() const {return _info.pi_endpoints;}
+  uint16_t port() const {return _info.config.pic_port;}
+  std::string realm() const {return _info.config.pic_realm;}
+  uint32_t idle_time() const {return _info.config.pic_lft;}
+  PeerListener* listener() const {return _listener;}
 
 private:
+  AddrInfo _addr_info;
   struct peer_info _info;
   PeerListener* _listener;
 };
@@ -498,8 +502,8 @@ private:
 class PeerListener
 {
 public:
-  virtual void connectionSucceeded(Peer* peer) = 0;
-  virtual void connectionFailed(Peer* peer) = 0;
+  virtual void connection_succeeded(Peer* peer) = 0;
+  virtual void connection_failed(Peer* peer) = 0;
 };
 
 class Stack
@@ -601,6 +605,8 @@ private:
   bool _initialized;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
+  struct fd_hook_hdl* _peer_success_cb_hdlr; /* Handler for the callback registered for successful connections to peers */
+  struct fd_hook_hdl* _peer_failure_cb_hdlr; /* Handler for the callback registered for failed connections to peers */
   std::vector<Peer*> _peers;
 };
 
