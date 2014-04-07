@@ -713,84 +713,33 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
 
 void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
 {
-  int event_id = (is_request() ? SASEvent::DIAMETER_RX_REQ : SASEvent::DIAMETER_RX_RSP);
-  SAS::Event event(trail, event_id, instance_id);
-
-  event.add_static_param(command_code());
-
-  // Get origin host and realm.  No need to check return codes from these
-  // functions - if they fail they leave the dest string empty which is what we
-  // want.
-  std::string origin_host;
-  get_origin_host(origin_host);
-  event.add_var_param(origin_host);
-
-  std::string origin_realm;
-  get_origin_realm(origin_realm);
-  event.add_var_param(origin_realm);
-
-  if (!is_request())
-  {
-    sas_add_response_params(event);
-  }
-
+  SAS::Event event(trail, SASEvent::DIAMETER_RX, instance_id);
+  sas_add_serialization(event);
   SAS::report_event(event);
 }
 
 void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
 {
-  int event_id = (is_request() ? SASEvent::DIAMETER_TX_REQ : SASEvent::DIAMETER_TX_RSP);
-  SAS::Event event(trail, event_id, instance_id);
-
-  event.add_static_param(command_code());
-
-  // Get destination host and realm.  No need to check return codes from these
-  // functions - if they fail they leave the dest string empty which is what we
-  // want.
-  std::string destination_host;
-  get_destination_host(destination_host);
-  event.add_var_param(destination_host);
-
-  std::string destination_realm;
-  get_destination_realm(destination_realm);
-  event.add_var_param(destination_realm);
-
-  if (!is_request())
-  {
-    sas_add_response_params(event);
-  }
-
+  SAS::Event event(trail, SASEvent::DIAMETER_TX, instance_id);
+  sas_add_serialization(event);
   SAS::report_event(event);
-}
-
-void Message::sas_add_response_params(SAS::Event& event)
-{
-  // For a response, add the result code and experimental result code to the SAS
-  // event.  If either isn't present we log a value of 0 amd let the decoder
-  // explain that the code was not present.
-  int32_t result = 0;
-  int32_t exp_result = 0;
-
-  result_code(result);
-  event.add_static_param(result);
-
-  exp_result = experimental_result_code();
-  event.add_static_param(exp_result);
 }
 
 void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
 {
-  SAS::Event event(trail, SASEvent::DIAMETER_REQ_TIMEOUT, instance_id);
-
-  event.add_static_param(command_code());
-
-  std::string destination_host;
-  get_destination_host(destination_host);
-  event.add_var_param(destination_host);
-
-  std::string destination_realm;
-  get_destination_realm(destination_realm);
-  event.add_var_param(destination_realm);
-
+  SAS::Event event(trail, SASEvent::DIAMETER_TIMEOUT, instance_id);
+  sas_add_serialization(event);
   SAS::report_event(event);
+}
+
+void Message::sas_add_serialization(SAS::Event& event)
+{
+  uint8_t* buf;
+  size_t len;
+
+  if (fd_msg_bufferize(_fd_msg, &buf, &len) == 0)
+  {
+    event.add_var_param(len, buf);
+    free(buf); buf = NULL;
+  }
 }
