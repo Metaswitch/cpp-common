@@ -734,15 +734,15 @@ void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
 
 void Message::sas_add_serialization(SAS::Event& event)
 {
-  uint8_t* buf;
+  uint8_t* buf = NULL;
   size_t len;
 
   if (fd_msg_bufferize(_fd_msg, &buf, &len) == 0)
   {
     event.add_var_param(len, buf);
-    free(buf); buf = NULL;
   }
 
   // TODO move this back into sas_log_* methods.
   SAS::report_event(event);
+  free(buf); buf = NULL;
 }
