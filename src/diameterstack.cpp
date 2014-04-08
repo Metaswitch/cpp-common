@@ -732,6 +732,11 @@ void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
   //SAS::report_event(event);
 }
 
+// Add the serialized version of the diameter message to a SAS event.
+//
+// This method also reports the event to SAS so that the memory is still
+// allocated at the point report_Event is called (this is a workaround for
+// https://github.com/Metaswitch/sas-client/issues/23).
 void Message::sas_add_serialization(SAS::Event& event)
 {
   uint8_t* buf = NULL;
@@ -742,7 +747,6 @@ void Message::sas_add_serialization(SAS::Event& event)
     event.add_var_param(len, buf);
   }
 
-  // TODO move this back into sas_log_* methods.
   SAS::report_event(event);
   free(buf); buf = NULL;
 }
