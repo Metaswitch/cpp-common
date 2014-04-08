@@ -715,21 +715,21 @@ void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
 {
   SAS::Event event(trail, SASEvent::DIAMETER_RX, instance_id);
   sas_add_serialization(event);
-  SAS::report_event(event);
+  //SAS::report_event(event);
 }
 
 void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
 {
   SAS::Event event(trail, SASEvent::DIAMETER_TX, instance_id);
   sas_add_serialization(event);
-  SAS::report_event(event);
+  //SAS::report_event(event);
 }
 
 void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
 {
   SAS::Event event(trail, SASEvent::DIAMETER_TIMEOUT, instance_id);
   sas_add_serialization(event);
-  SAS::report_event(event);
+  //SAS::report_event(event);
 }
 
 void Message::sas_add_serialization(SAS::Event& event)
@@ -742,4 +742,7 @@ void Message::sas_add_serialization(SAS::Event& event)
     event.add_var_param(len, buf);
     free(buf); buf = NULL;
   }
+
+  // TODO move this back into sas_log_* methods.
+  SAS::report_event(event);
 }
