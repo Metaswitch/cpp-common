@@ -280,7 +280,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
         // We have enough targets so don't move to the next priority level.
         if (trail != 0)
         {
-          SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
+          SAS::Event event(trail, SASEvent::BASERESOLVE_SRV_RESULT, 0);
           event.add_var_param(srv_name);
           event.add_var_param(targetlist_str);
           event.add_var_param(blacklist_str);
@@ -320,7 +320,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
 
   if (trail != 0)
   {
-    SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
+    SAS::Event event(trail, SASEvent::BASERESOLVE_SRV_RESULT, 0);
     event.add_var_param(srv_name);
     event.add_var_param(targetlist_str);
     event.add_var_param(blacklist_str);
@@ -387,7 +387,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
 
       if (trail != 0)
       {
-        SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
+        SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
         event.add_var_param(hostname);
         event.add_var_param(targetlist_str);
         event.add_var_param(blacklist_str);
@@ -425,7 +425,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
 
   if (trail != 0)
   {
-    SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
+    SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
     event.add_var_param(hostname);
     event.add_var_param(targetlist_str);
     event.add_var_param(blacklist_str);
