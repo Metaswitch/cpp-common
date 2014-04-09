@@ -51,6 +51,10 @@ RealmManager::RealmManager(Diameter::Stack* stack,
   pthread_create(&_thread, NULL, thread_function, this);
 }
 
+RealmManager::~RealmManager()
+{
+}
+
 void RealmManager::connection_succeeded(Diameter::Peer* peer)
 {
   LOG_INFO("Connected to peer %s", peer->host().c_str());
@@ -83,7 +87,7 @@ void RealmManager::thread_function()
        i != targets.end();
        i++)
   {
-    Diameter::Peer* peer = new Diameter::Peer(*i, "", "", 0, "", 0, this);
+    Diameter::Peer* peer = new Diameter::Peer(*i, "", 0, this);
     _peers.push_back(peer);
     _stack->add(peer);
   }

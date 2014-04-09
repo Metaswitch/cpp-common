@@ -476,26 +476,24 @@ private:
 class Peer
 {
 public:
-  Peer(AddrInfo ai,
-       std::string host,
-       std::string endpoint = NULL,
-       uint16_t port = 0,
-       std::string realm = NULL,
+  Peer(AddrInfo addr_info,
+       std::string host = "",
        uint32_t idle_time = 0,
-       PeerListener* listener = NULL);
+       PeerListener* listener = NULL) :
+       _addr_info(addr_info),
+       _host(host),
+       _idle_time(idle_time),
+       _listener(listener) {}
 
-  AddrInfo addr_info() const {return _addr_info;}
-  inline struct peer_info& info() {return _info;}
-  char* host() const {return _info.pi_diamid;}
-  std::string endpoint() const {return _info.pi_endpoints;}
-  uint16_t port() const {return _info.config.pic_port;}
-  std::string realm() const {return _info.config.pic_realm;}
-  uint32_t idle_time() const {return _info.config.pic_lft;}
+  const AddrInfo& addr_info() const {return _addr_info;}
+  const std::string& host() const {return _host;}
+  uint32_t idle_time() const {return _idle_time;}
   PeerListener* listener() const {return _listener;}
 
 private:
   AddrInfo _addr_info;
-  struct peer_info _info;
+  std::string _host;
+  uint32_t _idle_time;
   PeerListener* _listener;
 };
 

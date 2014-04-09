@@ -43,30 +43,6 @@ using namespace Diameter;
 Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 
-Peer::Peer(AddrInfo addr_info,
-           std::string host,
-           std::string endpoint,
-           uint16_t port,
-           std::string realm,
-           uint32_t idle_time,
-           PeerListener* listener) :
-           _listener(listener)
-{
-  // TODO: These parameters need to be put in the correct part of the
-  // _info structure. Similarly for the getters in the header file.
-  _addr_info = addr_info;
-  _info.pi_diamid = host.c_str();
-  _info.pi_diamidlen = host.length();
-  _info.pi_endpoints = endpoint;
-  _info.config.pic_port = port;
-  _info.config.pic_realm = realm;
-  if (idle_time != 0)
-  {
-    _info.config.pic_lft = idle_time;
-    _info.config.pic_flags.exp = idle_time;
-  }
-}
-
 Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
 {
 }
@@ -105,12 +81,12 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
 
 void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd)
 {
-  DiamId_t host =  peer->info.pi_diamid;
+  DiamId_t host = peer->info.pi_diamid;
   for (std::vector<Peer*>::iterator i = _peers.begin();
        i != _peers.end();
        i++)
   {
-    if (host == (*i)->info().pi_diamid)
+    if ((*i)->host().compare(host) == 0)
     {
       if (type == HOOK_PEER_CONNECT_SUCCESS)
       {
@@ -343,16 +319,57 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
 
 void Stack::add(Peer* peer)
 {
+  // Set up the peer information structure.
+  struct peer_info info;
+  memset(&info, 0, sizeof(struct peer_info));
+  fd_list_init(&info.pi_endpoints, NULL);
+  info.pi_diamid = strdup(peer->host().c_str());
+  info.pi_diamidlen = peer->host().length();
+  info.config.pic_port = peer->addr_info().port;
+  if (peer->idle_time() != 0)
+  {
+    info.config.pic_lft = peer->idle_time();
+    info.config.pic_flags.exp = 1;
+  }
+
+  // Fill in and insert the endpoint.  Note that this needs to be malloc-ed
+  // (not new-ed) because it will be free-d by freeDiameter.
+  struct fd_endpoint* endpoint = (struct fd_endpoint*)malloc(sizeof(struct fd_endpoint));
+  memset(endpoint, 0, sizeof(struct fd_endpoint));
+  fd_list_init(&endpoint->chain, &endpoint);
+  if (peer->addr_info().address.af == AF_INET)
+  {
+    endpoint->sin.sin_family = AF_INET;
+    endpoint->sin.sin_addr.s_addr = peer->addr_info().address.addr.ipv4.s_addr;
+    fd_list_insert_before(&info.pi_endpoints, &endpoint->chain);
+  }
+  else if (peer->addr_info().address.af == AF_INET6)
+  {
+    endpoint->sin6.sin6_family = AF_INET6;
+    memcpy(&endpoint->sin6.sin6_addr,
+           &peer->addr_info().address.addr.ipv6,
+           sizeof(struct sockaddr_in6));
+    fd_list_insert_before(&info.pi_endpoints, &endpoint->chain);
+  }
+  else
+  {
+    LOG_ERROR("Unrecognized address family %d - omitting endpoint", peer->addr_info().address.af);
+    free(endpoint);
+  }
+
+  // Add the peer in freeDiameter.  The second parameter is just a debug string.
+  fd_peer_add(&info, "Diameter::Stack", NULL, peer);
+
+  // Add this peer to our list.
   _peers.push_back(peer);
-  fd_peer_add(&peer->info(), "", NULL, NULL);
 }
 
 void Stack::remove(Peer* peer)
 {
   // Remove the peer from _peers.
   _peers.erase(std::remove(_peers.begin(), _peers.end(), peer), _peers.end());
-  char* pi_diamid = peer->host();
-  fd_peer_remove(peer->host(), );
+  std::string host = peer->host();
+  fd_peer_remove((char*)host.c_str(), host.length());
 }
 
 struct dict_object* Dictionary::Vendor::find(const std::string vendor)
