@@ -75,7 +75,7 @@ void* RealmManager::thread_function(void* realm_manager_ptr)
 void RealmManager::thread_function()
 {
   std::vector<AddrInfo> targets;
-  _resolver->resolve(_realm, _max_peers, targets);
+  _resolver->resolve(_realm, "", _max_peers, targets);
 
   pthread_mutex_lock(&_lock);
 

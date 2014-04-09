@@ -1,5 +1,5 @@
 /**
- * @file diameterresolver.h  Declaration of SIP DNS resolver class.
+ * @file diameterresolver.h  Declaration of Diameter DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -46,9 +46,13 @@ public:
   DiameterResolver(DnsCachedResolver* dns_client, int af);
   ~DiameterResolver();
 
-  void resolve(const std::string& name,
-               int max_peers,
+  void resolve(const std::string& realm,
+               const std::string& host,
+               int max_targets,
                std::vector<AddrInfo>& targets);
+
+  static const int DEFAULT_PORT = 3868;
+  static const int DEFAULT_TRANSPORT = IPPROTO_SCTP;
 
 private:
   int _af;

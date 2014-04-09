@@ -36,8 +36,6 @@
 
 #include "log.h"
 #include "diameterresolver.h"
-#include "sas.h"
-#include "sasevent.h"
 
 DiameterResolver::DiameterResolver(DnsCachedResolver* dns_client,
                                    int af) :
@@ -49,6 +47,7 @@ DiameterResolver::DiameterResolver(DnsCachedResolver* dns_client,
   // Create the NAPTR cache.
   std::map<std::string, int> naptr_services;
   naptr_services["AAA+D2T"] = IPPROTO_TCP;
+  naptr_services["AAA+D2S"] = IPPROTO_SCTP;
   create_naptr_cache(naptr_services);
 
   // Create the SRV cache.
@@ -67,51 +66,137 @@ DiameterResolver::~DiameterResolver()
   destroy_naptr_cache();
 }
 
-void DiameterResolver::resolve(const std::string& name,
-                               int max_peers,
+/// Resolve a destination host and realm name to a list of IP addresses,
+/// transports and ports, following the process specified in RFC3588 section
+/// 5.2, steps 3 and 4.
+void DiameterResolver::resolve(const std::string& realm,
+                               const std::string& host,
+                               int max_targets,
                                std::vector<AddrInfo>& targets)
 {
   targets.clear();
 
-  LOG_DEBUG("DiameterResolver::resolve for name %s, family %d",
-            name.c_str(), _af);
-
+  AddrInfo ai;
+  int transport;
   std::string srv_name;
-  std::string a_name = name;
+  std::string a_name;
 
-  NAPTRReplacement* naptr = _naptr_cache->get(name);
+  LOG_DEBUG("DiameterResolver::resolve for realm %s, host %s, family %d",
+            realm.c_str(), host.c_str(), _af);
 
-  if ((naptr != NULL) && (naptr->transport == IPPROTO_TCP))
+  if (realm != "")
   {
-    // NAPTR resolved to a supported service and transport. We currently
-    // only support TCP.
-    LOG_DEBUG("NAPTR resolved to a supported service and transport");
+    // Realm is specified, so do a NAPTR lookup for the target.
+    LOG_DEBUG("Do NAPTR look-up for %s", realm.c_str());
 
-    if (naptr->flags == "S")
+    NAPTRReplacement* naptr = _naptr_cache->get(realm);
+
+    if (naptr != NULL)
     {
-      // Do an SRV lookup with the replacement domain from the NAPTR lookup.
-      srv_name = naptr->replacement;
+      // NAPTR resolved to a supported service
+      LOG_DEBUG("NAPTR resolved to transport %d", naptr->transport);
+      transport = naptr->transport;
+      if (naptr->flags == "S")
+      {
+        // Do an SRV lookup with the replacement domain from the NAPTR lookup.
+        srv_name = naptr->replacement;
+      }
+      else
+      {
+        // Move straight to A/AAAA lookup of the domain returned by NAPTR.
+        a_name = naptr->replacement;
+      }
     }
     else
     {
-      a_name = naptr->replacement;
+      // NAPTR resolution failed, so do SRV lookups for both TCP and SCTP to
+      // see which transports are supported.
+      LOG_DEBUG("NAPTR lookup failed, so do SRV lookups for TCP and SCTP");
+
+      std::vector<std::string> domains;
+      domains.push_back("_diameter._tcp." + realm);
+      domains.push_back("_diameter._sctp." + realm);
+      std::vector<DnsResult> results;
+      _dns_client->dns_query(domains, ns_t_srv, results);
+      DnsResult& tcp_result = results[0];
+      LOG_DEBUG("TCP SRV record %s returned %d records",
+                tcp_result.domain().c_str(), tcp_result.records().size());
+      DnsResult& sctp_result = results[1];
+      LOG_DEBUG("SCTP SRV record %s returned %d records",
+                sctp_result.domain().c_str(), sctp_result.records().size());
+
+      if (!tcp_result.records().empty())
+      {
+        // TCP SRV lookup returned some records, so use TCP transport.
+        LOG_DEBUG("TCP SRV lookup successful, select TCP transport");
+        transport = IPPROTO_TCP;
+        srv_name = tcp_result.domain();
+      }
+      else if (!sctp_result.records().empty())
+      {
+        // SCTP SRV lookup returned some records, so use SCTP transport.
+        LOG_DEBUG("SCTP SRV lookup successful, select SCTP transport");
+        transport = IPPROTO_SCTP;
+        srv_name = sctp_result.domain();
+      }
+      else
+      {
+        // SRV resolution failed, so do A lookups for TCP and SCTP.
+        results.clear();
+        _dns_client->dns_query(domains, (_af == AF_INET) ? ns_t_a : ns_t_aaaa, results);
+        tcp_result = results[0];
+        LOG_DEBUG("TCP A record %s returned %d records",
+                  tcp_result.domain().c_str(), tcp_result.records().size());
+        sctp_result = results[1];
+        LOG_DEBUG("SCTP A record %s returned %d records",
+                  sctp_result.domain().c_str(), sctp_result.records().size());
+
+        if (!tcp_result.records().empty())
+        {
+          // TCP A lookup returned some records, so use TCP transport.
+          LOG_DEBUG("TCP A lookup successful, select TCP transport");
+          transport = IPPROTO_TCP;
+          a_name = tcp_result.domain();
+        }
+        else if (!sctp_result.records().empty())
+        {
+          // SCTP A lookup returned some records, so use SCTP transport.
+          LOG_DEBUG("SCTP A lookup successful, select SCTP transport");
+          transport = IPPROTO_SCTP;
+          a_name = sctp_result.domain();
+        }
+      }
     }
-  }
-  else
-  {
-    DnsResult result = _dns_client->dns_query("_diameter._tcp." + srv_name, ns_t_srv);
-    if (!result.records().empty())
+
+    _naptr_cache->dec_ref(realm);
+
+    // We might now have got SRV or A domain names, so do lookups for them if so.
+    if (srv_name != "")
     {
-      srv_name = result.domain();
+      LOG_DEBUG("Do SRV lookup for %s", srv_name.c_str());
+      srv_resolve(srv_name, _af, transport, max_targets, targets, 0);
+    }
+    else if (a_name != "")
+    {
+      LOG_DEBUG("Do A/AAAA lookup for %s", a_name.c_str());
+      a_resolve(a_name, _af, DEFAULT_PORT, transport, max_targets, targets, 0);
     }
   }
 
-  if (!srv_name.empty())
+  if ((targets.empty()) && (host != ""))
   {
-    srv_resolve(srv_name, _af, IPPROTO_TCP, max_peers, targets, 0);
-  }
-  else
-  {
-    a_resolve(name, _af, 5060, IPPROTO_TCP, max_peers, targets, 0);
+    if (parse_ip_target(host, ai.address))
+    {
+      // The name is already an IP address, so no DNS resolution is possible.
+      // Use specified transport and port or defaults if not specified.
+      LOG_DEBUG("Target is an IP address - default port/transport");
+      ai.transport = DEFAULT_TRANSPORT;
+      ai.port = DEFAULT_PORT;
+      targets.push_back(ai);
+    }
+    else
+    {
+      a_resolve(host, _af, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, 0);
+    }
   }
 }
