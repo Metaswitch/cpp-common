@@ -139,33 +139,6 @@ void DiameterResolver::resolve(const std::string& realm,
         transport = IPPROTO_SCTP;
         srv_name = sctp_result.domain();
       }
-      else
-      {
-        // SRV resolution failed, so do A lookups for TCP and SCTP.
-        results.clear();
-        _dns_client->dns_query(domains, (_af == AF_INET) ? ns_t_a : ns_t_aaaa, results);
-        tcp_result = results[0];
-        LOG_DEBUG("TCP A record %s returned %d records",
-                  tcp_result.domain().c_str(), tcp_result.records().size());
-        sctp_result = results[1];
-        LOG_DEBUG("SCTP A record %s returned %d records",
-                  sctp_result.domain().c_str(), sctp_result.records().size());
-
-        if (!tcp_result.records().empty())
-        {
-          // TCP A lookup returned some records, so use TCP transport.
-          LOG_DEBUG("TCP A lookup successful, select TCP transport");
-          transport = IPPROTO_TCP;
-          a_name = tcp_result.domain();
-        }
-        else if (!sctp_result.records().empty())
-        {
-          // SCTP A lookup returned some records, so use SCTP transport.
-          LOG_DEBUG("SCTP A lookup successful, select SCTP transport");
-          transport = IPPROTO_SCTP;
-          a_name = sctp_result.domain();
-        }
-      }
     }
 
     _naptr_cache->dec_ref(realm);
