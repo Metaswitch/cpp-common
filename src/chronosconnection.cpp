@@ -89,9 +89,8 @@ HTTPCode ChronosConnection::send_put(std::string& put_identity,
                      Utils::url_escape(put_identity);
   std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data);
   std::map<std::string, std::string> headers;
-  std::string unused_response;
 
-  HTTPCode rc = _http->send_put(path, headers, unused_response, body, trail);
+  HTTPCode rc = _http->send_put(path, headers, body, trail);
 
   if (rc == HTTP_OK)
   {
@@ -121,9 +120,8 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
   std::string path = "/timers";
   std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data);
   std::map<std::string, std::string> headers;
-  std::string unused_response;
 
-  HTTPCode rc = _http->send_post(path, headers, unused_response, body, trail);
+  HTTPCode rc = _http->send_post(path, headers, body, trail);
 
   if (rc == HTTP_OK)
   {

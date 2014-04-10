@@ -280,11 +280,32 @@ HTTPCode HttpConnection::send_delete(const std::string& path,
 
 HTTPCode HttpConnection::send_put(const std::string& path,
                                   const std::string& body,
-                                  SAS::TrailId trail)
+                                  SAS::TrailId trail,
+                                  const std::string& username)
 {
   std::string unused_response;
   std::map<std::string, std::string> unused_headers;
-  return HttpConnection::send_put(path, unused_headers, unused_response, body, trail);
+  return HttpConnection::send_put(path, unused_headers, unused_response, body, trail, username);
+}
+
+HTTPCode HttpConnection::send_put(const std::string& path,
+                                  std::string& response,
+                                  const std::string& body,
+                                  SAS::TrailId trail,
+                                  const std::string& username)
+{
+  std::map<std::string, std::string> unused_headers;
+  return HttpConnection::send_put(path, unused_headers, response, body, trail, username);
+}
+
+HTTPCode HttpConnection::send_put(const std::string& path,
+                                  std::map<std::string, std::string>& headers,
+                                  const std::string& body,
+                                  SAS::TrailId trail,
+                                  const std::string& username)
+{
+  std::string unused_response;
+  return HttpConnection::send_put(path, headers, unused_response, body, trail, username);
 }
 
 HTTPCode HttpConnection::send_put(const std::string& path,                     //< Absolute path to request from server - must start with "/"
@@ -309,6 +330,16 @@ HTTPCode HttpConnection::send_put(const std::string& path,                     /
   curl_slist_free_all(slist);
 
   return status;
+}
+
+HTTPCode HttpConnection::send_post(const std::string& path,
+                                   std::map<std::string, std::string>& headers,
+                                   const std::string& body,
+                                   SAS::TrailId trail,
+                                   const std::string& username)
+{
+  std::string unused_response;
+  return HttpConnection::send_post(path, headers, unused_response, body, trail, username);
 }
 
 HTTPCode HttpConnection::send_post(const std::string& path,                     //< Absolute path to request from server - must start with "/"
