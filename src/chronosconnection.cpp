@@ -185,6 +185,8 @@ std::string ChronosConnection::get_location_header(std::map<std::string, std::st
 {
   std::string timer_url = headers["location"];
 
+  // Location header has the form "http://localhost:7253/timers/abcd" -
+  // we just want the "abcd" part after "/timers/"
   if (timer_url != "")
   {
     size_t start_of_path = timer_url.find("/timers/") + (std::string("/timers/").length());
