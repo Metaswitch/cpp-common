@@ -477,22 +477,26 @@ class Peer
 {
 public:
   Peer(AddrInfo addr_info,
-       std::string host = "",
+       const std::string& host,
+       const std::string& realm = "",
        uint32_t idle_time = 0,
        PeerListener* listener = NULL) :
        _addr_info(addr_info),
        _host(host),
+       _realm(realm),
        _idle_time(idle_time),
        _listener(listener) {}
 
   const AddrInfo& addr_info() const {return _addr_info;}
   const std::string& host() const {return _host;}
+  const std::string& realm() const {return _realm;}
   uint32_t idle_time() const {return _idle_time;}
   PeerListener* listener() const {return _listener;}
 
 private:
   AddrInfo _addr_info;
   std::string _host;
+  std::string _realm;
   uint32_t _idle_time;
   PeerListener* _listener;
 };

@@ -87,7 +87,7 @@ void RealmManager::thread_function()
        i != targets.end();
        i++)
   {
-    Diameter::Peer* peer = new Diameter::Peer(*i, "", 0, this);
+    Diameter::Peer* peer = new Diameter::Peer(*i, "", _realm, 0, this);
     _peers.push_back(peer);
     _stack->add(peer);
   }

@@ -326,10 +326,14 @@ void Stack::add(Peer* peer)
   info.pi_diamid = strdup(peer->host().c_str());
   info.pi_diamidlen = peer->host().length();
   info.config.pic_port = peer->addr_info().port;
+  if (peer->realm() != "")
+  {
+    info.config.pic_realm = strdup(peer->realm().c_str());
+  }
   if (peer->idle_time() != 0)
   {
     info.config.pic_lft = peer->idle_time();
-    info.config.pic_flags.exp = 1;
+    info.config.pic_flags.exp = PI_EXP_INACTIVE;
   }
 
   // Fill in and insert the endpoint.  Note that this needs to be malloc-ed
@@ -358,7 +362,7 @@ void Stack::add(Peer* peer)
   }
 
   // Add the peer in freeDiameter.  The second parameter is just a debug string.
-  fd_peer_add(&info, "Diameter::Stack", NULL, peer);
+  fd_peer_add(&info, "Diameter::Stack", NULL, NULL);
 
   // Add this peer to our list.
   _peers.push_back(peer);
