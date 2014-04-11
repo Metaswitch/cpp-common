@@ -77,7 +77,7 @@ void DiameterResolver::resolve(const std::string& realm,
   targets.clear();
 
   AddrInfo ai;
-  int transport;
+  int transport = DEFAULT_TRANSPORT;
   std::string srv_name;
   std::string a_name;
 

@@ -68,8 +68,8 @@ void Stack::initialize()
     {
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
-    rc = fd_hook_register(HOOK_PEER_CONNECT_SUCCESS, fd_hook_cb, this, NULL, &_peer_success_cb_hdlr);
-    rc = fd_hook_register(HOOK_PEER_CONNECT_FAILED, fd_hook_cb, this, NULL, &_peer_failure_cb_hdlr);
+    rc = fd_hook_register(HOOK_MASK(HOOK_PEER_CONNECT_SUCCESS, HOOK_PEER_CONNECT_FAILED),
+                          fd_hook_cb, this, NULL, &_peer_cb_hdlr);
     _initialized = true;
   }
 }
@@ -81,32 +81,47 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
 
 void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd)
 {
-  DiamId_t host = peer->info.pi_diamid;
-  for (std::vector<Peer*>::iterator i = _peers.begin();
-       i != _peers.end();
-       i++)
+  // Check the type first.  We can't rely on peer being set if it's not the right type.
+  if ((type != HOOK_PEER_CONNECT_SUCCESS) &&
+      (type != HOOK_PEER_CONNECT_FAILED))
   {
-    if ((*i)->host().compare(host) == 0)
+    LOG_ERROR("Unexpected hook type on callback from freeDiameter: %d", type);
+  }
+  else if (peer != NULL)
+  {
+    LOG_ERROR("No peer supplied on callback of type %d", type);
+  }
+  else
+  {
+    DiamId_t host = peer->info.pi_diamid;
+    std::vector<Peer*>::iterator i;
+    for (i = _peers.begin();
+         i != _peers.end();
+         i++)
     {
-      if (type == HOOK_PEER_CONNECT_SUCCESS)
+      if ((*i)->host().compare(host) == 0)
       {
-        LOG_DEBUG("Successfully connected to %s", host);
-        (*i)->listener()->connection_succeeded(*i);
+        if (type == HOOK_PEER_CONNECT_SUCCESS)
+        {
+          LOG_DEBUG("Successfully connected to %s", host);
+          (*i)->listener()->connection_succeeded(*i);
+          break;
+        }
+        else if (type == HOOK_PEER_CONNECT_FAILED)
+        {
+          LOG_DEBUG("Failed to connect to %s", host);
+          (*i)->listener()->connection_failed(*i);
+          break;
+        }
       }
-      else if (type == HOOK_PEER_CONNECT_FAILED)
-      {
-        LOG_DEBUG("Failed to connect to %s", host);
-        (*i)->listener()->connection_failed(*i);
-      }
-      else
-      {
-        LOG_ERROR("Unexpected hook type on callback from freeDiameter: %d", type);
-      }
-      return;
+    }
+  
+    if (i == _peers.end())
+    {
+      // Peer not found.
+      LOG_DEBUG("Unexpected host on callback (type %d) from freeDiameter: %s", type, host);
     }
   }
-
-  LOG_DEBUG("Unexpected host on callback from freeDiameter: %s", host);
   return;
 }
 
@@ -232,14 +247,9 @@ void Stack::stop()
       (void)fd_disp_unregister(&_callback_fallback_handler, NULL);
     }
 
-    if (_peer_success_cb_hdlr)
+    if (_peer_cb_hdlr)
     {
-      fd_hook_unregister(_peer_success_cb_hdlr);
-    }
-
-    if (_peer_failure_cb_hdlr)
-    {
-      fd_hook_unregister(_peer_failure_cb_hdlr);
+      fd_hook_unregister(_peer_cb_hdlr);
     }
 
     int rc = fd_core_shutdown();
@@ -326,6 +336,7 @@ void Stack::add(Peer* peer)
   info.pi_diamid = strdup(peer->host().c_str());
   info.pi_diamidlen = peer->host().length();
   info.config.pic_port = peer->addr_info().port;
+  info.config.pic_flags.pro4 = PI_P4_TCP;
   if (peer->realm() != "")
   {
     info.config.pic_realm = strdup(peer->realm().c_str());
@@ -341,6 +352,7 @@ void Stack::add(Peer* peer)
   struct fd_endpoint* endpoint = (struct fd_endpoint*)malloc(sizeof(struct fd_endpoint));
   memset(endpoint, 0, sizeof(struct fd_endpoint));
   fd_list_init(&endpoint->chain, &endpoint);
+  endpoint->flags = EP_FL_DISC;
   if (peer->addr_info().address.af == AF_INET)
   {
     endpoint->sin.sin_family = AF_INET;

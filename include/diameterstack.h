@@ -607,8 +607,7 @@ private:
   bool _initialized;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
-  struct fd_hook_hdl* _peer_success_cb_hdlr; /* Handler for the callback registered for successful connections to peers */
-  struct fd_hook_hdl* _peer_failure_cb_hdlr; /* Handler for the callback registered for failed connections to peers */
+  struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
   std::vector<Peer*> _peers;
 };
 
