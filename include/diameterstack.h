@@ -418,7 +418,7 @@ private:
     return hdr;
   }
 
-  void sas_add_response_params(SAS::Event& event);
+  void sas_add_serialization(SAS::Event& event);
 };
 
 class AVP::iterator
