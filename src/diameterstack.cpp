@@ -715,27 +715,24 @@ void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
 {
   SAS::Event event(trail, SASEvent::DIAMETER_RX, instance_id);
   sas_add_serialization(event);
-  //SAS::report_event(event);
 }
 
 void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
 {
   SAS::Event event(trail, SASEvent::DIAMETER_TX, instance_id);
   sas_add_serialization(event);
-  //SAS::report_event(event);
 }
 
 void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
 {
   SAS::Event event(trail, SASEvent::DIAMETER_TIMEOUT, instance_id);
   sas_add_serialization(event);
-  //SAS::report_event(event);
 }
 
 // Add the serialized version of the diameter message to a SAS event.
 //
 // This method also reports the event to SAS so that the memory is still
-// allocated at the point report_Event is called (this is a workaround for
+// allocated at the point report_event is called (this is a workaround for
 // https://github.com/Metaswitch/sas-client/issues/23).
 void Message::sas_add_serialization(SAS::Event& event)
 {
