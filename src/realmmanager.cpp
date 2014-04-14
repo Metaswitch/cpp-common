@@ -37,6 +37,8 @@
 #include "log.h"
 #include "realmmanager.h"
 
+#include <arpa/inet.h>
+
 const int RealmManager::DEFAULT_BLACKLIST_DURATION = 30;
 
 RealmManager::RealmManager(Diameter::Stack* stack,
@@ -46,18 +48,26 @@ RealmManager::RealmManager(Diameter::Stack* stack,
                            _stack(stack),
                            _realm(realm),
                            _max_peers(max_peers),
-                           _resolver(resolver)
+                           _resolver(resolver),
+                           _terminating(false)
 {
   pthread_create(&_thread, NULL, thread_function, this);
 }
 
 RealmManager::~RealmManager()
 {
+  pthread_mutex_lock(&_lock);
+  _terminating = true; 
+  pthread_cond_signal(&_cond);
+  pthread_mutex_unlock(&_lock);
 }
 
 void RealmManager::connection_succeeded(Diameter::Peer* peer)
 {
   LOG_INFO("Connected to peer %s", peer->host().c_str());
+  pthread_mutex_lock(&_lock);
+  pthread_cond_signal(&_cond);
+  pthread_mutex_unlock(&_lock);
 }
 
 void RealmManager::connection_failed(Diameter::Peer* peer)
@@ -65,9 +75,9 @@ void RealmManager::connection_failed(Diameter::Peer* peer)
   LOG_ERROR("Failed to connect to peer %s", peer->host().c_str());
   _peers.erase(std::remove(_peers.begin(), _peers.end(), peer), _peers.end());
   _resolver->blacklist(peer->addr_info(), DEFAULT_BLACKLIST_DURATION);
-  // TODO: Signal condition variable to wake up the thread (which will then
-  // pick a different host to connect to.
+  pthread_mutex_lock(&_lock);
   pthread_cond_signal(&_cond);
+  pthread_mutex_unlock(&_lock);
 }
 
 void* RealmManager::thread_function(void* realm_manager_ptr)
@@ -79,7 +89,10 @@ void* RealmManager::thread_function(void* realm_manager_ptr)
 void RealmManager::thread_function()
 {
   std::vector<AddrInfo> targets;
-  _resolver->resolve(_realm, "", _max_peers, targets);
+  int ttl;
+  struct timespec ts;
+  _resolver->resolve(_realm, "", _max_peers, targets, ttl);
+  std::vector<Diameter::Peer*> new_peers;
 
   pthread_mutex_lock(&_lock);
 
@@ -92,6 +105,78 @@ void RealmManager::thread_function()
     _stack->add(peer);
   }
 
-  pthread_cond_wait(&_cond, &_lock);
-  
+  while (true)
+  {
+    clock_gettime(CLOCK_REALTIME, &ts);
+    ts.tv_nsec += (ttl % 1000) * 1000 * 1000;
+    ts.tv_sec += ttl / 1000 + ts.tv_nsec / (1000 * 1000 * 1000);
+    ts.tv_nsec = ts.tv_nsec % (1000 * 1000 * 1000);
+    pthread_cond_timedwait(&_cond, &_lock, &ts);
+
+    if (_terminating)
+    {
+      break;
+    }
+
+    _resolver->resolve(_realm, "", _max_peers, targets, ttl);
+
+    for (std::vector<AddrInfo>::iterator i = targets.begin();
+         i != targets.end();
+         i++)
+    {
+      Diameter::Peer* peer = new Diameter::Peer(*i, *i->address, "", 0, this);
+      new_peers.push_back(peer);
+    }
+
+    // If we currently have too many connections, remove some.
+    for (std::vector<Diameter::Peer*>::reverse_iterator ri = _peers.rbegin();
+         (ri != _peers.rend()) && ((int)_peers.size() > _max_peers);
+         ++ri)
+    {
+      if (std::find(new_peers.begin(), new_peers.end(), *ri) == new_peers.end())
+      {
+        _peers.erase(std::remove(_peers.begin(), _peers.end(), *ri), _peers.end());
+        _stack->remove(*ri);
+      }
+    }
+    
+    // Now connect to any peers returned by the DNS resolver which we
+    // weren't already connected to.
+    for (std::vector<Diameter::Peer*>::iterator i = new_peers.begin();
+         i != new_peers.end();
+         i++)
+    {
+      if (std::find(_peers.begin(), _peers.end(), *i) == new_peers.end())
+      {
+        _peers.push_back(*i);
+        _stack->add(*i);
+      }
+    }
+  }
+
+  // Terminating so remove all peers
+  for (std::vector<Diameter::Peer*>::iterator i = _peers.begin();
+       i != _peers.end();
+       i++)
+  {
+    _stack->remove(*i);
+  }
+
+  _peers.clear();
+
+  pthread_mutex_unlock(&_lock);
+}
+
+std::string RealmManager::ip_addr_to_host(IP46Address ip_addr)
+{
+  if (ip_addr.af == AF_INET)
+  {
+    char host[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &ip_addr.addr.ipv6, host, INET_ADDRSTRLEN);
+  }
+  else if (ip_addr.af == AF_INET6)
+  {
+    char host[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, &ip_addr.addr.ipv6, host, INET6_ADDRSTRLEN);
+  }
 }

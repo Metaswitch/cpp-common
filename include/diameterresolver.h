@@ -49,7 +49,8 @@ public:
   void resolve(const std::string& realm,
                const std::string& host,
                int max_targets,
-               std::vector<AddrInfo>& targets);
+               std::vector<AddrInfo>& targets,
+               int& ttl);
 
   static const int DEFAULT_PORT = 3868;
   static const int DEFAULT_TRANSPORT = IPPROTO_SCTP;

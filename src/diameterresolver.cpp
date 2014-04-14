@@ -72,9 +72,11 @@ DiameterResolver::~DiameterResolver()
 void DiameterResolver::resolve(const std::string& realm,
                                const std::string& host,
                                int max_targets,
-                               std::vector<AddrInfo>& targets)
+                               std::vector<AddrInfo>& targets,
+                               int& ttl)
 {
   targets.clear();
+  ttl = 0;
 
   AddrInfo ai;
   int transport = DEFAULT_TRANSPORT;
@@ -89,7 +91,7 @@ void DiameterResolver::resolve(const std::string& realm,
     // Realm is specified, so do a NAPTR lookup for the target.
     LOG_DEBUG("Do NAPTR look-up for %s", realm.c_str());
 
-    NAPTRReplacement* naptr = _naptr_cache->get(realm);
+    NAPTRReplacement* naptr = _naptr_cache->get(realm, ttl);
 
     if (naptr != NULL)
     {
@@ -131,6 +133,7 @@ void DiameterResolver::resolve(const std::string& realm,
         LOG_DEBUG("TCP SRV lookup successful, select TCP transport");
         transport = IPPROTO_TCP;
         srv_name = tcp_result.domain();
+        ttl = tcp_result.ttl();
       }
       else if (!sctp_result.records().empty())
       {
@@ -138,6 +141,7 @@ void DiameterResolver::resolve(const std::string& realm,
         LOG_DEBUG("SCTP SRV lookup successful, select SCTP transport");
         transport = IPPROTO_SCTP;
         srv_name = sctp_result.domain();
+        ttl = sctp_result.ttl();
       }
     }
 

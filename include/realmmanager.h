@@ -59,6 +59,8 @@ public:
 private:
   void thread_function();
   static void* thread_function(void* realm_manager_ptr);
+  
+  std::string ip_addr_to_host(IP46Address ip_addr);
 
   Diameter::Stack* _stack;
   std::string _realm;
@@ -68,6 +70,7 @@ private:
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
   std::vector<Diameter::Peer*> _peers;
+  volatile bool _terminating;
 };
 
 #endif

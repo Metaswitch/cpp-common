@@ -111,7 +111,7 @@ public:
   }
 
   /// Get or create an entry in the cache.
-  V get(K key)
+  V get(K key, int& ttl)
   {
     pthread_mutex_lock(&_lock);
 
@@ -135,7 +135,6 @@ public:
         // Release the global lock and invoke the factory to populate the
         // cache data.
         pthread_mutex_unlock(&_lock);
-        int ttl;
         entry.data = _factory->get(key, ttl);
 
         // Cache data should now be populated, so get the global lock again,

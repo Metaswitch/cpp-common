@@ -335,6 +335,7 @@ void Stack::add(Peer* peer)
   fd_list_init(&info.pi_endpoints, NULL);
   info.pi_diamid = strdup(peer->host().c_str());
   info.pi_diamidlen = peer->host().length();
+  info.config.pic_flags.diamid = PI_DIAMID_DYN;
   info.config.pic_port = peer->addr_info().port;
   info.config.pic_flags.pro4 = PI_P4_TCP;
   if (peer->realm() != "")
