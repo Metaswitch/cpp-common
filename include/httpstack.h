@@ -293,8 +293,8 @@ private:
   int _num_threads;
 
   AccessLogger* _access_logger;
-  LoadMonitor* _load_monitor;
   StatsInterface* _stats;
+  LoadMonitor* _load_monitor;
 
   evbase_t* _evbase;
   evhtp_t* _evhtp;
