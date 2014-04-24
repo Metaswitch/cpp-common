@@ -115,8 +115,8 @@ void HttpStack::configure(const std::string& bind_address,
                           unsigned short bind_port,
                           int num_threads,
                           AccessLogger* access_logger,
-                          HttpStack::StatsInterface* stats,
-                          LoadMonitor* load_monitor)
+                          LoadMonitor* load_monitor,
+                          HttpStack::StatsInterface* stats)
 {
   LOG_STATUS("Configuring HTTP stack");
   LOG_STATUS("  Bind address: %s", bind_address.c_str());
@@ -126,8 +126,8 @@ void HttpStack::configure(const std::string& bind_address,
   _bind_port = bind_port;
   _num_threads = num_threads;
   _access_logger = access_logger;
-  _stats = stats;
   _load_monitor = load_monitor;
+  _stats = stats;
 }
 
 void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* factory)
