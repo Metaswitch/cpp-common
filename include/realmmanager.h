@@ -46,6 +46,7 @@ class RealmManager : public Diameter::PeerListener
 {
 public:
   RealmManager(Diameter::Stack* stack,
+               std::string host,
                std::string realm,
                int max_peers,
                DiameterResolver* resolver);
@@ -54,15 +55,16 @@ public:
   void connection_succeeded(Diameter::Peer* peer);
   void connection_failed(Diameter::Peer* peer);
 
+  static std::string ip_addr_to_hostname(IP46Address ip_addr);
+
   static const int DEFAULT_BLACKLIST_DURATION;
 
 private:
   void thread_function();
   static void* thread_function(void* realm_manager_ptr);
   
-  std::string ip_addr_to_host(IP46Address ip_addr);
-
   Diameter::Stack* _stack;
+  std::string _host;
   std::string _realm;
   int _max_peers;
   pthread_t _thread;

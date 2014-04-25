@@ -38,20 +38,29 @@
 #include "realmmanager.h"
 
 #include <arpa/inet.h>
+#include <boost/algorithm/string/replace.hpp>
 
 const int RealmManager::DEFAULT_BLACKLIST_DURATION = 30;
 
 RealmManager::RealmManager(Diameter::Stack* stack,
+                           std::string host,
                            std::string realm,
                            int max_peers,
                            DiameterResolver* resolver) :
                            _stack(stack),
+                           _host(host),
                            _realm(realm),
                            _max_peers(max_peers),
                            _resolver(resolver),
                            _terminating(false)
 {
   pthread_create(&_thread, NULL, thread_function, this);
+  pthread_mutex_init(&_lock, NULL);
+  pthread_condattr_t cond_attr;
+  pthread_condattr_init(&cond_attr);
+  pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+  pthread_cond_init(&_cond, &cond_attr);
+  pthread_condattr_destroy(&cond_attr);
 }
 
 RealmManager::~RealmManager()
@@ -60,22 +69,28 @@ RealmManager::~RealmManager()
   _terminating = true; 
   pthread_cond_signal(&_cond);
   pthread_mutex_unlock(&_lock);
+  pthread_join(_thread, NULL);
+  pthread_mutex_destroy(&_lock);
+  pthread_cond_destroy(&_cond);
 }
 
 void RealmManager::connection_succeeded(Diameter::Peer* peer)
 {
   LOG_INFO("Connected to peer %s", peer->host().c_str());
-  pthread_mutex_lock(&_lock);
-  pthread_cond_signal(&_cond);
-  pthread_mutex_unlock(&_lock);
 }
 
 void RealmManager::connection_failed(Diameter::Peer* peer)
 {
   LOG_ERROR("Failed to connect to peer %s", peer->host().c_str());
-  _peers.erase(std::remove(_peers.begin(), _peers.end(), peer), _peers.end());
-  _resolver->blacklist(peer->addr_info(), DEFAULT_BLACKLIST_DURATION);
   pthread_mutex_lock(&_lock);
+  std::vector<Diameter::Peer*>::iterator ii = std::find(_peers.begin(), _peers.end(), peer);
+  if (ii != _peers.end())
+  {
+    _peers.erase(ii);
+  }
+  _resolver->blacklist(peer->addr_info(), DEFAULT_BLACKLIST_DURATION);
+  delete peer;
+
   pthread_cond_signal(&_cond);
   pthread_mutex_unlock(&_lock);
 }
@@ -92,7 +107,9 @@ void RealmManager::thread_function()
   int ttl;
   struct timespec ts;
   _resolver->resolve(_realm, "", _max_peers, targets, ttl);
-  std::vector<Diameter::Peer*> new_peers;
+  ttl = std::max(1, ttl);
+  std::vector<std::string> new_peers;
+  bool ret;
 
   pthread_mutex_lock(&_lock);
 
@@ -100,83 +117,182 @@ void RealmManager::thread_function()
        i != targets.end();
        i++)
   {
-    Diameter::Peer* peer = new Diameter::Peer(*i, "", _realm, 0, this);
-    _peers.push_back(peer);
-    _stack->add(peer);
+    Diameter::Peer* peer = new Diameter::Peer(*i, ip_addr_to_hostname((*i).address), _realm, 0, this);
+    LOG_DEBUG("Adding peer: %s", peer->host().c_str());
+    ret = _stack->add(peer);
+    if (ret)
+    {
+      _peers.push_back(peer);
+    }
+    else
+    {
+      delete peer;
+    }
   }
 
   while (true)
   {
-    clock_gettime(CLOCK_REALTIME, &ts);
-    ts.tv_nsec += (ttl % 1000) * 1000 * 1000;
-    ts.tv_sec += ttl / 1000 + ts.tv_nsec / (1000 * 1000 * 1000);
-    ts.tv_nsec = ts.tv_nsec % (1000 * 1000 * 1000);
+    // Convert the ttl (in ms) into a timespec structure.
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    ts.tv_sec += ttl;
     pthread_cond_timedwait(&_cond, &_lock, &ts);
 
+    // We've been signalled because we're terminating.
     if (_terminating)
     {
       break;
     }
 
     _resolver->resolve(_realm, "", _max_peers, targets, ttl);
+    ttl = std::max(1, ttl);
 
-    for (std::vector<AddrInfo>::iterator i = targets.begin();
-         i != targets.end();
-         i++)
+    for (std::vector<AddrInfo>::iterator ii = targets.begin();
+         ii != targets.end();
+         ii++)
     {
-      Diameter::Peer* peer = new Diameter::Peer(*i, *i->address, "", 0, this);
-      new_peers.push_back(peer);
+      new_peers.push_back(ip_addr_to_hostname((*ii).address));
     }
 
-    // If we currently have too many connections, remove some.
-    for (std::vector<Diameter::Peer*>::reverse_iterator ri = _peers.rbegin();
-         (ri != _peers.rend()) && ((int)_peers.size() > _max_peers);
-         ++ri)
+    // If we currently have too many connections, remove some. This can be because
+    // the resolver hasn't returned enough results this time around.
+    for (std::vector<Diameter::Peer*>::iterator ii = _peers.begin();
+         (ii != _peers.end()) && (((int)_peers.size() > _max_peers) || ((int)new_peers.size() < _max_peers));
+         )
     {
-      if (std::find(new_peers.begin(), new_peers.end(), *ri) == new_peers.end())
+      if (std::find(new_peers.begin(), new_peers.end(), (*ii)->host()) == new_peers.end())
       {
-        _peers.erase(std::remove(_peers.begin(), _peers.end(), *ri), _peers.end());
-        _stack->remove(*ri);
+        Diameter::Peer* peer = *ii;
+        LOG_DEBUG("Removing peer: %s", peer->host().c_str());
+        ii = _peers.erase(ii);
+        _stack->remove(peer);
+        delete (peer);
+      }
+      else
+      {
+        ii++;
       }
     }
     
     // Now connect to any peers returned by the DNS resolver which we
     // weren't already connected to.
-    for (std::vector<Diameter::Peer*>::iterator i = new_peers.begin();
-         i != new_peers.end();
-         i++)
+    for (std::vector<AddrInfo>::iterator ii = targets.begin();
+         ii != targets.end();
+         ii++)
     {
-      if (std::find(_peers.begin(), _peers.end(), *i) == new_peers.end())
+      std::string hostname = ip_addr_to_hostname((*ii).address);
+      bool found = false;
+      for (std::vector<Diameter::Peer*>::iterator jj = _peers.begin();
+           jj != _peers.end();
+           ++jj)
       {
-        _peers.push_back(*i);
-        _stack->add(*i);
+        if ((*jj)->host() == hostname)
+        {
+          found = true;
+          break;
+        }
+      }
+
+      if (!found)
+      {
+        Diameter::Peer* peer = new Diameter::Peer(*ii, hostname, _realm, 0, this);
+        LOG_DEBUG("Adding peer: %s", peer->host().c_str());
+        ret = _stack->add(peer);
+        if (ret)
+        {
+          _peers.push_back(peer);
+        }
+        else
+        {
+          LOG_DEBUG("Peer already exists: %s", peer->host().c_str());
+          delete peer;
+        }
       }
     }
+
+    new_peers.clear();
   }
 
   // Terminating so remove all peers
-  for (std::vector<Diameter::Peer*>::iterator i = _peers.begin();
-       i != _peers.end();
-       i++)
+  for (std::vector<Diameter::Peer*>::iterator ii = _peers.begin();
+       ii != _peers.end();
+       ii++)
   {
-    _stack->remove(*i);
+    _stack->remove(*ii);
+    delete (*ii);
   }
-
+  // This _peers vector contains rubbish at this point, don't use it.
   _peers.clear();
 
   pthread_mutex_unlock(&_lock);
 }
 
-std::string RealmManager::ip_addr_to_host(IP46Address ip_addr)
+std::string RealmManager::ip_addr_to_hostname(IP46Address ip_addr)
 {
+  std::string hostname;
+
+  // Use inet_ntop to convert the in_addr/in6_addr structure to a
+  // string representation of the address. For IPv4 addresses, this
+  // is all we need to do. IPv6 addresses contains colons which are
+  // not valid characters in hostnames. Instead, we convert the
+  // IPv6 address into it's unique reverse lookup form. For example,
+  // 2001:dc8::1 becomes
+  // 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.c.d.0.1.0.0.2.ip6.arpa.
   if (ip_addr.af == AF_INET)
   {
-    char host[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &ip_addr.addr.ipv6, host, INET_ADDRSTRLEN);
+    char ipv4_addr[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &ip_addr.addr.ipv6, ipv4_addr, INET_ADDRSTRLEN);
+    hostname = ipv4_addr;
   }
   else if (ip_addr.af == AF_INET6)
   {
-    char host[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, &ip_addr.addr.ipv6, host, INET6_ADDRSTRLEN);
+    char ipv6_addr[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6, &ip_addr.addr.ipv6, ipv6_addr, INET6_ADDRSTRLEN);
+    std::string ipv6_addr_str(ipv6_addr);
+
+    // Reverse the order of the IPv6 address.
+    std::reverse(ipv6_addr_str.begin(), ipv6_addr_str.end());
+
+    // Count the number of : - we need to know this because '0000' gets
+    // compressed and we need to know how many times this has
+    // happened.
+    size_t n = std::count(ipv6_addr_str.begin(), ipv6_addr_str.end(), ':');
+
+    // Extract all the hex digits from the IPv6 address into a temporary string
+    // and pad out with 0s as appropriate.
+    std::string temp_str;
+    while (ipv6_addr_str.find(':') != std::string::npos)
+    {
+      temp_str.append(ipv6_addr_str.substr(0, ipv6_addr_str.find_first_of(':') - 1));
+      while (temp_str.length() % 4 != 0)
+      {
+        temp_str.push_back('0');
+      }
+      ipv6_addr_str.erase(0, ipv6_addr_str.find_first_of(':'));
+
+      // If the next character is still : then the compression has happened
+      // here.
+      if (ipv6_addr_str[0] == ':')
+      {
+        for (size_t i = 0; i < (8 - n); i++)
+        {
+          temp_str.append("0000");
+        }
+        ipv6_addr_str.erase(0, 1);
+      }
+    }
+
+    // Move into hostname and add a . between each character.
+    std::string hostname;
+    hostname.push_back(temp_str[0]);
+    for (size_t i = 1; i < temp_str.length(); i++)
+    {
+      hostname.push_back('.');
+      hostname.push_back(temp_str[i]);
+    }
+
+    // Add the ending.
+    hostname.append(".ip6.arpa");
   }
+
+  return hostname;
 }

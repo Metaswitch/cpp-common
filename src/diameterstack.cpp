@@ -87,36 +87,37 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
   {
     LOG_ERROR("Unexpected hook type on callback from freeDiameter: %d", type);
   }
-  else if (peer != NULL)
+  else if (peer == NULL)
   {
     LOG_ERROR("No peer supplied on callback of type %d", type);
   }
   else
   {
     DiamId_t host = peer->info.pi_diamid;
-    std::vector<Peer*>::iterator i;
-    for (i = _peers.begin();
-         i != _peers.end();
-         i++)
+    std::vector<Peer*>::iterator ii;
+    for (ii = _peers.begin();
+         ii != _peers.end();
+         ii++)
     {
-      if ((*i)->host().compare(host) == 0)
+      if ((*ii)->host().compare(host) == 0)
       {
         if (type == HOOK_PEER_CONNECT_SUCCESS)
         {
           LOG_DEBUG("Successfully connected to %s", host);
-          (*i)->listener()->connection_succeeded(*i);
+          (*ii)->listener()->connection_succeeded(*ii);
           break;
         }
         else if (type == HOOK_PEER_CONNECT_FAILED)
         {
           LOG_DEBUG("Failed to connect to %s", host);
-          (*i)->listener()->connection_failed(*i);
+          _peers.erase(ii);
+          (*ii)->listener()->connection_failed(*ii);
           break;
         }
       }
     }
   
-    if (i == _peers.end())
+    if (ii == _peers.end())
     {
       // Peer not found.
       LOG_DEBUG("Unexpected host on callback (type %d) from freeDiameter: %s", type, host);
@@ -327,7 +328,7 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
   fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
 }
 
-void Stack::add(Peer* peer)
+bool Stack::add(Peer* peer)
 {
   // Set up the peer information structure.
   struct peer_info info;
@@ -338,6 +339,7 @@ void Stack::add(Peer* peer)
   info.config.pic_flags.diamid = PI_DIAMID_DYN;
   info.config.pic_port = peer->addr_info().port;
   info.config.pic_flags.pro4 = PI_P4_TCP;
+  info.config.pic_flags.sec = PI_SEC_NONE;
   if (peer->realm() != "")
   {
     info.config.pic_realm = strdup(peer->realm().c_str());
@@ -375,16 +377,28 @@ void Stack::add(Peer* peer)
   }
 
   // Add the peer in freeDiameter.  The second parameter is just a debug string.
-  fd_peer_add(&info, "Diameter::Stack", NULL, NULL);
-
-  // Add this peer to our list.
-  _peers.push_back(peer);
+  int rc = fd_peer_add(&info, "Diameter::Stack", NULL, NULL);
+  if (rc != 0)
+  {
+    LOG_ERROR("Peer already exists");
+    return false;
+  }
+  else
+  {
+    // Add this peer to our list.
+    _peers.push_back(peer);
+    return true;
+  }
 }
 
 void Stack::remove(Peer* peer)
 {
   // Remove the peer from _peers.
-  _peers.erase(std::remove(_peers.begin(), _peers.end(), peer), _peers.end());
+  std::vector<Diameter::Peer*>::iterator ii = std::find(_peers.begin(), _peers.end(), peer);
+  if (ii != _peers.end())
+  {
+    _peers.erase(ii);
+  }
   std::string host = peer->host();
   fd_peer_remove((char*)host.c_str(), host.length());
 }

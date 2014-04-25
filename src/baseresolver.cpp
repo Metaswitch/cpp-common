@@ -126,8 +126,11 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
                                int transport,
                                int retries,
                                std::vector<AddrInfo>& targets,
+
                                SAS::TrailId trail)
 {
+  int dummy;
+
   // Accumulate blacklisted targets in case they are needed.
   std::vector<AddrInfo> blacklisted_targets;
 
@@ -137,7 +140,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   // Find/load the relevant SRV priority list from the cache.  This increments
   // a reference, so the list cannot be updated until we have finished with
   // it.
-  SRVPriorityList* srv_list = _srv_cache->get(srv_name);
+  SRVPriorityList* srv_list = _srv_cache->get(srv_name, dummy);
 
   std::string targetlist_str;
   std::string blacklist_str;
