@@ -147,6 +147,13 @@ void RealmManager::thread_function()
     ttl = std::max(5, ttl);
     ttl = std::min(300, ttl);
 
+    for (std::vector<AddrInfo>::iterator ii = targets.begin();
+         ii != targets.end();
+         ii++)
+    {
+      new_peers.push_back(ip_addr_to_hostname((*ii).address));
+    }
+
     // If we currently have too many connected peers, remove some. This can be because
     // the resolver hasn't returned enough results this time around.
     for (std::vector<Diameter::Peer*>::iterator ii = _peers.begin();
