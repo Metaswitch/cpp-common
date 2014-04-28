@@ -128,7 +128,7 @@ DnsResult DnsCachedResolver::dns_query(const std::string& domain,
   // Expire any cache entries that have passed their TTL.
   expire_cache();
 
-  std::shared_ptr<DnsCacheEntry> ce = get_cache_entry(domain, dnstype);
+  DnsCacheEntry* ce = get_cache_entry(domain, dnstype);
 
   if (ce == NULL)
   {
@@ -211,7 +211,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
 
       // Create an empty record for this cache entry.
       LOG_DEBUG("Create cache entry pending query");
-      std::shared_ptr<DnsCacheEntry> ce = create_cache_entry(*i, dnstype);
+      DnsCacheEntry* ce = create_cache_entry(*i, dnstype);
 
       if (channel == NULL)
       {
@@ -251,7 +251,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
        i != domains.end();
        ++i)
   {
-    std::shared_ptr<DnsCacheEntry> ce = get_cache_entry(*i, dnstype);
+    DnsCacheEntry* ce = get_cache_entry(*i, dnstype);
 
     if (ce != NULL)
     {
@@ -300,7 +300,7 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   LOG_DEBUG("Adding cache entry %s %s",
             domain.c_str(), DnsRRecord::rrtype_to_string(dnstype).c_str());
 
-  std::shared_ptr<DnsCacheEntry> ce = get_cache_entry(domain, dnstype);
+  DnsCacheEntry* ce = get_cache_entry(domain, dnstype);
 
   if (ce == NULL)
   {
@@ -339,12 +339,13 @@ std::string DnsCachedResolver::display_cache()
        i != _cache.end();
        ++i)
   {
-    oss << "Cache entry " << i->second.get()->domain
-        << " type=" << DnsRRecord::rrtype_to_string(i->second.get()->dnstype)
-        << " expires=" << i->second.get()->expires-now << std::endl;
+    DnsCacheEntry* ce = i->second.get();
+    oss << "Cache entry " << ce->domain
+        << " type=" << DnsRRecord::rrtype_to_string(ce->dnstype)
+        << " expires=" << ce->expires-now << std::endl;
 
-    for (std::vector<DnsRRecord*>::const_iterator j = i->second.get()->records.begin();
-         j != i->second.get()->records.end();
+    for (std::vector<DnsRRecord*>::const_iterator j = ce->records.begin();
+         j != ce->records.end();
          ++j)
     {
       oss << (*j)->to_string() << std::endl;
@@ -361,10 +362,11 @@ void DnsCachedResolver::clear()
   while (!_cache.empty())
   {
     DnsCache::iterator i = _cache.begin();
+    DnsCacheEntry* ce = i->second.get();
     LOG_DEBUG("Deleting cache entry %s %s",
-              i->second.get()->domain.c_str(),
-              DnsRRecord::rrtype_to_string(i->second.get()->dnstype).c_str());
-    clear_cache_entry(i->second);
+              ce->domain.c_str(),
+              DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
+    clear_cache_entry(ce);
     _cache.erase(i);
   }
 }
@@ -382,7 +384,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
             domain.c_str(), DnsRRecord::rrtype_to_string(dnstype).c_str());
 
   // Find the relevant node in the cache.
-  std::shared_ptr< DnsCacheEntry > ce = get_cache_entry(domain, dnstype);
+  DnsCacheEntry* ce = get_cache_entry(domain, dnstype);
 
   // Note that if the request failed or the response failed to parse the expiry
   // time in the cache record is left unchanged.  If it is an existing record
@@ -449,7 +451,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
            i != sorted.end();
            ++i)
       {
-        std::shared_ptr<DnsCacheEntry> ace = get_cache_entry(i->first.second, i->first.first);
+        DnsCacheEntry* ace = get_cache_entry(i->first.second, i->first.first);
         if (ace == NULL)
         {
           // No existing cache entry, so create one.
@@ -500,34 +502,34 @@ bool DnsCachedResolver::caching_enabled(int rrtype)
 }
 
 /// Finds an existing cache entry for the specified domain name and NS type.
-std::shared_ptr<DnsCachedResolver::DnsCacheEntry> DnsCachedResolver::get_cache_entry(const std::string& domain, int dnstype)
+DnsCachedResolver::DnsCacheEntry* DnsCachedResolver::get_cache_entry(const std::string& domain, int dnstype)
 {
   DnsCache::iterator i = _cache.find(std::make_pair(dnstype, domain));
 
   if (i != _cache.end())
   {
-    return i->second;
+    return i->second.get();
   }
 
   return NULL;
 }
 
 /// Creates a new empty cache entry for the specified domain name and NS type.
-std::shared_ptr<DnsCachedResolver::DnsCacheEntry> DnsCachedResolver::create_cache_entry(const std::string& domain, int dnstype)
+DnsCachedResolver::DnsCacheEntry* DnsCachedResolver::create_cache_entry(const std::string& domain, int dnstype)
 {
-  std::shared_ptr<DnsCacheEntry> ce = std::shared_ptr<DnsCacheEntry>(new DnsCacheEntry());
-  _cache[std::make_pair(dnstype, domain)] = ce;
-  pthread_mutex_init(&ce.get()->lock, NULL);
-  ce.get()->domain = domain;
-  ce.get()->dnstype = dnstype;
-  ce.get()->expires = 0;
-  ce.get()->pending_query = false;
+  DnsCacheEntry* ce = new DnsCacheEntry();
+  pthread_mutex_init(&ce->lock, NULL);
+  ce->domain = domain;
+  ce->dnstype = dnstype;
+  ce->expires = 0;
+  ce->pending_query = false;
+  _cache[std::make_pair(dnstype, domain)] = std::shared_ptr<DnsCacheEntry>(ce);
 
   return ce;
 }
 
 /// Adds the cache entry to the expiry list.
-void DnsCachedResolver::add_to_expiry_list(std::shared_ptr<DnsCacheEntry> ce)
+void DnsCachedResolver::add_to_expiry_list(DnsCacheEntry* ce)
 {
   LOG_DEBUG("Adding %s to cache expiry list with expiry time of %d", ce->domain.c_str(), ce->expires);
   _cache_expiry_list.insert(std::make_pair(ce->expires, std::make_pair(ce->dnstype, ce->domain)));
@@ -551,12 +553,13 @@ void DnsCachedResolver::expire_cache()
     // Check that the record really is due for expiry and hasn't been
     // refreshed or already deleted.
     DnsCache::iterator j = _cache.find(i->second);
-    if ((j != _cache.end()) && (j->second.get()->expires == i->first))
+    DnsCacheEntry* ce = j->second.get();
+    if ((j != _cache.end()) && (ce->expires == i->first))
     {
-      clear_cache_entry(j->second);
+      clear_cache_entry(ce);
       // Record really is ready to expire, so remove it from the main cache
       // map.
-      LOG_DEBUG("Expiring record for %s (type %d) from the DNS cache", j->second.get()->domain.c_str(), j->second.get()->dnstype);
+      LOG_DEBUG("Expiring record for %s (type %d) from the DNS cache", ce->domain.c_str(), ce->dnstype);
       _cache.erase(j);
     }
 
@@ -565,7 +568,7 @@ void DnsCachedResolver::expire_cache()
 }
 
 /// Clears all the records from a cache entry.
-void DnsCachedResolver::clear_cache_entry(std::shared_ptr<DnsCacheEntry> ce)
+void DnsCachedResolver::clear_cache_entry(DnsCacheEntry* ce)
 {
   while (!ce->records.empty())
   {
@@ -576,16 +579,16 @@ void DnsCachedResolver::clear_cache_entry(std::shared_ptr<DnsCacheEntry> ce)
 }
 
 /// Adds a DNS RR to a cache entry.
-void DnsCachedResolver::add_record_to_cache(std::shared_ptr<DnsCacheEntry> ce, DnsRRecord* rr)
+void DnsCachedResolver::add_record_to_cache(DnsCacheEntry* ce, DnsRRecord* rr)
 {
   LOG_DEBUG("Adding record to cache entry, TTL=%d, expiry=%ld", rr->ttl(), rr->expires());
-  if ((ce.get()->expires == 0) ||
-      (ce.get()->expires > rr->expires()))
+  if ((ce->expires == 0) ||
+      (ce->expires > rr->expires()))
   {
     LOG_DEBUG("Update cache entry expiry to %ld", rr->expires());
-    ce.get()->expires = rr->expires();
+    ce->expires = rr->expires();
   }
-  ce.get()->records.push_back(rr);
+  ce->records.push_back(rr);
 }
 
 /// Waits for replies to outstanding DNS queries on the specified channel.
