@@ -44,6 +44,7 @@
 #include <map>
 #include <list>
 #include <vector>
+#include <memory>
 
 #include <arpa/nameser.h>
 #include <ares.h>
@@ -153,7 +154,7 @@ private:
   typedef std::pair<int, std::string> DnsCacheKey;
   typedef std::multimap<int, DnsCacheKey> DnsCacheExpiryList;
   typedef std::map<DnsCacheKey,
-                   DnsCacheEntry,
+                   std::shared_ptr<DnsCacheEntry>,
                    DnsCacheKeyCompare> DnsCache;
 
   void dns_response(const std::string& domain,
