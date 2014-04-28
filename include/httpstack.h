@@ -244,8 +244,8 @@ public:
                          unsigned short port,
                          int num_threads,
                          AccessLogger* access_logger = NULL,
-                         StatsInterface* stats = NULL,
-                         LoadMonitor* load_monitor = NULL);
+                         LoadMonitor* load_monitor = NULL,
+                         StatsInterface* stats = NULL);
   virtual void register_handler(char* path, BaseHandlerFactory* factory);
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();

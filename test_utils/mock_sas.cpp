@@ -49,25 +49,18 @@ void mock_sas_collect_messages(bool collect)
   }
 }
 
-void record_message(const SAS::Message& sas_message, bool is_marker)
+void record_message(bool is_marker,
+                    uint32_t id,
+                    const std::vector<uint32_t>& static_params,
+                    const std::vector<std::string>& var_params)
 {
   if (_collect_messages)
   {
     MockSASMessage mock_msg;
     mock_msg.marker = is_marker;
-    mock_msg.id = sas_message._msg.hdr.id;
-
-    for (uint32_t i = 0; i < sas_message._msg.hdr.static_data_len / sizeof(uint32_t); ++i)
-    {
-      mock_msg.static_params.push_back(sas_message._msg.static_data[i]);
-    }
-
-    for (uint32_t i = 0; i < sas_message._msg.hdr.num_var_data; ++i)
-    {
-      mock_msg.var_params.push_back(
-        std::string((char*)sas_message._msg.var_data[i].ptr,
-                    sas_message._msg.var_data[i].len));
-    }
+    mock_msg.id = id;
+    mock_msg.static_params = static_params;
+    mock_msg.var_params = var_params;
 
     mock_sas_messages.push_back(mock_msg);
   }
@@ -107,10 +100,10 @@ SAS::TrailId SAS::new_trail(uint32_t instance)
 
 void SAS::report_event(const SAS::Event& event)
 {
-  record_message(event, false);
+  record_message(false, event._id, event._static_params, event._var_params);
 }
 
 void SAS::report_marker(const SAS::Marker& marker, Marker::Scope scope)
 {
-  record_message(marker, true);
+  record_message(true, marker._id, marker._static_params, marker._var_params);
 }

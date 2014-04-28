@@ -53,7 +53,7 @@ public:
 
   virtual HTTPCode send_delete(const std::string& delete_id,
                                SAS::TrailId trail);
-  virtual HTTPCode send_put(const std::string& put_identity,
+  virtual HTTPCode send_put(std::string& put_identity,
                             uint32_t timer_interval,
                             uint32_t repeat_for,
                             const std::string& callback_uri,
@@ -67,7 +67,7 @@ public:
                              SAS::TrailId trail);
 
   // Versions without repeat_for (i.e. timers that only fire once)
-  virtual HTTPCode send_put(const std::string& put_identity,
+  virtual HTTPCode send_put(std::string& put_identity,
                             uint32_t timer_interval,
                             const std::string& callback_uri,
                             const std::string& opaque_data,
@@ -84,7 +84,7 @@ private:
                           uint32_t repeat_for,
                           const std::string& callback_uri,
                           const std::string& opaque_data);
-
+  std::string get_location_header(std::map<std::string, std::string> headers);
   HttpConnection* _http;
 };
 

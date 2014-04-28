@@ -157,7 +157,6 @@ void LastValueCache::run()
     items[_statcount].revents = 0;
 
     // Poll for an event
-    //LOG_DEBUG("Poll for %d items", _statcount + 1);
     int rc = zmq_poll(items, _statcount + 1, _poll_timeout_ms);
     assert(rc >= 0 || errno == EINTR);
 
