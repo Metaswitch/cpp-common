@@ -621,6 +621,7 @@ public:
 
   bool add(Peer* peer);
   void remove(Peer* peer);
+  void remove_int(Peer* peer);
 
 private:
   static Stack* INSTANCE;

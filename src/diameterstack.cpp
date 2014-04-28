@@ -96,6 +96,7 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
   else
   {
     DiamId_t host = peer->info.pi_diamid;
+    DiamId_t realm = peer->info.runtime.pir_realm;
     pthread_mutex_lock(&_peers_lock);
     std::vector<Peer*>::iterator ii;
     for (ii = _peers.begin();
@@ -106,10 +107,19 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
       {
         if (type == HOOK_PEER_CONNECT_SUCCESS)
         {
-          LOG_DEBUG("Successfully connected to %s", host);
-          (*ii)->listener()->connection_succeeded(*ii);
-          (*ii)->set_connected();
-          break;
+          if ((*ii)->realm().compare(realm) == 0)
+          {
+            LOG_DEBUG("Successfully connected to %s", host);
+            (*ii)->listener()->connection_succeeded(*ii);
+            (*ii)->set_connected();
+          }
+          else
+          {
+            LOG_DEBUG("Connected to %s in wrong realm, disconnect", host);
+            Diameter::Peer* stack_peer = (*ii);
+            remove_int(stack_peer);
+            (stack_peer)->listener()->connection_failed(stack_peer);
+          }
         }
         else if (type == HOOK_PEER_CONNECT_FAILED)
         {
@@ -117,8 +127,8 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
           Diameter::Peer* stack_peer = (*ii);
           _peers.erase(ii);
           stack_peer->listener()->connection_failed(stack_peer);
-          break;
         }
+        break;
       }
     }
   
@@ -401,15 +411,20 @@ bool Stack::add(Peer* peer)
 
 void Stack::remove(Peer* peer)
 {
-  // Remove the peer from _peers.
   pthread_mutex_lock(&_peers_lock);
+  remove_int(peer);
+  pthread_mutex_unlock(&_peers_lock);
+}
+
+void Stack::remove_int(Peer* peer)
+{
+  // Remove the peer from _peers.
   std::vector<Diameter::Peer*>::iterator ii = std::find(_peers.begin(), _peers.end(), peer);
   if (ii != _peers.end())
   {
     _peers.erase(ii);
   }
   std::string host = peer->host();
-  pthread_mutex_unlock(&_peers_lock);
   fd_peer_remove((char*)host.c_str(), host.length());
 }
 
