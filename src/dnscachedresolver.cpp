@@ -172,10 +172,12 @@ DnsResult DnsCachedResolver::dns_query(const std::string& domain,
     pthread_mutex_unlock(&ce->lock);
     pthread_mutex_lock(&_cache_lock);
   }
+
   LOG_DEBUG("Pulling %d records from cache for %s %s",
             ce->records.size(),
             ce->domain.c_str(),
             DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
+
   DnsResult result(ce->domain,
                    ce->dnstype,
                    ce->records,
@@ -271,6 +273,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                 ce->records.size(),
                 ce->domain.c_str(),
                 DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
+
       results.push_back(DnsResult(ce->domain,
                                   ce->dnstype,
                                   ce->records,
@@ -316,6 +319,7 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   {
     add_record_to_cache(ce, records[ii]);
   }
+
   records.clear();
 
   // Finally make sure the record is in the expiry list.
@@ -335,15 +339,16 @@ std::string DnsCachedResolver::display_cache()
        i != _cache.end();
        ++i)
   {
-    const DnsCacheEntry& ce = i->second;
-    oss << "Cache entry " << ce.domain
-        << " type=" << DnsRRecord::rrtype_to_string(ce.dnstype)
-        << " expires=" << ce.expires-now << std::endl;
-    for (std::vector<DnsRRecord*>::const_iterator i = ce.records.begin();
-         i != ce.records.end();
-         ++i)
+    DnsCacheEntry* ce = i->second.get();
+    oss << "Cache entry " << ce->domain
+        << " type=" << DnsRRecord::rrtype_to_string(ce->dnstype)
+        << " expires=" << ce->expires-now << std::endl;
+
+    for (std::vector<DnsRRecord*>::const_iterator j = ce->records.begin();
+         j != ce->records.end();
+         ++j)
     {
-      oss << (*i)->to_string() << std::endl;
+      oss << (*j)->to_string() << std::endl;
     }
   }
   pthread_mutex_unlock(&_cache_lock);
@@ -357,10 +362,11 @@ void DnsCachedResolver::clear()
   while (!_cache.empty())
   {
     DnsCache::iterator i = _cache.begin();
+    DnsCacheEntry* ce = i->second.get();
     LOG_DEBUG("Deleting cache entry %s %s",
-              i->second.domain.c_str(),
-              DnsRRecord::rrtype_to_string(i->second.dnstype).c_str());
-    clear_cache_entry(&i->second);
+              ce->domain.c_str(),
+              DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
+    clear_cache_entry(ce);
     _cache.erase(i);
   }
 }
@@ -498,26 +504,28 @@ bool DnsCachedResolver::caching_enabled(int rrtype)
 /// Finds an existing cache entry for the specified domain name and NS type.
 DnsCachedResolver::DnsCacheEntry* DnsCachedResolver::get_cache_entry(const std::string& domain, int dnstype)
 {
-  DnsCacheEntry* ce = NULL;
   DnsCache::iterator i = _cache.find(std::make_pair(dnstype, domain));
 
   if (i != _cache.end())
   {
-    ce = &(i->second);
+    return i->second.get();
   }
-  return ce;
+
+  return NULL;
 }
 
 /// Creates a new empty cache entry for the specified domain name and NS type.
 DnsCachedResolver::DnsCacheEntry* DnsCachedResolver::create_cache_entry(const std::string& domain, int dnstype)
 {
-  DnsCacheEntry& ce = _cache[std::make_pair(dnstype, domain)];
-  pthread_mutex_init(&ce.lock, NULL);
-  ce.domain = domain;
-  ce.dnstype = dnstype;
-  ce.expires = 0;
-  ce.pending_query = false;
-  return &ce;
+  DnsCacheEntry* ce = new DnsCacheEntry();
+  pthread_mutex_init(&ce->lock, NULL);
+  ce->domain = domain;
+  ce->dnstype = dnstype;
+  ce->expires = 0;
+  ce->pending_query = false;
+  _cache[std::make_pair(dnstype, domain)] = std::shared_ptr<DnsCacheEntry>(ce);
+
+  return ce;
 }
 
 /// Adds the cache entry to the expiry list.
@@ -545,12 +553,13 @@ void DnsCachedResolver::expire_cache()
     // Check that the record really is due for expiry and hasn't been
     // refreshed or already deleted.
     DnsCache::iterator j = _cache.find(i->second);
-    if ((j != _cache.end()) && (j->second.expires == i->first))
+    DnsCacheEntry* ce = j->second.get();
+    if ((j != _cache.end()) && (ce->expires == i->first))
     {
-      clear_cache_entry(&(j->second));
+      clear_cache_entry(ce);
       // Record really is ready to expire, so remove it from the main cache
       // map.
-      LOG_DEBUG("Expiring record for %s (type %d) from the DNS cache", j->second.domain.c_str(), j->second.dnstype);
+      LOG_DEBUG("Expiring record for %s (type %d) from the DNS cache", ce->domain.c_str(), ce->dnstype);
       _cache.erase(j);
     }
 
