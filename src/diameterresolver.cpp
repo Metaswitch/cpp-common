@@ -76,6 +76,7 @@ void DiameterResolver::resolve(const std::string& realm,
                                int& ttl)
 {
   targets.clear();
+  int new_ttl = 0;
   ttl = 0;
 
   AddrInfo ai;
@@ -133,7 +134,7 @@ void DiameterResolver::resolve(const std::string& realm,
         LOG_DEBUG("TCP SRV lookup successful, select TCP transport");
         transport = IPPROTO_TCP;
         srv_name = tcp_result.domain();
-        ttl = tcp_result.ttl();
+        ttl = std::min(ttl, tcp_result.ttl());
       }
       else if (!sctp_result.records().empty())
       {
@@ -141,7 +142,7 @@ void DiameterResolver::resolve(const std::string& realm,
         LOG_DEBUG("SCTP SRV lookup successful, select SCTP transport");
         transport = IPPROTO_SCTP;
         srv_name = sctp_result.domain();
-        ttl = sctp_result.ttl();
+        ttl = std::min(ttl, sctp_result.ttl());
       }
     }
 
@@ -151,12 +152,14 @@ void DiameterResolver::resolve(const std::string& realm,
     if (srv_name != "")
     {
       LOG_DEBUG("Do SRV lookup for %s", srv_name.c_str());
-      srv_resolve(srv_name, _af, transport, max_targets, targets, 0);
+      srv_resolve(srv_name, _af, transport, max_targets, targets, new_ttl, 0);
+      ttl = std::min(ttl, new_ttl);
     }
     else if (a_name != "")
     {
       LOG_DEBUG("Do A/AAAA lookup for %s", a_name.c_str());
-      a_resolve(a_name, _af, DEFAULT_PORT, transport, max_targets, targets, 0);
+      a_resolve(a_name, _af, DEFAULT_PORT, transport, max_targets, targets, new_ttl, 0);
+      ttl = std::min(ttl, new_ttl);
     }
   }
 
@@ -173,7 +176,7 @@ void DiameterResolver::resolve(const std::string& realm,
     }
     else
     {
-      a_resolve(host, _af, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, 0);
+      a_resolve(host, _af, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, ttl, 0);
     }
   }
 }

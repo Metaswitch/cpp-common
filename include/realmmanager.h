@@ -72,6 +72,7 @@ private:
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
   std::vector<Diameter::Peer*> _peers;
+  std::vector<Diameter::Peer*> _connected_peers;
   volatile bool _terminating;
 };
 

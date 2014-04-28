@@ -485,13 +485,16 @@ public:
        _host(host),
        _realm(realm),
        _idle_time(idle_time),
-       _listener(listener) {}
+       _listener(listener),
+       _connected(false) {}
 
-  const AddrInfo& addr_info() const {return _addr_info;}
-  const std::string& host() const {return _host;}
-  const std::string& realm() const {return _realm;}
-  uint32_t idle_time() const {return _idle_time;}
-  PeerListener* listener() const {return _listener;}
+  inline const AddrInfo& addr_info() const {return _addr_info;}
+  inline const std::string& host() const {return _host;}
+  inline const std::string& realm() const {return _realm;}
+  inline uint32_t idle_time() const {return _idle_time;}
+  inline PeerListener* listener() const {return _listener;}
+  inline const bool& connected() const {return _connected;}
+  inline void set_connected() {_connected = true;}
 
 private:
   AddrInfo _addr_info;
@@ -499,6 +502,7 @@ private:
   std::string _realm;
   uint32_t _idle_time;
   PeerListener* _listener;
+  bool _connected;
 };
 
 class PeerListener
@@ -609,6 +613,7 @@ private:
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
   struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
   std::vector<Peer*> _peers;
+  pthread_mutex_t _peers_lock;
 };
 
 AVP::iterator AVP::begin() const {return AVP::iterator(*this);}

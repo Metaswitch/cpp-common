@@ -45,10 +45,12 @@ Stack Stack::DEFAULT_INSTANCE;
 
 Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
 {
+  pthread_mutex_init(&_peers_lock, NULL);
 }
 
 Stack::~Stack()
 {
+  pthread_mutex_destroy(&_peers_lock);
 }
 
 void Stack::initialize()
@@ -94,6 +96,7 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
   else
   {
     DiamId_t host = peer->info.pi_diamid;
+    pthread_mutex_lock(&_peers_lock);
     std::vector<Peer*>::iterator ii;
     for (ii = _peers.begin();
          ii != _peers.end();
@@ -105,13 +108,15 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
         {
           LOG_DEBUG("Successfully connected to %s", host);
           (*ii)->listener()->connection_succeeded(*ii);
+          (*ii)->set_connected();
           break;
         }
         else if (type == HOOK_PEER_CONNECT_FAILED)
         {
           LOG_DEBUG("Failed to connect to %s", host);
+          Diameter::Peer* stack_peer = (*ii);
           _peers.erase(ii);
-          (*ii)->listener()->connection_failed(*ii);
+          stack_peer->listener()->connection_failed(stack_peer);
           break;
         }
       }
@@ -122,6 +127,7 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
       // Peer not found.
       LOG_DEBUG("Unexpected host on callback (type %d) from freeDiameter: %s", type, host);
     }
+    pthread_mutex_unlock(&_peers_lock);
   }
   return;
 }
@@ -386,7 +392,9 @@ bool Stack::add(Peer* peer)
   else
   {
     // Add this peer to our list.
+    pthread_mutex_lock(&_peers_lock);
     _peers.push_back(peer);
+    pthread_mutex_unlock(&_peers_lock);
     return true;
   }
 }
@@ -394,12 +402,14 @@ bool Stack::add(Peer* peer)
 void Stack::remove(Peer* peer)
 {
   // Remove the peer from _peers.
+  pthread_mutex_lock(&_peers_lock);
   std::vector<Diameter::Peer*>::iterator ii = std::find(_peers.begin(), _peers.end(), peer);
   if (ii != _peers.end())
   {
     _peers.erase(ii);
   }
   std::string host = peer->host();
+  pthread_mutex_unlock(&_peers_lock);
   fd_peer_remove((char*)host.c_str(), host.length());
 }
 

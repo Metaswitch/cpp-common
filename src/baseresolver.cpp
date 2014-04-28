@@ -126,11 +126,9 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
                                int transport,
                                int retries,
                                std::vector<AddrInfo>& targets,
-
+                               int& ttl,
                                SAS::TrailId trail)
 {
-  int dummy;
-
   // Accumulate blacklisted targets in case they are needed.
   std::vector<AddrInfo> blacklisted_targets;
 
@@ -140,7 +138,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   // Find/load the relevant SRV priority list from the cache.  This increments
   // a reference, so the list cannot be updated until we have finished with
   // it.
-  SRVPriorityList* srv_list = _srv_cache->get(srv_name, dummy);
+  SRVPriorityList* srv_list = _srv_cache->get(srv_name, ttl);
 
   std::string targetlist_str;
   std::string blacklist_str;
@@ -222,6 +220,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             blacklist.push_back(ai.address);
           }
         }
+
+        ttl = std::min(ttl, a_result.ttl());
 
         // Randomize the order of both vectors.
         std::random_shuffle(active.begin(), active.end());
@@ -341,6 +341,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
                              int transport,
                              int retries,
                              std::vector<AddrInfo>& targets,
+                             int& ttl,
                              SAS::TrailId trail)
 {
   // Clear the list of targets just in case.
@@ -351,6 +352,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
 
   // Do A/AAAA lookup.
   DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa);
+  ttl = result.ttl();
 
   // Randomize the records in the result.
   LOG_DEBUG("Found %ld A/AAAA records, randomizing", result.records().size());
