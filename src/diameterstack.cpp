@@ -661,24 +661,9 @@ int32_t Message::vendor_id() const
 
 Message& Message::add_session_id(const std::string& session_id)
 {
-  struct session* session;
-
-  // Horrible casting to get round freeDiameter's poor use of types to
-  // represent SIDs.  Although the function doesn't modify the supplied string
-  // it's not marked as const so we aren't allowed to pass session_id.data()
-  // in.
-  //
-  // For bonus points, the session_id is specified as an unsigned char, despite
-  // being ASCII only, so we also have to do a sign-cast.
-  fd_sess_fromsid((uint8_t*)const_cast<char*>(session_id.data()),
-                  session_id.length(),
-                  &session,
-                  NULL);
-  fd_msg_sess_set(_fd_msg, session);
   Diameter::AVP session_id_avp(dict()->SESSION_ID);
   session_id_avp.val_str(session_id);
   add(session_id_avp);
-  fd_sess_reclaim(&session);
   return *this;
 }
 
