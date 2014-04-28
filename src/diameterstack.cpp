@@ -678,6 +678,7 @@ Message& Message::add_session_id(const std::string& session_id)
   Diameter::AVP session_id_avp(dict()->SESSION_ID);
   session_id_avp.val_str(session_id);
   add(session_id_avp);
+  fd_sess_reclaim(&session);
   return *this;
 }
 
