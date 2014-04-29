@@ -211,7 +211,7 @@ void RealmManager::thread_function()
       if (!found)
       {
         Diameter::Peer* peer = new Diameter::Peer(*ii, hostname, _realm, 0, this);
-        LOG_ERROR("Adding peer: %s", peer->host().c_str());
+        LOG_DEBUG("Adding peer: %s", peer->host().c_str());
         ret = _stack->add(peer);
         if (ret)
         {

@@ -103,7 +103,7 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
          ii != _peers.end();
          ii++)
     {
-      if ((*ii)->host().compare(host) == 0)
+      if (((*ii)->host().compare(host) == 0) && ((*ii)->listener()))
       {
         if (type == HOOK_PEER_CONNECT_SUCCESS)
         {
@@ -115,7 +115,7 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
           }
           else
           {
-            LOG_DEBUG("Connected to %s in wrong realm, disconnect", host);
+            LOG_WARNING("Connected to %s in wrong realm, disconnect", host);
             Diameter::Peer* stack_peer = *ii;
             remove_int(stack_peer);
             stack_peer->listener()->connection_failed(stack_peer);
@@ -123,7 +123,7 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
         }
         else if (type == HOOK_PEER_CONNECT_FAILED)
         {
-          LOG_DEBUG("Failed to connect to %s", host);
+          LOG_WARNING("Failed to connect to %s", host);
           Diameter::Peer* stack_peer = *ii;
           _peers.erase(ii);
           stack_peer->listener()->connection_failed(stack_peer);
@@ -352,8 +352,15 @@ bool Stack::add(Peer* peer)
   fd_list_init(&info.pi_endpoints, NULL);
   info.pi_diamid = strdup(peer->host().c_str());
   info.pi_diamidlen = peer->host().length();
-  info.config.pic_flags.diamid = PI_DIAMID_DYN;
-  info.config.pic_port = peer->addr_info().port;
+  if (peer->addr_info_specified())
+  {
+    info.config.pic_flags.diamid = PI_DIAMID_DYN;
+    info.config.pic_port = peer->addr_info().port;
+  }
+  else
+  {
+    info.config.pic_flags.persist = PI_PRST_ALWAYS;
+  }
   info.config.pic_flags.pro4 = PI_P4_TCP;
   info.config.pic_flags.sec = PI_SEC_NONE;
   if (peer->realm() != "")
@@ -372,31 +379,43 @@ bool Stack::add(Peer* peer)
   memset(endpoint, 0, sizeof(struct fd_endpoint));
   fd_list_init(&endpoint->chain, &endpoint);
   endpoint->flags = EP_FL_DISC;
-  if (peer->addr_info().address.af == AF_INET)
+  if (peer->addr_info_specified())
   {
-    endpoint->sin.sin_family = AF_INET;
-    endpoint->sin.sin_addr.s_addr = peer->addr_info().address.addr.ipv4.s_addr;
-    fd_list_insert_before(&info.pi_endpoints, &endpoint->chain);
-  }
-  else if (peer->addr_info().address.af == AF_INET6)
-  {
-    endpoint->sin6.sin6_family = AF_INET6;
-    memcpy(&endpoint->sin6.sin6_addr,
-           &peer->addr_info().address.addr.ipv6,
-           sizeof(struct sockaddr_in6));
-    fd_list_insert_before(&info.pi_endpoints, &endpoint->chain);
-  }
-  else
-  {
-    LOG_ERROR("Unrecognized address family %d - omitting endpoint", peer->addr_info().address.af);
-    free(endpoint);
+    if (peer->addr_info().address.af == AF_INET)
+    {
+      endpoint->sin.sin_family = AF_INET;
+      endpoint->sin.sin_addr.s_addr = peer->addr_info().address.addr.ipv4.s_addr;
+      fd_list_insert_before(&info.pi_endpoints, &endpoint->chain);
+    }
+    else if (peer->addr_info().address.af == AF_INET6)
+    {
+      endpoint->sin6.sin6_family = AF_INET6;
+      memcpy(&endpoint->sin6.sin6_addr,
+             &peer->addr_info().address.addr.ipv6,
+             sizeof(struct sockaddr_in6));
+      fd_list_insert_before(&info.pi_endpoints, &endpoint->chain);
+    }
+    else
+    {
+      LOG_ERROR("Unrecognized address family %d - omitting endpoint", peer->addr_info().address.af);
+    }
   }
 
   // Add the peer in freeDiameter.  The second parameter is just a debug string.
   int rc = fd_peer_add(&info, "Diameter::Stack", NULL, NULL);
+
+  free(info.pi_diamid);
+  free(info.config.pic_realm);
+  while (!FD_IS_LIST_EMPTY(&info.pi_endpoints))
+  {
+    struct fd_list * li = info.pi_endpoints.next;
+    fd_list_unlink(li);
+    free(li);
+  }
+
   if (rc != 0)
   {
-    LOG_ERROR("Peer already exists");
+    LOG_INFO("Peer already exists");
     return false;
   }
   else
