@@ -221,6 +221,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
           }
         }
 
+        // Take the smallest ttl returned so far.
         ttl = std::min(ttl, a_result.ttl());
 
         // Randomize the order of both vectors.

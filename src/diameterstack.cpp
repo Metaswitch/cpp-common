@@ -87,7 +87,7 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
   if ((type != HOOK_PEER_CONNECT_SUCCESS) &&
       (type != HOOK_PEER_CONNECT_FAILED))
   {
-    LOG_ERROR("Unexpected hook type on callback from freeDiameter: %d", type);
+    LOG_WARNING("Unexpected hook type on callback from freeDiameter: %d", type);
   }
   else if (peer == NULL)
   {
@@ -116,15 +116,15 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
           else
           {
             LOG_DEBUG("Connected to %s in wrong realm, disconnect", host);
-            Diameter::Peer* stack_peer = (*ii);
+            Diameter::Peer* stack_peer = *ii;
             remove_int(stack_peer);
-            (stack_peer)->listener()->connection_failed(stack_peer);
+            stack_peer->listener()->connection_failed(stack_peer);
           }
         }
         else if (type == HOOK_PEER_CONNECT_FAILED)
         {
           LOG_DEBUG("Failed to connect to %s", host);
-          Diameter::Peer* stack_peer = (*ii);
+          Diameter::Peer* stack_peer = *ii;
           _peers.erase(ii);
           stack_peer->listener()->connection_failed(stack_peer);
         }
@@ -135,7 +135,7 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
     if (ii == _peers.end())
     {
       // Peer not found.
-      LOG_DEBUG("Unexpected host on callback (type %d) from freeDiameter: %s", type, host);
+      LOG_ERROR("Unexpected host on callback (type %d) from freeDiameter: %s", type, host);
     }
     pthread_mutex_unlock(&_peers_lock);
   }

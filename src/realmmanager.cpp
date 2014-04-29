@@ -42,12 +42,10 @@
 const int RealmManager::DEFAULT_BLACKLIST_DURATION = 30;
 
 RealmManager::RealmManager(Diameter::Stack* stack,
-                           std::string host,
                            std::string realm,
                            int max_peers,
                            DiameterResolver* resolver) :
                            _stack(stack),
-                           _host(host),
                            _realm(realm),
                            _max_peers(max_peers),
                            _resolver(resolver),
@@ -168,7 +166,7 @@ void RealmManager::thread_function()
 
     for (std::vector<Diameter::Peer*>::iterator ii = connected_peers.begin();
          (ii != connected_peers.end()) && (((int)connected_peers.size() > _max_peers) || ((int)new_peers.size() < _max_peers));
-         )
+        )
     {
       if (std::find(new_peers.begin(), new_peers.end(), (*ii)->host()) == new_peers.end())
       {
@@ -190,7 +188,7 @@ void RealmManager::thread_function()
     }
 
     connected_peers.clear();
-    
+
     // Now connect to any peers returned by the DNS resolver which we
     // weren't already connected to.
     for (std::vector<AddrInfo>::iterator ii = targets.begin();
