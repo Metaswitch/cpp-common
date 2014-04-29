@@ -56,7 +56,7 @@ public:
   static const int DEFAULT_TRANSPORT = IPPROTO_SCTP;
 
 private:
-  int _af;
+  int _address_family;
 };
 
 #endif

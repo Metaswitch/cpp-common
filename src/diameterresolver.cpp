@@ -38,9 +38,9 @@
 #include "diameterresolver.h"
 
 DiameterResolver::DiameterResolver(DnsCachedResolver* dns_client,
-                                   int af) :
+                                   int address_family) :
   BaseResolver(dns_client),
-  _af(af)
+  _address_family(address_family)
 {
   LOG_DEBUG("Creating Diameter resolver");
 
@@ -85,7 +85,7 @@ void DiameterResolver::resolve(const std::string& realm,
   std::string a_name;
 
   LOG_DEBUG("DiameterResolver::resolve for realm %s, host %s, family %d",
-            realm.c_str(), host.c_str(), _af);
+            realm.c_str(), host.c_str(), _address_family);
 
   if (realm != "")
   {
@@ -152,13 +152,13 @@ void DiameterResolver::resolve(const std::string& realm,
     if (srv_name != "")
     {
       LOG_DEBUG("Do SRV lookup for %s", srv_name.c_str());
-      srv_resolve(srv_name, _af, transport, max_targets, targets, new_ttl, 0);
+      srv_resolve(srv_name, _address_family, transport, max_targets, targets, new_ttl, 0);
       ttl = std::min(ttl, new_ttl);
     }
     else if (a_name != "")
     {
       LOG_DEBUG("Do A/AAAA lookup for %s", a_name.c_str());
-      a_resolve(a_name, _af, DEFAULT_PORT, transport, max_targets, targets, new_ttl, 0);
+      a_resolve(a_name, _address_family, DEFAULT_PORT, transport, max_targets, targets, new_ttl, 0);
       ttl = std::min(ttl, new_ttl);
     }
   }
@@ -176,7 +176,7 @@ void DiameterResolver::resolve(const std::string& realm,
     }
     else
     {
-      a_resolve(host, _af, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, ttl, 0);
+      a_resolve(host, _address_family, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, ttl, 0);
     }
   }
 }

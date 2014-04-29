@@ -263,53 +263,14 @@ std::string RealmManager::ip_addr_to_hostname(IP46Address ip_addr)
   }
   else if (ip_addr.af == AF_INET6)
   {
-    char ipv6_addr[INET6_ADDRSTRLEN];
-    inet_ntop(AF_INET6, &ip_addr.addr.ipv6, ipv6_addr, INET6_ADDRSTRLEN);
-    std::string ipv6_addr_str(ipv6_addr);
-
-    // Reverse the order of the IPv6 address.
-    std::reverse(ipv6_addr_str.begin(), ipv6_addr_str.end());
-
-    // Count the number of : - we need to know this because '0000' gets
-    // compressed and we need to know how many times this has
-    // happened.
-    size_t n = std::count(ipv6_addr_str.begin(), ipv6_addr_str.end(), ':');
-
-    // Extract all the hex digits from the IPv6 address into a temporary string
-    // and pad out with 0s as appropriate.
-    std::string temp_str;
-    while (ipv6_addr_str.find(':') != std::string::npos)
+    char buf[100];
+    char* p = buf;
+    for (int ii = 15; ii >= 0; ii--)
     {
-      temp_str.append(ipv6_addr_str.substr(0, ipv6_addr_str.find_first_of(':') - 1));
-      while (temp_str.length() % 4 != 0)
-      {
-        temp_str.push_back('0');
-      }
-      ipv6_addr_str.erase(0, ipv6_addr_str.find_first_of(':'));
-
-      // If the next character is still : then the compression has happened
-      // here.
-      if (ipv6_addr_str[0] == ':')
-      {
-        for (size_t i = 0; i < (8 - n); i++)
-        {
-          temp_str.append("0000");
-        }
-        ipv6_addr_str.erase(0, 1);
-      }
+      p += snprintf(p, 100 - (p - buf), "%x.%x.", ip_addr.addr.ipv6.s6_addr[ii] & 0xF, ip_addr.addr.ipv6.s6_addr[ii] >> 4);
     }
-
-    // Move into hostname and add a . between each character.
-    std::string hostname;
-    hostname.push_back(temp_str[0]);
-    for (size_t i = 1; i < temp_str.length(); i++)
-    {
-      hostname.push_back('.');
-      hostname.push_back(temp_str[i]);
-    }
-
-    // Add the ending.
-    hostname.append(".ip6.arpa");
+    hostname = std::string(buf, p - buf);
+    hostname += "ip6.arpa";
   }
 
   return hostname;

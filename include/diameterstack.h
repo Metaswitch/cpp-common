@@ -621,7 +621,6 @@ public:
 
   bool add(Peer* peer);
   void remove(Peer* peer);
-  void remove_int(Peer* peer);
 
 private:
   static Stack* INSTANCE;
@@ -647,6 +646,8 @@ private:
   struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
+
+  void remove_int(Peer* peer);
 };
 
 AVP::iterator AVP::begin() const {return AVP::iterator(*this);}

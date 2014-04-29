@@ -55,13 +55,13 @@ public:
   void connection_succeeded(Diameter::Peer* peer);
   void connection_failed(Diameter::Peer* peer);
 
-  static std::string ip_addr_to_hostname(IP46Address ip_addr);
-
   static const int DEFAULT_BLACKLIST_DURATION;
 
 private:
   void thread_function();
   static void* thread_function(void* realm_manager_ptr);
+
+  static std::string ip_addr_to_hostname(IP46Address ip_addr);
   
   Diameter::Stack* _stack;
   std::string _host;
