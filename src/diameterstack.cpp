@@ -103,30 +103,33 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
          ii != _peers.end();
          ii++)
     {
-      if (((*ii)->host().compare(host) == 0) && ((*ii)->listener()))
+      if ((*ii)->host().compare(host) == 0)
       {
-        if (type == HOOK_PEER_CONNECT_SUCCESS)
+        if ((*ii)->listener())
         {
-          if ((*ii)->realm().compare(realm) == 0)
+          if (type == HOOK_PEER_CONNECT_SUCCESS)
           {
-            LOG_DEBUG("Successfully connected to %s", host);
-            (*ii)->listener()->connection_succeeded(*ii);
-            (*ii)->set_connected();
+            if ((*ii)->realm().compare(realm) == 0)
+            {
+              LOG_DEBUG("Successfully connected to %s", host);
+              (*ii)->listener()->connection_succeeded(*ii);
+              (*ii)->set_connected();
+            }
+            else
+            {
+              LOG_WARNING("Connected to %s in wrong realm, disconnect", host);
+              Diameter::Peer* stack_peer = *ii;
+              remove_int(stack_peer);
+              stack_peer->listener()->connection_failed(stack_peer);
+            }
           }
-          else
+          else if (type == HOOK_PEER_CONNECT_FAILED)
           {
-            LOG_WARNING("Connected to %s in wrong realm, disconnect", host);
+            LOG_WARNING("Failed to connect to %s", host);
             Diameter::Peer* stack_peer = *ii;
-            remove_int(stack_peer);
+            _peers.erase(ii);
             stack_peer->listener()->connection_failed(stack_peer);
           }
-        }
-        else if (type == HOOK_PEER_CONNECT_FAILED)
-        {
-          LOG_WARNING("Failed to connect to %s", host);
-          Diameter::Peer* stack_peer = *ii;
-          _peers.erase(ii);
-          stack_peer->listener()->connection_failed(stack_peer);
         }
         break;
       }
