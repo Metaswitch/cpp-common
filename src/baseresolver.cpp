@@ -126,6 +126,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
                                int transport,
                                int retries,
                                std::vector<AddrInfo>& targets,
+                               int& ttl,
                                SAS::TrailId trail)
 {
   // Accumulate blacklisted targets in case they are needed.
@@ -137,7 +138,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   // Find/load the relevant SRV priority list from the cache.  This increments
   // a reference, so the list cannot be updated until we have finished with
   // it.
-  SRVPriorityList* srv_list = _srv_cache->get(srv_name);
+  SRVPriorityList* srv_list = _srv_cache->get(srv_name, ttl);
 
   std::string targetlist_str;
   std::string blacklist_str;
@@ -220,6 +221,9 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
           }
         }
 
+        // Take the smallest ttl returned so far.
+        ttl = std::min(ttl, a_result.ttl());
+
         // Randomize the order of both vectors.
         std::random_shuffle(active.begin(), active.end());
         std::random_shuffle(blacklist.begin(), blacklist.end());
@@ -280,7 +284,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
         // We have enough targets so don't move to the next priority level.
         if (trail != 0)
         {
-          SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
+          SAS::Event event(trail, SASEvent::BASERESOLVE_SRV_RESULT, 0);
           event.add_var_param(srv_name);
           event.add_var_param(targetlist_str);
           event.add_var_param(blacklist_str);
@@ -320,7 +324,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
 
   if (trail != 0)
   {
-    SAS::Event event(trail, SASEvent::SIPRESOLVE_SRV_RESULT, 0);
+    SAS::Event event(trail, SASEvent::BASERESOLVE_SRV_RESULT, 0);
     event.add_var_param(srv_name);
     event.add_var_param(targetlist_str);
     event.add_var_param(blacklist_str);
@@ -338,6 +342,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
                              int transport,
                              int retries,
                              std::vector<AddrInfo>& targets,
+                             int& ttl,
                              SAS::TrailId trail)
 {
   // Clear the list of targets just in case.
@@ -348,6 +353,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
 
   // Do A/AAAA lookup.
   DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa);
+  ttl = result.ttl();
 
   // Randomize the records in the result.
   LOG_DEBUG("Found %ld A/AAAA records, randomizing", result.records().size());
@@ -387,7 +393,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
 
       if (trail != 0)
       {
-        SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
+        SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
         event.add_var_param(hostname);
         event.add_var_param(targetlist_str);
         event.add_var_param(blacklist_str);
@@ -425,7 +431,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
 
   if (trail != 0)
   {
-    SAS::Event event(trail, SASEvent::SIPRESOLVE_A_RESULT, 0);
+    SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
     event.add_var_param(hostname);
     event.add_var_param(targetlist_str);
     event.add_var_param(blacklist_str);

@@ -46,6 +46,7 @@
 
 #include "utils.h"
 #include "sas.h"
+#include "baseresolver.h"
 
 namespace Diameter
 {
@@ -53,6 +54,7 @@ class Stack;
 class Transaction;
 class AVP;
 class Message;
+class PeerListener;
 
 class Dictionary
 {
@@ -503,6 +505,59 @@ private:
   AVP _avp;
 };
 
+class Peer
+{
+public:
+  Peer(const std::string& host,
+       const std::string& realm = "",
+       uint32_t idle_time = 0,
+       PeerListener* listener = NULL) :
+       _addr_info_specified(false),
+       _host(host),
+       _realm(realm),
+       _idle_time(idle_time),
+       _listener(listener),
+       _connected(false) {}
+
+  Peer(AddrInfo addr_info,
+       const std::string& host,
+       const std::string& realm = "",
+       uint32_t idle_time = 0,
+       PeerListener* listener = NULL) :
+       _addr_info(addr_info),
+       _addr_info_specified(true),
+       _host(host),
+       _realm(realm),
+       _idle_time(idle_time),
+       _listener(listener),
+       _connected(false) {}
+
+  inline const AddrInfo& addr_info() const {return _addr_info;}
+  inline const bool& addr_info_specified() const {return _addr_info_specified;}
+  inline const std::string& host() const {return _host;}
+  inline const std::string& realm() const {return _realm;}
+  inline uint32_t idle_time() const {return _idle_time;}
+  inline PeerListener* listener() const {return _listener;}
+  inline const bool& connected() const {return _connected;}
+  inline void set_connected() {_connected = true;}
+
+private:
+  AddrInfo _addr_info;
+  bool _addr_info_specified;
+  std::string _host;
+  std::string _realm;
+  uint32_t _idle_time;
+  PeerListener* _listener;
+  bool _connected;
+};
+
+class PeerListener
+{
+public:
+  virtual void connection_succeeded(Peer* peer) = 0;
+  virtual void connection_failed(Peer* peer) = 0;
+};
+
 class Stack
 {
 public:
@@ -578,6 +633,9 @@ public:
   virtual void send(struct msg* fd_msg, Transaction* tsx);
   virtual void send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms);
 
+  bool add(Peer* peer);
+  void remove(Peer* peer);
+
 private:
   static Stack* INSTANCE;
   static Stack DEFAULT_INSTANCE;
@@ -593,9 +651,17 @@ private:
 
   static void logger(int fd_log_level, const char* fmt, va_list args);
 
+  void fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
+  static void fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
+
   bool _initialized;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
+  struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
+  std::vector<Peer*> _peers;
+  pthread_mutex_t _peers_lock;
+
+  void remove_int(Peer* peer);
 };
 
 AVP::iterator AVP::begin() const {return AVP::iterator(*this);}

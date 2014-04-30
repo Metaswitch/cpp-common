@@ -130,6 +130,7 @@ protected:
                    int transport,
                    int retries,
                    std::vector<AddrInfo>& targets,
+                   int& ttl,
                    SAS::TrailId trail);
 
   /// Does an A/AAAA record resolution for the specified name, selecting
@@ -140,6 +141,7 @@ protected:
                  int transport,
                  int retries,
                  std::vector<AddrInfo>& targets,
+                 int& ttl,
                  SAS::TrailId trail);
 
   /// Parses a target name to see if it is a valid IPv4 or IPv6 address.

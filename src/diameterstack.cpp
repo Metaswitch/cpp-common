@@ -45,10 +45,12 @@ Stack Stack::DEFAULT_INSTANCE;
 
 Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
 {
+  pthread_mutex_init(&_peers_lock, NULL);
 }
 
 Stack::~Stack()
 {
+  pthread_mutex_destroy(&_peers_lock);
 }
 
 void Stack::initialize()
@@ -68,8 +70,79 @@ void Stack::initialize()
     {
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
+    rc = fd_hook_register(HOOK_MASK(HOOK_PEER_CONNECT_SUCCESS, HOOK_PEER_CONNECT_FAILED),
+                          fd_hook_cb, this, NULL, &_peer_cb_hdlr);
     _initialized = true;
   }
+}
+
+void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr)
+{
+  ((Diameter::Stack*)stack_ptr)->fd_hook_cb(type, msg, peer, other, pmd);
+}
+
+void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd)
+{
+  // Check the type first.  We can't rely on peer being set if it's not the right type.
+  if ((type != HOOK_PEER_CONNECT_SUCCESS) &&
+      (type != HOOK_PEER_CONNECT_FAILED))
+  {
+    LOG_WARNING("Unexpected hook type on callback from freeDiameter: %d", type);
+  }
+  else if (peer == NULL)
+  {
+    LOG_ERROR("No peer supplied on callback of type %d", type);
+  }
+  else
+  {
+    DiamId_t host = peer->info.pi_diamid;
+    DiamId_t realm = peer->info.runtime.pir_realm;
+    pthread_mutex_lock(&_peers_lock);
+    std::vector<Peer*>::iterator ii;
+    for (ii = _peers.begin();
+         ii != _peers.end();
+         ii++)
+    {
+      if ((*ii)->host().compare(host) == 0)
+      {
+        if ((*ii)->listener())
+        {
+          if (type == HOOK_PEER_CONNECT_SUCCESS)
+          {
+            if ((*ii)->realm().compare(realm) == 0)
+            {
+              LOG_DEBUG("Successfully connected to %s", host);
+              (*ii)->listener()->connection_succeeded(*ii);
+              (*ii)->set_connected();
+            }
+            else
+            {
+              LOG_WARNING("Connected to %s in wrong realm, disconnect", host);
+              Diameter::Peer* stack_peer = *ii;
+              remove_int(stack_peer);
+              stack_peer->listener()->connection_failed(stack_peer);
+            }
+          }
+          else if (type == HOOK_PEER_CONNECT_FAILED)
+          {
+            LOG_WARNING("Failed to connect to %s", host);
+            Diameter::Peer* stack_peer = *ii;
+            _peers.erase(ii);
+            stack_peer->listener()->connection_failed(stack_peer);
+          }
+        }
+        break;
+      }
+    }
+  
+    if (ii == _peers.end())
+    {
+      // Peer not found.
+      LOG_ERROR("Unexpected host on callback (type %d) from freeDiameter: %s", type, host);
+    }
+    pthread_mutex_unlock(&_peers_lock);
+  }
+  return;
 }
 
 void Stack::configure(std::string filename)
@@ -194,6 +267,11 @@ void Stack::stop()
       (void)fd_disp_unregister(&_callback_fallback_handler, NULL);
     }
 
+    if (_peer_cb_hdlr)
+    {
+      fd_hook_unregister(_peer_cb_hdlr);
+    }
+
     int rc = fd_core_shutdown();
     if (rc != 0)
     {
@@ -267,6 +345,109 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
   fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
+}
+
+bool Stack::add(Peer* peer)
+{
+  // Set up the peer information structure.
+  struct peer_info info;
+  memset(&info, 0, sizeof(struct peer_info));
+  fd_list_init(&info.pi_endpoints, NULL);
+  info.pi_diamid = strdup(peer->host().c_str());
+  info.pi_diamidlen = peer->host().length();
+  if (peer->addr_info_specified())
+  {
+    info.config.pic_flags.diamid = PI_DIAMID_DYN;
+    info.config.pic_port = peer->addr_info().port;
+  }
+  else
+  {
+    info.config.pic_flags.persist = PI_PRST_ALWAYS;
+  }
+  info.config.pic_flags.pro4 = PI_P4_TCP;
+  info.config.pic_flags.sec = PI_SEC_NONE;
+  if (peer->realm() != "")
+  {
+    info.config.pic_realm = strdup(peer->realm().c_str());
+  }
+  if (peer->idle_time() != 0)
+  {
+    info.config.pic_lft = peer->idle_time();
+    info.config.pic_flags.exp = PI_EXP_INACTIVE;
+  }
+
+  // Fill in and insert the endpoint.  Note that this needs to be malloc-ed
+  // (not new-ed) because it will be free-d by freeDiameter.
+  struct fd_endpoint* endpoint = (struct fd_endpoint*)malloc(sizeof(struct fd_endpoint));
+  memset(endpoint, 0, sizeof(struct fd_endpoint));
+  fd_list_init(&endpoint->chain, &endpoint);
+  endpoint->flags = EP_FL_DISC;
+  if (peer->addr_info_specified())
+  {
+    if (peer->addr_info().address.af == AF_INET)
+    {
+      endpoint->sin.sin_family = AF_INET;
+      endpoint->sin.sin_addr.s_addr = peer->addr_info().address.addr.ipv4.s_addr;
+      fd_list_insert_before(&info.pi_endpoints, &endpoint->chain);
+    }
+    else if (peer->addr_info().address.af == AF_INET6)
+    {
+      endpoint->sin6.sin6_family = AF_INET6;
+      memcpy(&endpoint->sin6.sin6_addr,
+             &peer->addr_info().address.addr.ipv6,
+             sizeof(struct sockaddr_in6));
+      fd_list_insert_before(&info.pi_endpoints, &endpoint->chain);
+    }
+    else
+    {
+      LOG_ERROR("Unrecognized address family %d - omitting endpoint", peer->addr_info().address.af);
+    }
+  }
+
+  // Add the peer in freeDiameter.  The second parameter is just a debug string.
+  int rc = fd_peer_add(&info, "Diameter::Stack", NULL, NULL);
+
+  free(info.pi_diamid);
+  free(info.config.pic_realm);
+  while (!FD_IS_LIST_EMPTY(&info.pi_endpoints))
+  {
+    struct fd_list * li = info.pi_endpoints.next;
+    fd_list_unlink(li);
+    free(li);
+  }
+
+  if (rc != 0)
+  {
+    LOG_INFO("Peer already exists");
+    return false;
+  }
+  else
+  {
+    // Add this peer to our list.
+    pthread_mutex_lock(&_peers_lock);
+    _peers.push_back(peer);
+    pthread_mutex_unlock(&_peers_lock);
+    return true;
+  }
+}
+
+void Stack::remove(Peer* peer)
+{
+  pthread_mutex_lock(&_peers_lock);
+  remove_int(peer);
+  pthread_mutex_unlock(&_peers_lock);
+}
+
+void Stack::remove_int(Peer* peer)
+{
+  // Remove the peer from _peers.
+  std::vector<Diameter::Peer*>::iterator ii = std::find(_peers.begin(), _peers.end(), peer);
+  if (ii != _peers.end())
+  {
+    _peers.erase(ii);
+  }
+  std::string host = peer->host();
+  fd_peer_remove((char*)host.c_str(), host.length());
 }
 
 struct dict_object* Dictionary::Vendor::find(const std::string vendor)
