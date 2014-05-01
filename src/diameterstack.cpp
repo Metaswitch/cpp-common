@@ -71,17 +71,38 @@ void Stack::initialize()
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_PEER_CONNECT_SUCCESS, HOOK_PEER_CONNECT_FAILED),
-                          fd_hook_cb, this, NULL, &_peer_cb_hdlr);
+                          fd_peer_hook_cb, this, NULL, &_peer_cb_hdlr);
+    if (rc != 0)
+    {
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+    }
+    rc = fd_hook_register(HOOK_MASK(HOOK_DATA_RECEIVED,
+                                    HOOK_MESSAGE_RECEIVED,
+                                    HOOK_MESSAGE_LOCAL,
+                                    HOOK_MESSAGE_SENT,
+                                    HOOK_MESSAGE_ROUTING_FORWARD,
+                                    HOOK_MESSAGE_ROUTING_LOCAL),
+                          fd_null_hook_cb, this, NULL, &_peer_cb_hdlr);
+    if (rc != 0)
+    {
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+    }
+
     _initialized = true;
   }
 }
 
-void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr)
+void Stack::fd_null_hook_cb(enum fd_hook_type type, struct msg * msg, struct peer_hdr * peer, void * other, struct fd_hook_permsgdata *pmd, void * user_data)
 {
-  ((Diameter::Stack*)stack_ptr)->fd_hook_cb(type, msg, peer, other, pmd);
+  // Do nothing
 }
 
-void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd)
+void Stack::fd_peer_hook_cb(enum fd_hook_type type, struct msg * msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr)
+{
+  ((Diameter::Stack*)stack_ptr)->fd_peer_hook_cb(type, msg, peer, other, pmd);
+}
+
+void Stack::fd_peer_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd)
 {
   // Check the type first.  We can't rely on peer being set if it's not the right type.
   if ((type != HOOK_PEER_CONNECT_SUCCESS) &&
