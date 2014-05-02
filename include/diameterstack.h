@@ -628,6 +628,10 @@ public:
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
+  std::map<std::string, std::map<std::string, struct dict_object*>>& avp_map()
+  {
+    return _avp_map;
+  }
 
   virtual void send(struct msg* fd_msg);
   virtual void send(struct msg* fd_msg, Transaction* tsx);
@@ -651,15 +655,25 @@ private:
 
   static void logger(int fd_log_level, const char* fmt, va_list args);
 
-  void fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
-  static void fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
+  static void fd_null_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd, void* user_data);
+
+  void fd_peer_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
+  static void fd_peer_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
 
   bool _initialized;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
   struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
+  struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
+
+  // Map of Vendor->AVP name->AVP dictionary
+  std::map<std::string, std::map<std::string, struct dict_object*>> _avp_map;
+
+  void populate_avp_map();
+  void populate_vendor_map(const std::string& vendor_name,
+                           struct dict_object* vendor_dict);
 
   void remove_int(Peer* peer);
 };
