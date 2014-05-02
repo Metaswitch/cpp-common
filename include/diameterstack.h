@@ -660,6 +660,7 @@ private:
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
   struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
+  struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
 

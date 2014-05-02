@@ -82,7 +82,7 @@ void Stack::initialize()
                                     HOOK_MESSAGE_SENT,
                                     HOOK_MESSAGE_ROUTING_FORWARD,
                                     HOOK_MESSAGE_ROUTING_LOCAL),
-                          fd_null_hook_cb, this, NULL, &_peer_cb_hdlr);
+                          fd_null_hook_cb, this, NULL, &_null_cb_hdlr);
     if (rc != 0)
     {
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
@@ -291,6 +291,11 @@ void Stack::stop()
     if (_peer_cb_hdlr)
     {
       fd_hook_unregister(_peer_cb_hdlr);
+    }
+
+    if (_null_cb_hdlr)
+    {
+      fd_hook_unregister(_null_cb_hdlr);
     }
 
     int rc = fd_core_shutdown();
