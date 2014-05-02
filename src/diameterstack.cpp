@@ -92,6 +92,63 @@ void Stack::initialize()
   }
 }
 
+void Stack::populate_avp_map()
+{
+  fd_list* vendor_sentinel;
+  fd_dict_getlistof(VENDOR_BY_ID, fd_g_config->cnf_dict, &vendor_sentinel);
+
+  for (fd_list* vend_li = vendor_sentinel->next;
+       vend_li != vendor_sentinel;
+       vend_li = vend_li->next)
+  {
+    struct dict_object* vendor_dict = (struct dict_object*)vend_li->o;
+    struct dict_vendor_data vendor_data;
+    fd_dict_getval(vendor_dict, &vendor_data);
+
+    fd_list* avp_sentinel;
+    fd_dict_getlistof(AVP_BY_NAME,
+                      vendor_dict,
+                      &avp_sentinel);
+    for (fd_list* avp_li = avp_sentinel->next;
+         avp_li != avp_sentinel;
+         avp_li = avp_li->next)
+    {
+      struct dict_object * avp_dict = (struct dict_object*)avp_li->o;
+      struct dict_avp_data avp_data;
+      fd_dict_getval(avp_dict, &avp_data);
+      
+      // Add this AVP to this vendor's map entry.
+      _avp_map[vendor_data.vendor_name][avp_data.avp_name] = avp_dict;
+    }
+  }
+
+  // Repeat for vendor 0 (which isn't found by fd_dict_getlistof).
+  struct dict_object* vendor_dict;
+  vendor_id_t vendor_id = 0;
+  fd_dict_search(fd_g_config->cnf_dict,
+                 DICT_VENDOR,
+                 VENDOR_BY_ID,
+                 &vendor_id,
+                 &vendor_dict,
+                 ENOENT);
+
+  fd_list* avp_sentinel;
+  fd_dict_getlistof(AVP_BY_NAME,
+                    vendor_dict,
+                    &avp_sentinel);
+  for (fd_list* avp_li = avp_sentinel->next;
+       avp_li != avp_sentinel;
+       avp_li = avp_li->next)
+  {
+    struct dict_object * avp_dict = (struct dict_object*)avp_li->o;
+    struct dict_avp_data avp_data;
+    fd_dict_getval(avp_dict, &avp_data);
+
+    // Add this AVP to this vendor's map entry.
+    _avp_map[""][avp_data.avp_name] = avp_dict;
+  }
+}
+
 void Stack::fd_null_hook_cb(enum fd_hook_type type, struct msg * msg, struct peer_hdr * peer, void * other, struct fd_hook_permsgdata *pmd, void * user_data)
 {
   // Do nothing
@@ -175,6 +232,7 @@ void Stack::configure(std::string filename)
   {
     throw Exception("fd_core_parseconf", rc); // LCOV_EXCL_LINE
   }
+  populate_avp_map();
 }
 
 void Stack::advertize_application(const Dictionary::Application& app)
@@ -511,37 +569,12 @@ struct dict_object* Dictionary::Message::find(const std::string message)
 
 struct dict_object* Dictionary::AVP::find(const std::string avp)
 {
-  struct dict_object* dict;
-  fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, avp.c_str(), &dict, ENOENT);
-  if (dict == NULL)
-  {
-    throw Diameter::Stack::Exception(avp.c_str(), 0); // LCOV_EXCL_LINE
-  }
-  return dict;
+  return Stack::get_instance()->avp_map()[""][avp];
 }
 
 struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::string avp)
 {
-  struct dict_avp_request avp_req;
-  if (!vendor.empty())
-  {
-    struct dict_object* vendor_dict = Dictionary::Vendor::find(vendor);
-    struct dict_vendor_data vendor_data;
-    fd_dict_getval(vendor_dict, &vendor_data);
-    avp_req.avp_vendor = vendor_data.vendor_id;
-  }
-  else
-  {
-    avp_req.avp_vendor = 0;
-  }
-  avp_req.avp_name = (char*)avp.c_str();
-  struct dict_object* dict;
-  fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &dict, ENOENT);
-  if (dict == NULL)
-  {
-    throw Diameter::Stack::Exception(avp.c_str(), 0); // LCOV_EXCL_LINE
-  }
-  return dict;
+  return Stack::get_instance()->avp_map()[vendor][avp];
 }
 
 struct dict_object* Dictionary::AVP::find(const std::vector<std::string>& vendors, const std::string avp)
@@ -551,21 +584,7 @@ struct dict_object* Dictionary::AVP::find(const std::vector<std::string>& vendor
        vendor != vendors.end();
        ++vendor)
   {
-    struct dict_avp_request avp_req;
-
-    if (!vendor->empty())
-    {
-      struct dict_object* vendor_dict = Dictionary::Vendor::find(*vendor);
-      struct dict_vendor_data vendor_data;
-      fd_dict_getval(vendor_dict, &vendor_data);
-      avp_req.avp_vendor = vendor_data.vendor_id;
-    }
-    else
-    {
-      avp_req.avp_vendor = 0;
-    }
-    avp_req.avp_name = (char*)avp.c_str();
-    fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &dict, ENOENT);
+    dict = find(*vendor, avp);
     if (dict != NULL)
     {
       break;

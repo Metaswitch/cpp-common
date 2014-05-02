@@ -628,6 +628,10 @@ public:
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
+  std::map<std::string, std::map<std::string, struct dict_object*>>& avp_map()
+  {
+    return _avp_map;
+  }
 
   virtual void send(struct msg* fd_msg);
   virtual void send(struct msg* fd_msg, Transaction* tsx);
@@ -663,6 +667,11 @@ private:
   struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
+
+  // Map of Vendor->AVP name->AVP dictionary
+  std::map<std::string, std::map<std::string, struct dict_object*>> _avp_map;
+
+  void populate_avp_map();
 
   void remove_int(Peer* peer);
 };
