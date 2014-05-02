@@ -672,6 +672,8 @@ private:
   std::map<std::string, std::map<std::string, struct dict_object*>> _avp_map;
 
   void populate_avp_map();
+  void populate_vendor_map(const std::string& vendor_name,
+                           struct dict_object* vendor_dict);
 
   void remove_int(Peer* peer);
 };

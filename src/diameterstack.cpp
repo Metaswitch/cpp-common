@@ -105,21 +105,7 @@ void Stack::populate_avp_map()
     struct dict_vendor_data vendor_data;
     fd_dict_getval(vendor_dict, &vendor_data);
 
-    fd_list* avp_sentinel;
-    fd_dict_getlistof(AVP_BY_NAME,
-                      vendor_dict,
-                      &avp_sentinel);
-    for (fd_list* avp_li = avp_sentinel->next;
-         avp_li != avp_sentinel;
-         avp_li = avp_li->next)
-    {
-      struct dict_object * avp_dict = (struct dict_object*)avp_li->o;
-      struct dict_avp_data avp_data;
-      fd_dict_getval(avp_dict, &avp_data);
-      
-      // Add this AVP to this vendor's map entry.
-      _avp_map[vendor_data.vendor_name][avp_data.avp_name] = avp_dict;
-    }
+    populate_vendor_map(vendor_data.vendor_name, vendor_dict);
   }
 
   // Repeat for vendor 0 (which isn't found by fd_dict_getlistof).
@@ -132,6 +118,12 @@ void Stack::populate_avp_map()
                  &vendor_dict,
                  ENOENT);
 
+  populate_vendor_map("", vendor_dict);
+}
+
+void Stack::populate_vendor_map(const std::string& vendor_name,
+                                struct dict_object* vendor_dict)
+{
   fd_list* avp_sentinel;
   fd_dict_getlistof(AVP_BY_NAME,
                     vendor_dict,
@@ -569,12 +561,25 @@ struct dict_object* Dictionary::Message::find(const std::string message)
 
 struct dict_object* Dictionary::AVP::find(const std::string avp)
 {
-  return Stack::get_instance()->avp_map()[""][avp];
+  return find("", avp);
 }
 
 struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::string avp)
 {
-  return Stack::get_instance()->avp_map()[vendor][avp];
+  Stack* stack = Stack::get_instance();
+  std::map<std::string, std::map<std::string, struct dict_object*>>::iterator vendor_entry;
+  vendor_entry = stack->avp_map().find(vendor);
+  if (vendor_entry != stack->avp_map().end())
+  {
+    // Found the vendor, now find the AVP
+    std::map<std::string, struct dict_object*>::iterator avp_entry;
+    avp_entry = vendor_entry->second.find(avp);
+    if (avp_entry != vendor_entry->second.end())
+    {
+      return avp_entry->second;
+    }
+  }
+  return NULL;
 }
 
 struct dict_object* Dictionary::AVP::find(const std::vector<std::string>& vendors, const std::string avp)
