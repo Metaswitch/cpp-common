@@ -111,6 +111,32 @@ public:
       return _method;
     }
 
+    std::string method_as_str()
+    {
+      switch (method())
+      {
+      case htp_method_GET: return "GET";
+      case htp_method_HEAD: return "HEAD";
+      case htp_method_POST: return "POST";
+      case htp_method_PUT: return "PUT";
+      case htp_method_DELETE: return "DELETE";
+      case htp_method_MKCOL: return "MKCOL";
+      case htp_method_COPY: return "COPY";
+      case htp_method_MOVE: return "MOVE";
+      case htp_method_OPTIONS: return "OPTIONS";
+      case htp_method_PROPFIND: return "PROPFIND";
+      case htp_method_PROPPATCH: return "PROPPATCH";
+      case htp_method_LOCK: return "LOCK";
+      case htp_method_UNLOCK: return "UNLOCK";
+      case htp_method_TRACE: return "TRACE";
+      case htp_method_CONNECT: return "CONNECT";
+      case htp_method_PATCH: return "PATCH";
+      case htp_method_UNKNOWN: return "(unknown method)";
+      default:
+        return std::string("htp_method " + std::to_string(method()));
+      }
+    }
+
     std::string body();
 
     void send_reply(int rc, SAS::TrailId trail);
@@ -253,11 +279,11 @@ public:
   virtual void send_reply(Request& req, int rc, SAS::TrailId trail);
   virtual void record_penalty();
 
-  void log(const std::string uri, int rc)
+  void log(const std::string uri, std::string method, int rc)
   {
     if (_access_logger)
     {
-      _access_logger->log(uri, rc);
+      _access_logger->log(uri, method, rc);
     }
   };
 
@@ -267,6 +293,7 @@ private:
 
   HttpStack();
   virtual ~HttpStack() {}
+  virtual void send_reply_internal(Request& req, int rc, SAS::TrailId trail);
   static void handler_callback_fn(evhtp_request_t* req, void* handler_factory);
   static void* event_base_thread_fn(void* http_stack_ptr);
   void handler_callback(evhtp_request_t* req,

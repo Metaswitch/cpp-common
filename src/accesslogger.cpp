@@ -50,12 +50,14 @@ AccessLogger::~AccessLogger()
 }
 
 void AccessLogger::log(const std::string& uri,
+                       const std::string& method,
                        int rc)
 {
   char buf[BUFFER_SIZE];
   snprintf(buf, sizeof(buf),
-           "%d GET %s\n",
+           "%d %s %s\n",
            rc,
+           method.c_str(),
            uri.c_str());
   _logger->write(buf);
 }
