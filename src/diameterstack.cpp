@@ -137,7 +137,7 @@ void Stack::populate_vendor_map(const std::string& vendor_name,
     fd_dict_getval(avp_dict, &avp_data);
 
     // Add this AVP to this vendor's map entry.
-    _avp_map[""][avp_data.avp_name] = avp_dict;
+    _avp_map[vendor_name][avp_data.avp_name] = avp_dict;
   }
 }
 
