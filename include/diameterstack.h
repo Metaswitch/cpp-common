@@ -38,6 +38,7 @@
 #define DIAMETER_H__
 
 #include <string>
+#include <unordered_map>
 
 #include <freeDiameter/freeDiameter-host.h>
 #include <freeDiameter/libfdcore.h>
@@ -628,7 +629,7 @@ public:
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
-  std::map<std::string, std::map<std::string, struct dict_object*>>& avp_map()
+  std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>>& avp_map()
   {
     return _avp_map;
   }
@@ -669,7 +670,7 @@ private:
   pthread_mutex_t _peers_lock;
 
   // Map of Vendor->AVP name->AVP dictionary
-  std::map<std::string, std::map<std::string, struct dict_object*>> _avp_map;
+  std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>> _avp_map;
 
   void populate_avp_map();
   void populate_vendor_map(const std::string& vendor_name,

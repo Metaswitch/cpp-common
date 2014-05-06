@@ -567,12 +567,12 @@ struct dict_object* Dictionary::AVP::find(const std::string avp)
 struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::string avp)
 {
   Stack* stack = Stack::get_instance();
-  std::map<std::string, std::map<std::string, struct dict_object*>>::iterator vendor_entry;
+  std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>>::iterator vendor_entry;
   vendor_entry = stack->avp_map().find(vendor);
   if (vendor_entry != stack->avp_map().end())
   {
     // Found the vendor, now find the AVP
-    std::map<std::string, struct dict_object*>::iterator avp_entry;
+    std::unordered_map<std::string, struct dict_object*>::iterator avp_entry;
     avp_entry = vendor_entry->second.find(avp);
     if (avp_entry != vendor_entry->second.end())
     {
