@@ -51,6 +51,7 @@ public:
   ~AccessLogger();
 
   void log(const std::string& url,
+           const std::string& method,
            int rc);
 
 private:

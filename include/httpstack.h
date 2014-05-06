@@ -111,6 +111,23 @@ public:
       return _method;
     }
 
+    std::string method_as_str()
+    {
+      switch (method())
+      {
+      case htp_method_GET:
+        return "GET";
+      case htp_method_PUT:
+        return "PUT";
+      case htp_method_POST:
+        return "POST";
+      case htp_method_DELETE:
+        return "DELETE";
+      default:
+        return std::string("UNKNOWN (code " + std::to_string(method()) + ")");
+      }
+    }
+
     std::string body();
 
     void send_reply(int rc, SAS::TrailId trail);
@@ -251,13 +268,14 @@ public:
   virtual void stop();
   virtual void wait_stopped();
   virtual void send_reply(Request& req, int rc, SAS::TrailId trail);
+  virtual void reply_and_log(Request& req, int rc, SAS::TrailId trail);
   virtual void record_penalty();
 
-  void log(const std::string uri, int rc)
+  void log(const std::string uri, std::string method, int rc)
   {
     if (_access_logger)
     {
-      _access_logger->log(uri, rc);
+      _access_logger->log(uri, method, rc);
     }
   };
 
