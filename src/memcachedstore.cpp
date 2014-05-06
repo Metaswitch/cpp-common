@@ -351,6 +351,9 @@ Store::Status MemcachedStore::get_data(const std::string& table,
         LOG_DEBUG("Found record on replica %d", replica_idx);
         data.assign(memcached_result_value(&result), memcached_result_length(&result));
         cas = (active_not_found) ? 0 : memcached_result_cas(&result);
+
+        // std::string::assign copies its arguments when used with a
+        // char*, so this is safe.
         memcached_result_free(&result);
         break;
       }
