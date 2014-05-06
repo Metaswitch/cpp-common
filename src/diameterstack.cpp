@@ -137,7 +137,7 @@ void Stack::populate_vendor_map(const std::string& vendor_name,
     fd_dict_getval(avp_dict, &avp_data);
 
     // Add this AVP to this vendor's map entry.
-    _avp_map[""][avp_data.avp_name] = avp_dict;
+    _avp_map[vendor_name][avp_data.avp_name] = avp_dict;
   }
 }
 
@@ -567,12 +567,12 @@ struct dict_object* Dictionary::AVP::find(const std::string avp)
 struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::string avp)
 {
   Stack* stack = Stack::get_instance();
-  std::map<std::string, std::map<std::string, struct dict_object*>>::iterator vendor_entry;
+  std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>>::iterator vendor_entry;
   vendor_entry = stack->avp_map().find(vendor);
   if (vendor_entry != stack->avp_map().end())
   {
     // Found the vendor, now find the AVP
-    std::map<std::string, struct dict_object*>::iterator avp_entry;
+    std::unordered_map<std::string, struct dict_object*>::iterator avp_entry;
     avp_entry = vendor_entry->second.find(avp);
     if (avp_entry != vendor_entry->second.end())
     {
