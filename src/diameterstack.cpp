@@ -159,15 +159,22 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type, struct msg * msg, struct pe
 
 void Stack::fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd)
 {
-  Dictionary dict;
+  // We don't have access to the real Dictionary object at this point,
+  // and we only need access to base AVPs such as Destination-Host, so
+  // just keep a generic Dictionary in this function.
+  static Dictionary dict;
+
+  // This Message object is just for convenient access to some AVPs -
+  // it shouldn't free the underlying message on destruction.
   Message msg2(&dict, msg, this);
-  std::string dest_host = "";
-  std::string dest_realm = "";
+  msg2.revoke_ownership();
+
+  std::string dest_host, dest_realm;
   if (!msg2.get_destination_host(dest_host))
   {
     dest_host = "unknown";
   };
-  if (!msg2.get_destination_realm(dest_host))
+  if (!msg2.get_destination_realm(dest_realm))
   {
     dest_realm = "unknown";
   };
