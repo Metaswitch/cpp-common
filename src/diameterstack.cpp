@@ -176,7 +176,7 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
   // We don't have access to the real Dictionary object at this point,
   // and we only need access to base AVPs such as Destination-Host, so
   // just keep a generic Dictionary in this function.
-  static Dictionary dict;
+  Dictionary dict;
 
   // This Message object is just for convenient access to some AVPs -
   // it shouldn't free the underlying message on destruction.
