@@ -253,6 +253,16 @@ HTTPCode HttpConnection::send_delete(const std::string& path,
 }
 
 HTTPCode HttpConnection::send_delete(const std::string& path,
+                                     SAS::TrailId trail,
+                                     const std::string& body,
+                                     std::string& response)
+{
+  std::map<std::string, std::string> unused_headers;
+
+  return send_delete(path, unused_headers, response, trail, body);
+}
+
+HTTPCode HttpConnection::send_delete(const std::string& path,
                                      std::map<std::string, std::string>& headers,
                                      std::string& response,
                                      SAS::TrailId trail,
