@@ -36,8 +36,8 @@
 
 #include <string>
 #include <map>
-#include <json/reader.h>
-#include <json/writer.h>
+#include "rapidjson/writer.h"
+#include "rapidjson/stringbuffer.h"
 
 #include "utils.h"
 #include "log.h"
@@ -164,19 +164,39 @@ std::string ChronosConnection::create_body(uint32_t interval,
                                            const std::string& path,
                                            const std::string& opaque_data)
 {
-  Json::Value body;
-  Json::Value http;
+  rapidjson::StringBuffer sb;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
 
-  http["uri"] = "http://" + _callback_host + path;
-  http["opaque"] = opaque_data;
-  body["callback"]["http"] = http;
-  body["timing"]["interval"] = interval;
-  body["timing"]["repeat-for"] = repeat_for;
+  writer.StartObject();
+  {
+    writer.String("timing");
+    writer.StartObject();
+    {
+      writer.String("interval");
+      writer.Int(interval);
+      writer.String("repeat-for");
+      writer.Int(repeat_for);
+    }
+    writer.EndObject();
 
-  Json::FastWriter writer;
-  std::string data = writer.write(body);
+    writer.String("callback");
+    writer.StartObject();
+    {
+      writer.String("http");
+      writer.StartObject();
+      {
+        writer.String("uri");
+        writer.String(std::string("http://" + _callback_host + path).c_str());
+        writer.String("opaque");
+        writer.String(opaque_data.c_str());
+      }
+      writer.EndObject();
+    }
+    writer.EndObject();
+  }
+  writer.EndObject();
 
-  return data;
+  return sb.GetString();
 }
 
 std::string ChronosConnection::get_location_header(std::map<std::string, std::string> headers)
