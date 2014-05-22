@@ -34,9 +34,6 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-///
-///
-
 #ifndef ACCESSLOGGER_H__
 #define ACCESSLOGGER_H__
 
@@ -52,7 +49,8 @@ public:
 
   void log(const std::string& url,
            const std::string& method,
-           int rc);
+           int rc,
+           unsigned long latency_us);
 
 private:
   static const int BUFFER_SIZE = 1000;
