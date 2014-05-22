@@ -63,9 +63,9 @@ public:
   {
   public:
     Request(HttpStack* stack, evhtp_request_t* req) :
-    _method(htp_method_UNKNOWN), _body_set(false), _stack(stack), _req(req), stopwatch()
+    _method(htp_method_UNKNOWN), _body_set(false), _stack(stack), _req(req), _stopwatch()
     {
-      stopwatch.start();
+      _stopwatch.start();
     }
     virtual ~Request() {};
 
@@ -164,7 +164,7 @@ public:
   private:
     HttpStack* _stack;
     evhtp_request_t* _req;
-    Utils::StopWatch stopwatch;
+    Utils::StopWatch _stopwatch;
     SASEvent::HttpLogLevel _sas_log_level;
 
     std::string url_unescape(const std::string& s)
@@ -279,11 +279,11 @@ public:
   virtual void send_reply(Request& req, int rc, SAS::TrailId trail);
   virtual void record_penalty();
 
-  void log(const std::string uri, std::string method, int rc)
+  void log(const std::string uri, std::string method, int rc, unsigned long latency_us)
   {
     if (_access_logger)
     {
-      _access_logger->log(uri, method, rc);
+      _access_logger->log(uri, method, rc, latency_us);
     }
   };
 

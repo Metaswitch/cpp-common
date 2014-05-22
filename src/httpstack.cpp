@@ -50,13 +50,13 @@ HttpStack::HttpStack() :
 
 void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
 {
-  stopwatch.stop();
+  _stopwatch.stop();
   _stack->send_reply(*this, rc, trail);
 }
 
 bool HttpStack::Request::get_latency(unsigned long& latency_us)
 {
-  return stopwatch.read(latency_us);
+  return _stopwatch.read(latency_us);
 }
 
 // Wrapper around evhtp_send_reply to ensure that all responses are
@@ -64,8 +64,9 @@ bool HttpStack::Request::get_latency(unsigned long& latency_us)
 void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
 {
   LOG_VERBOSE("Sending response %d to request for URL %s, args %s", rc, req.req()->uri->path->full, req.req()->uri->query_raw);
-
-  log(std::string(req.req()->uri->path->full), req.method_as_str(), rc);
+  unsigned long latency_us = 0;
+  req.get_latency(latency_us);
+  log(std::string(req.req()->uri->path->full), req.method_as_str(), rc, latency_us);
   sas_log_tx_http_rsp(trail, req, rc, 0);
 
   evhtp_send_reply(req.req(), rc);
