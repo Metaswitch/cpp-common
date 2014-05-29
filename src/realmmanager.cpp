@@ -35,8 +35,8 @@
  */
 
 #include "realmmanager.h"
+#include "utils.h"
 
-#include <arpa/inet.h>
 #include <boost/algorithm/string/replace.hpp>
 
 const int RealmManager::DEFAULT_BLACKLIST_DURATION = 30;
@@ -51,7 +51,6 @@ RealmManager::RealmManager(Diameter::Stack* stack,
                            _resolver(resolver),
                            _terminating(false)
 {
-  pthread_create(&_thread, NULL, thread_function, this);
   pthread_mutex_init(&_lock, NULL);
   pthread_condattr_t cond_attr;
   pthread_condattr_init(&cond_attr);
@@ -60,15 +59,24 @@ RealmManager::RealmManager(Diameter::Stack* stack,
   pthread_condattr_destroy(&cond_attr);
 }
 
+void RealmManager::start()
+{
+  pthread_create(&_thread, NULL, thread_function, this);
+}
+
 RealmManager::~RealmManager()
+{
+  pthread_mutex_destroy(&_lock);
+  pthread_cond_destroy(&_cond);
+}
+
+void RealmManager::stop()
 {
   pthread_mutex_lock(&_lock);
   _terminating = true; 
   pthread_cond_signal(&_cond);
   pthread_mutex_unlock(&_lock);
   pthread_join(_thread, NULL);
-  pthread_mutex_destroy(&_lock);
-  pthread_cond_destroy(&_cond);
 }
 
 void RealmManager::connection_succeeded(Diameter::Peer* peer)
@@ -98,137 +106,32 @@ void* RealmManager::thread_function(void* realm_manager_ptr)
   return NULL;
 }
 
+// There is a thread running in this function the whole time that
+// the program is running. It calls into a function that is responsible
+// for managing Diameter connections every time the thread is woken up.
 void RealmManager::thread_function()
 {
-  std::vector<AddrInfo> targets;
-  int ttl;
+  int ttl = 0;
   struct timespec ts;
-  _resolver->resolve(_realm, "", _max_peers, targets, ttl);
-  ttl = std::max(1, ttl);
-  std::vector<std::string> new_peers;
-  std::vector<Diameter::Peer*> connected_peers;
-  bool ret;
 
   pthread_mutex_lock(&_lock);
 
-  for (std::vector<AddrInfo>::iterator ii = targets.begin();
-       ii != targets.end();
-       ii++)
+  do
   {
-    Diameter::Peer* peer = new Diameter::Peer(*ii, ip_addr_to_hostname((*ii).address), _realm, 0, this);
-    LOG_DEBUG("Adding peer: %s", peer->host().c_str());
-    ret = _stack->add(peer);
-    if (ret)
-    {
-      _peers.push_back(peer);
-    }
-    else
-    {
-      delete peer;
-    }
-  }
+    manage_connections(ttl);
 
-  while (true)
-  {
-    // Convert the ttl (in ms) into a timespec structure.
+    // Call pthread_cond_timedwait to pause the thread until either the
+    // TTL of one of the DNS entries expires, we get called by a
+    // failure to connect to one of the peers, or the program is
+    // terminating. In the latter case we exit the loop and tidy up the
+    // connections.
     clock_gettime(CLOCK_MONOTONIC, &ts);
     ts.tv_sec += ttl;
     pthread_cond_timedwait(&_cond, &_lock, &ts);
 
-    // We've been signalled because we're terminating.
-    if (_terminating)
-    {
-      break;
-    }
+  } while (!_terminating);
 
-    _resolver->resolve(_realm, "", _max_peers, targets, ttl);
-    ttl = std::max(5, ttl);
-    ttl = std::min(300, ttl);
-
-    for (std::vector<AddrInfo>::iterator ii = targets.begin();
-         ii != targets.end();
-         ii++)
-    {
-      new_peers.push_back(ip_addr_to_hostname((*ii).address));
-    }
-
-    // If we currently have too many connected peers, remove some. This can be because
-    // the resolver hasn't returned enough results this time around.
-    for (std::vector<Diameter::Peer*>::iterator ii = _peers.begin();
-         ii != _peers.end();
-         ii++)
-    {
-      if ((*ii)->connected())
-      {
-        connected_peers.push_back(*ii);
-      }
-    }
-
-    for (std::vector<Diameter::Peer*>::iterator ii = connected_peers.begin();
-         (ii != connected_peers.end()) && (((int)connected_peers.size() > _max_peers) || ((int)new_peers.size() < _max_peers));
-        )
-    {
-      if (std::find(new_peers.begin(), new_peers.end(), (*ii)->host()) == new_peers.end())
-      {
-        Diameter::Peer* peer = *ii;
-        LOG_DEBUG("Removing peer: %s", peer->host().c_str());
-        ii = connected_peers.erase(ii);
-        std::vector<Diameter::Peer*>::iterator jj = std::find(_peers.begin(), _peers.end(), peer);
-        if (jj != _peers.end())
-        {
-          _peers.erase(jj);
-        }
-        _stack->remove(peer);
-        delete (peer);
-      }
-      else
-      {
-        ii++;
-      }
-    }
-
-    connected_peers.clear();
-
-    // Now connect to any peers returned by the DNS resolver which we
-    // weren't already connected to.
-    for (std::vector<AddrInfo>::iterator ii = targets.begin();
-         ii != targets.end();
-         ii++)
-    {
-      std::string hostname = ip_addr_to_hostname((*ii).address);
-      bool found = false;
-      for (std::vector<Diameter::Peer*>::iterator jj = _peers.begin();
-           jj != _peers.end();
-           ++jj)
-      {
-        if ((*jj)->host() == hostname)
-        {
-          found = true;
-          break;
-        }
-      }
-
-      if (!found)
-      {
-        Diameter::Peer* peer = new Diameter::Peer(*ii, hostname, _realm, 0, this);
-        LOG_DEBUG("Adding peer: %s", peer->host().c_str());
-        ret = _stack->add(peer);
-        if (ret)
-        {
-          _peers.push_back(peer);
-        }
-        else
-        {
-          LOG_DEBUG("Peer already exists: %s", peer->host().c_str());
-          delete peer;
-        }
-      }
-    }
-
-    new_peers.clear();
-  }
-
-  // Terminating so remove all peers
+  // Terminating so remove all peers and tidy up.
   for (std::vector<Diameter::Peer*>::iterator ii = _peers.begin();
        ii != _peers.end();
        ii++)
@@ -236,40 +139,136 @@ void RealmManager::thread_function()
     _stack->remove(*ii);
     delete (*ii);
   }
+
   // This _peers vector contains rubbish at this point, don't use it.
   _peers.clear();
 
   pthread_mutex_unlock(&_lock);
 }
 
-std::string RealmManager::ip_addr_to_hostname(IP46Address ip_addr)
+// This function is responsible for managing Diameter connections to a
+// given realm.
+//
+// We maintain several lists in this function. Here we describe the
+// flows in this function and how these lists are used. These can be
+// cross referenced with the numbered comments below.
+//
+// 1. Call resolve to perform a DNS resolution on the given realm and
+//    populate targets with a list of potential peers to connect to. This
+//    also returns a minimum TTL for the DNS entries.
+// 2. Create a list of hostnames from the list of targets. This is
+//    new_peers and it is used to compare hostnames with existing
+//    connections.
+// 3. _peers contains a list of the Diameter::Peer objects which
+//    represent peers that we have either connected to, or which
+//    we are currently trying to connect to. Filter this list on
+//    existing connections into connected_peers.
+// 4. If we have too many connected_peers (i.e. more than _max_peers),
+//    remove some connections. We only remove connections to peers
+//    that haven't been returned by the resolve function on this run
+//    through.
+// 5. Connect to any peers in the list of targets that we aren't already
+//    connected to. This is how we can end up with too many connections
+//    (as per step 4). We don't tear down any connections until we're sure
+//    we have _max_peers connections. The only exception to this is
+//    when resolve contains fewer than _max_peers entries which means we
+//    sure we should have fewer than _max_peers connections.
+//
+// On the first run through this function, a lot of this processing is
+// irrelevant since we just get a list of targets and try to connect to
+// them.
+void RealmManager::manage_connections(int& ttl)
 {
-  std::string hostname;
+  std::vector<AddrInfo> targets;
+  std::vector<std::string> new_peers;
+  std::vector<Diameter::Peer*> connected_peers;
+  bool ret;
 
-  // Use inet_ntop to convert the in_addr/in6_addr structure to a
-  // string representation of the address. For IPv4 addresses, this
-  // is all we need to do. IPv6 addresses contains colons which are
-  // not valid characters in hostnames. Instead, we convert the
-  // IPv6 address into it's unique reverse lookup form. For example,
-  // 2001:dc8::1 becomes
-  // 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.c.d.0.1.0.0.2.ip6.arpa.
-  if (ip_addr.af == AF_INET)
+  // 1.
+  _resolver->resolve(_realm, "", _max_peers, targets, ttl);
+
+  // We impose sensible max and min values for the TTL.
+  ttl = std::max(5, ttl);
+  ttl = std::min(300, ttl);
+
+  // 2.
+  for (std::vector<AddrInfo>::iterator ii = targets.begin();
+       ii != targets.end();
+       ii++)
   {
-    char ipv4_addr[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &ip_addr.addr.ipv6, ipv4_addr, INET_ADDRSTRLEN);
-    hostname = ipv4_addr;
+    new_peers.push_back(Utils::ip_addr_to_arpa((*ii).address));
   }
-  else if (ip_addr.af == AF_INET6)
+
+  // 3.
+  for (std::vector<Diameter::Peer*>::iterator ii = _peers.begin();
+       ii != _peers.end();
+       ii++)
   {
-    char buf[100];
-    char* p = buf;
-    for (int ii = 15; ii >= 0; ii--)
+    if ((*ii)->connected())
     {
-      p += snprintf(p, 100 - (p - buf), "%x.%x.", ip_addr.addr.ipv6.s6_addr[ii] & 0xF, ip_addr.addr.ipv6.s6_addr[ii] >> 4);
+      connected_peers.push_back(*ii);
     }
-    hostname = std::string(buf, p - buf);
-    hostname += "ip6.arpa";
   }
 
-  return hostname;
+  // 4.
+  for (std::vector<Diameter::Peer*>::iterator ii = connected_peers.begin();
+       (ii != connected_peers.end()) && (((int)connected_peers.size() > _max_peers) || ((int)new_peers.size() < _max_peers));
+      )
+  {
+    if (std::find(new_peers.begin(), new_peers.end(), (*ii)->host()) == new_peers.end())
+    {
+      Diameter::Peer* peer = *ii;
+      LOG_DEBUG("Removing peer: %s", peer->host().c_str());
+      ii = connected_peers.erase(ii);
+      std::vector<Diameter::Peer*>::iterator jj = std::find(_peers.begin(), _peers.end(), peer);
+      if (jj != _peers.end())
+      {
+        _peers.erase(jj);
+      }
+      _stack->remove(peer);
+      delete (peer);
+    }
+    else
+    {
+      ii++;
+    }
+  }
+
+  // 5.
+  for (std::vector<AddrInfo>::iterator ii = targets.begin();
+       ii != targets.end();
+       ii++)
+  {
+    std::string hostname = Utils::ip_addr_to_arpa((*ii).address);
+    bool found = false;
+
+    // Check whether this new target is already in our list of _peers.
+    for (std::vector<Diameter::Peer*>::iterator jj = _peers.begin();
+         jj != _peers.end();
+         ++jj)
+    {
+      if ((*jj)->host() == hostname)
+      {
+        found = true;
+        break;
+      }
+    }
+
+    // If it isn't, add it.
+    if (!found)
+    {
+      Diameter::Peer* peer = new Diameter::Peer(*ii, hostname, _realm, 0, this);
+      LOG_DEBUG("Adding peer: %s", peer->host().c_str());
+      ret = _stack->add(peer);
+      if (ret)
+      {
+        _peers.push_back(peer);
+      }
+      else
+      {
+        LOG_DEBUG("Peer already exists: %s", peer->host().c_str());
+        delete peer;
+      }
+    }
+  }
 }

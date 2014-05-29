@@ -47,10 +47,13 @@
 #include <string.h>
 
 #include "log.h"
+#include "baseresolver.h"
 
 namespace Utils
 {
   std::string url_escape(const std::string& s);
+
+  std::string ip_addr_to_arpa(IP46Address ip_addr);
 
   // trim from start
   inline std::string& ltrim(std::string &s)
