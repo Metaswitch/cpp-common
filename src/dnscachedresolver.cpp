@@ -553,14 +553,18 @@ void DnsCachedResolver::expire_cache()
     // Check that the record really is due for expiry and hasn't been
     // refreshed or already deleted.
     DnsCache::iterator j = _cache.find(i->second);
-    DnsCacheEntryPtr ce = j->second;
-    if ((j != _cache.end()) && (ce->expires == i->first))
+    if (j != _cache.end())
     {
-      clear_cache_entry(ce);
-      // Record really is ready to expire, so remove it from the main cache
-      // map.
-      LOG_DEBUG("Expiring record for %s (type %d) from the DNS cache", ce->domain.c_str(), ce->dnstype);
-      _cache.erase(j);
+      DnsCacheEntryPtr ce = j->second;
+
+      if (ce->expires == i->first)
+      {
+        // Record really is ready to expire, so remove it from the main cache
+        // map.
+        LOG_DEBUG("Expiring record for %s (type %d) from the DNS cache", ce->domain.c_str(), ce->dnstype);
+        clear_cache_entry(ce);
+        _cache.erase(j);
+      }
     }
 
     _cache_expiry_list.erase(i);
