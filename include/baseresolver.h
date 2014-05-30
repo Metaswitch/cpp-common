@@ -45,37 +45,8 @@
 #include "log.h"
 #include "dnscachedresolver.h"
 #include "ttlcache.h"
+#include "utils.h"
 #include "sas.h"
-
-struct IP46Address
-{
-  int af;
-  union
-  {
-    struct in_addr ipv4;
-    struct in6_addr ipv6;
-  } addr;
-
-  int compare(const IP46Address& rhs) const
-  {
-    if (af != rhs.af)
-    {
-      return af - rhs.af;
-    }
-    else if (af == AF_INET)
-    {
-      return addr.ipv4.s_addr - rhs.addr.ipv4.s_addr;
-    }
-    else if (af == AF_INET6)
-    {
-      return memcmp((const char*)&addr.ipv6, (const char*)&rhs.addr.ipv6, sizeof(in6_addr));
-    }
-    else
-    {
-      return false;
-    }
-  }
-};
 
 struct AddrInfo
 {
