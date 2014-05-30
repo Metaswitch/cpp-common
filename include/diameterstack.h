@@ -638,8 +638,8 @@ public:
   virtual void send(struct msg* fd_msg, Transaction* tsx);
   virtual void send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms);
 
-  bool add(Peer* peer);
-  void remove(Peer* peer);
+  virtual bool add(Peer* peer);
+  virtual void remove(Peer* peer);
 
 private:
   static Stack* INSTANCE;

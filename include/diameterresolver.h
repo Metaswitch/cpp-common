@@ -46,11 +46,11 @@ public:
   DiameterResolver(DnsCachedResolver* dns_client, int af);
   ~DiameterResolver();
 
-  void resolve(const std::string& realm,
-               const std::string& host,
-               int max_targets,
-               std::vector<AddrInfo>& targets,
-               int& ttl);
+  virtual void resolve(const std::string& realm,
+                       const std::string& host,
+                       int max_targets,
+                       std::vector<AddrInfo>& targets,
+                       int& ttl);
 
   static const int DEFAULT_PORT = 3868;
   static const int DEFAULT_TRANSPORT = IPPROTO_SCTP;

@@ -44,6 +44,7 @@
 #include <list>
 #include <queue>
 #include <string>
+#include <arpa/inet.h>
 
 #include "utils.h"
 
@@ -85,6 +86,45 @@ std::string Utils::url_escape(const std::string& s)
     }
   }
   return r;
+}
+
+std::string Utils::ip_addr_to_arpa(IP46Address ip_addr)
+{
+  std::string hostname;
+
+  // Convert the in_addr/in6_addr structure to a string representation
+  // of the address. For IPv4 addresses, this is all we need to do.
+  // IPv6 addresses contains colons which are not valid characters in
+  // hostnames. Instead, we convert the IPv6 address into it's unique
+  // reverse lookup form. For example, 2001:dc8::1 becomes
+  // 1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.c.d.0.1.0.0.2.ip6.arpa.
+  if (ip_addr.af == AF_INET)
+  {
+    char ipv4_addr[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET, &ip_addr.addr.ipv6, ipv4_addr, INET_ADDRSTRLEN);
+    hostname = ipv4_addr;
+  }
+  else if (ip_addr.af == AF_INET6)
+  {
+    // The output is 32 nibbles of address with separating dots terminated
+    // with the string "ip6.arpa", and so will easily be contained
+    // in a buffer of size 100.
+    char buf[100];
+    char* p = buf;
+    for (int ii = 15; ii >= 0; ii--)
+    {
+      // 100 is just the size of the buffer we created earlier.
+      p += snprintf(p,
+                    100 - (p - buf),
+                    "%x.%x.",
+                    ip_addr.addr.ipv6.s6_addr[ii] & 0xF,
+                    ip_addr.addr.ipv6.s6_addr[ii] >> 4);
+    }
+    hostname = std::string(buf, p - buf);
+    hostname += "ip6.arpa";
+  }
+
+  return hostname;
 }
 
 bool Utils::StopWatch::_already_logged = false;

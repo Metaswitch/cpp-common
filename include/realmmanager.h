@@ -51,6 +51,9 @@ public:
                DiameterResolver* resolver);
   virtual ~RealmManager();
 
+  void start();
+  void stop();
+
   void connection_succeeded(Diameter::Peer* peer);
   void connection_failed(Diameter::Peer* peer);
 
@@ -60,8 +63,8 @@ private:
   void thread_function();
   static void* thread_function(void* realm_manager_ptr);
 
-  static std::string ip_addr_to_hostname(IP46Address ip_addr);
-  
+  void manage_connections(int& ttl);
+
   Diameter::Stack* _stack;
   std::string _realm;
   int _max_peers;
