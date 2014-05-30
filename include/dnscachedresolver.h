@@ -151,10 +151,11 @@ private:
     }
   };
 
+  typedef std::shared_ptr<DnsCacheEntry> DnsCacheEntryPtr;
   typedef std::pair<int, std::string> DnsCacheKey;
   typedef std::multimap<int, DnsCacheKey> DnsCacheExpiryList;
   typedef std::map<DnsCacheKey,
-                   std::shared_ptr<DnsCacheEntry>,
+                   DnsCacheEntryPtr,
                    DnsCacheKeyCompare> DnsCache;
 
   void dns_response(const std::string& domain,
@@ -165,12 +166,12 @@ private:
 
   bool caching_enabled(int rrtype);
 
-  DnsCacheEntry* get_cache_entry(const std::string& domain, int dnstype);
-  DnsCacheEntry* create_cache_entry(const std::string& domain, int dnstype);
-  void add_to_expiry_list(DnsCacheEntry* ce);
+  DnsCacheEntryPtr get_cache_entry(const std::string& domain, int dnstype);
+  DnsCacheEntryPtr create_cache_entry(const std::string& domain, int dnstype);
+  void add_to_expiry_list(DnsCacheEntryPtr ce);
   void expire_cache();
-  void add_record_to_cache(DnsCacheEntry* ce, DnsRRecord* rr);
-  void clear_cache_entry(DnsCacheEntry* ce);
+  void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr);
+  void clear_cache_entry(DnsCacheEntryPtr ce);
 
   DnsChannel* get_dns_channel();
   void wait_for_replies(DnsChannel* channel);

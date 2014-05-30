@@ -48,6 +48,8 @@ DiameterResolver::DiameterResolver(DnsCachedResolver* dns_client,
   std::map<std::string, int> naptr_services;
   naptr_services["AAA+D2T"] = IPPROTO_TCP;
   naptr_services["AAA+D2S"] = IPPROTO_SCTP;
+  naptr_services["aaa:diameter.tcp"] = IPPROTO_TCP;
+  naptr_services["aaa:diameter.sctp"] = IPPROTO_SCTP;
   create_naptr_cache(naptr_services);
 
   // Create the SRV cache.
