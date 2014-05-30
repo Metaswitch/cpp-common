@@ -50,12 +50,17 @@ AccessLogger::~AccessLogger()
 }
 
 void AccessLogger::log(const std::string& uri,
-                       int rc)
+                       const std::string& method,
+                       int rc,
+                       unsigned long latency_us)
 {
   char buf[BUFFER_SIZE];
   snprintf(buf, sizeof(buf),
-           "%d GET %s\n",
+           "%d %s %s %ld.%6.6ld seconds\n",
            rc,
-           uri.c_str());
+           method.c_str(),
+           uri.c_str(),
+           latency_us / 1000000,
+           latency_us % 1000000);
   _logger->write(buf);
 }

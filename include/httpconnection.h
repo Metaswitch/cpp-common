@@ -53,12 +53,14 @@
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
 static const long HTTP_CREATED = 201;
+static const long HTTP_ACCEPTED = 202;
 static const long HTTP_BAD_RESULT = 400;
 static const long HTTP_FORBIDDEN = 403;
 static const long HTTP_NOT_FOUND = 404;
 static const long HTTP_BADMETHOD = 405;
 static const long HTTP_TEMP_UNAVAILABLE = 480;
 static const long HTTP_SERVER_ERROR = 500;
+static const long HTTP_NOT_IMPLEMENTED = 501;
 static const long HTTP_SERVER_UNAVAILABLE = 503;
 
 /// Provides managed access to data on a single HTTP server. Properly
@@ -91,6 +93,10 @@ public:
   virtual long send_delete(const std::string& path,
                            SAS::TrailId trail,
                            const std::string& body = "");
+  virtual long send_delete(const std::string& path,
+                           SAS::TrailId trail,
+                           const std::string& body,
+                           std::string& response);
   virtual long send_delete(const std::string& path,                     //< Absolute path to request from server - must start with "/"
                            std::map<std::string, std::string>& headers, //< Map of headers from the response
                            std::string& response,                       //< Retrieved document

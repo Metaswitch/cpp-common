@@ -71,17 +71,152 @@ void Stack::initialize()
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_PEER_CONNECT_SUCCESS, HOOK_PEER_CONNECT_FAILED),
-                          fd_hook_cb, this, NULL, &_peer_cb_hdlr);
+                          fd_peer_hook_cb, this, NULL, &_peer_cb_hdlr);
+    if (rc != 0)
+    {
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+    }
+    rc = fd_hook_register(HOOK_MASK(HOOK_MESSAGE_ROUTING_ERROR),
+                          fd_error_hook_cb, this, NULL, &_error_cb_hdlr);
+    if (rc != 0)
+    {
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+    }
+    rc = fd_hook_register(HOOK_MASK(HOOK_DATA_RECEIVED,
+                                    HOOK_MESSAGE_RECEIVED,
+                                    HOOK_MESSAGE_LOCAL,
+                                    HOOK_MESSAGE_SENT,
+                                    HOOK_MESSAGE_ROUTING_FORWARD,
+                                    HOOK_MESSAGE_ROUTING_LOCAL),
+                          fd_null_hook_cb, this, NULL, &_null_cb_hdlr);
+    if (rc != 0)
+    {
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+    }
+
     _initialized = true;
   }
 }
 
-void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr)
+void Stack::populate_avp_map()
 {
-  ((Diameter::Stack*)stack_ptr)->fd_hook_cb(type, msg, peer, other, pmd);
+  fd_list* vendor_sentinel;
+  fd_dict_getlistof(VENDOR_BY_ID, fd_g_config->cnf_dict, &vendor_sentinel);
+
+  for (fd_list* vend_li = vendor_sentinel->next;
+       vend_li != vendor_sentinel;
+       vend_li = vend_li->next)
+  {
+    struct dict_object* vendor_dict = (struct dict_object*)vend_li->o;
+    struct dict_vendor_data vendor_data;
+    fd_dict_getval(vendor_dict, &vendor_data);
+
+    populate_vendor_map(vendor_data.vendor_name, vendor_dict);
+  }
+
+  // Repeat for vendor 0 (which isn't found by fd_dict_getlistof).
+  struct dict_object* vendor_dict;
+  vendor_id_t vendor_id = 0;
+  fd_dict_search(fd_g_config->cnf_dict,
+                 DICT_VENDOR,
+                 VENDOR_BY_ID,
+                 &vendor_id,
+                 &vendor_dict,
+                 ENOENT);
+
+  populate_vendor_map("", vendor_dict);
 }
 
-void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd)
+void Stack::populate_vendor_map(const std::string& vendor_name,
+                                struct dict_object* vendor_dict)
+{
+  fd_list* avp_sentinel;
+  fd_dict_getlistof(AVP_BY_NAME,
+                    vendor_dict,
+                    &avp_sentinel);
+  for (fd_list* avp_li = avp_sentinel->next;
+       avp_li != avp_sentinel;
+       avp_li = avp_li->next)
+  {
+    struct dict_object * avp_dict = (struct dict_object*)avp_li->o;
+    struct dict_avp_data avp_data;
+    fd_dict_getval(avp_dict, &avp_data);
+
+    // Add this AVP to this vendor's map entry.
+    _avp_map[vendor_name][avp_data.avp_name] = avp_dict;
+  }
+}
+
+void Stack::fd_null_hook_cb(enum fd_hook_type type,
+                            struct msg * msg,
+                            struct peer_hdr * peer,
+                            void * other,
+                            struct fd_hook_permsgdata *pmd,
+                            void * user_data)
+{
+  // Do nothing
+}
+
+void Stack::fd_error_hook_cb(enum fd_hook_type type,
+                             struct msg * msg,
+                             struct peer_hdr* peer,
+                             void* other,
+                             struct fd_hook_permsgdata* pmd,
+                             void* stack_ptr)
+{
+  ((Diameter::Stack*)stack_ptr)->fd_error_hook_cb(type, msg, peer, other, pmd);
+}
+
+void Stack::fd_error_hook_cb(enum fd_hook_type type,
+                             struct msg* msg,
+                             struct peer_hdr* peer,
+                             void *other,
+                             struct fd_hook_permsgdata* pmd)
+{
+  // We don't have access to the real Dictionary object at this point,
+  // and we only need access to base AVPs such as Destination-Host, so
+  // just keep a generic Dictionary in this function.
+  Dictionary dict;
+
+  // This Message object is just for convenient access to some AVPs -
+  // it shouldn't free the underlying message on destruction.
+  Message msg2(&dict, msg, this);
+  msg2.revoke_ownership();
+
+  std::string dest_host, dest_realm;
+  if (!msg2.get_destination_host(dest_host))
+  {
+    dest_host = "unknown";
+  };
+  if (!msg2.get_destination_realm(dest_realm))
+  {
+    dest_realm = "unknown";
+  };
+
+  LOG_ERROR("Routing error: '%s' for message with "
+            "Command-Code %d, Destination-Host %s and Destination-Realm %s",
+            (char *)other,
+            msg2.command_code(),
+            dest_host.c_str(),
+            dest_realm.c_str());
+}
+
+
+void Stack::fd_peer_hook_cb(enum fd_hook_type type,
+                            struct msg * msg,
+                            struct peer_hdr* peer,
+                            void* other,
+                            struct fd_hook_permsgdata* pmd,
+                            void* stack_ptr)
+{
+  ((Diameter::Stack*)stack_ptr)->fd_peer_hook_cb(type, msg, peer, other, pmd);
+}
+
+void Stack::fd_peer_hook_cb(enum fd_hook_type type,
+                            struct msg* msg,
+                            struct peer_hdr* peer,
+                            void *other,
+                            struct fd_hook_permsgdata* pmd)
 {
   // Check the type first.  We can't rely on peer being set if it's not the right type.
   if ((type != HOOK_PEER_CONNECT_SUCCESS) &&
@@ -134,7 +269,7 @@ void Stack::fd_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr*
         break;
       }
     }
-  
+
     if (ii == _peers.end())
     {
       // Peer not found.
@@ -154,6 +289,7 @@ void Stack::configure(std::string filename)
   {
     throw Exception("fd_core_parseconf", rc); // LCOV_EXCL_LINE
   }
+  populate_avp_map();
 }
 
 void Stack::advertize_application(const Dictionary::Application& app)
@@ -166,7 +302,8 @@ void Stack::advertize_application(const Dictionary::Application& app)
   }
 }
 
-void Stack::advertize_application(const Dictionary::Vendor& vendor, const Dictionary::Application& app)
+void Stack::advertize_application(const Dictionary::Vendor& vendor,
+                                  const Dictionary::Application& app)
 {
   initialize();
   int rc = fd_disp_app_support(app.dict(), vendor.dict(), 1, 0);
@@ -176,7 +313,9 @@ void Stack::advertize_application(const Dictionary::Vendor& vendor, const Dictio
   }
 }
 
-void Stack::register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory)
+void Stack::register_handler(const Dictionary::Application& app,
+                             const Dictionary::Message& msg,
+                             BaseHandlerFactory* factory)
 {
   // Register a callback for messages from our application with the specified message type.
   // DISP_HOW_CC indicates that we want to match on command code (and allows us to optionally
@@ -209,7 +348,11 @@ void Stack::register_fallback_handler(const Dictionary::Application &app)
   }
 }
 
-int Stack::handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act)
+int Stack::handler_callback_fn(struct msg** req,
+                               struct avp* avp,
+                               struct session* sess,
+                               void* handler_factory,
+                               enum disp_action* act)
 {
   Stack* stack = Stack::get_instance();
   Dictionary* dict = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict;
@@ -270,6 +413,16 @@ void Stack::stop()
     if (_peer_cb_hdlr)
     {
       fd_hook_unregister(_peer_cb_hdlr);
+    }
+
+    if (_error_cb_hdlr)
+    {
+      fd_hook_unregister(_error_cb_hdlr);
+    }
+
+    if (_null_cb_hdlr)
+    {
+      fd_hook_unregister(_null_cb_hdlr);
     }
 
     int rc = fd_core_shutdown();
@@ -485,37 +638,25 @@ struct dict_object* Dictionary::Message::find(const std::string message)
 
 struct dict_object* Dictionary::AVP::find(const std::string avp)
 {
-  struct dict_object* dict;
-  fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME, avp.c_str(), &dict, ENOENT);
-  if (dict == NULL)
-  {
-    throw Diameter::Stack::Exception(avp.c_str(), 0); // LCOV_EXCL_LINE
-  }
-  return dict;
+  return find("", avp);
 }
 
 struct dict_object* Dictionary::AVP::find(const std::string vendor, const std::string avp)
 {
-  struct dict_avp_request avp_req;
-  if (!vendor.empty())
+  Stack* stack = Stack::get_instance();
+  std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>>::iterator vendor_entry;
+  vendor_entry = stack->avp_map().find(vendor);
+  if (vendor_entry != stack->avp_map().end())
   {
-    struct dict_object* vendor_dict = Dictionary::Vendor::find(vendor);
-    struct dict_vendor_data vendor_data;
-    fd_dict_getval(vendor_dict, &vendor_data);
-    avp_req.avp_vendor = vendor_data.vendor_id;
+    // Found the vendor, now find the AVP
+    std::unordered_map<std::string, struct dict_object*>::iterator avp_entry;
+    avp_entry = vendor_entry->second.find(avp);
+    if (avp_entry != vendor_entry->second.end())
+    {
+      return avp_entry->second;
+    }
   }
-  else
-  {
-    avp_req.avp_vendor = 0;
-  }
-  avp_req.avp_name = (char*)avp.c_str();
-  struct dict_object* dict;
-  fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &dict, ENOENT);
-  if (dict == NULL)
-  {
-    throw Diameter::Stack::Exception(avp.c_str(), 0); // LCOV_EXCL_LINE
-  }
-  return dict;
+  return NULL;
 }
 
 struct dict_object* Dictionary::AVP::find(const std::vector<std::string>& vendors, const std::string avp)
@@ -525,21 +666,7 @@ struct dict_object* Dictionary::AVP::find(const std::vector<std::string>& vendor
        vendor != vendors.end();
        ++vendor)
   {
-    struct dict_avp_request avp_req;
-
-    if (!vendor->empty())
-    {
-      struct dict_object* vendor_dict = Dictionary::Vendor::find(*vendor);
-      struct dict_vendor_data vendor_data;
-      fd_dict_getval(vendor_dict, &vendor_data);
-      avp_req.avp_vendor = vendor_data.vendor_id;
-    }
-    else
-    {
-      avp_req.avp_vendor = 0;
-    }
-    avp_req.avp_name = (char*)avp.c_str();
-    fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_AND_VENDOR, &avp_req, &dict, ENOENT);
+    dict = find(*vendor, avp);
     if (dict != NULL)
     {
       break;

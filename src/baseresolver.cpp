@@ -521,10 +521,13 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
   NAPTRReplacement* repl = NULL;
   std::string query_key = key;
   int expires = 0;
-  bool terminated = false;
+  bool loop_again = true;
 
-  while (!terminated)
+  while (loop_again)
   {
+    // Assume this is our last loop - we'll correct this if we find we should go round again.
+    loop_again = false;
+
     // Issue the NAPTR query.
     LOG_DEBUG("Sending DNS NAPTR query for %s", query_key.c_str());
     DnsResult result = _dns_client->dns_query(query_key, ns_t_naptr);
@@ -603,6 +606,7 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
           {
             // We need to iterate the NAPTR query.
             query_key = replacement;
+            loop_again = true;
           }
           else
           {
@@ -612,7 +616,6 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
             repl->flags = naptr->flags();
             repl->transport = _services[naptr->service()];
             ttl = expires - time(NULL);
-            terminated = true;
           }
           break;
         }
@@ -622,7 +625,6 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
     {
       // No NAPTR record found, so return no entry with the default TTL.
       ttl = _default_ttl;
-      terminated = true;
     }
   }
   return repl;
