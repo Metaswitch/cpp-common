@@ -88,6 +88,7 @@ std::string Utils::url_escape(const std::string& s)
   return r;
 }
 
+// LCOV_EXCL_START - This function is tested in Homestead's realmmanager_test.cpp
 std::string Utils::ip_addr_to_arpa(IP46Address ip_addr)
 {
   std::string hostname;
@@ -126,5 +127,6 @@ std::string Utils::ip_addr_to_arpa(IP46Address ip_addr)
 
   return hostname;
 }
+// LCOV_EXCL_STOP
 
 bool Utils::StopWatch::_already_logged = false;
