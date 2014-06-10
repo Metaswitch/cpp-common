@@ -545,10 +545,14 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
         LOG_ERROR("%s failed at server %s : %s (%d %d) : fatal",
                   url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);
 
-        // Check whether both attempts returned 503 errors, or the error was
-        // a 502 (where the HSS is overloaded)  and raise a penalty if so.
+        // Check whether we should apply a penalty. We do this when:
+        //  - both attempts return 503 errors, which means the downstream
+        // node is overloaded/requests to it are timeing.
+        //  - the error is a 504, which means that the node downsteam of the node
+        // we're connecting to currently has reported that it is overloaded/was
+        // unresponsive.
         if (((error_is_503 && first_error_503) ||
-             ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 502))) &&
+             ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == HTTP_GATEWAY_TIMEOUT))) &&
             (_load_monitor != NULL))
         {
           _load_monitor->incr_penalties();
