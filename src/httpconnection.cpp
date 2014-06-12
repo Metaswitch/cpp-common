@@ -276,12 +276,7 @@ HTTPCode HttpConnection::send_delete(const std::string& path,
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
 
-  if (!body.empty())
-  {
-    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-  }
-
-  HTTPCode status = send_request(path, response, username, trail, "DELETE", curl);
+  HTTPCode status = send_request(path, body, response, username, trail, "DELETE", curl);
 
   curl_slist_free_all(slist);
 
@@ -331,11 +326,10 @@ HTTPCode HttpConnection::send_put(const std::string& path,                     /
 
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
-  HTTPCode status = send_request(path, response, "", trail, "PUT", curl);
+  HTTPCode status = send_request(path, body, response, "", trail, "PUT", curl);
 
   curl_slist_free_all(slist);
 
@@ -365,11 +359,10 @@ HTTPCode HttpConnection::send_post(const std::string& path,                     
 
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_POST, 1);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
-  HTTPCode status = send_request(path, response, username, trail, "POST", curl);
+  HTTPCode status = send_request(path, body, response, username, trail, "POST", curl);
 
   curl_slist_free_all(slist);
 
@@ -397,11 +390,12 @@ HTTPCode HttpConnection::send_get(const std::string& path,                     /
 
   curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
 
-  return send_request(path, response, username, trail, "GET", curl);
+  return send_request(path, "", response, username, trail, "GET", curl);
 }
 
 /// Get data; return a HTTP return code
 HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolute path to request from server - must start with "/"
+                                      std::string body,              //< Body to send on the request
                                       std::string& doc,              //< OUT: Retrieved document
                                       const std::string& username,   //< Username to assert (if assertUser was true, else ignored).
                                       SAS::TrailId trail,            //< SAS trail to use
@@ -418,6 +412,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
 
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
+  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
 
   // Create a UUID to use for SAS correlation. Log it to SAS and add it to the
   // HTTP request we are about to send.
@@ -458,7 +453,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     SAS::Event tx_http_req(trail, event_id,  0);
     tx_http_req.add_var_param(method_str);
     tx_http_req.add_var_param(url);
-    tx_http_req.add_var_param(doc);
+    tx_http_req.add_var_param(body);
     SAS::report_event(tx_http_req);
 
     // Send the request.

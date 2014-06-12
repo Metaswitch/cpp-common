@@ -139,6 +139,7 @@ public:
                          const std::string& username = "");           //< Username to assert (if assertUser was true, else ignored)
 
   virtual long send_request(const std::string& path,
+                            std::string body,
                             std::string& doc,
                             const std::string& username,
                             SAS::TrailId trail,
