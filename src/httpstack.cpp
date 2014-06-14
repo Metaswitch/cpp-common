@@ -297,7 +297,12 @@ void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
   {
     SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, instance_id);
     corr_marker.add_var_param(correlator);
-    SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
+
+    // Report a correlating marker to SAS.  Set the option that means any
+    // associations will not reactivate the trail group.  Otherwise
+    // interactions with this server that happen after the calls end can cause
+    // long delays in the call appearing in SAS.
+    SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
   }
 
   int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
