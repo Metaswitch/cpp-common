@@ -103,7 +103,9 @@ void SAS::report_event(const SAS::Event& event)
   record_message(false, event._id, event._static_params, event._var_params);
 }
 
-void SAS::report_marker(const SAS::Marker& marker, Marker::Scope scope)
+void SAS::report_marker(const SAS::Marker& marker,
+                        Marker::Scope scope,
+                        bool reactivate)
 {
   record_message(true, marker._id, marker._static_params, marker._var_params);
 }
