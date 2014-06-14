@@ -300,7 +300,7 @@ void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
 
     // Report a correlating marker to SAS.  Set the option that means any
     // associations will not reactivate the trail group.  Otherwise
-    // interactions with this server that happen after the calls end can cause
+    // interactions with this server that happen after the call ends will cause
     // long delays in the call appearing in SAS.
     SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
   }
