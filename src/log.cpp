@@ -63,14 +63,10 @@ void Log::setLoggingLevel(int level)
   Log::loggingLevel = level;
 }
 
+// Note that the caller is responsible for deleting the previous
+// Logger if it is allocated on the heap.
 void Log::setLogger(Logger *log)
 {
-  if (log != NULL)
-  {
-    // This is not a logger deregistering itself, so need to delete the old
-    // logger to avoid leaking it.
-    delete Log::logger;
-  }
   Log::logger = log;
   if (Log::logger != NULL)
   {

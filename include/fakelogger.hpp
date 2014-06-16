@@ -43,28 +43,68 @@
 #include "log.h"
 #include "logger.h"
 
-/// Logger that records what is written.
-class FakeLogger : public Logger
+/// Logger that prints logged items to stdout.
+/// PrintingTestLogger::DEFAULT should be the only instance needed.
+class PrintingTestLogger : public Logger
 {
 public:
   /// Get a logger with the default behaviour.
-  FakeLogger();
+  PrintingTestLogger();
 
-  /// Get a logger that is explicitly noisy or not.
-  FakeLogger(bool noisy);
+  virtual ~PrintingTestLogger();
 
-  virtual ~FakeLogger();
-
-  void write(const char* data);
+  virtual void write(const char* data);
   void flush();
 
-  bool contains(const char* needle);
+  bool isPrinting();
+  void setPrinting(bool printing);
 
-  static bool isNoisy();
-  static int howNoisy();
+  void setLoggingLevel(int level);
+
+  void setupFromEnvironment();
+  void take_over();
+
+  static PrintingTestLogger DEFAULT;
 
 private:
-  pthread_mutex_t _logger_lock;
-  std::string _lastlog;
   bool _noisy;
+};
+
+// Besides the function of PrintingTestLogger, captures logs to an
+// internal buffer and provides a contains() method for checking what
+// was logged. Be wary of using this as it leads to test fragility.
+
+// On construction, sets the log level to 99 to avoid false positives.
+// Its scope should therefore be kept as small as possible to avoid
+// this.
+
+// On destruction, reinstates PrintingTestLogger::DEFAULT as the
+// logger. This includes setting the logging level back from 99 to the
+// value based on the NOISY environment variable.
+class CapturingTestLogger: public PrintingTestLogger
+{
+public:
+  CapturingTestLogger() : PrintingTestLogger()
+  {
+    setPrinting(PrintingTestLogger::DEFAULT.isPrinting());
+    setLoggingLevel(99);
+    pthread_mutex_init(&_logger_lock, NULL);
+  };
+  CapturingTestLogger(int level) : PrintingTestLogger()
+  {
+    setPrinting(PrintingTestLogger::DEFAULT.isPrinting());
+    setLoggingLevel(level);
+    pthread_mutex_init(&_logger_lock, NULL);
+  };
+  virtual ~CapturingTestLogger()
+  {
+    pthread_mutex_destroy(&_logger_lock);
+    PrintingTestLogger::DEFAULT.take_over();
+  };
+
+  void write(const char* line);
+  bool contains(const char* fragment);
+private:
+  std::string _logged;
+  pthread_mutex_t _logger_lock;
 };
