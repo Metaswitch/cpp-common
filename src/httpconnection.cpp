@@ -409,10 +409,13 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
   assert(rc == CURLE_OK);
 
-
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+
+  if (!body.empty())
+  {
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+  }
 
   // Create a UUID to use for SAS correlation and add it to the HTTP message. 
   boost::uuids::uuid uuid = get_random_uuid();
