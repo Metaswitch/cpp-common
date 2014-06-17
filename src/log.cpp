@@ -46,7 +46,8 @@ const char* log_level[] = {"Error", "Warning", "Status", "Info", "Verbose", "Deb
 
 namespace Log
 {
-  static Logger *logger = new Logger();
+  static Logger logger_static;
+  static Logger *logger = &logger_static;
   int loggingLevel = 4;
 }
 
@@ -58,7 +59,7 @@ void Log::setLoggingLevel(int level)
   }
   else if (level < ERROR_LEVEL)
   {
-    level = ERROR_LEVEL;
+    level = ERROR_LEVEL; // LCOV_EXCL_LINE
   }
   Log::loggingLevel = level;
 }
