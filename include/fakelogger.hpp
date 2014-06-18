@@ -66,7 +66,7 @@ public:
 
   static PrintingTestLogger DEFAULT;
 
-private:
+protected:
   bool _noisy;
 };
 
