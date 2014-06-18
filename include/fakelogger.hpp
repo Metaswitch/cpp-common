@@ -37,7 +37,8 @@
 ///
 ///----------------------------------------------------------------------------
 
-#pragma once
+#ifndef FAKELOGGER_HPP
+#define FAKELOGGER_HPP
 
 #include <string>
 #include "log.h"
@@ -108,3 +109,5 @@ private:
   std::string _logged;
   pthread_mutex_t _logger_lock;
 };
+
+#endif

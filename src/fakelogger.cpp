@@ -49,8 +49,6 @@ PrintingTestLogger PrintingTestLogger::DEFAULT;
 
 PrintingTestLogger::PrintingTestLogger()
 {
-//  pthread_mutex_init(&_logger_lock, NULL);
-
   take_over();
 }
 
