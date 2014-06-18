@@ -409,20 +409,26 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
   assert(rc == CURLE_OK);
 
-
   curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
 
-  // Create a UUID to use for SAS correlation. Log it to SAS and add it to the
-  // HTTP request we are about to send.
+  if (!body.empty())
+  {
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+  }
+
+  // Create a UUID to use for SAS correlation and add it to the HTTP message. 
   boost::uuids::uuid uuid = get_random_uuid();
   std::string uuid_str = boost::uuids::to_string(uuid);
-  SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
-  corr_marker.add_var_param(uuid_str);
-  SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace);
   extra_headers = curl_slist_append(extra_headers,
                                     (SASEvent::HTTP_BRANCH_HEADER_NAME + ": " + uuid_str).c_str());
+
+  // Now log the marker to SAS. Flag that SAS should not reactivate the trail
+  // group as a result of associations on this marker (doing so after the call
+  // ends means it will take a long time to be searchable in SAS). 
+  SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
+  corr_marker.add_var_param(uuid_str);
+  SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
 
   if (_assert_user)
   {
@@ -540,10 +546,14 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
         LOG_ERROR("%s failed at server %s : %s (%d %d) : fatal",
                   url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);
 
-        // Check whether both attempts returned 503 errors, or the error was
-        // a 502 (where the HSS is overloaded)  and raise a penalty if so.
+        // Check whether we should apply a penalty. We do this when:
+        //  - both attempts return 503 errors, which means the downstream
+        // node is overloaded/requests to it are timeing.
+        //  - the error is a 504, which means that the node downsteam of the node
+        // we're connecting to currently has reported that it is overloaded/was
+        // unresponsive.
         if (((error_is_503 && first_error_503) ||
-             ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 502))) &&
+             ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == HTTP_GATEWAY_TIMEOUT))) &&
             (_load_monitor != NULL))
         {
           _load_monitor->incr_penalties();
