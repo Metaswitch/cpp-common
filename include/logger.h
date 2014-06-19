@@ -59,6 +59,7 @@ public:
 
   virtual void write(const char* data);
   virtual void flush();
+  virtual void commit();
 
   // Dumps a backtrace.  Note that this is not thread-safe and should only be
   // called when no other threads are running - generally from a signal
@@ -75,7 +76,7 @@ private:
     int hour;
     int min;
     int sec;
-    int msec;      
+    int msec;
     int yday;
   } timestamp_t;
 
@@ -97,7 +98,7 @@ private:
   int _saved_errno;
   pthread_mutex_t _lock;
 
-  /// Defines how frequently (in terms of log attempts) we will try to 
+  /// Defines how frequently (in terms of log attempts) we will try to
   /// open the log file if we failed to open it previously.
   static const int LOGFILE_CHECK_FREQUENCY = 1000;
 };
