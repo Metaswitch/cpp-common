@@ -54,7 +54,6 @@ PrintingTestLogger::PrintingTestLogger()
 
 PrintingTestLogger::~PrintingTestLogger()
 {
-  Log::setLogger(NULL);
 }
 
 bool PrintingTestLogger::isPrinting()
@@ -95,6 +94,8 @@ void CapturingTestLogger::write(const char* data)
     line.push_back('\n');
   }
 
+  // Note that although Log::write ensures that writes are serialised
+  // with a lock, we want a separate lock to avoid a conflict with contains().
   pthread_mutex_lock(&_logger_lock);
   _logged.append(line);
   pthread_mutex_unlock(&_logger_lock);

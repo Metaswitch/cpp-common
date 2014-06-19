@@ -48,6 +48,8 @@ namespace Log
 {
   static Logger logger_static;
   static Logger *logger = &logger_static;
+  static pthread_mutex_t serialization_lock;
+  static bool lock_initialised = false;
   int loggingLevel = 4;
 }
 
@@ -68,11 +70,19 @@ void Log::setLoggingLevel(int level)
 // Logger if it is allocated on the heap.
 void Log::setLogger(Logger *log)
 {
+  if (!Log::lock_initialised)
+  {
+    pthread_mutex_init(&Log::serialization_lock, NULL);
+    Log::lock_initialised = true;
+  }
+
+  pthread_mutex_lock(&Log::serialization_lock);
   Log::logger = log;
   if (Log::logger != NULL)
   {
     Log::logger->set_flags(Logger::FLUSH_ON_WRITE|Logger::ADD_TIMESTAMPS);
   }
+  pthread_mutex_unlock(&Log::serialization_lock);
 }
 
 void Log::write(int level, const char *module, int line_number, const char *fmt, ...)
@@ -85,13 +95,15 @@ void Log::write(int level, const char *module, int line_number, const char *fmt,
 
 void Log::_write(int level, const char *module, int line_number, const char *fmt, va_list args)
 {
-  if (!Log::logger)
+  if (level > Log::loggingLevel)
   {
     return;
   }
 
-  if (level > Log::loggingLevel)
+  pthread_mutex_lock(&Log::serialization_lock);
+  if (!Log::logger)
   {
+    pthread_mutex_unlock(&Log::serialization_lock);
     return;
   }
 
@@ -118,6 +130,8 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   logline[written+1] = '\0';
 
   Log::logger->write(logline);
+  pthread_mutex_unlock(&Log::serialization_lock);
+
 }
 
 // LCOV_EXCL_START Only used in exceptional signal handlers - not hit in UT
