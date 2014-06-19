@@ -275,12 +275,19 @@ void Logger::backtrace(const char *data)
     dup2(fd2, 2);
     close(fd2);
     fprintf(_fd, "\n");
+
     if (rc != 0)
     {
       fprintf(_fd, "gdb failed with return code %d\n", rc);
     }
+
     fflush(_fd);
   }
+}
+
+void Logger::commit()
+{
+  fsync(fileno(_fd));
 }
 
 // LCOV_EXCL_STOP
