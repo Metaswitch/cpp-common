@@ -56,7 +56,7 @@ template <int SIGNUM>
 class SignalHandler
 {
 public:
-  SignalHandler()
+  SignalHandler() : _terminating(false)
   {
     // Create the mutex and condition.
     pthread_mutex_init(&_mutex, NULL);
@@ -90,6 +90,11 @@ public:
     // Unhook the signal.
     signal(SIGNUM, SIG_DFL);
 
+    _terminating = true;
+    // Wake up the signal handler - this avoids us having to pause for
+    // up to a second in UTs while it times out.
+    pthread_cond_broadcast(&_cond);
+
     // Cancel the dispatcher thread and wait for it to end.
     pthread_cancel(_dispatcher_thread);
     pthread_join(_dispatcher_thread, NULL);
@@ -102,8 +107,9 @@ public:
     pthread_cond_destroy(&_cond);
   }
 
-  /// Waits for the signal to be raised, or for the wait to timeout. 
-  /// This returns true if the signal was raised, and false for timeout. 
+  /// Waits for the signal to be raised, or for the wait to timeout.
+  /// This returns true if the signal was raised, and false for
+  /// timeout, or if the condition variable was triggered by the destructor.
   bool wait_for_signal()
   {
     // Grab the mutex.  On its own this isn't enough to guarantee we won't
@@ -119,11 +125,11 @@ public:
     ts.tv_sec += 1;
 
     int rc = pthread_cond_timedwait(&_cond, &_mutex, &ts);
-    
+
     // Unlock the mutex
     pthread_mutex_unlock(&_mutex);
-    
-    return (rc != ETIMEDOUT);
+
+    return (rc != ETIMEDOUT) && (_terminating == false);
   }
 
 private:
@@ -151,6 +157,10 @@ private:
 
   /// Identifier of dispatcher thread.
   pthread_t _dispatcher_thread;
+
+  // Flag to indicate whether we're terminating, so we don't
+  // spuriously report a signal when waking up the condwait at the end.
+  bool _terminating;
 
   /// Mutex used for signalling to waiting threads.
   static pthread_mutex_t _mutex;
