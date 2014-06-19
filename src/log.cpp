@@ -103,8 +103,10 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   pthread_mutex_lock(&Log::serialization_lock);
   if (!Log::logger)
   {
+    // LCOV_EXCL_START
     pthread_mutex_unlock(&Log::serialization_lock);
     return;
+    // LCOV_EXCL_STOP
   }
 
   char logline[MAX_LOGLINE];
