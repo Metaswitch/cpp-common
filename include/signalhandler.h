@@ -56,7 +56,7 @@ template <int SIGNUM>
 class SignalHandler
 {
 public:
-  SignalHandler() : _terminating(false)
+  SignalHandler() : _cancelled(false)
   {
     // Create the mutex and condition.
     pthread_mutex_init(&_mutex, NULL);
@@ -90,11 +90,6 @@ public:
     // Unhook the signal.
     signal(SIGNUM, SIG_DFL);
 
-    _terminating = true;
-    // Wake up the signal handler - this avoids us having to pause for
-    // up to a second in UTs while it times out.
-    pthread_cond_broadcast(&_cond);
-
     // Cancel the dispatcher thread and wait for it to end.
     pthread_cancel(_dispatcher_thread);
     pthread_join(_dispatcher_thread, NULL);
@@ -105,6 +100,14 @@ public:
     // Destroy the mutex and condition.
     pthread_mutex_destroy(&_mutex);
     pthread_cond_destroy(&_cond);
+  }
+
+  void cancel()
+  {
+    // Wake up the signal handler - this avoids us having to pause for
+    // up to a second in UTs while it times out.
+    _cancelled = true;
+    pthread_cond_broadcast(&_cond);
   }
 
   /// Waits for the signal to be raised, or for the wait to timeout.
@@ -129,7 +132,7 @@ public:
     // Unlock the mutex
     pthread_mutex_unlock(&_mutex);
 
-    return (rc != ETIMEDOUT) && (_terminating == false);
+    return (rc != ETIMEDOUT) && (_cancelled == false);
   }
 
 private:
@@ -160,7 +163,7 @@ private:
 
   // Flag to indicate whether we're terminating, so we don't
   // spuriously report a signal when waking up the condwait at the end.
-  bool _terminating;
+  bool _cancelled;
 
   /// Mutex used for signalling to waiting threads.
   static pthread_mutex_t _mutex;
