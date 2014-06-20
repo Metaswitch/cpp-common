@@ -389,8 +389,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
   // Note that if the request failed or the response failed to parse the expiry
   // time in the cache record is left unchanged.  If it is an existing record
   // it will expire according to the current expiry value, if it is a new
-  // record it will expire immediately.
-
+  // record it will expire after DEFAULT_NEGATIVE_CACHE_TTL time.
   if (status == ARES_SUCCESS)
   {
     // Create a message parser and parse the message.
@@ -472,16 +471,16 @@ void DnsCachedResolver::dns_response(const std::string& domain,
         // Finally make sure the record is in the expiry list.
         add_to_expiry_list(ace);
       }
-
-      // If there were no records set the expiry period so we cache a negative
-      // entry to prevent immediate retries.
-      if ((ce->records.empty()) &&
-          (ce->expires == 0))
-      {
-        // We didn't get an SOA record, so use a default negative cache timeout.
-        ce->expires = DEFAULT_NEGATIVE_CACHE_TTL + time(NULL);
-      }
     }
+  }
+
+  // If there were no records set cache a negative entry to prevent 
+  // immediate retries.
+  if ((ce->records.empty()) &&
+      (ce->expires == 0))
+  {
+    // We didn't get an SOA record, so use a default negative cache timeout.
+    ce->expires = DEFAULT_NEGATIVE_CACHE_TTL + time(NULL);
   }
 
   // Add the record to the expiry list.
