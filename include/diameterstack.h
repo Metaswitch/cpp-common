@@ -64,7 +64,7 @@ public:
   {
   public:
     inline Object(struct dict_object* dict) : _dict(dict) {};
-    inline struct dict_object* dict() const {return _dict;}
+    inline struct dict_object* dict() const { return _dict; }
 
   private:
     struct dict_object *_dict;
@@ -88,6 +88,11 @@ public:
   class Application : public Object
   {
   public:
+    enum Type
+    {
+      ACCT,
+      AUTH
+    };
     inline Application(const std::string application) : Object(find(application))
     {
       fd_dict_getval(dict(), &_application_data);
@@ -622,8 +627,11 @@ public:
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
   virtual void configure(std::string filename);
-  virtual void advertize_application(const Dictionary::Application& app);
-  virtual void advertize_application(const Dictionary::Vendor& vendor, const Dictionary::Application& app);
+  virtual void advertize_application(const Dictionary::Application::Type type,
+                                     const Dictionary::Application& app);
+  virtual void advertize_application(const Dictionary::Application::Type type,
+                                     const Dictionary::Vendor& vendor,
+                                     const Dictionary::Application& app);
   virtual void register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory);
   virtual void register_fallback_handler(const Dictionary::Application& app);
   virtual void start();
