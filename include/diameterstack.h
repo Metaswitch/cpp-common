@@ -64,7 +64,7 @@ public:
   {
   public:
     inline Object(struct dict_object* dict) : _dict(dict) {};
-    inline struct dict_object* dict() const {return _dict;}
+    inline struct dict_object* dict() const { return _dict; }
 
   private:
     struct dict_object *_dict;
@@ -88,6 +88,11 @@ public:
   class Application : public Object
   {
   public:
+    enum Type
+    {
+      ACCT,
+      AUTH
+    };
     inline Application(const std::string application) : Object(find(application))
     {
       fd_dict_getval(dict(), &_application_data);
@@ -323,11 +328,20 @@ public:
   }
   Message& add_session_id(const std::string& session_id);
 
-  inline Message& add_auth_app_id(const Dictionary::Vendor& vendor, const Dictionary::Application& app)
+  inline Message& add_app_id(const Dictionary::Application::Type type,
+                             const Dictionary::Vendor& vendor,
+                             const Dictionary::Application& app)
   {
     Diameter::AVP vendor_specific_application_id(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
     vendor_specific_application_id.add(Diameter::AVP(dict()->VENDOR_ID).val_i32(vendor.vendor_id()));
-    vendor_specific_application_id.add(Diameter::AVP(dict()->AUTH_APPLICATION_ID).val_i32(app.application_id()));
+    if (type == Dictionary::Application::ACCT)
+    {
+      vendor_specific_application_id.add(Diameter::AVP(dict()->ACCT_APPLICATION_ID).val_i32(app.application_id()));
+    }
+    else
+    {
+      vendor_specific_application_id.add(Diameter::AVP(dict()->AUTH_APPLICATION_ID).val_i32(app.application_id()));
+    }
     add(vendor_specific_application_id);
     return *this;
   }
@@ -622,8 +636,11 @@ public:
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
   virtual void configure(std::string filename);
-  virtual void advertize_application(const Dictionary::Application& app);
-  virtual void advertize_application(const Dictionary::Vendor& vendor, const Dictionary::Application& app);
+  virtual void advertize_application(const Dictionary::Application::Type type,
+                                     const Dictionary::Application& app);
+  virtual void advertize_application(const Dictionary::Application::Type type,
+                                     const Dictionary::Vendor& vendor,
+                                     const Dictionary::Application& app);
   virtual void register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory);
   virtual void register_fallback_handler(const Dictionary::Application& app);
   virtual void start();
