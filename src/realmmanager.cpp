@@ -73,7 +73,7 @@ RealmManager::~RealmManager()
 void RealmManager::stop()
 {
   pthread_mutex_lock(&_lock);
-  _terminating = true; 
+  _terminating = true;
   pthread_cond_signal(&_cond);
   pthread_mutex_unlock(&_lock);
   pthread_join(_thread, NULL);

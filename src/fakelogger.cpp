@@ -42,7 +42,7 @@
 #include <string.h>
 #include <cassert>
 
-#include "fakelogger.hpp"
+#include "fakelogger.h"
 
 const int DEFAULT_LOGGING_LEVEL = 4;
 
@@ -107,7 +107,7 @@ void CapturingTestLogger::write(const char* data)
   _logged.append(line);
   pthread_mutex_unlock(&_logger_lock);
 
-  super(data);
+  PrintingTestLogger::write(data);
 }
 
 bool CapturingTestLogger::contains(const char* fragment)
