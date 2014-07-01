@@ -193,13 +193,13 @@ int main(int argc, char** argv)
   // Check arguments.
   if (argc != 4)
   {
-    fprintf(stderr, "Usage: %s <hostname> <statname> <port>\n", argv[0]);
+    fprintf(stderr, "Usage: %s <hostname> <port> <statname>\n", argv[0]);
     return 1;
   }
 
   // Get messages from the server.
   std::vector<std::string> msgs;
-  if (!get_msgs(argv[1], argv[3], argv[2], msgs))
+  if (!get_msgs(argv[1], argv[2], argv[3], msgs))
   {
     return 2;
   }
