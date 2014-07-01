@@ -46,7 +46,9 @@ const char* log_level[] = {"Error", "Warning", "Status", "Info", "Verbose", "Deb
 
 namespace Log
 {
-  static Logger *logger = new Logger();
+  static Logger logger_static;
+  static Logger *logger = &logger_static;
+  static pthread_mutex_t serialization_lock = PTHREAD_MUTEX_INITIALIZER;
   int loggingLevel = 4;
 }
 
@@ -58,24 +60,26 @@ void Log::setLoggingLevel(int level)
   }
   else if (level < ERROR_LEVEL)
   {
-    level = ERROR_LEVEL;
+    level = ERROR_LEVEL; // LCOV_EXCL_LINE
   }
   Log::loggingLevel = level;
 }
 
-void Log::setLogger(Logger *log)
+// Note that the caller is responsible for deleting the previous
+// Logger if it is allocated on the heap.
+
+// Returns the previous Logger (e.g. so it can be stored off and reset).
+Logger* Log::setLogger(Logger *log)
 {
-  if (log != NULL)
-  {
-    // This is not a logger deregistering itself, so need to delete the old
-    // logger to avoid leaking it.
-    delete Log::logger;
-  }
+  pthread_mutex_lock(&Log::serialization_lock);
+  Logger* old = Log::logger;
   Log::logger = log;
   if (Log::logger != NULL)
   {
     Log::logger->set_flags(Logger::FLUSH_ON_WRITE|Logger::ADD_TIMESTAMPS);
   }
+  pthread_mutex_unlock(&Log::serialization_lock);
+  return old;
 }
 
 void Log::write(int level, const char *module, int line_number, const char *fmt, ...)
@@ -88,14 +92,18 @@ void Log::write(int level, const char *module, int line_number, const char *fmt,
 
 void Log::_write(int level, const char *module, int line_number, const char *fmt, va_list args)
 {
-  if (!Log::logger)
+  if (level > Log::loggingLevel)
   {
     return;
   }
 
-  if (level > Log::loggingLevel)
+  pthread_mutex_lock(&Log::serialization_lock);
+  if (!Log::logger)
   {
+    // LCOV_EXCL_START
+    pthread_mutex_unlock(&Log::serialization_lock);
     return;
+    // LCOV_EXCL_STOP
   }
 
   char logline[MAX_LOGLINE];
@@ -121,6 +129,8 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   logline[written+1] = '\0';
 
   Log::logger->write(logline);
+  pthread_mutex_unlock(&Log::serialization_lock);
+
 }
 
 // LCOV_EXCL_START Only used in exceptional signal handlers - not hit in UT
