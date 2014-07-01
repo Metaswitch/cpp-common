@@ -40,6 +40,7 @@
 #include <iostream>
 #include <stdlib.h>
 #include <string.h>
+#include <cassert>
 
 #include "fakelogger.hpp"
 
@@ -47,13 +48,19 @@ const int DEFAULT_LOGGING_LEVEL = 4;
 
 PrintingTestLogger PrintingTestLogger::DEFAULT;
 
-PrintingTestLogger::PrintingTestLogger()
+PrintingTestLogger::PrintingTestLogger() : _last_logger(NULL)
 {
   take_over();
+  LOG_DEBUG("Logger creation");
 }
 
 PrintingTestLogger::~PrintingTestLogger()
 {
+  LOG_DEBUG("Logger destruction");
+  Logger* replaced = Log::setLogger(_last_logger);
+
+  // Ensure that loggers are destroyed in the reverse order of creation.
+  assert(replaced == this);
 }
 
 bool PrintingTestLogger::isPrinting()
@@ -100,11 +107,7 @@ void CapturingTestLogger::write(const char* data)
   _logged.append(line);
   pthread_mutex_unlock(&_logger_lock);
 
-  if (_noisy)
-  {
-    std::cout << line;
-  }
-
+  super(data);
 }
 
 bool CapturingTestLogger::contains(const char* fragment)
@@ -122,7 +125,7 @@ void PrintingTestLogger::flush()
 
 void PrintingTestLogger::take_over()
 {
-  Log::setLogger(this);
+  _last_logger = Log::setLogger(this);
   setupFromEnvironment();
 }
 

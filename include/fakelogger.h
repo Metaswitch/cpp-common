@@ -37,8 +37,8 @@
 ///
 ///----------------------------------------------------------------------------
 
-#ifndef FAKELOGGER_HPP
-#define FAKELOGGER_HPP
+#ifndef FAKELOGGER_H_
+#define FAKELOGGER_H_
 
 #include <string>
 #include "log.h"
@@ -69,6 +69,7 @@ public:
 
 protected:
   bool _noisy;
+  Logger* _last_logger;
 };
 
 // Besides the function of PrintingTestLogger, captures logs to an
@@ -91,20 +92,22 @@ public:
     setLoggingLevel(99);
     pthread_mutex_init(&_logger_lock, NULL);
   };
+
   CapturingTestLogger(int level) : PrintingTestLogger()
   {
     setPrinting(PrintingTestLogger::DEFAULT.isPrinting());
     setLoggingLevel(level);
     pthread_mutex_init(&_logger_lock, NULL);
   };
+
   virtual ~CapturingTestLogger()
   {
     pthread_mutex_destroy(&_logger_lock);
-    PrintingTestLogger::DEFAULT.take_over();
   };
 
   void write(const char* line);
   bool contains(const char* fragment);
+
 private:
   std::string _logged;
   pthread_mutex_t _logger_lock;

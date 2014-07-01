@@ -48,8 +48,7 @@ namespace Log
 {
   static Logger logger_static;
   static Logger *logger = &logger_static;
-  static pthread_mutex_t serialization_lock;
-  static bool lock_initialised = false;
+  static pthread_mutex_t serialization_lock = PTHREAD_MUTEX_INITIALIZER;
   int loggingLevel = 4;
 }
 
@@ -68,21 +67,19 @@ void Log::setLoggingLevel(int level)
 
 // Note that the caller is responsible for deleting the previous
 // Logger if it is allocated on the heap.
-void Log::setLogger(Logger *log)
-{
-  if (!Log::lock_initialised)
-  {
-    pthread_mutex_init(&Log::serialization_lock, NULL);
-    Log::lock_initialised = true;
-  }
 
+// Returns the previous Logger (e.g. so it can be stored off and reset).
+Logger* Log::setLogger(Logger *log)
+{
   pthread_mutex_lock(&Log::serialization_lock);
+  Logger* old = Log::logger;
   Log::logger = log;
   if (Log::logger != NULL)
   {
     Log::logger->set_flags(Logger::FLUSH_ON_WRITE|Logger::ADD_TIMESTAMPS);
   }
   pthread_mutex_unlock(&Log::serialization_lock);
+  return old;
 }
 
 void Log::write(int level, const char *module, int line_number, const char *fmt, ...)
