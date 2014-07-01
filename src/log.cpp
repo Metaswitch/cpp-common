@@ -155,4 +155,14 @@ void Log::backtrace(const char *fmt, ...)
   Log::logger->backtrace(logline);
 }
 
+void Log::commit()
+{
+  if (!Log::logger)
+  {
+    return;
+  }
+
+  Log::logger->commit();
+}
+
 // LCOV_EXCL_STOP

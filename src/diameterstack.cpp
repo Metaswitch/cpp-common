@@ -292,21 +292,43 @@ void Stack::configure(std::string filename)
   populate_avp_map();
 }
 
-void Stack::advertize_application(const Dictionary::Application& app)
+void Stack::advertize_application(const Dictionary::Application::Type type, 
+                                  const Dictionary::Application& app)
 {
   initialize();
-  int rc = fd_disp_app_support(app.dict(), NULL, 1, 0);
+  int rc;
+ 
+  if (type == Dictionary::Application::AUTH) 
+  {
+    rc = fd_disp_app_support(app.dict(), NULL, 1, 0);
+  }
+  else
+  {
+    rc = fd_disp_app_support(app.dict(), NULL, 0, 1);
+  }
+
   if (rc != 0)
   {
     throw Exception("fd_disp_app_support", rc); // LCOV_EXCL_LINE
   }
 }
 
-void Stack::advertize_application(const Dictionary::Vendor& vendor,
+void Stack::advertize_application(const Dictionary::Application::Type type,
+                                  const Dictionary::Vendor& vendor,
                                   const Dictionary::Application& app)
 {
   initialize();
-  int rc = fd_disp_app_support(app.dict(), vendor.dict(), 1, 0);
+  int rc;
+ 
+  if (type == Dictionary::Application::AUTH)
+  {
+    rc = fd_disp_app_support(app.dict(), vendor.dict(), 1, 0);
+  }
+  else
+  {
+    rc = fd_disp_app_support(app.dict(), vendor.dict(), 0, 1);
+  }
+
   if (rc != 0)
   {
     throw Exception("fd_disp_app_support", rc); // LCOV_EXCL_LINE

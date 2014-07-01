@@ -47,6 +47,7 @@
 #define LOG_VERBOSE(...) if (Log::enabled(Log::VERBOSE_LEVEL)) Log::write(Log::VERBOSE_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
 #define LOG_DEBUG(...) if (Log::enabled(Log::DEBUG_LEVEL)) Log::write(Log::DEBUG_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
 #define LOG_BACKTRACE(...) Log::backtrace(__VA_ARGS__)
+#define LOG_COMMIT(...) Log::commit()
 
 namespace Log
 {
@@ -73,6 +74,7 @@ namespace Log
   void write(int level, const char *module, int line_number, const char *fmt, ...);
   void _write(int level, const char *module, int line_number, const char *fmt, va_list args);
   void backtrace(const char *fmt, ...);
+  void commit();
 }
 
 #endif
