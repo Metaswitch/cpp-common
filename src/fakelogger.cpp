@@ -40,85 +40,102 @@
 #include <iostream>
 #include <stdlib.h>
 #include <string.h>
+#include <cassert>
 
-#include "fakelogger.hpp"
+#include "fakelogger.h"
 
 const int DEFAULT_LOGGING_LEVEL = 4;
 
-using namespace std;
+PrintingTestLogger PrintingTestLogger::DEFAULT;
 
-FakeLogger::FakeLogger() :
-  _noisy(isNoisy())
+PrintingTestLogger::PrintingTestLogger() : _last_logger(NULL)
 {
-  pthread_mutex_init(&_logger_lock, NULL);
-
-  Log::setLogger(this);
-  Log::setLoggingLevel(howNoisy());
+  take_over();
+  LOG_DEBUG("Logger creation");
 }
 
-FakeLogger::FakeLogger(bool noisy) :
-  _noisy(noisy)
+PrintingTestLogger::~PrintingTestLogger()
 {
-  pthread_mutex_init(&_logger_lock, NULL);
+  LOG_DEBUG("Logger destruction");
+  Logger* replaced = Log::setLogger(_last_logger);
 
-  Log::setLogger(this);
-  Log::setLoggingLevel(DEFAULT_LOGGING_LEVEL);
+  // Ensure that loggers are destroyed in the reverse order of creation.
+  assert(replaced == this);
 }
 
-FakeLogger::~FakeLogger()
+bool PrintingTestLogger::isPrinting()
 {
-  pthread_mutex_destroy(&_logger_lock);
-  Log::setLogger(NULL);
+  return _noisy;
 }
 
-void FakeLogger::write(const char* data)
+void PrintingTestLogger::setPrinting(bool printing)
 {
-  string line(data);
+  _noisy = printing;
+}
+
+void PrintingTestLogger::setLoggingLevel(int level)
+{
+  Log::setLoggingLevel(level);
+}
+
+void PrintingTestLogger::write(const char* data)
+{
+  std::string line(data);
 
   if (*line.rbegin() != '\n') {
     line.push_back('\n');
   }
 
-  pthread_mutex_lock(&_logger_lock);
-
-  _lastlog.append(line);
-
-  pthread_mutex_unlock(&_logger_lock);
-
   if (_noisy)
   {
-    cout << line;
+    std::cout << line;
   }
 
 }
 
-void FakeLogger::flush()
+void CapturingTestLogger::write(const char* data)
 {
-}
+  std::string line(data);
 
-bool FakeLogger::contains(const char* needle)
-{
+  if (*line.rbegin() != '\n') {
+    line.push_back('\n');
+  }
+
+  // Note that although Log::write ensures that writes are serialised
+  // with a lock, we want a separate lock to avoid a conflict with contains().
   pthread_mutex_lock(&_logger_lock);
-
-  bool result = _lastlog.find(needle) != string::npos;
-
+  _logged.append(line);
   pthread_mutex_unlock(&_logger_lock);
 
+  PrintingTestLogger::write(data);
+}
+
+bool CapturingTestLogger::contains(const char* fragment)
+{
+  bool result;
+  pthread_mutex_lock(&_logger_lock);
+  result = _logged.find(fragment) != std::string::npos;
+  pthread_mutex_unlock(&_logger_lock);
   return result;
 }
 
-bool FakeLogger::isNoisy()
+void PrintingTestLogger::flush()
 {
-  // Turn on noisy logging iff NOISY=T or NOISY=Y in the environment.
-  char* val = getenv("NOISY");
-  return ((val != NULL) && (strchr("TtYy", val[0]) != NULL));
 }
 
-int FakeLogger::howNoisy()
+void PrintingTestLogger::take_over()
+{
+  _last_logger = Log::setLogger(this);
+  setupFromEnvironment();
+}
+
+void PrintingTestLogger::setupFromEnvironment()
 {
   // Set logging to the specified level if specified in the environment.
   // NOISY=T:5 sets the level to 5.
   char* val = getenv("NOISY");
+  bool is_noisy = ((val != NULL) &&
+                   (strchr("TtYy", val[0]) != NULL));
   int level = DEFAULT_LOGGING_LEVEL;
 
   if (val != NULL)
@@ -131,5 +148,6 @@ int FakeLogger::howNoisy()
     }
   }
 
-  return level;
+  setPrinting(is_noisy);
+  setLoggingLevel(level);
 }
