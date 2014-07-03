@@ -1,5 +1,5 @@
 /**
- * @file ipv6utils.h
+ * @file ipv6utils.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014 Metaswitch Networks Ltd
@@ -34,11 +34,18 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef IPV6UTILS_H_
-#define IPV6UTILS_H_
-
+#include "ipv6utils.h"
 #include <string>
+#include <arpa/inet.h>
 
-bool is_ipv6(std::string address);
-
-#endif
+bool is_ipv6(std::string address)
+{
+  // Determine if we're IPv4 or IPv6.
+  int http_af = AF_INET;
+  struct in6_addr dummy_addr;
+  if (inet_pton(AF_INET6, address.c_str(), &dummy_addr) == 1)
+  {
+    http_af = AF_INET6;
+  }
+  return (http_af == AF_INET6);
+}
