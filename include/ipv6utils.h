@@ -1,6 +1,7 @@
 #ifndef IPV6UTILS_H_
 #define IPV6UTILS_H_
 
+#include <string>
 #include <arpa/inet.h>
 
 bool is_ipv6(std::string address)
