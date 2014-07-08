@@ -138,9 +138,13 @@ void HttpStack::configure(const std::string& bind_address,
   _stats = stats;
 }
 
-void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* factory)
+void HttpStack::register_controller(char* path,
+                                    HttpStack::ControllerInterface* controller)
 {
-  evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp, path, handler_callback_fn, (void*)factory);
+  evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp,
+                                            path,
+                                            handler_callback_fn,
+                                            (void*)controller);
   if (cb == NULL)
   {
     throw Exception("evhtp_set_cb", 0); // LCOV_EXCL_LINE
@@ -215,22 +219,22 @@ void HttpStack::wait_stopped()
   _evbase = NULL;
 }
 
-void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
+void HttpStack::handler_callback_fn(evhtp_request_t* req, void* controller)
 {
-  INSTANCE->handler_callback(req, (HttpStack::BaseHandlerFactory*)handler_factory);
+  INSTANCE->handler_callback(req, (HttpStack::ControllerInterface*)controller);
 }
 
 void HttpStack::handler_callback(evhtp_request_t* req,
-                                 HttpStack::BaseHandlerFactory* handler_factory)
+                                 HttpStack::ControllerInterface* controller)
 {
   Request request(this, req);
 
   // Work out whether to log this request at protocol level (60) or detail
   // level (40).
-  request.set_sas_log_level(handler_factory->sas_log_level(request));
+  request.set_sas_log_level(controller->sas_log_level(request));
 
   SAS::TrailId trail = SAS::new_trail(0);
-  sas_log_rx_http_req(trail, request, handler_factory, 0);
+  sas_log_rx_http_req(trail, request, 0);
 
   if (_stats != NULL)
   {
@@ -244,10 +248,10 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     // HttpStack::Request::send_reply method resumes.
     evhtp_request_pause(req);
 
-    // Create a Request and a Handler and kick off processing.
-    LOG_VERBOSE("Handling request for URL %s, args %s", req->uri->path->full, req->uri->query_raw);
-    Handler* handler = handler_factory->create(request, trail);
-    handler->run();
+    // Pass the request to the controller.
+    LOG_VERBOSE("Process request for URL %s, args %s",
+                req->uri->path->full, req->uri->query_raw);
+    controller->process_request(request, trail);
   }
   else
   {
@@ -298,7 +302,6 @@ std::string HttpStack::Request::body()
 
 void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
                                     HttpStack::Request& req,
-                                    HttpStack::BaseHandlerFactory* handler_factory,
                                     uint32_t instance_id)
 {
   std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);

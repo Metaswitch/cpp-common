@@ -194,66 +194,29 @@ public:
     }
   };
 
-  class Handler
+  class ControllerInterface
   {
   public:
-    inline Handler(Request& req, SAS::TrailId trail) : _req(req), _trail(trail) {}
-    virtual ~Handler() {}
-
-    virtual void run() = 0;
-
-    /// Send an HTTP reply. Calls through to Request::send_reply, picking up
-    /// the trail ID from the handler.
+    /// Process a new HTTP request.
     ///
-    /// @param status_code the HTTP status code to use on the reply.
-    void send_http_reply(int status_code) { _req.send_reply(status_code, trail()); }
+    /// @param req the object representing the request.  This function does not
+    ///   take ownership of the request - implementations of this function must
+    ///   take a copy if they wish to reference it outside of the current call
+    ///   stack.
+    /// @param trail the SAS trail ID associated with the reqeust.
+    virtual void process_request(Request& req, SAS::TrailId trail) = 0;
 
-    inline SAS::TrailId trail() { return _trail; }
-
-  protected:
-    void record_penalty() { _req.record_penalty(); }
-
-    Request _req;
-    SAS::TrailId _trail;
-  };
-
-  class BaseHandlerFactory
-  {
-  public:
-    BaseHandlerFactory() {}
-    virtual Handler* create(Request& req, SAS::TrailId trail) = 0;
-
-    /// Return the level to log the HTTP transaction at for a given request.
-    /// This default implementation logs everything at protocol level (60).
+    /// Get the level to log an HTTP transaction at.
+    ///
+    /// The default implentation of this method causes all transactions to
+    /// be logged at "protocol" level.
+    ///
+    /// @param req the transaction to log.
+    /// @return the level to log the transaction at ("protocol" or "detail").
     virtual SASEvent::HttpLogLevel sas_log_level(Request& req)
     {
       return SASEvent::HttpLogLevel::PROTOCOL;
     }
-  };
-
-  template <class H>
-  class HandlerFactory : public BaseHandlerFactory
-  {
-  public:
-    HandlerFactory() : BaseHandlerFactory() {}
-    Handler* create(Request& req, SAS::TrailId trail)
-    {
-      return new H(req, trail);
-    }
-  };
-
-  template <class H, class C>
-  class ConfiguredHandlerFactory : public BaseHandlerFactory
-  {
-  public:
-    ConfiguredHandlerFactory(const C* cfg) : BaseHandlerFactory(), _cfg(cfg) {}
-    Handler* create(Request& req, SAS::TrailId trail)
-    {
-      return new H(req, _cfg, trail);
-    }
-
-  private:
-    const C* _cfg;
   };
 
   class StatsInterface
@@ -272,7 +235,7 @@ public:
                          AccessLogger* access_logger = NULL,
                          LoadMonitor* load_monitor = NULL,
                          StatsInterface* stats = NULL);
-  virtual void register_handler(char* path, BaseHandlerFactory* factory);
+  virtual void register_controller(char* path, ControllerInterface* controller);
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
   virtual void wait_stopped();
@@ -294,14 +257,12 @@ private:
   HttpStack();
   virtual ~HttpStack() {}
   virtual void send_reply_internal(Request& req, int rc, SAS::TrailId trail);
-  static void handler_callback_fn(evhtp_request_t* req, void* handler_factory);
+  static void handler_callback_fn(evhtp_request_t* req, void* controller);
   static void* event_base_thread_fn(void* http_stack_ptr);
-  void handler_callback(evhtp_request_t* req,
-                        BaseHandlerFactory* handler_factory);
+  void handler_callback(evhtp_request_t* req, ControllerInterface* controller);
   void event_base_thread_fn();
   void sas_log_rx_http_req(SAS::TrailId trail,
                            Request& req,
-                           BaseHandlerFactory* handler_factory,
                            uint32_t instance_id=0);
   void sas_log_tx_http_rsp(SAS::TrailId trail,
                            HttpStack::Request& req,
