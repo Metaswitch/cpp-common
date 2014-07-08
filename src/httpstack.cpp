@@ -185,14 +185,17 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
   rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), _bind_port, 1024);
   if (rc != 0)
   {
+    LOG_ERROR("evhtp_bind_socket failed with address %s and port %d", full_bind_address.c_str(), _bind_port);
     throw Exception("evhtp_bind_socket", rc); // LCOV_EXCL_LINE
   }
 
-
-  rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), _bind_port, 1024);
-  if (rc != 0)
-  {
-    throw Exception("evhtp_bind_socket - localhost", rc); // LCOV_EXCL_LINE
+  if (local_bind_address != full_bind_address) {
+    rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), _bind_port, 1024);
+    if (rc != 0)
+    {
+      LOG_ERROR("evhtp_bind_socket failed with address %s and port %d", local_bind_address.c_str(), _bind_port);
+      throw Exception("evhtp_bind_socket - localhost", rc); // LCOV_EXCL_LINE
+    }
   }
 
   rc = pthread_create(&_event_base_thread, NULL, event_base_thread_fn, this);
