@@ -42,6 +42,8 @@
 
 namespace HttpStackUtils
 {
+  /// @class SpawningController
+  ///
   /// Many controllers use an asynchronous non-blocking execution model.
   /// Instead of blocking the current thread when doing external operations,
   /// they register callbacks that are called (potentially on a different
@@ -76,6 +78,8 @@ namespace HttpStackUtils
     const C* _cfg;
   };
 
+  /// @class Handler
+  ///
   /// Base class for per-request handler objects spawned by a
   /// SpawningController.
   class Handler
@@ -112,36 +116,45 @@ namespace HttpStackUtils
     SAS::TrailId _trail;
   };
 
+  /// @class PingController
+  ///
   /// Simple controller that receives ping requests and responds to them.
   class PingController : public HttpStack::ControllerInterface
   {
-    inline void process_request(HttpStack::Request& req, SAS::TrailId trail)
-    {
-      req.add_content("OK");
-      req.send_reply(200, trail);
-    }
+    void process_request(HttpStack::Request& req, SAS::TrailId trail);
   };
 
+  /// @class ControllerThreadPool
+  ///
+  /// The HttpStack has a limited number of transport threads so controllers
+  /// must take care not to block them while doing external work.  This class
+  /// is a thread pool that allows the application to execute certain
+  /// controllers in a worker thread (which is allowed to block).
+  ///
+  /// Example code:
+  ///   stack = HttpStack::get_instance();
+  ///   ExampleController controller1;
+  ///   ExampleController controller2;
+  ///
+  ///   HttpStackUtils::ControllerThreadPool pool(50);
+  ///   stack->register_controller("^/example1", pool.wrap(&controller1));
+  ///   stack->register_controller("^/example2", pool.wrap(&controller2));
   class ControllerThreadPool : public HttpStack::ControllerInterface
   {
-  private:
+  public:
     ControllerThreadPool(unsigned int num_threads,
-                         unsigned int max_queue = 0) :
-      _pool(num_threads, max_queue), _wrappers()
-    {}
+                         unsigned int max_queue = 0);
+    ~ControllerThreadPool();
 
-    ~ControllerThreadPool()
-    {
-      for(std::vector<Wrapper*>::iterator it = _wrappers.begin();
-          it != _wrappers.end();
-          ++it)
-      {
-        delete *it;
-      }
+    /// Wrap a controller in a 'wrapper' object.  Requests passed to this
+    /// wrapper will be processed on a worker thread.
+    ControllerInterface* wrap(ControllerInterface* controller);
 
-      _wrappers.clear();
-    }
-
+  private:
+    /// @struct RequestParams
+    ///
+    /// Structure that is used for passing requests from the HttpStack transport
+    /// thread to the thread pool.
     struct RequestParams
     {
       RequestParams(ControllerInterface* controller_param,
@@ -157,53 +170,56 @@ namespace HttpStackUtils
       SAS::TrailId trail;
     };
 
-    class Pool : public ThreadPool<RequestParams>
+    /// @class Pool
+    ///
+    /// The thread pool that manages the worker threads and defines how a work
+    /// item is processed.
+    class Pool : public ThreadPool<RequestParams*>
     {
     public:
       Pool(unsigned int num_threads,
-           unsigned int max_queue = 0) :
-        ThreadPool<RequestParams>(num_threads, max_queue)
-      {}
+           unsigned int max_queue = 0);
 
-      void process_work(RequestParams& params)
-      {
-        params.controller->process_request(params.request, params.trail);
-      }
+      void process_work(RequestParams*& params);
     };
 
+    /// @class Wrapper
+    ///
+    /// The wrapper class that is returned to the application on calling
+    /// ControllerThreadPool::wrap().
+    ///
+    /// This implements HttpStack::ControllerInterface so can be used in place
+    /// of the real controller when registering with the HttpStack. Its
+    /// process_request() method takes an HTTP request object and passes it to
+    /// the actual thread pool for processing in a worker thread.
     class Wrapper : public HttpStack::ControllerInterface
     {
     public:
-      Wrapper(Pool* pool, ControllerInterface* controller) :
-        _pool(pool), _controller(controller)
-      {}
+      Wrapper(Pool* pool, ControllerInterface* controller);
 
-      void process_request(HttpStack::Request& req, SAS::TrailId trail)
-      {
-        RequestParams params(_controller, req, trail);
-        _pool->add_work(params);
-      }
+      /// Implementation of ControllerInterface::process_request(). This passes
+      /// the request to a thread pool for processing.
+      void process_request(HttpStack::Request& req, SAS::TrailId trail);
 
-      SASEvent::HttpLogLevel sas_log_level(HttpStack::Request& req)
-      {
-        return _controller->sas_log_level(req);
-      }
+      /// Implementation of ControllerInterface::sas_log_level().  This calls
+      /// the method on the underlying controller.
+      SASEvent::HttpLogLevel sas_log_level(HttpStack::Request& req);
 
     private:
+      // The pool that new requests are passed to.
       Pool* _pool;
+
+      // The wrapped controller.
       ControllerInterface* _controller;
     };
 
+    // The threadpool containing the worker threads.
     Pool _pool;
-    std::vector<Wrapper*> _wrappers;
 
-  public:
-    ControllerInterface* wrap(ControllerInterface* controller)
-    {
-      Wrapper* wrapper = new Wrapper(&_pool, controller);
-      _wrappers.push_back(wrapper);
-      return wrapper;
-    }
+    // Vector of all the wrapper objects that have been allocated.  These are
+    // owned by the ControllerThreadPool (which is responsible for freeing
+    // them) and we use this vector to keep track of them.
+    std::vector<Wrapper*> _wrappers;
   };
 
 } // namespace HttpStackUtils
