@@ -248,7 +248,7 @@ public:
                                   int rc,
                                   uint32_t instance_id = 0);
 
-  private:
+  protected:
     //
     // Utility methods.
     //

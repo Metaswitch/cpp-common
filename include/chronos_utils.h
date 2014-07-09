@@ -46,21 +46,21 @@ namespace ChronosUtils
   class HttpStackSasLogger : public HttpStack::SasLogger
   {
     void sas_log_rx_http_req(SAS::TrailId trail,
-                             Request& req,
+                             HttpStack::Request& req,
                              uint32_t instance_id = 0);
 
     void sas_log_tx_http_rsp(SAS::TrailId trail,
-                             Request& req,
+                             HttpStack::Request& req,
                              int rc,
                              uint32_t instance_id = 0);
 
     void sas_log_overload(SAS::TrailId trail,
-                          Request& req,
+                          HttpStack::Request& req,
                           int rc,
                           uint32_t instance_id = 0);
   };
 
-  extern HttpStackSasLogger;
+  extern HttpStackSasLogger HTTP_STACK_SAS_LOGGER;
 
 } // namespace ChronosUtils
 

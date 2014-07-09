@@ -41,7 +41,7 @@ namespace ChronosUtils
   HttpStackSasLogger HTTP_STACK_SAS_LOGGER;
 
   void HttpStackSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
-                                               Request& req,
+                                               HttpStack::Request& req,
                                                uint32_t instance_id)
   {
     log_correlator(trail, req, instance_id);
@@ -49,7 +49,7 @@ namespace ChronosUtils
   }
 
   void HttpStackSasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
-                                               Request& req,
+                                               HttpStack::Request& req,
                                                int rc,
                                                uint32_t instance_id)
   {
@@ -57,7 +57,7 @@ namespace ChronosUtils
   }
 
   void HttpStackSasLogger::sas_log_overload(SAS::TrailId trail,
-                                            Request& req,
+                                            HttpStack::Request& req,
                                             int rc,
                                             uint32_t instance_id)
   {
