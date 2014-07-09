@@ -201,9 +201,9 @@ namespace HttpStackUtils
       /// the request to a thread pool for processing.
       void process_request(HttpStack::Request& req, SAS::TrailId trail);
 
-      /// Implementation of ControllerInterface::sas_log_level().  This calls
+      /// Implementation of ControllerInterface::sas_logger().  This calls
       /// the method on the underlying controller.
-      SASEvent::HttpLogLevel sas_log_level(HttpStack::Request& req);
+      HttpStack::SasLogger* sas_logger(HttpStack::Request& req);
 
     private:
       // The pool that new requests are passed to.

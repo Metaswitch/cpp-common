@@ -51,6 +51,8 @@
 class HttpStack
 {
 public:
+  class SasLogger;
+
   class Exception
   {
   public:
@@ -144,7 +146,6 @@ public:
 
     void record_penalty() { _stack->record_penalty(); }
 
-
     /// Get the latency of the request.
     ///
     /// @param latency_us The latency of the request in microseconds.  Only
@@ -153,8 +154,27 @@ public:
     /// @return Whether the latency has been successfully obtained.
     bool get_latency(unsigned long& latency_us);
 
-    void set_sas_log_level(SASEvent::HttpLogLevel level) { _sas_log_level = level; }
-    SASEvent::HttpLogLevel get_sas_log_level() { return _sas_log_level; }
+    void set_sas_logger(SasLogger* logger) { _sas_logger = logger; }
+
+    inline void sas_log_rx_http_req(SAS::TrailId trail,
+                                    uint32_t instance_id = 0)
+    {
+      _sas_logger->sas_log_rx_http_req(trail, *this, instance_id);
+    }
+
+    inline void sas_log_tx_http_rsp(SAS::TrailId trail,
+                                    int rc,
+                                    uint32_t instance_id = 0)
+    {
+      _sas_logger->sas_log_tx_http_rsp(trail, *this, rc, instance_id);
+    }
+
+    inline void sas_log_overload(SAS::TrailId trail,
+                                 int rc,
+                                 uint32_t instance_id = 0)
+    {
+      _sas_logger->sas_log_overload(trail, *this, rc, instance_id);
+    }
 
   protected:
     htp_method _method;
@@ -165,7 +185,7 @@ public:
     HttpStack* _stack;
     evhtp_request_t* _req;
     Utils::StopWatch _stopwatch;
-    SASEvent::HttpLogLevel _sas_log_level;
+    SasLogger* _sas_logger;
 
     std::string url_unescape(const std::string& s)
     {
@@ -194,6 +214,71 @@ public:
     }
   };
 
+  class SasLogger
+  {
+  public:
+    // Log a received HTTP request.
+    //
+    // @param trail SAS trail ID to log on.
+    // @param req request to log.
+    // @instance_id unique instance ID for the event.
+    virtual void sas_log_rx_http_req(SAS::TrailId trail,
+                                     Request& req,
+                                     uint32_t instance_id = 0);
+
+    // Log a transmitted HTTP response.
+    //
+    // @param trail SAS trail ID to log on.
+    // @param req request to log.
+    // @param rc the HTTP response code.
+    // @instance_id unique instance ID for the event.
+    virtual void sas_log_tx_http_rsp(SAS::TrailId trail,
+                                     Request& req,
+                                     int rc,
+                                     uint32_t instance_id = 0);
+
+    // Log when an HTTP request is rejected due to overload.
+    //
+    // @param trail SAS trail ID to log on.
+    // @param req request to log.
+    // @param rc the HTTP response code.
+    // @instance_id unique instance ID for the event.
+    virtual void sas_log_overload(SAS::TrailId trail,
+                                  Request& req,
+                                  int rc,
+                                  uint32_t instance_id = 0);
+
+  private:
+    //
+    // Utility methods.
+    //
+
+    // Log any correlating markers encoded in the message header.
+    void log_correlator(SAS::TrailId trail, Request& req, uint32_t instance_id);
+
+    // Log that a request has been received using the normal SAS event IDs.
+    void log_req_event(SAS::TrailId trail,
+                       Request& req,
+                       uint32_t instance_id,
+                       SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
+
+    // Log that a response has been sent using the normal SAS event IDs.
+    void log_rsp_event(SAS::TrailId trail,
+                       Request& req,
+                       int rc,
+                       uint32_t instance_id,
+                       SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL,
+                       bool omit_body = false);
+
+    // Log that a request has been rejected due to overload, using the normal
+    // SAS event IDs.
+    void log_overload_event(SAS::TrailId trail,
+                            Request& req,
+                            int rc,
+                            uint32_t instance_id,
+                            SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
+  };
+
   class ControllerInterface
   {
   public:
@@ -206,16 +291,17 @@ public:
     /// @param trail the SAS trail ID associated with the reqeust.
     virtual void process_request(Request& req, SAS::TrailId trail) = 0;
 
-    /// Get the level to log an HTTP transaction at.
+    /// Get the instance of the SasLogger that this controller uses to log HTTP
+    /// transactions.
     ///
-    /// The default implentation of this method causes all transactions to
-    /// be logged at "protocol" level.
+    /// The default implemention returns the default logger
+    /// (HttpStack::SAS_LOGGER).
     ///
     /// @param req the transaction to log.
-    /// @return the level to log the transaction at ("protocol" or "detail").
-    virtual SASEvent::HttpLogLevel sas_log_level(Request& req)
+    /// @return the object used to log the transaction.
+    virtual SasLogger* sas_logger(Request& req)
     {
-      return SASEvent::HttpLogLevel::PROTOCOL;
+      return &HttpStack::DEFAULT_SAS_LOGGER;
     }
   };
 
@@ -250,6 +336,8 @@ public:
     }
   };
 
+  static SasLogger DEFAULT_SAS_LOGGER;
+
 private:
   static HttpStack* INSTANCE;
   static HttpStack DEFAULT_INSTANCE;
@@ -261,17 +349,7 @@ private:
   static void* event_base_thread_fn(void* http_stack_ptr);
   void handler_callback(evhtp_request_t* req, ControllerInterface* controller);
   void event_base_thread_fn();
-  void sas_log_rx_http_req(SAS::TrailId trail,
-                           Request& req,
-                           uint32_t instance_id=0);
-  void sas_log_tx_http_rsp(SAS::TrailId trail,
-                           HttpStack::Request& req,
-                           int rc,
-                           uint32_t instance_id=0);
-  void sas_log_overload(SAS::TrailId trail,
-                        HttpStack::Request& req,
-                        int rc,
-                        uint32_t instance_id=0);
+
   // Don't implement the following, to avoid copies of this instance.
   HttpStack(HttpStack const&);
   void operator=(HttpStack const&);

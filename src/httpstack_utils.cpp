@@ -120,10 +120,10 @@ namespace HttpStackUtils
 
   // Implementation of ControllerInterface::sas_log_level().  Simply call the
   // corresponding method on the underlying controller.
-  SASEvent::HttpLogLevel
-    ControllerThreadPool::Wrapper::sas_log_level(HttpStack::Request& req)
+  HttpStack::SasLogger*
+    ControllerThreadPool::Wrapper::sas_logger(HttpStack::Request& req)
   {
-    return _controller->sas_log_level(req);
+    return _controller->sas_logger(req);
   }
 
 } // namespace HttpStackUtils
