@@ -378,23 +378,26 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
 
   tx_http_rsp.add_static_param(rc);
   tx_http_rsp.add_static_param(req.method());
-  tx_http_rsp.add_static_param(omit_body ? 1 : 0);
 
   tx_http_rsp.add_var_param(req.full_path());
 
-  if (!omit_body)
+  // The response body is stored in an evbuffer in libevhtp which we need to
+  // copy out into a local buffer.  Note that the longest permitted SAS message
+  // is 0xFFFF bytes, so don't bother copying out any more than that.
+  uint8_t buffer[0xFFFF];
+  ev_ssize_t buffer_len;
+  buffer_len = evbuffer_copyout(req.req()->buffer_out, buffer, sizeof(buffer));
+
+  if (omit_body && (buffer_len != 0))
   {
-    // The response body is stored in an evbuffer in libevhtp which we need to
-    // copy out into a local buffer.  Note that the longest permitted SAS message
-    // is 0xFFFF bytes, so don't bother copying out any more than that.
-    uint8_t buffer[0xFFFF];
-    ev_ssize_t buffer_len;
-    buffer_len = evbuffer_copyout(req.req()->buffer_out, buffer, sizeof(buffer));
-    tx_http_rsp.add_var_param(buffer_len, buffer);
+    // Instead of the body, log a string explaining that the body was not
+    // present.
+    tx_http_rsp.add_var_param("<Present but not logged>");
   }
   else
   {
-    tx_http_rsp.add_var_param("");
+    // Log the body as normal.
+    tx_http_rsp.add_var_param(buffer_len, buffer);
   }
 
   SAS::report_event(tx_http_rsp);
