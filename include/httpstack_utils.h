@@ -222,6 +222,27 @@ namespace HttpStackUtils
     std::vector<Wrapper*> _wrappers;
   };
 
+  // Implementation of an HttpStack SAS logger for logging chronos flows. This
+  // logs all transactions at "detail" level (level 40).
+  class ChronosSasLogger : public HttpStack::SasLogger
+  {
+    void sas_log_rx_http_req(SAS::TrailId trail,
+                             HttpStack::Request& req,
+                             uint32_t instance_id = 0);
+
+    void sas_log_tx_http_rsp(SAS::TrailId trail,
+                             HttpStack::Request& req,
+                             int rc,
+                             uint32_t instance_id = 0);
+
+    void sas_log_overload(SAS::TrailId trail,
+                          HttpStack::Request& req,
+                          int rc,
+                          uint32_t instance_id = 0);
+  };
+
+  extern ChronosSasLogger CHRONOS_SAS_LOGGER;
+
 } // namespace HttpStackUtils
 
 #endif

@@ -118,12 +118,50 @@ namespace HttpStackUtils
     _pool->add_work(params);
   }
 
-  // Implementation of ControllerInterface::sas_log_level().  Simply call the
+  // Implementation of ControllerInterface::sas_logger().  Simply call the
   // corresponding method on the underlying controller.
   HttpStack::SasLogger*
     ControllerThreadPool::Wrapper::sas_logger(HttpStack::Request& req)
   {
     return _controller->sas_logger(req);
+  }
+
+  //
+  // Chronos utilities.
+  //
+
+  // Delaration of a logger for logging chronos flows.
+  ChronosSasLogger CHRONOS_SAS_LOGGER;
+
+  // Log a request from chronos.
+  void ChronosSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
+                                             HttpStack::Request& req,
+                                             uint32_t instance_id)
+  {
+    log_correlator(trail, req, instance_id);
+    log_req_event(trail, req, instance_id, SASEvent::HttpLogLevel::DETAIL);
+  }
+
+  // Log a response to chronos.
+  void ChronosSasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
+                                             HttpStack::Request& req,
+                                             int rc,
+                                             uint32_t instance_id)
+  {
+    log_rsp_event(trail, req, rc, instance_id, SASEvent::HttpLogLevel::DETAIL);
+  }
+
+  // Log when a chronos request is rejected due to overload.
+  void ChronosSasLogger::sas_log_overload(SAS::TrailId trail,
+                                          HttpStack::Request& req,
+                                          int rc,
+                                          uint32_t instance_id)
+  {
+    log_overload_event(trail,
+                       req,
+                       rc,
+                       instance_id,
+                       SASEvent::HttpLogLevel::DETAIL);
   }
 
 } // namespace HttpStackUtils
