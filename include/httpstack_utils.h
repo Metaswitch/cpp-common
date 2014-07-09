@@ -139,7 +139,7 @@ namespace HttpStackUtils
   ///   HttpStackUtils::ControllerThreadPool pool(50);
   ///   stack->register_controller("^/example1", pool.wrap(&controller1));
   ///   stack->register_controller("^/example2", pool.wrap(&controller2));
-  class ControllerThreadPool : public HttpStack::ControllerInterface
+  class ControllerThreadPool
   {
   public:
     ControllerThreadPool(unsigned int num_threads,
@@ -148,7 +148,7 @@ namespace HttpStackUtils
 
     /// Wrap a controller in a 'wrapper' object.  Requests passed to this
     /// wrapper will be processed on a worker thread.
-    ControllerInterface* wrap(ControllerInterface* controller);
+    HttpStack::ControllerInterface* wrap(HttpStack::ControllerInterface* controller);
 
   private:
     /// @struct RequestParams
@@ -157,7 +157,7 @@ namespace HttpStackUtils
     /// thread to the thread pool.
     struct RequestParams
     {
-      RequestParams(ControllerInterface* controller_param,
+      RequestParams(HttpStack::ControllerInterface* controller_param,
                     HttpStack::Request& request_param,
                     SAS::TrailId trail_param) :
         controller(controller_param),
@@ -165,7 +165,7 @@ namespace HttpStackUtils
         trail(trail_param)
       {}
 
-      ControllerInterface* controller;
+      HttpStack::ControllerInterface* controller;
       HttpStack::Request request;
       SAS::TrailId trail;
     };
