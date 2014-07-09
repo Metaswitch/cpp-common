@@ -292,13 +292,13 @@ void Stack::configure(std::string filename)
   populate_avp_map();
 }
 
-void Stack::advertize_application(const Dictionary::Application::Type type, 
+void Stack::advertize_application(const Dictionary::Application::Type type,
                                   const Dictionary::Application& app)
 {
   initialize();
   int rc;
- 
-  if (type == Dictionary::Application::AUTH) 
+
+  if (type == Dictionary::Application::AUTH)
   {
     rc = fd_disp_app_support(app.dict(), NULL, 1, 0);
   }
@@ -319,7 +319,7 @@ void Stack::advertize_application(const Dictionary::Application::Type type,
 {
   initialize();
   int rc;
- 
+
   if (type == Dictionary::Application::AUTH)
   {
     rc = fd_disp_app_support(app.dict(), vendor.dict(), 1, 0);
@@ -335,9 +335,9 @@ void Stack::advertize_application(const Dictionary::Application::Type type,
   }
 }
 
-void Stack::register_handler(const Dictionary::Application& app,
-                             const Dictionary::Message& msg,
-                             BaseHandlerFactory* factory)
+void Stack::register_controller(const Dictionary::Application& app,
+                                const Dictionary::Message& msg,
+                                ControllerInterface* controller)
 {
   // Register a callback for messages from our application with the specified message type.
   // DISP_HOW_CC indicates that we want to match on command code (and allows us to optionally
@@ -347,7 +347,11 @@ void Stack::register_handler(const Dictionary::Application& app,
   memset(&data, 0, sizeof(data));
   data.app = app.dict();
   data.command = msg.dict();
-  int rc = fd_disp_register(handler_callback_fn, DISP_HOW_CC, &data, (void *)factory, &_callback_handler);
+  int rc = fd_disp_register(handler_callback_fn,
+                            DISP_HOW_CC,
+                            &data,
+                            (void *)controller,
+                            &_callback_handler);
 
   if (rc != 0)
   {
@@ -355,7 +359,7 @@ void Stack::register_handler(const Dictionary::Application& app,
   }
 }
 
-void Stack::register_fallback_handler(const Dictionary::Application &app)
+void Stack::register_fallback_controller(const Dictionary::Application &app)
 {
   // Register a fallback callback for messages of an unexpected type to our application
   // so that we can log receiving an unexpected message.
@@ -373,23 +377,19 @@ void Stack::register_fallback_handler(const Dictionary::Application &app)
 int Stack::handler_callback_fn(struct msg** req,
                                struct avp* avp,
                                struct session* sess,
-                               void* handler_factory,
+                               void* controller_param,
                                enum disp_action* act)
 {
-  Stack* stack = Stack::get_instance();
-  Dictionary* dict = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->_dict;
-
-  SAS::TrailId trail = SAS::new_trail(0);
+  ControllerInterface* controller = (ControllerInterface*)controller_param;
 
   // Create a new message object so and raise the necessary SAS logs.
-  Message msg(dict, *req, stack);
+  SAS::TrailId trail = SAS::new_trail(0);
+  Message msg(controller->get_dict(), *req, Stack::get_instance());
   msg.sas_log_rx(trail, 0);
   msg.revoke_ownership();
 
-  // Create and run the correct handler based on the received message and the dictionary
-  // object we've passed through.
-  Handler* handler = ((Diameter::Stack::BaseHandlerFactory*)handler_factory)->create(dict, req, trail);
-  handler->run();
+  // Pass the request to the registered controller.
+  controller->process_request(req, trail);
 
   // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
   // Setting the action to DISP_ACT_SEND ensures that we will send this answer on without going to any other callbacks.
