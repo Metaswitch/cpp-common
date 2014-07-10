@@ -80,6 +80,23 @@ MockSASMessage* mock_sas_find_marker(uint32_t marker_id)
   return NULL;
 }
 
+MockSASMessage* mock_sas_find_event(uint32_t event_id)
+{
+  // The 3rd party API sets the top byte to 0x0F
+  event_id = ((event_id & 0x00FFFFFF) | 0x0F000000);
+
+  for(std::vector<MockSASMessage>::iterator msg = mock_sas_messages.begin();
+      msg != mock_sas_messages.end();
+      ++msg)
+  {
+    if (!msg->marker && (msg->id == event_id))
+    {
+      return &(*msg);
+    }
+  }
+  return NULL;
+}
+
 int SAS::init(const std::string& system_name,
               const std::string& system_type,
               const std::string& resource_identifier,

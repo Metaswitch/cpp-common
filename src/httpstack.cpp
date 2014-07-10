@@ -41,6 +41,7 @@
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
 bool HttpStack::_ev_using_pthreads = false;
+HttpStack::SasLogger HttpStack::DEFAULT_SAS_LOGGER;
 
 HttpStack::HttpStack() :
   _access_logger(NULL),
@@ -67,7 +68,7 @@ void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
   unsigned long latency_us = 0;
   req.get_latency(latency_us);
   log(std::string(req.req()->uri->path->full), req.method_as_str(), rc, latency_us);
-  sas_log_tx_http_rsp(trail, req, rc, 0);
+  req.sas_log_tx_http_rsp(trail, rc, 0);
 
   evhtp_send_reply(req.req(), rc);
 }
@@ -138,9 +139,13 @@ void HttpStack::configure(const std::string& bind_address,
   _stats = stats;
 }
 
-void HttpStack::register_handler(char* path, HttpStack::BaseHandlerFactory* factory)
+void HttpStack::register_controller(char* path,
+                                    HttpStack::ControllerInterface* controller)
 {
-  evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp, path, handler_callback_fn, (void*)factory);
+  evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp,
+                                            path,
+                                            handler_callback_fn,
+                                            (void*)controller);
   if (cb == NULL)
   {
     throw Exception("evhtp_set_cb", 0); // LCOV_EXCL_LINE
@@ -218,22 +223,22 @@ void HttpStack::wait_stopped()
   _evbase = NULL;
 }
 
-void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_factory)
+void HttpStack::handler_callback_fn(evhtp_request_t* req, void* controller)
 {
-  INSTANCE->handler_callback(req, (HttpStack::BaseHandlerFactory*)handler_factory);
+  INSTANCE->handler_callback(req, (HttpStack::ControllerInterface*)controller);
 }
 
 void HttpStack::handler_callback(evhtp_request_t* req,
-                                 HttpStack::BaseHandlerFactory* handler_factory)
+                                 HttpStack::ControllerInterface* controller)
 {
   Request request(this, req);
 
-  // Work out whether to log this request at protocol level (60) or detail
-  // level (40).
-  request.set_sas_log_level(handler_factory->sas_log_level(request));
+  // Call into the controller to request a SAS logger that can be used to log
+  // this request.  Then actually log the request.
+  request.set_sas_logger(controller->sas_logger(request));
 
   SAS::TrailId trail = SAS::new_trail(0);
-  sas_log_rx_http_req(trail, request, handler_factory, 0);
+  request.sas_log_rx_http_req(trail, 0);
 
   if (_stats != NULL)
   {
@@ -247,14 +252,15 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     // HttpStack::Request::send_reply method resumes.
     evhtp_request_pause(req);
 
-    // Create a Request and a Handler and kick off processing.
-    LOG_VERBOSE("Handling request for URL %s, args %s", req->uri->path->full, req->uri->query_raw);
-    Handler* handler = handler_factory->create(request, trail);
-    handler->run();
+    // Pass the request to the controller.
+    LOG_VERBOSE("Process request for URL %s, args %s",
+                req->uri->path->full,
+                req->uri->query_raw);
+    controller->process_request(request, trail);
   }
   else
   {
-    sas_log_overload(trail, request, 503, 0);
+    request.sas_log_overload(trail, 503, 0);
     send_reply_internal(request, 503, trail);
 
     if (_stats != NULL)
@@ -299,10 +305,38 @@ std::string HttpStack::Request::body()
   return _body;
 }
 
-void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
-                                    HttpStack::Request& req,
-                                    HttpStack::BaseHandlerFactory* handler_factory,
-                                    uint32_t instance_id)
+//
+// SasLogger methods.
+//
+
+void HttpStack::SasLogger::sas_log_rx_http_req(SAS::TrailId trail,
+                                               HttpStack::Request& req,
+                                               uint32_t instance_id)
+{
+  log_correlator(trail, req, instance_id);
+  log_req_event(trail, req, instance_id);
+}
+
+
+void HttpStack::SasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
+                                               HttpStack::Request& req,
+                                               int rc,
+                                               uint32_t instance_id)
+{
+  log_rsp_event(trail, req, rc, instance_id);
+}
+
+void HttpStack::SasLogger::sas_log_overload(SAS::TrailId trail,
+                                            HttpStack::Request& req,
+                                            int rc,
+                                            uint32_t instance_id)
+{
+  log_overload_event(trail, req, rc, instance_id);
+}
+
+void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
+                                          Request& req,
+                                          uint32_t instance_id)
 {
   std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);
   if (correlator != "")
@@ -316,39 +350,37 @@ void HttpStack::sas_log_rx_http_req(SAS::TrailId trail,
     // long delays in the call appearing in SAS.
     SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
   }
+}
 
-  int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
+void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
+                                         Request& req,
+                                         uint32_t instance_id,
+                                         SASEvent::HttpLogLevel level)
+{
+  int event_id = ((level == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::RX_HTTP_REQ : SASEvent::RX_HTTP_REQ_DETAIL);
   SAS::Event rx_http_req(trail, event_id, instance_id);
-
-  // Copy the var params into local variables to ensure they still exist when
-  // we call report_event.
-  std::string body = req.body();
-  std::string full_path = req.full_path();
-
   rx_http_req.add_static_param(req.method());
-  rx_http_req.add_var_param(full_path);
-  rx_http_req.add_var_param(body);
-
+  rx_http_req.add_var_param(req.full_path());
+  rx_http_req.add_var_param(req.body());
   SAS::report_event(rx_http_req);
 }
 
-void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
-                                    HttpStack::Request& req,
-                                    int rc,
-                                    uint32_t instance_id)
+void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
+                                         Request& req,
+                                         int rc,
+                                         uint32_t instance_id,
+                                         SASEvent::HttpLogLevel level,
+                                         bool omit_body)
 {
-  int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
+  int event_id = ((level == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::TX_HTTP_RSP : SASEvent::TX_HTTP_RSP_DETAIL);
   SAS::Event tx_http_rsp(trail, event_id, instance_id);
 
-  // Copy the var params into local variables to ensure they still exist when
-  // we call report_event.
-  std::string full_path = req.full_path();
-
   tx_http_rsp.add_static_param(rc);
   tx_http_rsp.add_static_param(req.method());
-  tx_http_rsp.add_var_param(full_path);
+
+  tx_http_rsp.add_var_param(req.full_path());
 
   // The response body is stored in an evbuffer in libevhtp which we need to
   // copy out into a local buffer.  Note that the longest permitted SAS message
@@ -356,27 +388,34 @@ void HttpStack::sas_log_tx_http_rsp(SAS::TrailId trail,
   uint8_t buffer[0xFFFF];
   ev_ssize_t buffer_len;
   buffer_len = evbuffer_copyout(req.req()->buffer_out, buffer, sizeof(buffer));
-  tx_http_rsp.add_var_param(buffer_len, buffer);
+
+  if (omit_body && (buffer_len != 0))
+  {
+    // Instead of the body, log a string explaining that the body was not
+    // present.
+    tx_http_rsp.add_var_param("<Present but not logged>");
+  }
+  else
+  {
+    // Log the body as normal.
+    tx_http_rsp.add_var_param(buffer_len, buffer);
+  }
 
   SAS::report_event(tx_http_rsp);
 }
 
-void HttpStack::sas_log_overload(SAS::TrailId trail,
-                                 HttpStack::Request& req,
-                                 int rc,
-                                 uint32_t instance_id)
+void HttpStack::SasLogger::log_overload_event(SAS::TrailId trail,
+                                              Request& req,
+                                              int rc,
+                                              uint32_t instance_id,
+                                              SASEvent::HttpLogLevel level)
 {
-  int event_id = ((req.get_sas_log_level() == SASEvent::HttpLogLevel::PROTOCOL) ?
+  int event_id = ((level == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::HTTP_REJECTED_OVERLOAD :
                   SASEvent::HTTP_REJECTED_OVERLOAD_DETAIL);
   SAS::Event event(trail, event_id, instance_id);
-
-  // Copy the var params into local variables to ensure they still exist when
-  // we call report_event.
-  std::string full_path = req.full_path();
-
   event.add_static_param(rc);
   event.add_static_param(req.method());
-  event.add_var_param(full_path);
+  event.add_var_param(req.full_path());
   SAS::report_event(event);
 }

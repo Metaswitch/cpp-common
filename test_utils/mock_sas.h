@@ -49,3 +49,4 @@ extern std::vector<MockSASMessage> mock_sas_messages;
 void mock_sas_collect_messages(bool collect);
 
 MockSASMessage* mock_sas_find_marker(uint32_t marker_id);
+MockSASMessage* mock_sas_find_event(uint32_t event_id);
