@@ -81,9 +81,25 @@ struct IP46Address
 
 namespace Utils
 {
+  static const char _b64[64] =
+  {
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+    'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+    'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+    'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+    'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+    'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+    'w', 'x', 'y', 'z', '0', '1', '2', '3',
+    '4', '5', '6', '7', '8', '9', '+', '/'
+  };
+
+  void hashToHex(unsigned char *hash_char, unsigned char *hex_char);
+
   std::string url_escape(const std::string& s);
 
   std::string ip_addr_to_arpa(IP46Address ip_addr);
+
+  void create_random_token(size_t length, std::string& token);
 
   // trim from start
   inline std::string& ltrim(std::string &s)
@@ -107,7 +123,7 @@ namespace Utils
     return ltrim(rtrim(s));
   }
 
-  // Helper function to prevent split_string from splitting on the delimiter if it 
+  // Helper function to prevent split_string from splitting on the delimiter if it
   // is enclosed by quotes
   inline size_t find_unquoted(std::string str, char c, size_t offset = 0)
   {
@@ -115,7 +131,7 @@ namespace Utils
     size_t quote = str.find(quoter, offset);
     size_t next_quote = str.find(quoter, quote + 1);
     size_t pos = str.find(c, offset);
-  
+
     while (pos != std::string::npos)
     {
       if (quote == std::string::npos || pos < quote)
@@ -141,7 +157,7 @@ namespace Utils
         }
       }
     }
-    return std::string::npos; 
+    return std::string::npos;
   }
 
   /// Split the string s using delimiter and store the resulting tokens in order
@@ -193,7 +209,7 @@ namespace Utils
       else
       {
         token_end_pos = s.find(delimiter, token_start_pos);
-      }      
+      }
     }
 
     token = s.substr(token_start_pos);
