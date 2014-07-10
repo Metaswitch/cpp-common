@@ -62,7 +62,7 @@ namespace HttpStackUtils
   HttpStack::ControllerInterface*
     ControllerThreadPool::wrap(HttpStack::ControllerInterface* controller)
   {
-    // Create a new wrapper around the specifiec controller and record it in
+    // Create a new wrapper around the specific controller and record it in
     // the wrappers vector.
     Wrapper* wrapper = new Wrapper(&_pool, controller);
     _wrappers.push_back(wrapper);
@@ -130,7 +130,7 @@ namespace HttpStackUtils
   // Chronos utilities.
   //
 
-  // Delaration of a logger for logging chronos flows.
+  // Declaration of a logger for logging chronos flows.
   ChronosSasLogger CHRONOS_SAS_LOGGER;
 
   // Log a request from chronos.

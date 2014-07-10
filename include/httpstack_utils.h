@@ -55,7 +55,7 @@ namespace HttpStackUtils
   ///
   /// It takes two template parameters:
   /// @tparam H the type of the handler.
-  /// @tparam C Although not mandatory accoriding to the ControllerIntrface, in
+  /// @tparam C Although not mandatory according to the ControllerInterface, in
   ///   practice all controllers have some sort of associated config. This is
   ///   the type of the config object.
   template<class H, class C>

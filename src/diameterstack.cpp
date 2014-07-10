@@ -347,7 +347,7 @@ void Stack::register_controller(const Dictionary::Application& app,
   memset(&data, 0, sizeof(data));
   data.app = app.dict();
   data.command = msg.dict();
-  int rc = fd_disp_register(handler_callback_fn,
+  int rc = fd_disp_register(request_callback_fn,
                             DISP_HOW_CC,
                             &data,
                             (void *)controller,
@@ -366,7 +366,7 @@ void Stack::register_fallback_controller(const Dictionary::Application &app)
   struct disp_when data;
   memset(&data, 0, sizeof(data));
   data.app = app.dict();
-  int rc = fd_disp_register(fallback_handler_callback_fn, DISP_HOW_APPID, &data, NULL, &_callback_fallback_handler);
+  int rc = fd_disp_register(fallback_request_callback_fn, DISP_HOW_APPID, &data, NULL, &_callback_fallback_handler);
 
   if (rc != 0)
   {
@@ -374,7 +374,7 @@ void Stack::register_fallback_controller(const Dictionary::Application &app)
   }
 }
 
-int Stack::handler_callback_fn(struct msg** req,
+int Stack::request_callback_fn(struct msg** req,
                                struct avp* avp,
                                struct session* sess,
                                void* controller_param,
@@ -399,7 +399,7 @@ int Stack::handler_callback_fn(struct msg** req,
   return 0;
 }
 
-int Stack::fallback_handler_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act)
+int Stack::fallback_request_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act)
 {
   // This means we have received a message of an unexpected type.
   LOG_WARNING("Message of unexpected type received");

@@ -636,8 +636,8 @@ private:
 
   Stack();
   virtual ~Stack();
-  static int handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act);
-  static int fallback_handler_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act);
+  static int request_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act);
+  static int fallback_request_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act);
 
   // Don't implement the following, to avoid copies of this instance.
   Stack(Stack const&);
@@ -686,7 +686,7 @@ private:
 ///
 /// It takes two template parameters:
 /// @tparam H the type of the handler.
-/// @tparam C Although not mandatory accoriding to the ControllerIntrface, in
+/// @tparam C Although not mandatory according to the ControllerInterface, in
 ///   practice all controllers have some sort of associated config. This is
 ///   the type of the config object.
 template <class H, class C>
@@ -708,7 +708,7 @@ public:
 
   /// Get the dictionary used by the handlers.
   /// @return a pointer to the dictionary.
-  const Dictionary* get_dict()
+  inline const Dictionary* get_dict()
   {
     return _dict;
   }

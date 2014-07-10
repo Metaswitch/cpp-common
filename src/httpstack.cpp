@@ -254,7 +254,8 @@ void HttpStack::handler_callback(evhtp_request_t* req,
 
     // Pass the request to the controller.
     LOG_VERBOSE("Process request for URL %s, args %s",
-                req->uri->path->full, req->uri->query_raw);
+                req->uri->path->full,
+                req->uri->query_raw);
     controller->process_request(request, trail);
   }
   else
