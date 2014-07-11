@@ -46,12 +46,7 @@ public:
   class Request : public HttpStack::Request
   {
   public:
-    Request(HttpStack* stack, std::string path, std::string file, std::string query = "", std::string body = "", htp_method method = htp_method_GET) : HttpStack::Request(stack, evhtp_request(path, file, query))
-    {
-      _body = body;
-      _method = method;
-      _body_set = true;
-    }
+    Request(HttpStack* stack, std::string path, std::string file, std::string query = "") : HttpStack::Request(stack, evhtp_request(path, file, query)) {}
     ~Request()
     {
       evhtp_connection_t* conn = _req->conn;
@@ -83,12 +78,11 @@ public:
 
   MOCK_METHOD0(initialize, void());
   MOCK_METHOD4(configure, void(const std::string&, unsigned short, int, AccessLogger*));
-  MOCK_METHOD2(register_handler, void(char*, BaseHandlerFactory*));
+  MOCK_METHOD2(register_controller, void(char*, ControllerInterface*));
   MOCK_METHOD0(start, void());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD3(send_reply, void(HttpStack::Request&, int, SAS::TrailId));
-  MOCK_METHOD0(record_penalty, void());
+  MOCK_METHOD2(send_reply, void(HttpStack::Request&, int));
 };
 
 #endif
