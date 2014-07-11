@@ -123,8 +123,8 @@ namespace Utils
     return ltrim(rtrim(s));
   }
 
-  // Helper function to prevent split_string from splitting on the delimiter if it
-  // is enclosed by quotes
+  // Helper function to prevent split_string from splitting on the
+  // delimiter if it is enclosed by quotes
   inline size_t find_unquoted(std::string str, char c, size_t offset = 0)
   {
     const char quoter = '"';
@@ -134,23 +134,29 @@ namespace Utils
 
     while (pos != std::string::npos)
     {
-      if (quote == std::string::npos || pos < quote)
+      if ((quote == std::string::npos) || (pos < quote))
       {
+        // No more quotes
         return pos;
       }
       else if (pos > quote)
       {
+        // Character appears after first quote
         if (next_quote == std::string::npos)
         {
+          // There is no closing quote - call that not found
           return std::string::npos;
         }
         else if (pos > next_quote)
         {
+          // The character is not within these quotes
+          // Go again with updated quotes (not updated pos)
           quote = str.find(quoter, next_quote + 1);
           next_quote = str.find(quoter, quote + 1);
         }
         else
         {
+          // Character is quoted. Try to find another
           pos = str.find(c, next_quote + 1);
           quote = str.find(quoter, next_quote + 1);
           next_quote = str.find(quoter, quote + 1);
@@ -168,7 +174,7 @@ namespace Utils
                     T& tokens,  //< tokens will be added to this list
                     const int max_tokens = 0,  //< max number of tokens to push; last token will be tail of string (delimiters will not be parsed in this section)
                     bool trim = false,  //< trim the string at both ends before splitting?
-                    bool quoted = false) //< only use delimiters not in quotes
+                    bool check_for_quotes = false) //< only use delimiters not in quotes
   {
     std::string token;
 
@@ -180,7 +186,7 @@ namespace Utils
 
     size_t token_start_pos = 0;
     size_t token_end_pos;
-    if (quoted)
+    if (check_for_quotes)
     {
       token_end_pos = Utils::find_unquoted(s, delimiter);
     }
@@ -202,7 +208,7 @@ namespace Utils
         num_tokens++;
       }
       token_start_pos = token_end_pos + 1;
-      if (quoted)
+      if (check_for_quotes)
       {
         token_end_pos = Utils::find_unquoted(s, delimiter, token_start_pos);
       }

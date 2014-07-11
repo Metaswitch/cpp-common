@@ -128,7 +128,10 @@ std::string Utils::ip_addr_to_arpa(IP46Address ip_addr)
   return hostname;
 }
 
-/// Generate a random base64-encoded token.
+/// Generate a random token that only contains valid base64
+/// charaters (but doesn't necessarily produce a valid
+/// base 64 string as it doesn't check the length and
+/// do any padding.
 void Utils::create_random_token(size_t length,       //< Number of characters.
                                 std::string& token)  //< Destination. Must be empty.
 {
@@ -145,22 +148,33 @@ void Utils::hashToHex(unsigned char *hash_char, unsigned char *hex_char)
 {
   unsigned short ii;
   unsigned char jj;
-  unsigned char *_hc = (unsigned char *) hash_char;
+  unsigned char *hc = (unsigned char *) hash_char;
 
-  for (ii = 0; ii < 16; ii++) {
-      jj = (_hc[ii] >> 4) & 0xf;
-      if (jj <= 9) {
-          hex_char[ii * 2] = (jj + '0');
-      } else {
-          hex_char[ii * 2] = (jj + 'a' - 10);
-      }
-      jj = _hc[ii] & 0xf;
-      if (jj <= 9) {
-          hex_char[ii * 2 + 1] = (jj + '0');
-      } else {
-          hex_char[ii * 2 + 1] = (jj + 'a' - 10);
-      }
+  for (ii = 0; ii < 16; ii++)
+  {
+    jj = (hc[ii] >> 4) & 0xf;
+
+    if (jj <= 9)
+    {
+      hex_char[ii * 2] = (jj + '0');
+    }
+    else
+    {
+      hex_char[ii * 2] = (jj + 'a' - 10);
+    }
+
+    jj = hc[ii] & 0xf;
+
+    if (jj <= 9)
+    {
+      hex_char[ii * 2 + 1] = (jj + '0');
+    }
+    else
+    {
+      hex_char[ii * 2 + 1] = (jj + 'a' - 10);
+    }
   };
+
   hex_char[32] = '\0';
 }
 // LCOV_EXCL_STOP
