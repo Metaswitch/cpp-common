@@ -317,8 +317,17 @@ public:
     msg.revoke_ownership();
 
     // _msg will point to the answer once this function is done.
-    fd_msg_new_answer_from_req(fd_g_config->cnf_dict, &_fd_msg, 0);
+    fd_msg_new_answer_from_req(fd_g_config->cnf_dict, &_fd_msg, MSGFL_ANSW_NOSID);
+    copy_session_id(msg);
     claim_ownership();
+  }
+
+  inline Message& copy_session_id(Message &msg)
+  { 
+    std::string str;
+    msg.get_str_from_avp(dict()->SESSION_ID, str);
+    add_session_id(str);
+    return *this;
   }
 
   // Add a Session-ID to a message (either a new one or a specified).
