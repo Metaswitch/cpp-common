@@ -57,8 +57,7 @@ public:
     _writers(0),
     _readers(0),
     _terminated(false),
-    _deadlock_threshold(0),
-    _deadlocked(false)
+    _deadlock_threshold(0)
   {
     pthread_mutex_init(&_m, NULL);
     pthread_condattr_t cond_attr;
@@ -90,7 +89,6 @@ public:
   {
     pthread_mutex_lock(&_m);
 
-
     _terminated = true;
 
     // Are there any readers waiting?
@@ -119,16 +117,40 @@ public:
   void set_deadlock_threshold(unsigned long threshold_ms)
   {
     pthread_mutex_lock(&_m);
-    _deadlocked = false;
+
+    // Store the threshold.
     _deadlock_threshold = threshold_ms;
+
+    // Set the service time to the current time as we don't update it while
+    // detection is disabled.
     clock_gettime(CLOCK_MONOTONIC, &_service_time);
+
     pthread_mutex_unlock(&_m);
   }
 
   /// Returns the deadlocked state of the queue.
   bool is_deadlocked()
   {
-    return _deadlocked;
+    bool deadlocked = false;
+
+    if ((_deadlock_threshold > 0) &&
+        (!_q.empty()))
+    {
+      // Deadlock detection is enabled, and the queue is not empty, so check
+      // how long it has been since the queue was last serviced.
+      struct timespec now;
+      if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
+      {
+        unsigned long service_delay_ms = (now.tv_nsec - _service_time.tv_nsec) / 1000000 +
+                                         (now.tv_sec - _service_time.tv_sec) * 1000;
+
+        if (service_delay_ms > _deadlock_threshold) 
+        {
+          deadlocked = true;
+        }
+      }
+    }
+    return deadlocked;
   }
 
   /// Purges all the events currently in the queue.
@@ -139,7 +161,6 @@ public:
     {
       _q.pop();
     }
-    _deadlocked = false;
     pthread_mutex_unlock(&_m);
   }
 
@@ -152,9 +173,6 @@ public:
 
     pthread_mutex_lock(&_m);
 
-    // Check for deadlock.  Do this before adding anything else to the queue.
-    deadlock_check();
-
     if (_open)
     {
       if (_max_queue != 0)
@@ -166,6 +184,16 @@ public:
           pthread_cond_wait(&_w_cond, &_m);
           --_writers;
         }
+      }
+
+      if ((_deadlock_threshold > 0) &&
+          (_q.empty()))
+      {
+        // Deadlock detection is enabled, and we're about to push an item on
+        // to an empty queue, so update the service time to the current time.
+        // This is done to avoid false positives when the system has been idle
+        // for a while.
+        clock_gettime(CLOCK_MONOTONIC, &_service_time);
       }
 
       // Must be space on the queue now.
@@ -194,11 +222,18 @@ public:
 
     pthread_mutex_lock(&_m);
 
-    // Check for deadlock.  Do this before adding anything else to the queue.
-    deadlock_check();
-
     if ((_open) && ((_max_queue == 0) || (_q.size() < _max_queue)))
     {
+      if ((_deadlock_threshold > 0) &&
+          (_q.empty()))
+      {
+        // Deadlock detection is enabled, and we're about to push an item on
+        // to an empty queue, so update the service time to the current time.
+        // This is done to avoid false positives when the system has been idle
+        // for a while.
+        clock_gettime(CLOCK_MONOTONIC, &_service_time);
+      }
+
       // There is space on the queue.
       _q.push(item);
 
@@ -248,7 +283,6 @@ public:
     {
       // Deadlock detection is enabled, so record the time we popped an
       // item off the queue.
-      _deadlocked = false;
       clock_gettime(CLOCK_MONOTONIC, &_service_time);
     }
 
@@ -321,7 +355,6 @@ public:
     {
       // Deadlock detection is enabled, so record the time we popped an
       // item off the queue.
-      _deadlocked = false;
       clock_gettime(CLOCK_MONOTONIC, &_service_time);
     }
 
@@ -350,44 +383,22 @@ public:
 
 private:
 
-  void deadlock_check()
-  {
-    if ((!_q.empty()) &&
-        (_deadlock_threshold > 0) &&
-        (!_deadlocked))
-    {
-      struct timespec now;
-      if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
-      {
-        unsigned long service_delay_ms = (now.tv_nsec - _service_time.tv_nsec) / 1000000 +
-                                         (now.tv_sec - _service_time.tv_sec) * 1000;
-
-        if (service_delay_ms > _deadlock_threshold) 
-        {
-          _deadlocked = true;
-        }
-      }
-    }
-    else if (_q.empty())
-    {
-      // The queue is empty, so update the service time to the current time.
-      // This is done to avoid false positives when the system has been idle
-      // for a while - for example, if two puts to the queue happened in
-      // quick succession the second one may fire the deadlock detection
-      // incorrectly if it happens before one of the threads blocked in a
-      // pop() call wake up.
-      clock_gettime(CLOCK_MONOTONIC, &_service_time);
-    }
-  }
-
   bool _open;
   unsigned int _max_queue;
   std::queue<T> _q;
   int _writers;
   int _readers;
   bool _terminated;
+
+  // Deadlock detection threshold (in milliseconds).  Zero means deadlock
+  // detection is disabled.
   unsigned long _deadlock_threshold;
-  bool _deadlocked;
+
+  // The last time the queue was serviced (that is, an item was removed from
+  // the queue).  Note that, to stop false positives after a period where
+  // the queue is empty, the service time is reset whenever an item is placed
+  // on to an empty queue.  Also, this field is only maintained when deadlock
+  // detection is enabled.
   struct timespec _service_time;
 
   pthread_mutex_t _m;
