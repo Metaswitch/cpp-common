@@ -104,6 +104,14 @@ public:
       evbuffer_add(_req->buffer_out, content.c_str(), content.length());
     }
 
+    void add_header(const std::string& name, const std::string& value)
+    {
+      evhtp_header_t* new_header = evhtp_header_new(name.c_str(),
+                                                    value.c_str(),
+                                                    1, 1);
+      evhtp_headers_add_header(_req->headers_out, new_header);
+    }
+
     htp_method method()
     {
       if (_method == htp_method_UNKNOWN)

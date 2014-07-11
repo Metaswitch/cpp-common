@@ -118,6 +118,7 @@ HttpConnection::HttpConnection(const std::string& server,
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   _statistic = NULL;
+  _load_monitor = NULL;
 }
 
 HttpConnection::~HttpConnection()
@@ -417,7 +418,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
   }
 
-  // Create a UUID to use for SAS correlation and add it to the HTTP message. 
+  // Create a UUID to use for SAS correlation and add it to the HTTP message.
   boost::uuids::uuid uuid = get_random_uuid();
   std::string uuid_str = boost::uuids::to_string(uuid);
   extra_headers = curl_slist_append(extra_headers,
@@ -425,7 +426,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
 
   // Now log the marker to SAS. Flag that SAS should not reactivate the trail
   // group as a result of associations on this marker (doing so after the call
-  // ends means it will take a long time to be searchable in SAS). 
+  // ends means it will take a long time to be searchable in SAS).
   SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);

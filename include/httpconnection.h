@@ -55,6 +55,7 @@ static const long HTTP_OK = 200;
 static const long HTTP_CREATED = 201;
 static const long HTTP_ACCEPTED = 202;
 static const long HTTP_BAD_RESULT = 400;
+static const long HTTP_UNAUTHORIZED = 401;
 static const long HTTP_FORBIDDEN = 403;
 static const long HTTP_NOT_FOUND = 404;
 static const long HTTP_BADMETHOD = 405;
