@@ -799,6 +799,20 @@ bool AVP::get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const
   }
 }
 
+bool AVP::get_u32_from_avp(const Dictionary::AVP& type, uint32_t& u32) const
+{
+  AVP::iterator avps = begin(type);
+  if (avps != end())
+  {
+    u32 = avps->val_i32();
+    return true;
+  }
+  else
+  {
+    return false;
+  } 
+}
+
 AVP& AVP::val_json(const std::vector<std::string>& vendors,
                    const Diameter::Dictionary::AVP& dict,
                    const rapidjson::Value& value)
@@ -950,6 +964,22 @@ bool Message::get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const
   {
     return false;
   }
+}
+
+// Given an AVP type, search a Diameter message for an AVP of this type. If one exists,
+// return true and set u32 to the integer value of this AVP. Otherwise return false.
+bool Message::get_u32_from_avp(const Dictionary::AVP& type, uint32_t& u32) const
+{
+  AVP::iterator avps = begin(type);
+  if (avps != end())
+  {
+    u32 = avps->val_i32();
+    return true;
+  }
+  else
+  {
+    return false;
+  } 
 }
 
 // Get the experimental result code from the EXPERIMENTAL_RESULT_CODE AVP

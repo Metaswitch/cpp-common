@@ -272,6 +272,7 @@ public:
 
   bool get_str_from_avp(const Dictionary::AVP& type, std::string& str) const;
   bool get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const;
+  bool get_u32_from_avp(const Dictionary::AVP& type, uint32_t& u32) const;
 
   // Populate this AVP from a JSON object
   AVP& val_json(const std::vector<std::string>& vendors,
@@ -373,6 +374,7 @@ public:
   }
   bool get_str_from_avp(const Dictionary::AVP& type, std::string& str) const;
   bool get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const;
+  bool get_u32_from_avp(const Dictionary::AVP& type, uint32_t& i32) const;
   inline bool result_code(int32_t& i32)
   {
     return get_i32_from_avp(dict()->RESULT_CODE, i32);
