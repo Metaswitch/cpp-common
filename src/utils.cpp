@@ -150,7 +150,7 @@ void Utils::hashToHex(unsigned char *hash_char, unsigned char *hex_char)
   unsigned char jj;
   unsigned char *hc = (unsigned char *) hash_char;
 
-  for (ii = 0; ii < 16; ii++)
+  for (ii = 0; ii < MD5_HASH_SIZE; ii++)
   {
     jj = (hc[ii] >> 4) & 0xf;
 
@@ -175,7 +175,7 @@ void Utils::hashToHex(unsigned char *hash_char, unsigned char *hex_char)
     }
   };
 
-  hex_char[32] = '\0';
+  hex_char[HEX_HASH_SIZE] = '\0';
 }
 // LCOV_EXCL_STOP
 

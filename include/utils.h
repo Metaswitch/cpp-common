@@ -81,6 +81,9 @@ struct IP46Address
 
 namespace Utils
 {
+  static const int MD5_HASH_SIZE = 16;
+  static const int HEX_HASH_SIZE = 32;
+
   static const char _b64[64] =
   {
     'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
