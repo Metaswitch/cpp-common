@@ -39,6 +39,7 @@
 
 #include <pthread.h>
 #include <errno.h>
+#include <time.h>
 
 #include <queue>
 
@@ -55,7 +56,8 @@ public:
     _q(),
     _writers(0),
     _readers(0),
-    _terminated(false)
+    _terminated(false),
+    _deadlock_threshold(0)
   {
     pthread_mutex_init(&_m, NULL);
     pthread_condattr_t cond_attr;
@@ -64,11 +66,11 @@ public:
     pthread_cond_init(&_w_cond, &cond_attr);
     pthread_cond_init(&_r_cond, &cond_attr);
     pthread_condattr_destroy(&cond_attr);
-  };
+  }
 
   ~eventq()
   {
-  };
+  }
 
   /// Open the queue for new inputs.
   void open()
@@ -86,7 +88,6 @@ public:
   void terminate()
   {
     pthread_mutex_lock(&_m);
-
 
     _terminated = true;
 
@@ -109,6 +110,47 @@ public:
     bool terminated = _terminated;
     pthread_mutex_unlock(&_m);
     return terminated;
+  }
+
+  /// Enables deadlock detection on the queue with the specified threshold
+  /// (in milliseconds).
+  void set_deadlock_threshold(unsigned long threshold_ms)
+  {
+    pthread_mutex_lock(&_m);
+
+    // Store the threshold.
+    _deadlock_threshold = threshold_ms;
+
+    // Set the service time to the current time as we don't update it while
+    // detection is disabled.
+    clock_gettime(CLOCK_MONOTONIC, &_service_time);
+
+    pthread_mutex_unlock(&_m);
+  }
+
+  /// Returns the deadlocked state of the queue.
+  bool is_deadlocked()
+  {
+    bool deadlocked = false;
+
+    if ((_deadlock_threshold > 0) &&
+        (!_q.empty()))
+    {
+      // Deadlock detection is enabled, and the queue is not empty, so check
+      // how long it has been since the queue was last serviced.
+      struct timespec now;
+      if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
+      {
+        unsigned long service_delay_ms = (now.tv_nsec - _service_time.tv_nsec) / 1000000 +
+                                         (now.tv_sec - _service_time.tv_sec) * 1000;
+
+        if (service_delay_ms > _deadlock_threshold) 
+        {
+          deadlocked = true;
+        }
+      }
+    }
+    return deadlocked;
   }
 
   /// Purges all the events currently in the queue.
@@ -144,6 +186,16 @@ public:
         }
       }
 
+      if ((_deadlock_threshold > 0) &&
+          (_q.empty()))
+      {
+        // Deadlock detection is enabled, and we're about to push an item on
+        // to an empty queue, so update the service time to the current time.
+        // This is done to avoid false positives when the system has been idle
+        // for a while.
+        clock_gettime(CLOCK_MONOTONIC, &_service_time);
+      }
+
       // Must be space on the queue now.
       _q.push(item);
 
@@ -159,7 +211,7 @@ public:
     pthread_mutex_unlock(&_m);
 
     return rc;
-  };
+  }
 
   /// Push an item on to the event queue.
   ///
@@ -172,6 +224,16 @@ public:
 
     if ((_open) && ((_max_queue == 0) || (_q.size() < _max_queue)))
     {
+      if ((_deadlock_threshold > 0) &&
+          (_q.empty()))
+      {
+        // Deadlock detection is enabled, and we're about to push an item on
+        // to an empty queue, so update the service time to the current time.
+        // This is done to avoid false positives when the system has been idle
+        // for a while.
+        clock_gettime(CLOCK_MONOTONIC, &_service_time);
+      }
+
       // There is space on the queue.
       _q.push(item);
 
@@ -187,7 +249,7 @@ public:
     pthread_mutex_unlock(&_m);
 
     return rc;
-  };
+  }
 
   /// Pop an item from the event queue, waiting indefinitely if it is empty.
   bool pop(T& item)
@@ -217,10 +279,17 @@ public:
       }
     }
 
+    if (_deadlock_threshold > 0) 
+    {
+      // Deadlock detection is enabled, so record the time we popped an
+      // item off the queue.
+      clock_gettime(CLOCK_MONOTONIC, &_service_time);
+    }
+
     pthread_mutex_unlock(&_m);
 
     return !_terminated;
-  };
+  }
 
   /// Pop an item from the event queue, waiting for the specified timeout if
   /// the queue is empty.
@@ -282,21 +351,35 @@ public:
       }
     }
 
+    if (_deadlock_threshold > 0) 
+    {
+      // Deadlock detection is enabled, so record the time we popped an
+      // item off the queue.
+      clock_gettime(CLOCK_MONOTONIC, &_service_time);
+    }
+
     pthread_mutex_unlock(&_m);
 
     return !_terminated;
-  };
+  }
 
   /// Peek at the item at the front of the event queue.
   T peek() const
   {
-    return _q.front();
-  };
+    T item;
+    pthread_mutex_lock(&_m);
+    if (!_q.empty()) 
+    {
+      item = _q.front();
+    }
+    pthread_mutex_unlock(&_m);
+    return item;
+  }
 
   int size() const
   {
     return _q.size();
-  };
+  }
 
 private:
 
@@ -306,6 +389,17 @@ private:
   int _writers;
   int _readers;
   bool _terminated;
+
+  // Deadlock detection threshold (in milliseconds).  Zero means deadlock
+  // detection is disabled.
+  unsigned long _deadlock_threshold;
+
+  // The last time the queue was serviced (that is, an item was removed from
+  // the queue).  Note that, to stop false positives after a period where
+  // the queue is empty, the service time is reset whenever an item is placed
+  // on to an empty queue.  Also, this field is only maintained when deadlock
+  // detection is enabled.
+  struct timespec _service_time;
 
   pthread_mutex_t _m;
   pthread_cond_t _w_cond;

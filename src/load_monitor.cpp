@@ -167,9 +167,7 @@ void LoadMonitor::request_complete(int latency)
     float err = ((float) (smoothed_latency - target_latency)) / target_latency;
 
     // Work out the percentage of accepted requests (for logs)
-    float accepted_percent = 100 * (((float) accepted) / (accepted + rejected));
-
-    //int overload_penalties = penalty_counter.get_penalties();
+    float accepted_percent = (accepted + rejected == 0) ? 100.0 : 100 * (((float) accepted) / (accepted + rejected));
 
     LOG_DEBUG("Accepted %f%% of requests, latency error = %f, overload responses = %d", 
                accepted_percent, err, penalties);
@@ -184,7 +182,6 @@ void LoadMonitor::request_complete(int latency)
       {
         new_rate = min_token_rate;
       }
-
       bucket.update_rate(new_rate);
 
       LOG_DEBUG("Decrease rate to %f", bucket.rate);
