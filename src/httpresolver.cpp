@@ -1,5 +1,5 @@
 /**
- * @file fakehttpconnection.cpp Fake HTTP connection (for testing).
+ * @file httpresolver.cpp  Implementation of HTTP DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,53 +34,54 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include "log.h"
+#include "httpresolver.h"
 
-#include <cstdio>
-#include "fakehttpconnection.hpp"
-
-using namespace std;
-
-FakeHttpConnection::FakeHttpConnection() :
-  // Initialize with dummy values.
-  HttpConnection("localhost",
-                 true,
-                 NULL,
-                 "connected_homesteads",
-                 NULL,
-                 NULL,
-                 SASEvent::HttpLogLevel::PROTOCOL)
+HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
+                           int address_family) :
+  BaseResolver(dns_client),
+  _address_family(address_family)
 {
+  LOG_DEBUG("Creating HTTP resolver");
+
+  // Create the blacklist.
+  create_blacklist();
+
+  LOG_STATUS("Created HTTP resolver");
 }
 
-FakeHttpConnection::~FakeHttpConnection()
+HttpResolver::~HttpResolver()
 {
-  flush_all();
+  destroy_blacklist();
 }
 
-void FakeHttpConnection::flush_all()
+/// Resolve a destination host and realm name to a list of IP addresses,
+/// transports and ports.  HTTP is pretty simple - just look up the A records.
+void HttpResolver::resolve(const std::string& host,
+                           int port,
+                           int max_targets,
+                           std::vector<AddrInfo>& targets,
+                           SAS::TrailId trail)
 {
-  _db.clear();
-}
+  AddrInfo ai;
+  int dummy_ttl = 0;
 
-long FakeHttpConnection::send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  std::map<std::string, std::string>::iterator i = _db.find(uri);
-  if (i != _db.end())
+  LOG_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
+            host.c_str(), port, _address_family);
+
+  port = (port != 0) ? port : DEFAULT_PORT;
+  targets.clear();
+
+  if (parse_ip_target(host, ai.address))
   {
-    doc = i->second;
-    return 200;
+    // The name is already an IP address, so no DNS resolution is possible.
+    LOG_DEBUG("Target is an IP address");
+    ai.port = port;
+    ai.transport = TRANSPORT;
+    targets.push_back(ai);
   }
-  return 404;
-}
-
-bool FakeHttpConnection::put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  _db[uri] = doc;
-  return true;
-}
-
-bool FakeHttpConnection::del(const std::string& uri, const std::string& username, SAS::TrailId trail)
-{
-  _db.erase(uri);
-  return true;
+  else
+  {
+    a_resolve(host, _address_family, port, TRANSPORT, max_targets, targets, dummy_ttl, trail);
+  }
 }

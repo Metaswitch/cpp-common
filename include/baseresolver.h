@@ -71,6 +71,13 @@ struct AddrInfo
       return (port < rhs.port) || ((port == rhs.port) && (transport < rhs.transport));
     }
   }
+
+  bool operator==(const AddrInfo& rhs) const
+  {
+    return (address.compare(rhs.address) == 0) &&
+           (port == rhs.port) &&
+           (transport == rhs.transport);
+  }
 };
 
 /// The BaseResolver class provides common infrastructure for doing DNS

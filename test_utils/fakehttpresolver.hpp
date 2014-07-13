@@ -1,5 +1,5 @@
 /**
- * @file fakehttpconnection.cpp Fake HTTP connection (for testing).
+ * @file fakehttpresolver.hpp Header file for fake HTTP resolver (for testing).
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,53 +34,55 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#pragma once
 
-#include <cstdio>
-#include "fakehttpconnection.hpp"
+#include <string>
+#include "log.h"
+#include "sas.h"
+#include "httpresolver.h"
 
-using namespace std;
-
-FakeHttpConnection::FakeHttpConnection() :
-  // Initialize with dummy values.
-  HttpConnection("localhost",
-                 true,
-                 NULL,
-                 "connected_homesteads",
-                 NULL,
-                 NULL,
-                 SASEvent::HttpLogLevel::PROTOCOL)
+/// HttpResolver that always returns hard-coded IP address.
+class FakeHttpResolver : public HttpResolver
 {
-}
+public:
+  FakeHttpResolver() :
+    HttpResolver(NULL, AF_INET), _targets() {}
 
-FakeHttpConnection::~FakeHttpConnection()
-{
-  flush_all();
-}
-
-void FakeHttpConnection::flush_all()
-{
-  _db.clear();
-}
-
-long FakeHttpConnection::send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  std::map<std::string, std::string>::iterator i = _db.find(uri);
-  if (i != _db.end())
+  FakeHttpResolver(const std::string& ip) :
+    HttpResolver(NULL, AF_INET), _targets()
   {
-    doc = i->second;
-    return 200;
+    AddrInfo ai;
+    ai.transport = IPPROTO_TCP;
+    parse_ip_target(ip, ai.address);
+    _targets.push_back(ai);
   }
-  return 404;
-}
 
-bool FakeHttpConnection::put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  _db[uri] = doc;
-  return true;
-}
+  FakeHttpResolver(const std::string& ip1, const std::string& ip2) :
+    HttpResolver(NULL, AF_INET), _targets()
+  {
+    AddrInfo ai;
+    ai.transport = IPPROTO_TCP;
+    parse_ip_target(ip1, ai.address);
+    _targets.push_back(ai);
+    parse_ip_target(ip2, ai.address);
+    _targets.push_back(ai);
+  }
 
-bool FakeHttpConnection::del(const std::string& uri, const std::string& username, SAS::TrailId trail)
-{
-  _db.erase(uri);
-  return true;
-}
+  ~FakeHttpResolver() {}
+
+  void resolve(const std::string& host,
+               int port,
+               int max_targets,
+               std::vector<AddrInfo>& targets,
+               SAS::TrailId trail)
+  {
+    targets = _targets;
+    // Fix up ports.
+    for (std::vector<AddrInfo>::iterator i = targets.begin(); i != targets.end(); ++i)
+    {
+      i->port = (port != 0) ? port : 80;
+    }
+  }
+
+  std::vector<AddrInfo> _targets;
+};
