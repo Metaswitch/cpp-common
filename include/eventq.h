@@ -364,7 +364,7 @@ public:
   }
 
   /// Peek at the item at the front of the event queue.
-  T peek() const
+  T peek()
   {
     T item;
     pthread_mutex_lock(&_m);
