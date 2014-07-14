@@ -48,7 +48,9 @@
 class ChronosConnection
 {
 public:
-  ChronosConnection(const std::string& chronos, std::string callback_host);
+  ChronosConnection(const std::string& chronos,
+                    std::string callback_host,
+                    HttpResolver* resolver);
   virtual ~ChronosConnection();
 
   virtual HTTPCode send_delete(const std::string& delete_id,

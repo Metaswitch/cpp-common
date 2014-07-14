@@ -71,6 +71,13 @@ struct AddrInfo
       return (port < rhs.port) || ((port == rhs.port) && (transport < rhs.transport));
     }
   }
+
+  bool operator==(const AddrInfo& rhs) const
+  {
+    return (address.compare(rhs.address) == 0) &&
+           (port == rhs.port) &&
+           (transport == rhs.transport);
+  }
 };
 
 /// The BaseResolver class provides common infrastructure for doing DNS
@@ -85,6 +92,9 @@ public:
   virtual ~BaseResolver();
 
   void blacklist(const AddrInfo& ai, int ttl);
+
+  /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
+  bool parse_ip_target(const std::string& target, IP46Address& address);
 
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
@@ -114,9 +124,6 @@ protected:
                  std::vector<AddrInfo>& targets,
                  int& ttl,
                  SAS::TrailId trail);
-
-  /// Parses a target name to see if it is a valid IPv4 or IPv6 address.
-  bool parse_ip_target(const std::string& target, IP46Address& address);
 
   /// Converts a DNS A or AAAA record to an IP46Address structure.
   IP46Address to_ip46(const DnsRRecord* rr);

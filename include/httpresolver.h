@@ -1,5 +1,5 @@
 /**
- * @file fakehttpconnection.cpp Fake HTTP connection (for testing).
+ * @file httpresolver.h  Declaration of HTTP DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,53 +34,29 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef DIAMETERRESOLVER_H__
+#define DIAMETERRESOLVER_H__
 
-#include <cstdio>
-#include "fakehttpconnection.hpp"
+#include "baseresolver.h"
+#include "sas.h"
 
-using namespace std;
-
-FakeHttpConnection::FakeHttpConnection() :
-  // Initialize with dummy values.
-  HttpConnection("localhost",
-                 true,
-                 NULL,
-                 "connected_homesteads",
-                 NULL,
-                 NULL,
-                 SASEvent::HttpLogLevel::PROTOCOL)
+class HttpResolver : public BaseResolver
 {
-}
+public:
+  HttpResolver(DnsCachedResolver* dns_client, int address_family);
+  ~HttpResolver();
 
-FakeHttpConnection::~FakeHttpConnection()
-{
-  flush_all();
-}
+  virtual void resolve(const std::string& host,
+                       int port,
+                       int max_targets,
+                       std::vector<AddrInfo>& targets,
+                       SAS::TrailId trail);
 
-void FakeHttpConnection::flush_all()
-{
-  _db.clear();
-}
+  static const int DEFAULT_PORT = 80;
+  static const int TRANSPORT = IPPROTO_TCP;
 
-long FakeHttpConnection::send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  std::map<std::string, std::string>::iterator i = _db.find(uri);
-  if (i != _db.end())
-  {
-    doc = i->second;
-    return 200;
-  }
-  return 404;
-}
+private:
+  int _address_family;
+};
 
-bool FakeHttpConnection::put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  _db[uri] = doc;
-  return true;
-}
-
-bool FakeHttpConnection::del(const std::string& uri, const std::string& username, SAS::TrailId trail)
-{
-  _db.erase(uri);
-  return true;
-}
+#endif
