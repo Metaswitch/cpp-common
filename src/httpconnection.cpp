@@ -186,8 +186,11 @@ CURL* HttpConnection::get_curl_handle()
     // Tell cURL to fail on 400+ response codes.
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
-    // We always talk to the same server, unless we intentionally want
-    // to rotate our requests. So a connection pool makes no sense.
+    // Only keep one TCP connection to a Homestead per thread, to
+    // avoid using unnecessary resources. We only try a different
+    // Homestead when one fails, or after we've had it open for a
+    // while, and in neither case do we want to keep the old
+    // connection around.
     curl_easy_setopt(curl, CURLOPT_MAXCONNECTS, 1L);
 
     // Maximum time to wait for a response.
@@ -520,7 +523,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     // would be nice to use curl_easy_setopt(CURL_RESOLVE) here, but its
     // implementation is incomplete.
     char buf[100];
-    remote_ip = inet_ntop(i->address.af, &i->address.addr, buf, sizeof(buf)); 
+    remote_ip = inet_ntop(i->address.af, &i->address.addr, buf, sizeof(buf));
     std::string ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(i->port) + path;
     curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 
@@ -698,24 +701,28 @@ bool HttpConnection::PoolEntry::is_connection_expired(unsigned long now_ms)
 /// successful connection.
 void HttpConnection::PoolEntry::update_deadline(unsigned long now_ms)
 {
-  // Get the next desired inter-arrival time. Choose this
-  // randomly so as to avoid spikes.
+  // Get the next desired inter-arrival time. Take a random sample
+  // from an exponential distribution so as to avoid spikes.
   unsigned long interval_ms = (unsigned long)_rand();
 
   if ((_deadline_ms == 0L) ||
       ((_deadline_ms + interval_ms) < now_ms))
   {
-    // This is the first request, or the next arrival has
+    // This is the first request, or the new arrival time has
     // already passed (in which case things must be pretty
     // quiet). Just bump the next deadline into the future.
     _deadline_ms = now_ms + interval_ms;
   }
   else
   {
-    // The next arrival is yet to come. Schedule it relative to
+    // The new arrival time is yet to come. Schedule it relative to
     // the last intended time, so as not to skew the mean
     // upwards.
-    _deadline_ms += interval_ms;
+
+    // We don't recycle any connections in the UTs. (We could do this
+    // by manipulating time, but would have no way of checking it
+    // worked.)
+    _deadline_ms += interval_ms; // LCOV_EXCL_LINE
   }
 }
 
