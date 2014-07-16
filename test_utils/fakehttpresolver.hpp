@@ -2,7 +2,7 @@
  * @file fakehttpresolver.hpp Header file for fake HTTP resolver (for testing).
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,7 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#pragma once
+#ifndef FAKEHTTPRESOLVER_H_
+#define FAKEHTTPRESOLVER_H_
 
 #include <string>
 #include "log.h"
@@ -86,3 +87,5 @@ public:
 
   std::vector<AddrInfo> _targets;
 };
+
+#endif

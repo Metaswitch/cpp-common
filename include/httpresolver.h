@@ -2,7 +2,7 @@
  * @file httpresolver.h  Declaration of HTTP DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,8 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef DIAMETERRESOLVER_H__
-#define DIAMETERRESOLVER_H__
+#ifndef HTTPRESOLVER_H_
+#define HTTPRESOLVER_H_
 
 #include "baseresolver.h"
 #include "sas.h"
