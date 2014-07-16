@@ -588,14 +588,23 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
       }
 
       // Determine the failure mode and update the correct counter.
-      if ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 503))
+      bool fatal_http_error = false;
+      if (rc == CURLE_HTTP_RETURNED_ERROR)
       {
-        num_http_503_responses++;
-      }
-      else if ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 504))
-      {
-        // Excluded because fakecurl doesn't let us return custom return codes.
-        num_http_504_responses++;  // LCOV_EXCL_LINE
+        if (http_rc == 503)
+        {
+          num_http_503_responses++;
+        }
+        else if (http_rc == 504)
+        {
+          // Excluded because fakecurl doesn't let us return custom return codes.
+          num_http_504_responses++;  // LCOV_EXCL_LINE
+        }
+        else
+        {
+          // Excluded because fakecurl doesn't let us return custom return codes.
+          fatal_http_error = true;  // LCOV_EXCL_LINE
+        }
       }
       else if ((rc == CURLE_OPERATION_TIMEDOUT) ||
                (rc == CURLE_SEND_ERROR) ||
@@ -607,9 +616,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
       // Decide whether to keep trying.
       if ((num_http_503_responses + num_timeouts_or_io_errors >= 2) ||
           (num_http_504_responses >= 1) ||
-          ((rc == CURLE_HTTP_RETURNED_ERROR) &&
-           ((http_rc != 503) ||
-            (http_rc != 504))) ||
+          fatal_http_error ||
           (rc == CURLE_COULDNT_CONNECT))
       {
         break;
