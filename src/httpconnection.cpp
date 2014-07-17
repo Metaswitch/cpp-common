@@ -582,7 +582,9 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
       // If we forced a new connection and we failed even to establish an HTTP
       // connection, blacklist this IP address.
       if (recycle_conn &&
-          (rc != CURLE_HTTP_RETURNED_ERROR))
+          (rc != CURLE_HTTP_RETURNED_ERROR) &&
+          (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
+          (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
         _resolver->blacklist(*i, BLACKLIST_DURATION);
       }
@@ -595,16 +597,21 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
         {
           num_http_503_responses++;
         }
+        // LCOV_EXCL_START fakecurl doesn't let us return custom return codes.
         else if (http_rc == 504)
         {
-          // Excluded because fakecurl doesn't let us return custom return codes.
-          num_http_504_responses++;  // LCOV_EXCL_LINE
+          num_http_504_responses++;
         }
         else
         {
-          // Excluded because fakecurl doesn't let us return custom return codes.
-          fatal_http_error = true;  // LCOV_EXCL_LINE
+          fatal_http_error = true;
         }
+        // LCOV_EXCL_STOP
+      }
+      else if ((rc == CURLE_REMOTE_FILE_NOT_FOUND) ||
+               (rc == CURLE_REMOTE_ACCESS_DENIED))
+      {
+        fatal_http_error = true;
       }
       else if ((rc == CURLE_OPERATION_TIMEDOUT) ||
                (rc == CURLE_SEND_ERROR) ||
