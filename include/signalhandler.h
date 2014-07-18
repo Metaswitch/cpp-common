@@ -102,8 +102,8 @@ public:
     pthread_cond_destroy(&_cond);
   }
 
-  /// Waits for the signal to be raised, or for the wait to timeout. 
-  /// This returns true if the signal was raised, and false for timeout. 
+  /// Waits for the signal to be raised, or for the wait to timeout.
+  /// This returns true if the signal was raised, and false for timeout.
   bool wait_for_signal()
   {
     // Grab the mutex.  On its own this isn't enough to guarantee we won't
@@ -116,13 +116,23 @@ public:
     // Wait for either the signal condition to trigger or timeout
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
+#ifndef UNIT_TEST
     ts.tv_sec += 1;
+#else
+    // In unit tests we have to wait for this timedwait to finish in
+    // several destructors, so want it to finish faster (1ms) at the
+    // expense of being less efficient.
+    ts.tv_nsec += 1000000;
+    if (ts.tv_nsec >= 1000000000) {
+          ts.tv_nsec = 999999999;
+    }
+#endif
 
     int rc = pthread_cond_timedwait(&_cond, &_mutex, &ts);
-    
+
     // Unlock the mutex
     pthread_mutex_unlock(&_mutex);
-    
+
     return (rc != ETIMEDOUT);
   }
 
