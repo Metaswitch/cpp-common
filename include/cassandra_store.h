@@ -2,7 +2,7 @@
  * @file cassandra_store.h Base classes for a cassandra-backed store.
  *
  * Project Clearwater - IMS in the cloud.
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,8 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef CASSANDRA_STORE_H__
-#define CASSANDRA_STORE_H__
+#ifndef CASSANDRA_STORE_H_
+#define CASSANDRA_STORE_H_
 
 // Free diameter uses cmake to define some compile time options.  Thrift also
 // defines these options.  So an app that uses both won't compile because of the
