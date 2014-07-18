@@ -420,6 +420,7 @@ void Store::Pool::process_work(std::pair<Operation*, Transaction*>& params)
   // worker thread.
   try
   {
+    trx->start_timer();
     success = _store->run(op, trx->trail);
   }
   // LCOV_EXCL_START Transaction catches all exceptions so the thread pool
@@ -428,6 +429,7 @@ void Store::Pool::process_work(std::pair<Operation*, Transaction*>& params)
   {
     LOG_ERROR("Unhandled exception when processing cache request");
   }
+  trx->stop_timer();
   // LCOV_EXCL_STOP
 
   // Call the application back via the transaction.
