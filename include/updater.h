@@ -64,11 +64,12 @@ public:
       // LCOV_EXCL_STOP
     }
   }
- 
+
   ~Updater()
   {
     // Destroy the updater thread.
     _terminate = true;
+    _sighup_handler.cancel();
     pthread_join(_updater, NULL);
   }
 
@@ -78,7 +79,7 @@ private:
     ((Updater*)p)->updater();
     return NULL;
   }
- 
+
   void updater()
   {
     LOG_DEBUG("Started updater thread");
