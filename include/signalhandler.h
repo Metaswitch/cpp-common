@@ -124,7 +124,8 @@ public:
     // expense of being less efficient.
     ts.tv_nsec += 1000000;
     if (ts.tv_nsec >= 1000000000) {
-          ts.tv_nsec = 999999999;
+        ts.tv_sec += 1;
+        ts.tv_nsec -= 1000000000;
     }
 #endif
 
