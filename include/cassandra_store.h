@@ -321,14 +321,21 @@ struct RowColumns
 
   /// Constructor to build the complete object. Useful if all the parameters
   /// are known ahead of time.
-  RowColumns(std::string& cf_param,
-             std::string& row_param,
-             std::map<std::string, std::string>& columns_param) :
-    cf(cf_param), row(row_param), columns(columns_param)
+  RowColumns(const std::string& cf_param,
+             const std::string& key_param,
+             const std::map<std::string, std::string>& columns_param) :
+    cf(cf_param), key(key_param), columns(columns_param)
+  {}
+
+  /// Constructor to build the complete object but not specifying any columns
+  /// (useful when deleting an entire row).
+  RowColumns(const std::string& cf_param,
+             const std::string& key_param) :
+    cf(cf_param), key(key_param), columns()
   {}
 
   std::string cf;
-  std::string row;
+  std::string key;
   std::map<std::string, std::string> columns;
 };
 

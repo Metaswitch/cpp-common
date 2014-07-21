@@ -571,7 +571,7 @@ put_columns(ClientInterface* client,
       mutations.push_back(mutation);
     }
 
-    mutmap[it->row][it->cf] = mutations;
+    mutmap[it->key][it->cf] = mutations;
   }
 
   // Execute the database operation.
@@ -835,11 +835,11 @@ delete_columns(ClientInterface* client,
   {
     if (it->columns.empty())
     {
-      LOG_DEBUG("Deleting row %s:%s", it->cf.c_str(), it->row.c_str());
+      LOG_DEBUG("Deleting row %s:%s", it->cf.c_str(), it->key.c_str());
       ColumnPath cp;
       cp.column_family = it->cf;
 
-      client->remove(it->row, cp, timestamp, ConsistencyLevel::ONE);
+      client->remove(it->key, cp, timestamp, ConsistencyLevel::ONE);
     }
     else
     {
@@ -859,14 +859,14 @@ delete_columns(ClientInterface* client,
       }
 
       what.__set_column_names(column_names);
-      LOG_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->row.c_str());
+      LOG_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->key.c_str());
 
       deletion.__set_predicate(what);
       deletion.__set_timestamp(timestamp);
       mutation.__set_deletion(deletion);
       mutations.push_back(mutation);
 
-      mutmap[it->row][it->cf] = mutations;
+      mutmap[it->key][it->cf] = mutations;
     }
   }
 
