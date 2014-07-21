@@ -315,6 +315,9 @@ bool Store::run(Operation* op, SAS::TrailId trail)
   bool retry = false;
   int attempt_count = 0;
 
+  // Get a client to execute the operation.
+  ClientInterface* client = get_client();
+
   // Call perform() to actually do the business logic of the request.  Catch
   // exceptions and turn them into return codes and error text.
   do
@@ -324,7 +327,7 @@ bool Store::run(Operation* op, SAS::TrailId trail)
     try
     {
       attempt_count++;
-      success = op->perform(get_client(), trail);
+      success = op->perform(client, trail);
     }
     catch(TTransportException& te)
     {
@@ -337,7 +340,8 @@ bool Store::run(Operation* op, SAS::TrailId trail)
       event.add_var_param(cass_error_text);
       SAS::report_event(event);
 
-      release_client();
+      // Recycle the connection.
+      release_client(); client = NULL;
 
       if (attempt_count <= 1)
       {
@@ -346,7 +350,7 @@ bool Store::run(Operation* op, SAS::TrailId trail)
         LOG_DEBUG("Connection error, retrying");
         try
         {
-          get_client();
+          client = get_client();
           retry = true;
           cass_result = OK;
         }
@@ -442,9 +446,9 @@ void Store::Pool::process_work(std::pair<Operation*, Transaction*>& params)
     trx->on_failure(op);
   }
 
-  // We own the transaction so we have to free it.  However ownership of the
-  // *operation* is passed back to the application, so don't free that.
+  // We own the transaction and operation so have to free them.
   delete trx; trx = NULL;
+  delete op; op = NULL;
 }
 
 
