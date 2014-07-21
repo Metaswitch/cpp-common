@@ -293,7 +293,7 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
 }
 
 
-void Store::do_async(Operation*& op, Transaction*& trx)
+void Store::do_async(Operation* op, Transaction* trx)
 {
   std::pair<Operation*, Transaction*> params(op, trx);
   _thread_pool->add_work(params);

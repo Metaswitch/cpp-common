@@ -235,7 +235,7 @@ public:
   ///                          ownership of the object while the operation is
   ///                          executed, and passes ownership back to the user
   ///                          when the operation is complete.
-  virtual void do_async(Operation*& op, Transaction*& trx);
+  virtual void do_async(Operation* op, Transaction* trx);
 
   /// Generate a timestamp suitable for supplying on cache modification
   /// requests.

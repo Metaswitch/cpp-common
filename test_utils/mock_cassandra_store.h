@@ -60,8 +60,8 @@ public:
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
   MOCK_METHOD1(do_sync, bool(CassandraStore::Operation* op));
-  MOCK_METHOD2(do_async, void(CassandraStore::Operation*& op,
-                              CassandraStore::Transaction*& trx));
+  MOCK_METHOD2(do_async, void(CassandraStore::Operation* op,
+                              CassandraStore::Transaction* trx));
 };
 
 #endif
