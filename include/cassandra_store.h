@@ -228,13 +228,11 @@ public:
   ///
   /// @param op              - The operation to perform. The store takes
   ///                          ownership of the object while the operation is
-  ///                          executed, and passes ownership back to
-  ///                          the user when the operation is complete.
+  ///                          executed, and deletes it once it is complete.
   /// @param trx             - The transaction that is used to call back into
   ///                          the user of the store.  The store takes
   ///                          ownership of the object while the operation is
-  ///                          executed, and passes ownership back to the user
-  ///                          when the operation is complete.
+  ///                          executed, and deletes it once it is complete.
   virtual void do_async(Operation* op, Transaction* trx);
 
   /// Generate a timestamp suitable for supplying on cache modification
