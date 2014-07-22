@@ -233,7 +233,7 @@ public:
   ///                          the user of the store.  The store takes
   ///                          ownership of the object while the operation is
   ///                          executed, and deletes it once it is complete.
-  virtual void do_async(Operation* op, Transaction* trx);
+  virtual void do_async(Operation*& op, Transaction*& trx);
 
   /// Generate a timestamp suitable for supplying on cache modification
   /// requests.

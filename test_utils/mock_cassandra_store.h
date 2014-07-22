@@ -40,6 +40,34 @@
 #include "gmock/gmock.h"
 #include "cassandra_store.h"
 
+using ::testing::SetArgReferee;
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::WithArgs;
+
+
+MATCHER_P(PointerRefTo, ptr, "")
+{
+  return (arg == ptr);
+}
+
+
+class MockOperationMixin
+{
+public:
+  MockOperationMixin() : trx(NULL) {};
+  virtual ~MockOperationMixin()
+  {
+    delete trx; trx = NULL;
+  };
+
+  void set_trx(CassandraStore::Transaction* trx_param) { trx = trx_param; }
+  CassandraStore::Transaction* get_trx() { return trx; }
+
+  CassandraStore::Transaction* trx;
+};
+
+
 template <class StoreClass>
 class MockCassandraStore : public StoreClass
 {
@@ -60,11 +88,19 @@ public:
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
   MOCK_METHOD1(do_sync, bool(CassandraStore::Operation* op));
-  MOCK_METHOD2(do_async, void(CassandraStore::Operation* op,
-                              CassandraStore::Transaction* trx));
+  MOCK_METHOD2(do_async, void(CassandraStore::Operation*& op,
+                              CassandraStore::Transaction*& trx));
+
+  void EXPECT_DO_ASYNC(MockOperationMixin& mock_op)
+  {
+    CassandraStore::Operation* op_ptr = NULL;
+    CassandraStore::Transaction* trx_ptr = NULL;
+
+    EXPECT_CALL(*this, do_async(PointerRefTo(dynamic_cast<CassandraStore::Operation*>(&mock_op)), _))
+      .WillOnce(DoAll(WithArgs<1>(Invoke(&mock_op, &MockOperationMixin::set_trx)),
+                      SetArgReferee<0>(op_ptr),
+                      SetArgReferee<1>(trx_ptr)));
+  }
 };
 
 #endif
-
-
-
