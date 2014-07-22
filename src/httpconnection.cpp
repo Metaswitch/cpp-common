@@ -46,12 +46,12 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
-/// Total time to wait for a response from the server before giving
-/// up.  This is the value that affects the user experience, so should
-/// be set to what we consider acceptable.  Covers lookup, possibly
-/// multiple connection attempts, request, and response.  In
-/// milliseconds.
-static const long TOTAL_TIMEOUT_MS = 500;
+/// Time to wait for a response from a server before giving up.  We
+/// allow 2 such attempts before giving up, so the total delay for an
+/// HTTPConnection request can be double this.  This is the value
+/// that affects the user experience, so should be set to what we
+/// consider acceptable.   In milliseconds.
+static const long TOTAL_TIMEOUT_MS = 250;
 
 /// Approximate length of time to wait before giving up on a
 /// connection attempt to a single address (in milliseconds).  cURL
@@ -73,7 +73,8 @@ static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
 /// Poisson-distributed with this mean inter-arrival time.
 static const double CONNECTION_AGE_MS = 60 * 1000.0;
 
-/// Duration to blacklist hosts after we fail to connect to them.
+/// Duration to blacklist hosts after we fail to connect to them.  In
+/// seconds.
 static const int BLACKLIST_DURATION = 30;
 
 /// Maximum number of targets to try connecting to.
