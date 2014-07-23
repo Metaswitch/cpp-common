@@ -658,6 +658,22 @@ protected:
   void delete_columns(ClientInterface* client,
                       const std::vector<RowColumns>& columns,
                       int64_t timestamp);
+
+  /// Delete a slice of columns from a row where the slice is from start
+  /// (inclusive) to end (exclusive).
+  ///
+  /// @param client         - The client used to communicate with cassandra.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param start          - The start of the range.
+  /// @param finish         - The end of the range.
+  /// @param timestamp      - The timestamp to put on the deletion operation.
+  void delete_slice(ClientInterface* client,
+                    const std::string& column_family,
+                    const std::string& key,
+                    const std::string& start,
+                    const std::string& finish,
+                    const int64_t timestamp);
 };
 
 /// Cassandra does not treat a non-existent row as a special case. If the user

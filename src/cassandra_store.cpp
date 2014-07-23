@@ -881,4 +881,35 @@ delete_columns(ClientInterface* client,
   }
 }
 
+void Operation::
+delete_slice(ClientInterface* client,
+             const std::string& column_family,
+             const std::string& key,
+             const std::string& start,
+             const std::string& finish,
+             const int64_t timestamp)
+{
+  // The mutation map is of the form {"key": {"column_family": [mutations] } }
+  std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
+
+  // We need to build a mutation that contains a deltion that specifies a slice
+  // predicate that is a range of column names. Set all of this up.
+  Mutation mutation;
+  Deletion deletion;
+  SlicePredicate predicate;
+  SliceRange range;
+
+  range.__set_start(start);
+  range.__set_finish(finish);
+  predicate.__set_slice_range(range);
+  deletion.__set_predicate(predicate);
+  deletion.__set_timestamp(timestamp);
+  mutation.__set_deletion(deletion);
+
+  // Add the mutation to the mutation map with the correct key and column
+  // family and call into thrift.
+  mutmap[key][column_family].push_back(mutation);
+  client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+}
+
 } // namespace CassandraStore
