@@ -341,7 +341,7 @@ void Stack::register_controller(const Dictionary::Application& app,
 {
   // Register a callback for messages from our application with the specified message type.
   // DISP_HOW_CC indicates that we want to match on command code (and allows us to optionally
-  // match on application if specified). Use a pointer to our HandlerFactory to pass through
+  // match on application if specified). Use a pointer to our Controller to pass through
   // to our callback function.
   struct disp_when data;
   memset(&data, 0, sizeof(data));
