@@ -401,7 +401,7 @@ bool Store::run(Operation* op, SAS::TrailId trail)
   {
     LOG_ERROR("Cassandra request failed: rc=%d, %s",
               cass_result, cass_error_text.c_str());
-    op->unhandled_exception(cass_result, cass_error_text);
+    op->unhandled_exception(cass_result, cass_error_text, trail);
   }
 
   return success;
@@ -477,7 +477,9 @@ std::string Operation::get_error_text()
 }
 
 
-void Operation::unhandled_exception(ResultCode rc, std::string& description)
+void Operation::unhandled_exception(ResultCode rc,
+                                    std::string& description,
+                                    SAS::TrailId trail)
 {
   _cass_status = rc;
   _cass_error_text = description;

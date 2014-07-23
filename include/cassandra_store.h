@@ -141,14 +141,18 @@ private:
 };
 
 /// The possible outcomes of a cassandra interaction.
+///
+/// These values are logged to SAS so:
+/// -  Each element must have an explicit value.
+/// -  If you change the enum you must also update the resource bundle.
 enum ResultCode
 {
   OK = 0,
-  INVALID_REQUEST,
-  NOT_FOUND,
-  CONNECTION_ERROR,
-  RESOURCE_ERROR,
-  UNKNOWN_ERROR
+  INVALID_REQUEST = 1,
+  NOT_FOUND = 2,
+  CONNECTION_ERROR = 3,
+  RESOURCE_ERROR = 4,
+  UNKNOWN_ERROR = 5
 };
 
 /// The byte sequences that represent True and False in cassandra.
@@ -435,7 +439,10 @@ protected:
   /// @param status       - The result code corresponding to the underlying
   ///                       exception.
   /// @param description  - A textual description of the exception.
-  virtual void unhandled_exception(ResultCode status, std::string& description);
+  /// @param trail        - The SAS trail ID in context.
+  virtual void unhandled_exception(ResultCode status,
+                                   std::string& description,
+                                   SAS::TrailId trail);
 
   /// The cassandra status of the operation.
   ResultCode _cass_status;
