@@ -48,56 +48,56 @@ namespace HttpStackUtils
   /// Instead of blocking the current thread when doing external operations,
   /// they register callbacks that are called (potentially on a different
   /// thread) when the operation completes.  These controllers create a new
-  /// "handler" object per request that tracks the state necessary to continue
+  /// "task" object per request that tracks the state necessary to continue
   /// processing when the callback is triggered.
   ///
   /// This class is an implementation of the controller part of this model.
   ///
   /// It takes two template parameters:
-  /// @tparam H the type of the handler.
+  /// @tparam T the type of the task.
   /// @tparam C Although not mandatory according to the ControllerInterface, in
   ///   practice all controllers have some sort of associated config. This is
   ///   the type of the config object.
-  template<class H, class C>
+  template<class T, class C>
   class SpawningController : public HttpStack::ControllerInterface
   {
   public:
     inline SpawningController(const C* cfg) : _cfg(cfg) {}
     virtual ~SpawningController() {}
 
-    /// Process an HTTP request by spawning a new handler object and running it.
+    /// Process an HTTP request by spawning a new task object and running it.
     /// @param req the request to process.
     /// @param trail the SAS trail ID for the request.
     void process_request(HttpStack::Request& req, SAS::TrailId trail)
     {
-      H* handler = new H(req, _cfg, trail);
-      handler->run();
+      T* task = new T(req, _cfg, trail);
+      task->run();
     }
 
   private:
     const C* _cfg;
   };
 
-  /// @class Handler
+  /// @class Task
   ///
-  /// Base class for per-request handler objects spawned by a
+  /// Base class for per-request task objects spawned by a
   /// SpawningController.
-  class Handler
+  class Task
   {
   public:
-    inline Handler(HttpStack::Request& req, SAS::TrailId trail) :
+    inline Task(HttpStack::Request& req, SAS::TrailId trail) :
       _req(req), _trail(trail)
     {}
 
-    virtual ~Handler() {}
+    virtual ~Task() {}
 
-    /// Process the request associated with this handler. Subclasses of this
+    /// Process the request associated with this task. Subclasses of this
     /// class should implement it with their specific business logic.
     virtual void run() = 0;
 
   protected:
     /// Send an HTTP reply. Calls through to Request::send_reply, picking up
-    /// the trail ID from the handler.
+    /// the trail ID from the task.
     ///
     /// @param status_code the HTTP status code to use on the reply.
     void send_http_reply(int status_code)
