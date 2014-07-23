@@ -447,6 +447,142 @@ private:
   std::vector<CassandraStore::RowColumns> _expected;
 };
 
+class SliceDeletionMatcher : public MatcherInterface<const mutmap_t&> {
+public:
+  SliceDeletionMatcher(const std::string& key,
+                       const std::string& table,
+                       const std::string& start,
+                       const std::string& finish,
+                       int64_t timestamp) :
+    _expected_key(key),
+    _expected_table(table),
+    _expected_start(start),
+    _expected_finish(finish),
+    _expected_timestamp(timestamp)
+  {
+  };
+
+  virtual bool MatchAndExplain(const mutmap_t& mutmap,
+                               MatchResultListener* listener) const
+  {
+    // First check we have the right number of rows. We currently only support
+    // 1.
+    const unsigned int expected_num_rows = 1;
+    if (mutmap.size() != expected_num_rows)
+    {
+      *listener << "map has " << mutmap.size()
+                << " rows, expected " << expected_num_rows;
+      return false;
+    }
+
+    mutmap_t::const_iterator row_mut = mutmap.find(_expected_key);
+
+    if (row_mut == mutmap.end())
+    {
+      *listener << _expected_key << " row expected but not present";
+      return false;
+    }
+    const std::string row = row_mut->first;
+
+    if (row_mut->second.size() != 1)
+    {
+      *listener << "multiple tables specified for row " << row;
+      return false;
+    }
+
+    // Get the table name being operated on (there can only be one as checked
+    // above), and the mutations being applied to it for this row.
+    const std::string& table = row_mut->second.begin()->first;
+    const std::vector<cass::Mutation>& row_table_mut =
+                                                row_mut->second.begin()->second;
+    std::string row_table_name = row + ":" + table;
+
+    // Check we're modifying the right table.
+    if (table != _expected_table)
+    {
+      *listener << "wrong table for " << _expected_key
+                << "(expected " << _expected_table
+                << ", got " << table << ")";
+      return false;
+    }
+
+    // Deletions should only consist of one mutation per row.
+    if (row_table_mut.size() != 1)
+    {
+      *listener << "wrong number of columns for " << row_table_name
+                << "(expected 1"
+                << ", got " << row_table_mut.size() << ")";
+      return false;
+    }
+
+    const cass::Mutation* mutation = &row_table_mut.front();
+
+    // We only allow mutations for a single column (not supercolumns,
+    // counters, etc).
+    if (!mutation->__isset.deletion)
+    {
+      *listener << row_table_name << " has a mutation that isn't a deletion";
+      return false;
+    }
+
+    const cass::Deletion* deletion = &mutation->deletion;
+
+    if (!deletion->__isset.timestamp)
+    {
+      *listener << "Deletion timestamp is not set";
+      return false;
+    }
+
+    const cass::SlicePredicate* predicate = &deletion->predicate;
+
+    if (!predicate->__isset.slice_range ||
+        predicate->__isset.column_names)
+    {
+      *listener << "mutation deletes named columns, when a slice was expected";
+      return false;
+    }
+
+    const cass::SliceRange* range = &predicate->slice_range;
+
+    if (range->start != _expected_start)
+    {
+      *listener << "wrong range start (expected " << _expected_start
+                << ", got " << range->start << ")";
+      return false;
+    }
+
+    if (range->finish != _expected_finish)
+    {
+      *listener << "wrong range finish (expected " << _expected_finish
+                << ", got " << range->finish << ")";
+      return false;
+    }
+
+    if (range->reversed)
+    {
+      *listener << "Rows were requested in reversed order";
+      return true;
+    }
+
+    // Phew! All checks passed.
+    return true;
+  }
+
+  // User fiendly description of what we expect the mutmap to do.
+  virtual void DescribeTo(::std::ostream* os) const
+  {
+  }
+
+private:
+  const std::string _expected_key;
+  const std::string _expected_table;
+  const std::string _expected_start;
+  const std::string _expected_finish;
+  int64_t _expected_timestamp;
+  int32_t _expected_ttl;
+};
+
+
 // A class that matches against a supplied mutation map.
 class MutationMapMatcher : public MatcherInterface<const mutmap_t&> {
 public:
@@ -596,6 +732,7 @@ public:
           *listener << row_table_column_name
                     << " has wrong timestamp (expected " << _timestamp
                     << ", got " << column.timestamp << ")";
+          return false;
         }
 
         if (expected_ttl != 0)
@@ -693,6 +830,15 @@ DeletionMap(const std::vector<CassandraStore::RowColumns>& expected)
   return MakeMatcher(new BatchDeletionMatcher(expected));
 }
 
+inline Matcher<const mutmap_t&>
+DeletionRange(const std::string& key,
+              const std::string& table,
+              const std::string& start,
+              const std::string& finish,
+              int64_t timestamp)
+{
+  return MakeMatcher(new SliceDeletionMatcher(key, table, start, finish, timestamp));
+}
 
 // Matcher that check whether the argument is a ColumnPath that refers to a
 // single table.

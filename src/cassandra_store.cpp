@@ -178,11 +178,14 @@ ResultCode Store::start()
   // Start the thread pool.
   if (rc == OK)
   {
-    _thread_pool = new Pool(this, _num_threads, _max_queue);
-
-    if (!_thread_pool->start())
+    if (_num_threads > 0)
     {
-      rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
+      _thread_pool = new Pool(this, _num_threads, _max_queue);
+
+      if (!_thread_pool->start())
+      {
+        rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
+      }
     }
   }
 
@@ -295,6 +298,12 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
 
 void Store::do_async(Operation*& op, Transaction*& trx)
 {
+  if (_thread_pool == NULL)
+  {
+    LOG_ERROR("Cant't process aync operation as no thead pool has been configured");
+    assert(!"Can't process aync operation as no thead pool has been configured");
+  }
+
   std::pair<Operation*, Transaction*> params(op, trx);
   _thread_pool->add_work(params);
 
