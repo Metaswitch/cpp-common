@@ -72,10 +72,10 @@
 #include "utils.h"
 #include "sas.h"
 
-namespace CassandraStore {
-
 // Shortcut for the apache cassandra namespace.
 namespace cass = org::apache::cassandra;
+
+namespace CassandraStore {
 
 // Forward declarations to break circular dependencies.
 class Operation;

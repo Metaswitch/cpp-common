@@ -103,4 +103,16 @@ public:
   }
 };
 
+// Mock cassandra client that emulates the interface tot he C++ thrift bindings.
+class MockCassandraClient : public CassandraStore::ClientInterface
+{
+public:
+  MOCK_METHOD1(set_keyspace, void(const std::string& keyspace));
+  MOCK_METHOD2(batch_mutate, void(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > > & mutation_map, const cass::ConsistencyLevel::type consistency_level));
+  MOCK_METHOD5(get_slice, void(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
+  MOCK_METHOD5(multiget_slice, void(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > & _return, const std::vector<std::string>& keys, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
+  MOCK_METHOD4(remove, void(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level));
+};
+
+
 #endif

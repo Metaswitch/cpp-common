@@ -37,6 +37,16 @@
 #ifndef CASS_TEST_UTILS_H_
 #define CASS_TEST_UTILS_H_
 
+#include <semaphore.h>
+#include <time.h>
+
+#include "gtest/gtest.h"
+#include "gmock/gmock.h"
+#include "test_interposer.hpp"
+#include "fakelogger.h"
+
+#include "cassandra_store.h"
+
 using ::testing::PrintToString;
 using ::testing::Return;
 using ::testing::SetArgReferee;
@@ -59,24 +69,6 @@ namespace CassTestUtils
 //
 // TEST HARNESS CODE.
 //
-
-// Shortcut for the apache cassandra namespace.
-namespace cass = org::apache::cassandra;
-
-// Mock cassandra client that emulates the interface tot he C++ thrift bindings.
-class MockClient : public CassandraStore::ClientInterface
-{
-public:
-  MOCK_METHOD1(set_keyspace, void(const std::string& keyspace));
-  MOCK_METHOD2(batch_mutate, void(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > > & mutation_map, const cass::ConsistencyLevel::type consistency_level));
-  MOCK_METHOD5(get_slice, void(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
-  MOCK_METHOD5(multiget_slice, void(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > & _return, const std::vector<std::string>& keys, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
-  MOCK_METHOD4(remove, void(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level));
-};
-
-const std::vector<std::string> IMPIS = {"somebody@example.com"};
-const std::vector<std::string> EMPTY_IMPIS;
-
 
 // Transaction object used by the testbed. This mocks the on_success and
 // on_failure methods to allow testcases to control it's behaviour.
@@ -165,109 +157,6 @@ public:
 private:
   ResultRecorderInterface* _recorder;
 };
-
-
-// Fixture for tests that cover cache initialization processing.
-//
-// In reality only the start() method is interesting, so the fixture handles
-// calling initialize() and configure()
-class CacheInitializationTest : public ::testing::Test
-{
-public:
-  CacheInitializationTest()
-  {
-    _cache.initialize();
-    _cache.configure("localhost", 1234, 1); // Start with one worker thread.
-  }
-
-  virtual ~CacheInitializationTest()
-  {
-    _cache.stop();
-    _cache.wait_stopped();
-  }
-
-  TestCache _cache;
-  MockClient _client;
-};
-
-
-// Fixture for tests that make requests to the cache (but are not interested in
-// testing initialization).
-class CacheRequestTest : public CacheInitializationTest
-{
-public:
-  CacheRequestTest() : CacheInitializationTest()
-  {
-    sem_init(&_sem, 0, 0);
-
-    // By default the cache just serves up the mock client each time.
-    EXPECT_CALL(_cache, get_client()).WillRepeatedly(Return(&_client));
-    EXPECT_CALL(_cache, release_client()).WillRepeatedly(Return());
-
-    _cache.start();
-  }
-
-  virtual ~CacheRequestTest() {}
-
-  // Helper methods to make a TestTransaction or RecordingTransation. This
-  // passes the semaphore into the transaction constructor - this is posted to
-  // when the transaction completes.
-  TestTransaction* make_trx()
-  {
-    return new TestTransaction(&_sem);
-  }
-
-  RecordingTransaction* make_rec_trx(ResultRecorderInterface *recorder)
-  {
-    return new RecordingTransaction(&_sem, recorder);
-  }
-
-  // Wait for a single request to finish.  This method asserts if the request
-  // takes too long (> 1s) which implies the request has been dropped by the
-  // cache.
-  void wait()
-  {
-    struct timespec ts;
-    int rc;
-    rc = clock_gettime(CLOCK_REALTIME, &ts);
-    ASSERT_EQ(0, rc);
-    ts.tv_sec += 1;
-    rc = sem_timedwait(&_sem, &ts);
-    ASSERT_EQ(0, rc);
-  }
-
-  // Helper method to send an operation and wait for it to succeed.
-  void execute_trx(CassandraStore::Operation* op, TestTransaction* trx)
-  {
-    CassandraStore::Transaction* _trx = trx; trx = NULL;
-    _cache.do_async(op, _trx);
-    wait();
-  }
-
-  // Semaphore that the main thread waits on while a transaction is outstanding.
-  sem_t _sem;
-};
-
-class CacheLatencyTest : public CacheRequestTest
-{
-public:
-  CacheLatencyTest() : CacheRequestTest()
-  {
-    cwtest_completely_control_time();
-  }
-
-  virtual ~CacheLatencyTest() { cwtest_reset_time(); }
-
-  // This test mucks around with time so we override wait to jusr wait on the
-  // semaphore rather than the safer timedwait (which spots script hangs).
-  // Hopefully any functional hanging-type bugs will already have caused the
-  // script to fail before the Latency tests are run.
-  void wait()
-  {
-    sem_wait(&_sem);
-  }
-};
-
 
 //
 // TYPE DEFINITIONS AND CONSTANTS
