@@ -46,8 +46,8 @@ public:
   MOCK_METHOD0(initialize, void());
   MOCK_METHOD1(configure, void(const std::string&));
   MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_controller, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, ControllerInterface*));
-  MOCK_METHOD1(register_fallback_controller, void(const Diameter::Dictionary::Application&));
+  MOCK_METHOD3(register_handler, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, ControllerInterface*));
+  MOCK_METHOD1(register_fallback_handler, void(const Diameter::Dictionary::Application&));
   MOCK_METHOD0(start, void());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
