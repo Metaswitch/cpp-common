@@ -465,7 +465,7 @@ void Stack::wait_stopped()
     {
       throw Exception("fd_core_wait_shutdown_complete", rc); // LCOV_EXCL_LINE
     }
-    fd_log_task_unregister();
+    fd_log_handler_unregister();
     _initialized = false;
   }
 }
