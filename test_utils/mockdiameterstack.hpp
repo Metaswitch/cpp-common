@@ -57,3 +57,5 @@ public:
   MOCK_METHOD1(add, bool(Diameter::Peer*));
   MOCK_METHOD1(remove, void(Diameter::Peer*));
 };
+
+#endif
