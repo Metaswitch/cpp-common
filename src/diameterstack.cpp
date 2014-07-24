@@ -43,7 +43,7 @@ using namespace Diameter;
 Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 
-Stack::Stack() : _initialized(false), _callback_task(NULL), _callback_fallback_task(NULL)
+Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
 {
   pthread_mutex_init(&_peers_lock, NULL);
 }
@@ -351,7 +351,7 @@ void Stack::register_handler(const Dictionary::Application& app,
                             DISP_HOW_CC,
                             &data,
                             (void *)handler,
-                            &_callback_task);
+                            &_callback_handler);
 
   if (rc != 0)
   {
@@ -366,7 +366,7 @@ void Stack::register_fallback_handler(const Dictionary::Application &app)
   struct disp_when data;
   memset(&data, 0, sizeof(data));
   data.app = app.dict();
-  int rc = fd_disp_register(fallback_request_callback_fn, DISP_HOW_APPID, &data, NULL, &_callback_fallback_task);
+  int rc = fd_disp_register(fallback_request_callback_fn, DISP_HOW_APPID, &data, NULL, &_callback_fallback_handler);
 
   if (rc != 0)
   {
@@ -391,7 +391,7 @@ int Stack::request_callback_fn(struct msg** req,
   // Pass the request to the registered handler.
   handler->process_request(req, trail);
 
-  // The task will turn the message associated with the task into an answer which we wish to send to the HSS.
+  // The handler will turn the message associated with the task into an answer which we wish to send to the HSS.
   // Setting the action to DISP_ACT_SEND ensures that we will send this answer on without going to any other callbacks.
   // Return 0 to indicate no errors with the callback.
   *req = NULL;
@@ -422,14 +422,14 @@ void Stack::stop()
   if (_initialized)
   {
     LOG_STATUS("Stopping Diameter stack");
-    if (_callback_task)
+    if (_callback_handler)
     {
-      (void)fd_disp_unregister(&_callback_task, NULL);
+      (void)fd_disp_unregister(&_callback_handler, NULL);
     }
 
-    if (_callback_fallback_task)
+    if (_callback_fallback_handler)
     {
-      (void)fd_disp_unregister(&_callback_fallback_task, NULL);
+      (void)fd_disp_unregister(&_callback_fallback_handler, NULL);
     }
 
     if (_peer_cb_hdlr)

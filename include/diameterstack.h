@@ -654,12 +654,12 @@ private:
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
 
   bool _initialized;
-  struct disp_hdl* _callback_task; /* Task for requests callback */
-  struct disp_hdl* _callback_fallback_task; /* Task for unexpected messages callback */
-  struct fd_hook_hdl* _peer_cb_hdlr; /* Task for the callback registered for connections to peers */
-  struct fd_hook_hdl* _error_cb_hdlr; /* Task for the callback
+  struct disp_hdl* _callback_handler; /* Handler for requests callback */
+  struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
+  struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
+  struct fd_hook_hdl* _error_cb_hdlr; /* Handler for the callback
                                        * registered for routing errors */
-  struct fd_hook_hdl* _null_cb_hdlr; /* Task for the NULL callback registered to overload the default hook tasks */
+  struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
 
@@ -685,11 +685,11 @@ private:
 /// This class is an implementation of the handler part of this model.
 ///
 /// It takes two template parameters:
-/// @tparam H the type of the task.
+/// @tparam T the type of the task.
 /// @tparam C Although not mandatory according to the HandlerInterface, in
 ///   practice all handlers have some sort of associated config. This is
 ///   the type of the config object.
-template <class H, class C>
+template <class T, class C>
 class SpawningHandler : public Stack::HandlerInterface
 {
 public:
@@ -702,7 +702,7 @@ public:
   /// @param trail the SAS trail ID for the request.
   void process_request(struct msg** fd_msg, SAS::TrailId trail)
   {
-    H* task= new H(_dict, fd_msg, _cfg, trail);
+    T* task= new T(_dict, fd_msg, _cfg, trail);
     task->run();
   }
 
