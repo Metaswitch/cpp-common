@@ -514,7 +514,12 @@ Store::Status MemcachedStore::set_data(const std::string& table,
                          key_len,
                          data.data(),
                          data.length(),
-                         (time_t)expiry,
+                         // Use absolute exptime rather than relative
+                         // expiry - this means that an expiry of "0"
+                         // means a record will expire (which we might
+                         // want) rather than be stored permanently
+                         // (which we will never want).
+                         (time_t)exptime,
                          exptime);
     }
     else
@@ -526,7 +531,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
                          key_len,
                          data.data(),
                          data.length(),
-                         (time_t)expiry,
+                         (time_t)exptime,
                          exptime,
                          cas);
 
@@ -539,13 +544,14 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     }
     else
     {
-      LOG_DEBUG("memcached_%s command for %s failed on replica %d, rc = %d (%s), expiry = %d\n%s",
+      LOG_DEBUG("memcached_%s command for %s failed on replica %d, rc = %d (%s), expiry = %d, absolute expiry time = %u\n%s",
                 (cas == 0) ? "add" : "cas",
                 fqkey.c_str(),
                 replica_idx,
                 rc,
                 memcached_strerror(replicas[replica_idx], rc),
                 expiry,
+                exptime,
                 memcached_last_error_message(replicas[replica_idx]));
 
       if ((rc == MEMCACHED_NOTSTORED) ||
@@ -582,7 +588,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
                     key_len,
                     data.data(),
                     data.length(),
-                    expiry,
+                    (time_t)exptime,
                     0);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 0);
     }
@@ -645,9 +651,9 @@ Store::Status MemcachedStore::delete_data(const std::string& table,
               replicas[ii]);
 
     rc = memcached_delete(replicas[ii],
-                         key_ptr,
-                         key_len,
-                         0);
+                          key_ptr,
+                          key_len,
+                          0);
 
     if (!memcached_success(rc))
     {
