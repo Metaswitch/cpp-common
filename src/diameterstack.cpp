@@ -65,22 +65,22 @@ void Stack::initialize()
     {
       throw Exception("fd_core_initialize", rc); // LCOV_EXCL_LINE
     }
-    rc = fd_log_task_register(Stack::logger);
+    rc = fd_log_handler_register(Stack::logger);
     if (rc != 0)
     {
-      throw Exception("fd_log_task_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_PEER_CONNECT_SUCCESS, HOOK_PEER_CONNECT_FAILED),
                           fd_peer_hook_cb, this, NULL, &_peer_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_log_task_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_MESSAGE_ROUTING_ERROR),
                           fd_error_hook_cb, this, NULL, &_error_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_log_task_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_DATA_RECEIVED,
                                     HOOK_MESSAGE_RECEIVED,
@@ -91,7 +91,7 @@ void Stack::initialize()
                           fd_null_hook_cb, this, NULL, &_null_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_log_task_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
 
     _initialized = true;
