@@ -175,7 +175,7 @@ typedef std::map<std::string, std::vector<cass::ColumnOrSuperColumn>> multiget_s
 
 const multiget_slice_t empty_slice_multiget;
 
-// utlity functions to make a slice from a map of column names => values.
+// Utility functions to make a slice from a map of column names => values.
 void make_slice(slice_t& slice,
                 std::map<std::string, std::string>& columns,
                 int32_t ttl = 0)
@@ -324,7 +324,7 @@ public:
     return true;
   }
 
-  // User fiendly description of what we expect the mutmap to do.
+  // User friendly description of what we expect the mutmap to do.
   virtual void DescribeTo(::std::ostream* os) const
   {
   }
@@ -438,7 +438,7 @@ public:
     return true;
   }
 
-  // User fiendly description of what we expect the mutmap to do.
+  // User friendly description of what we expect the mutmap to do.
   virtual void DescribeTo(::std::ostream* os) const
   {
   }
@@ -568,7 +568,7 @@ public:
     return true;
   }
 
-  // User fiendly description of what we expect the mutmap to do.
+  // User friendly description of what we expect the mutmap to do.
   virtual void DescribeTo(::std::ostream* os) const
   {
   }
@@ -754,7 +754,7 @@ public:
         }
         else
         {
-          // A TLL is not expected, so check the field is not set.
+          // A TTL is not expected, so check the field is not set.
           if (column.__isset.ttl)
           {
             *listener << row_table_column_name
@@ -769,7 +769,7 @@ public:
     return true;
   }
 
-  // User fiendly description of what we expect the mutmap to do.
+  // User friendly description of what we expect the mutmap to do.
   virtual void DescribeTo(::std::ostream* os) const
   {
     *os << "to write columns " << PrintToString(_columns) <<
@@ -929,8 +929,8 @@ MATCHER_P(ColumnsWithPrefix,
   }
 
   // Calculate what the end of the range should be (the last byte should be
-  // one more than the start - we don't handle wrapping since homestead-ng
-  // doesn't supply names with non-ASCII characters).
+  // one more than the start - we don't handle wrapping since all current users
+  // of cassandra deal with ASCII column names.
   std::string end_str = prefix;
   char last_char = *end_str.rbegin();
   last_char++;

@@ -302,8 +302,8 @@ void Store::do_async(Operation*& op, Transaction*& trx)
 {
   if (_thread_pool == NULL)
   {
-    LOG_ERROR("Cant't process aync operation as no thead pool has been configured");
-    assert(!"Can't process aync operation as no thead pool has been configured");
+    LOG_ERROR("Can't process async operation as no thread pool has been configured");
+    assert(!"Can't process async operation as no thread pool has been configured");
   }
 
   std::pair<Operation*, Transaction*> params(op, trx);
@@ -905,7 +905,7 @@ delete_slice(ClientInterface* client,
   // The mutation map is of the form {"key": {"column_family": [mutations] } }
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
-  // We need to build a mutation that contains a deltion that specifies a slice
+  // We need to build a mutation that contains a deletion that specifies a slice
   // predicate that is a range of column names. Set all of this up.
   Mutation mutation;
   Deletion deletion;
