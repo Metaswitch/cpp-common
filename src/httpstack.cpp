@@ -139,13 +139,13 @@ void HttpStack::configure(const std::string& bind_address,
   _stats = stats;
 }
 
-void HttpStack::register_controller(char* path,
-                                    HttpStack::ControllerInterface* controller)
+void HttpStack::register_handler(char* path,
+                                 HttpStack::HandlerInterface* handler)
 {
   evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp,
                                             path,
                                             handler_callback_fn,
-                                            (void*)controller);
+                                            (void*)handler);
   if (cb == NULL)
   {
     throw Exception("evhtp_set_cb", 0); // LCOV_EXCL_LINE
@@ -223,19 +223,19 @@ void HttpStack::wait_stopped()
   _evbase = NULL;
 }
 
-void HttpStack::handler_callback_fn(evhtp_request_t* req, void* controller)
+void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler)
 {
-  INSTANCE->handler_callback(req, (HttpStack::ControllerInterface*)controller);
+  INSTANCE->handler_callback(req, (HttpStack::HandlerInterface*)handler);
 }
 
 void HttpStack::handler_callback(evhtp_request_t* req,
-                                 HttpStack::ControllerInterface* controller)
+                                 HttpStack::HandlerInterface* handler)
 {
   Request request(this, req);
 
-  // Call into the controller to request a SAS logger that can be used to log
+  // Call into the handler to request a SAS logger that can be used to log
   // this request.  Then actually log the request.
-  request.set_sas_logger(controller->sas_logger(request));
+  request.set_sas_logger(handler->sas_logger(request));
 
   SAS::TrailId trail = SAS::new_trail(0);
   request.sas_log_rx_http_req(trail, 0);
@@ -252,11 +252,11 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     // HttpStack::Request::send_reply method resumes.
     evhtp_request_pause(req);
 
-    // Pass the request to the controller.
+    // Pass the request to the handler.
     LOG_VERBOSE("Process request for URL %s, args %s",
                 req->uri->path->full,
                 req->uri->query_raw);
-    controller->process_request(request, trail);
+    handler->process_request(request, trail);
   }
   else
   {

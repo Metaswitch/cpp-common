@@ -584,7 +584,7 @@ public:
     const int _rc;
   };
 
-  class ControllerInterface
+  class HandlerInterface
   {
   public:
     /// Process a new Diameter request message.
@@ -595,7 +595,7 @@ public:
     /// @param trail the SAS trail ID associated with the reqeust.
     virtual void process_request(struct msg** req, SAS::TrailId trail) = 0;
 
-    /// Get the diameter dictionary this controller uses (this is required for
+    /// Get the diameter dictionary this handler uses (this is required for
     /// SAS logging).
     ///
     /// @return a pointer to a Diameter::Dictionary object.
@@ -611,10 +611,10 @@ public:
   virtual void advertize_application(const Dictionary::Application::Type type,
                                      const Dictionary::Vendor& vendor,
                                      const Dictionary::Application& app);
-  virtual void register_controller(const Dictionary::Application& app,
-                                   const Dictionary::Message& msg,
-                                   ControllerInterface* controller);
-  virtual void register_fallback_controller(const Dictionary::Application& app);
+  virtual void register_handler(const Dictionary::Application& app,
+                                const Dictionary::Message& msg,
+                                HandlerInterface* handler);
+  virtual void register_fallback_handler(const Dictionary::Application& app);
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
@@ -636,7 +636,7 @@ private:
 
   Stack();
   virtual ~Stack();
-  static int request_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act);
+  static int request_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler, enum disp_action* act);
   static int fallback_request_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act);
 
   // Don't implement the following, to avoid copies of this instance.
@@ -673,40 +673,40 @@ private:
   void remove_int(Peer* peer);
 };
 
-/// @class SpawningController
+/// @class SpawningHandler
 ///
-/// Many controllers use an asynchronous non-blocking execution model.
+/// Many handlers use an asynchronous non-blocking execution model.
 /// Instead of blocking the current thread when doing external operations,
 /// they register callbacks that are called (potentially on a different
-/// thread) when the operation completes.  These controllers create a new
-/// "handler" object per request that tracks the state necessary to continue
+/// thread) when the operation completes.  These handlers create a new
+/// "task" object per request that tracks the state necessary to continue
 /// processing when the callback is triggered.
 ///
-/// This class is an implementation of the controller part of this model.
+/// This class is an implementation of the handler part of this model.
 ///
 /// It takes two template parameters:
-/// @tparam H the type of the handler.
-/// @tparam C Although not mandatory according to the ControllerInterface, in
-///   practice all controllers have some sort of associated config. This is
+/// @tparam T the type of the task.
+/// @tparam C Although not mandatory according to the HandlerInterface, in
+///   practice all handlers have some sort of associated config. This is
 ///   the type of the config object.
-template <class H, class C>
-class SpawningController : public Stack::ControllerInterface
+template <class T, class C>
+class SpawningHandler : public Stack::HandlerInterface
 {
 public:
-  SpawningController(const Dictionary* dict, const C* cfg) :
+  SpawningHandler(const Dictionary* dict, const C* cfg) :
     _cfg(cfg), _dict(dict)
   {}
 
-  /// Process a diameter request by spawning a new handler and running it.
+  /// Process a diameter request by spawning a new task and running it.
   /// @param fd_msg the diameter request.
   /// @param trail the SAS trail ID for the request.
   void process_request(struct msg** fd_msg, SAS::TrailId trail)
   {
-    H* handler= new H(_dict, fd_msg, _cfg, trail);
-    handler->run();
+    T* task= new T(_dict, fd_msg, _cfg, trail);
+    task->run();
   }
 
-  /// Get the dictionary used by the handlers.
+  /// Get the dictionary used by the tasks.
   /// @return a pointer to the dictionary.
   inline const Dictionary* get_dict()
   {
@@ -718,18 +718,18 @@ private:
   const Dictionary* _dict;
 };
 
-/// @class Handler
+/// @class Task
 ///
-/// Base class for per-request handler objects spawned by a SpawningController.
-class Handler
+/// Base class for per-request task objects spawned by a SpawningHandler.
+class Task
 {
 public:
-  inline Handler(const Dictionary* dict,
-                 struct msg** fd_msg,
-                 SAS::TrailId trail) :
+  inline Task(const Dictionary* dict,
+              struct msg** fd_msg,
+              SAS::TrailId trail) :
     _msg(dict, *fd_msg, Stack::get_instance()), _trail(trail)
   {}
-  virtual ~Handler() {}
+  virtual ~Task() {}
 
   virtual void run() = 0;
 

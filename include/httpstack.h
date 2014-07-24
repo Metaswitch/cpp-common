@@ -287,7 +287,7 @@ public:
                             SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
   };
 
-  class ControllerInterface
+  class HandlerInterface
   {
   public:
     /// Process a new HTTP request.
@@ -299,7 +299,7 @@ public:
     /// @param trail the SAS trail ID associated with the reqeust.
     virtual void process_request(Request& req, SAS::TrailId trail) = 0;
 
-    /// Get the instance of the SasLogger that this controller uses to log HTTP
+    /// Get the instance of the SasLogger that this handler uses to log HTTP
     /// transactions.
     ///
     /// The default implemention returns the default logger
@@ -329,7 +329,7 @@ public:
                          AccessLogger* access_logger = NULL,
                          LoadMonitor* load_monitor = NULL,
                          StatsInterface* stats = NULL);
-  virtual void register_controller(char* path, ControllerInterface* controller);
+  virtual void register_handler(char* path, HandlerInterface* handler);
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
   virtual void wait_stopped();
@@ -353,9 +353,9 @@ private:
   HttpStack();
   virtual ~HttpStack() {}
   virtual void send_reply_internal(Request& req, int rc, SAS::TrailId trail);
-  static void handler_callback_fn(evhtp_request_t* req, void* controller);
+  static void handler_callback_fn(evhtp_request_t* req, void* handler);
   static void* event_base_thread_fn(void* http_stack_ptr);
-  void handler_callback(evhtp_request_t* req, ControllerInterface* controller);
+  void handler_callback(evhtp_request_t* req, HandlerInterface* handler);
   void event_base_thread_fn();
 
   // Don't implement the following, to avoid copies of this instance.

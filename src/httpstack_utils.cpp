@@ -40,36 +40,36 @@
 namespace HttpStackUtils
 {
   //
-  // PingController methods.
+  // PingHandler methods.
   //
-  void PingController::process_request(HttpStack::Request& req,
-                                       SAS::TrailId trail)
+  void PingHandler::process_request(HttpStack::Request& req,
+                                    SAS::TrailId trail)
   {
     req.add_content("OK");
     req.send_reply(200, trail);
   }
 
   //
-  // ControllerThreadPool methods.
+  // HandlerThreadPool methods.
   //
-  ControllerThreadPool::ControllerThreadPool(unsigned int num_threads,
-                                             unsigned int max_queue) :
+  HandlerThreadPool::HandlerThreadPool(unsigned int num_threads,
+                                       unsigned int max_queue) :
     _pool(num_threads, max_queue), _wrappers()
   {
     _pool.start();
   }
 
-  HttpStack::ControllerInterface*
-    ControllerThreadPool::wrap(HttpStack::ControllerInterface* controller)
+  HttpStack::HandlerInterface*
+    HandlerThreadPool::wrap(HttpStack::HandlerInterface* handler)
   {
-    // Create a new wrapper around the specific controller and record it in
+    // Create a new wrapper around the specific handler and record it in
     // the wrappers vector.
-    Wrapper* wrapper = new Wrapper(&_pool, controller);
+    Wrapper* wrapper = new Wrapper(&_pool, handler);
     _wrappers.push_back(wrapper);
     return wrapper;
   }
 
-  ControllerThreadPool::~ControllerThreadPool()
+  HandlerThreadPool::~HandlerThreadPool()
   {
     // The thread pool owns all the wrappers it creates.  Delete them.
     for(std::vector<Wrapper*>::iterator it = _wrappers.begin();
@@ -86,44 +86,44 @@ namespace HttpStackUtils
     _pool.join();
   }
 
-  ControllerThreadPool::Pool::Pool(unsigned int num_threads,
-                                   unsigned int max_queue) :
+  HandlerThreadPool::Pool::Pool(unsigned int num_threads,
+                                unsigned int max_queue) :
     ThreadPool<RequestParams*>(num_threads, max_queue)
   {}
 
   // This function defines how the worker threads process received requests.
   // This is simply to invoke the process_request() method on the underlying
-  // controller.
-  void ControllerThreadPool::Pool::
-    process_work(HttpStackUtils::ControllerThreadPool::RequestParams*& params)
+  // handler.
+  void HandlerThreadPool::Pool::
+    process_work(HttpStackUtils::HandlerThreadPool::RequestParams*& params)
   {
-    params->controller->process_request(params->request, params->trail);
+    params->handler->process_request(params->request, params->trail);
     delete params; params = NULL;
   }
 
-  ControllerThreadPool::Wrapper::Wrapper(Pool* pool,
-                                         ControllerInterface* controller) :
-    _pool(pool), _controller(controller)
+  HandlerThreadPool::Wrapper::Wrapper(Pool* pool,
+                                      HandlerInterface* handler) :
+    _pool(pool), _handler(handler)
   {}
 
-  // Implementation of ControllerInterface::process_request().  This builds a
+  // Implementation of HandlerInterface::process_request().  This builds a
   // RequestParams object (containing the parameters the function was called
-  // with, and a pointer to the underlying controller) and sends it to the
+  // with, and a pointer to the underlying handler) and sends it to the
   // thread pool.
-  void ControllerThreadPool::Wrapper::process_request(HttpStack::Request& req,
-                                                      SAS::TrailId trail)
+  void HandlerThreadPool::Wrapper::process_request(HttpStack::Request& req,
+                                                   SAS::TrailId trail)
   {
-    ControllerThreadPool::RequestParams* params =
-      new ControllerThreadPool::RequestParams(_controller, req, trail);
+    HandlerThreadPool::RequestParams* params =
+      new HandlerThreadPool::RequestParams(_handler, req, trail);
     _pool->add_work(params);
   }
 
-  // Implementation of ControllerInterface::sas_logger().  Simply call the
-  // corresponding method on the underlying controller.
+  // Implementation of HandlerInterface::sas_logger().  Simply call the
+  // corresponding method on the underlying handler.
   HttpStack::SasLogger*
-    ControllerThreadPool::Wrapper::sas_logger(HttpStack::Request& req)
+    HandlerThreadPool::Wrapper::sas_logger(HttpStack::Request& req)
   {
-    return _controller->sas_logger(req);
+    return _handler->sas_logger(req);
   }
 
   //

@@ -335,13 +335,13 @@ void Stack::advertize_application(const Dictionary::Application::Type type,
   }
 }
 
-void Stack::register_controller(const Dictionary::Application& app,
-                                const Dictionary::Message& msg,
-                                ControllerInterface* controller)
+void Stack::register_handler(const Dictionary::Application& app,
+                             const Dictionary::Message& msg,
+                             HandlerInterface* handler)
 {
   // Register a callback for messages from our application with the specified message type.
   // DISP_HOW_CC indicates that we want to match on command code (and allows us to optionally
-  // match on application if specified). Use a pointer to our HandlerFactory to pass through
+  // match on application if specified). Use a pointer to our Handler to pass through
   // to our callback function.
   struct disp_when data;
   memset(&data, 0, sizeof(data));
@@ -350,7 +350,7 @@ void Stack::register_controller(const Dictionary::Application& app,
   int rc = fd_disp_register(request_callback_fn,
                             DISP_HOW_CC,
                             &data,
-                            (void *)controller,
+                            (void *)handler,
                             &_callback_handler);
 
   if (rc != 0)
@@ -359,7 +359,7 @@ void Stack::register_controller(const Dictionary::Application& app,
   }
 }
 
-void Stack::register_fallback_controller(const Dictionary::Application &app)
+void Stack::register_fallback_handler(const Dictionary::Application &app)
 {
   // Register a fallback callback for messages of an unexpected type to our application
   // so that we can log receiving an unexpected message.
@@ -377,21 +377,21 @@ void Stack::register_fallback_controller(const Dictionary::Application &app)
 int Stack::request_callback_fn(struct msg** req,
                                struct avp* avp,
                                struct session* sess,
-                               void* controller_param,
+                               void* handler_param,
                                enum disp_action* act)
 {
-  ControllerInterface* controller = (ControllerInterface*)controller_param;
+  HandlerInterface* handler = (HandlerInterface*)handler_param;
 
   // Create a new message object so and raise the necessary SAS logs.
   SAS::TrailId trail = SAS::new_trail(0);
-  Message msg(controller->get_dict(), *req, Stack::get_instance());
+  Message msg(handler->get_dict(), *req, Stack::get_instance());
   msg.sas_log_rx(trail, 0);
   msg.revoke_ownership();
 
-  // Pass the request to the registered controller.
-  controller->process_request(req, trail);
+  // Pass the request to the registered handler.
+  handler->process_request(req, trail);
 
-  // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
+  // The handler will turn the message associated with the task into an answer which we wish to send to the HSS.
   // Setting the action to DISP_ACT_SEND ensures that we will send this answer on without going to any other callbacks.
   // Return 0 to indicate no errors with the callback.
   *req = NULL;

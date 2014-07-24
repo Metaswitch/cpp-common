@@ -83,7 +83,7 @@ public:
 
   MOCK_METHOD0(initialize, void());
   MOCK_METHOD4(configure, void(const std::string&, unsigned short, int, AccessLogger*));
-  MOCK_METHOD2(register_controller, void(char*, ControllerInterface*));
+  MOCK_METHOD2(register_handler, void(char*, HandlerInterface*));
   MOCK_METHOD0(start, void());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
