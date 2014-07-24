@@ -595,7 +595,7 @@ public:
     /// @param trail the SAS trail ID associated with the reqeust.
     virtual void process_request(struct msg** req, SAS::TrailId trail) = 0;
 
-    /// Get the diameter dictionary this controller uses (this is required for
+    /// Get the diameter dictionary this handler uses (this is required for
     /// SAS logging).
     ///
     /// @return a pointer to a Diameter::Dictionary object.
@@ -611,10 +611,10 @@ public:
   virtual void advertize_application(const Dictionary::Application::Type type,
                                      const Dictionary::Vendor& vendor,
                                      const Dictionary::Application& app);
-  virtual void register_controller(const Dictionary::Application& app,
+  virtual void register_handler(const Dictionary::Application& app,
                                    const Dictionary::Message& msg,
-                                   TaskInterface* controller);
-  virtual void register_fallback_controller(const Dictionary::Application& app);
+                                   TaskInterface* handler);
+  virtual void register_fallback_handler(const Dictionary::Application& app);
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
@@ -636,7 +636,7 @@ private:
 
   Stack();
   virtual ~Stack();
-  static int request_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* controller, enum disp_action* act);
+  static int request_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler, enum disp_action* act);
   static int fallback_request_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act);
 
   // Don't implement the following, to avoid copies of this instance.
@@ -675,19 +675,19 @@ private:
 
 /// @class SpawningTask
 ///
-/// Many controllers use an asynchronous non-blocking execution model.
+/// Many handlers use an asynchronous non-blocking execution model.
 /// Instead of blocking the current thread when doing external operations,
 /// they register callbacks that are called (potentially on a different
-/// thread) when the operation completes.  These controllers create a new
+/// thread) when the operation completes.  These handlers create a new
 /// "task" object per request that tracks the state necessary to continue
 /// processing when the callback is triggered.
 ///
-/// This class is an implementation of the controller part of this model.
+/// This class is an implementation of the handler part of this model.
 ///
 /// It takes two template parameters:
 /// @tparam H the type of the task.
 /// @tparam C Although not mandatory according to the TaskInterface, in
-///   practice all controllers have some sort of associated config. This is
+///   practice all handlers have some sort of associated config. This is
 ///   the type of the config object.
 template <class H, class C>
 class SpawningTask : public Stack::TaskInterface
