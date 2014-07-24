@@ -584,7 +584,7 @@ public:
     const int _rc;
   };
 
-  class ControllerInterface
+  class TaskInterface
   {
   public:
     /// Process a new Diameter request message.
@@ -613,7 +613,7 @@ public:
                                      const Dictionary::Application& app);
   virtual void register_controller(const Dictionary::Application& app,
                                    const Dictionary::Message& msg,
-                                   ControllerInterface* controller);
+                                   TaskInterface* controller);
   virtual void register_fallback_controller(const Dictionary::Application& app);
   virtual void start();
   virtual void stop();
@@ -636,7 +636,7 @@ private:
 
   Stack();
   virtual ~Stack();
-  static int request_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act);
+  static int request_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* controller, enum disp_action* act);
   static int fallback_request_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act);
 
   // Don't implement the following, to avoid copies of this instance.
@@ -654,12 +654,12 @@ private:
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
 
   bool _initialized;
-  struct disp_hdl* _callback_handler; /* Handler for requests callback */
-  struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
-  struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
-  struct fd_hook_hdl* _error_cb_hdlr; /* Handler for the callback
+  struct disp_hdl* _callback_task; /* Task for requests callback */
+  struct disp_hdl* _callback_fallback_task; /* Task for unexpected messages callback */
+  struct fd_hook_hdl* _peer_cb_hdlr; /* Task for the callback registered for connections to peers */
+  struct fd_hook_hdl* _error_cb_hdlr; /* Task for the callback
                                        * registered for routing errors */
-  struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
+  struct fd_hook_hdl* _null_cb_hdlr; /* Task for the NULL callback registered to overload the default hook tasks */
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
 
@@ -673,40 +673,40 @@ private:
   void remove_int(Peer* peer);
 };
 
-/// @class SpawningController
+/// @class SpawningTask
 ///
 /// Many controllers use an asynchronous non-blocking execution model.
 /// Instead of blocking the current thread when doing external operations,
 /// they register callbacks that are called (potentially on a different
 /// thread) when the operation completes.  These controllers create a new
-/// "handler" object per request that tracks the state necessary to continue
+/// "task" object per request that tracks the state necessary to continue
 /// processing when the callback is triggered.
 ///
 /// This class is an implementation of the controller part of this model.
 ///
 /// It takes two template parameters:
-/// @tparam H the type of the handler.
-/// @tparam C Although not mandatory according to the ControllerInterface, in
+/// @tparam H the type of the task.
+/// @tparam C Although not mandatory according to the TaskInterface, in
 ///   practice all controllers have some sort of associated config. This is
 ///   the type of the config object.
 template <class H, class C>
-class SpawningController : public Stack::ControllerInterface
+class SpawningTask : public Stack::TaskInterface
 {
 public:
-  SpawningController(const Dictionary* dict, const C* cfg) :
+  SpawningTask(const Dictionary* dict, const C* cfg) :
     _cfg(cfg), _dict(dict)
   {}
 
-  /// Process a diameter request by spawning a new handler and running it.
+  /// Process a diameter request by spawning a new task and running it.
   /// @param fd_msg the diameter request.
   /// @param trail the SAS trail ID for the request.
   void process_request(struct msg** fd_msg, SAS::TrailId trail)
   {
-    H* handler= new H(_dict, fd_msg, _cfg, trail);
-    handler->run();
+    H* task= new H(_dict, fd_msg, _cfg, trail);
+    task->run();
   }
 
-  /// Get the dictionary used by the handlers.
+  /// Get the dictionary used by the tasks.
   /// @return a pointer to the dictionary.
   inline const Dictionary* get_dict()
   {
@@ -718,18 +718,18 @@ private:
   const Dictionary* _dict;
 };
 
-/// @class Handler
+/// @class Task
 ///
-/// Base class for per-request handler objects spawned by a SpawningController.
-class Handler
+/// Base class for per-request task objects spawned by a SpawningTask.
+class Task
 {
 public:
-  inline Handler(const Dictionary* dict,
+  inline Task(const Dictionary* dict,
                  struct msg** fd_msg,
                  SAS::TrailId trail) :
     _msg(dict, *fd_msg, Stack::get_instance()), _trail(trail)
   {}
-  virtual ~Handler() {}
+  virtual ~Task() {}
 
   virtual void run() = 0;
 

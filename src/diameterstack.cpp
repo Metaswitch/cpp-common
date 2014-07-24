@@ -43,7 +43,7 @@ using namespace Diameter;
 Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 
-Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
+Stack::Stack() : _initialized(false), _callback_task(NULL), _callback_fallback_task(NULL)
 {
   pthread_mutex_init(&_peers_lock, NULL);
 }
@@ -65,22 +65,22 @@ void Stack::initialize()
     {
       throw Exception("fd_core_initialize", rc); // LCOV_EXCL_LINE
     }
-    rc = fd_log_handler_register(Stack::logger);
+    rc = fd_log_task_register(Stack::logger);
     if (rc != 0)
     {
-      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_log_task_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_PEER_CONNECT_SUCCESS, HOOK_PEER_CONNECT_FAILED),
                           fd_peer_hook_cb, this, NULL, &_peer_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_log_task_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_MESSAGE_ROUTING_ERROR),
                           fd_error_hook_cb, this, NULL, &_error_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_log_task_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_DATA_RECEIVED,
                                     HOOK_MESSAGE_RECEIVED,
@@ -91,7 +91,7 @@ void Stack::initialize()
                           fd_null_hook_cb, this, NULL, &_null_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_log_task_register", rc); // LCOV_EXCL_LINE
     }
 
     _initialized = true;
@@ -351,7 +351,7 @@ void Stack::register_controller(const Dictionary::Application& app,
                             DISP_HOW_CC,
                             &data,
                             (void *)controller,
-                            &_callback_handler);
+                            &_callback_task);
 
   if (rc != 0)
   {
@@ -366,7 +366,7 @@ void Stack::register_fallback_controller(const Dictionary::Application &app)
   struct disp_when data;
   memset(&data, 0, sizeof(data));
   data.app = app.dict();
-  int rc = fd_disp_register(fallback_request_callback_fn, DISP_HOW_APPID, &data, NULL, &_callback_fallback_handler);
+  int rc = fd_disp_register(fallback_request_callback_fn, DISP_HOW_APPID, &data, NULL, &_callback_fallback_task);
 
   if (rc != 0)
   {
@@ -391,7 +391,7 @@ int Stack::request_callback_fn(struct msg** req,
   // Pass the request to the registered controller.
   controller->process_request(req, trail);
 
-  // The handler will turn the message associated with the handler into an answer which we wish to send to the HSS.
+  // The task will turn the message associated with the task into an answer which we wish to send to the HSS.
   // Setting the action to DISP_ACT_SEND ensures that we will send this answer on without going to any other callbacks.
   // Return 0 to indicate no errors with the callback.
   *req = NULL;
@@ -422,14 +422,14 @@ void Stack::stop()
   if (_initialized)
   {
     LOG_STATUS("Stopping Diameter stack");
-    if (_callback_handler)
+    if (_callback_task)
     {
-      (void)fd_disp_unregister(&_callback_handler, NULL);
+      (void)fd_disp_unregister(&_callback_task, NULL);
     }
 
-    if (_callback_fallback_handler)
+    if (_callback_fallback_task)
     {
-      (void)fd_disp_unregister(&_callback_fallback_handler, NULL);
+      (void)fd_disp_unregister(&_callback_fallback_task, NULL);
     }
 
     if (_peer_cb_hdlr)
@@ -465,7 +465,7 @@ void Stack::wait_stopped()
     {
       throw Exception("fd_core_wait_shutdown_complete", rc); // LCOV_EXCL_LINE
     }
-    fd_log_handler_unregister();
+    fd_log_task_unregister();
     _initialized = false;
   }
 }
