@@ -584,7 +584,7 @@ public:
     const int _rc;
   };
 
-  class TaskInterface
+  class HandlerInterface
   {
   public:
     /// Process a new Diameter request message.
@@ -613,7 +613,7 @@ public:
                                      const Dictionary::Application& app);
   virtual void register_handler(const Dictionary::Application& app,
                                    const Dictionary::Message& msg,
-                                   TaskInterface* handler);
+                                   HandlerInterface* handler);
   virtual void register_fallback_handler(const Dictionary::Application& app);
   virtual void start();
   virtual void stop();
@@ -673,7 +673,7 @@ private:
   void remove_int(Peer* peer);
 };
 
-/// @class SpawningTask
+/// @class SpawningHandler
 ///
 /// Many handlers use an asynchronous non-blocking execution model.
 /// Instead of blocking the current thread when doing external operations,
@@ -686,14 +686,14 @@ private:
 ///
 /// It takes two template parameters:
 /// @tparam H the type of the task.
-/// @tparam C Although not mandatory according to the TaskInterface, in
+/// @tparam C Although not mandatory according to the HandlerInterface, in
 ///   practice all handlers have some sort of associated config. This is
 ///   the type of the config object.
 template <class H, class C>
-class SpawningTask : public Stack::TaskInterface
+class SpawningHandler : public Stack::HandlerInterface
 {
 public:
-  SpawningTask(const Dictionary* dict, const C* cfg) :
+  SpawningHandler(const Dictionary* dict, const C* cfg) :
     _cfg(cfg), _dict(dict)
   {}
 
@@ -720,7 +720,7 @@ private:
 
 /// @class Task
 ///
-/// Base class for per-request task objects spawned by a SpawningTask.
+/// Base class for per-request task objects spawned by a SpawningHandler.
 class Task
 {
 public:
