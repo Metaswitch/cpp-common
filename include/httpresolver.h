@@ -1,8 +1,8 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file httpresolver.h  Declaration of HTTP DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,28 +34,29 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+#ifndef HTTPRESOLVER_H_
+#define HTTPRESOLVER_H_
 
-#include "gmock/gmock.h"
-#include "diameterstack.h"
+#include "baseresolver.h"
+#include "sas.h"
 
-class MockDiameterStack : public Diameter::Stack
+class HttpResolver : public BaseResolver
 {
 public:
-  MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_controller, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, ControllerInterface*));
-  MOCK_METHOD1(register_fallback_controller, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD0(start, void());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(struct msg*));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
+  HttpResolver(DnsCachedResolver* dns_client, int address_family);
+  ~HttpResolver();
+
+  virtual void resolve(const std::string& host,
+                       int port,
+                       int max_targets,
+                       std::vector<AddrInfo>& targets,
+                       SAS::TrailId trail);
+
+  static const int DEFAULT_PORT = 80;
+  static const int TRANSPORT = IPPROTO_TCP;
+
+private:
+  int _address_family;
 };
 
 #endif

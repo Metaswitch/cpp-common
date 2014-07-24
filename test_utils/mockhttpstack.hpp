@@ -1,5 +1,5 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file mockhttpstack.h Mock HTTP stack.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,28 +34,55 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+#ifndef MOCKHTTPSTACK_H__
+#define MOCKHTTPSTACK_H__
 
 #include "gmock/gmock.h"
-#include "diameterstack.h"
+#include "httpstack.h"
 
-class MockDiameterStack : public Diameter::Stack
+class MockHttpStack : public HttpStack
 {
 public:
+  class Request : public HttpStack::Request
+  {
+  public:
+    Request(HttpStack* stack, std::string path, std::string file, std::string query = "") : HttpStack::Request(stack, evhtp_request(path, file, query)) {}
+    ~Request()
+    {
+      evhtp_connection_t* conn = _req->conn;
+      evhtp_request_free(_req);
+      free(conn);
+    }
+    std::string content()
+    {
+      size_t len = evbuffer_get_length(_req->buffer_out);
+      return std::string((char*)evbuffer_pullup(_req->buffer_out, len), len);
+    }
+
+  private:
+    static evhtp_request_t* evhtp_request(std::string path, std::string file, std::string query = "")
+    {
+      evhtp_request_t* req = evhtp_request_new(NULL, NULL);
+      req->conn = (evhtp_connection_t*)calloc(sizeof(evhtp_connection_t), 1);
+      req->uri = (evhtp_uri_t*)calloc(sizeof(evhtp_uri_t), 1);
+      req->uri->path = (evhtp_path_t*)calloc(sizeof(evhtp_path_t), 1);
+      req->uri->path->full = strdup((path + file).c_str());
+      req->uri->path->file = strdup(file.c_str());
+      req->uri->path->path = strdup(path.c_str());
+      req->uri->path->match_start = (char*)calloc(1, 1);
+      req->uri->path->match_end = (char*)calloc(1, 1);
+      req->uri->query = evhtp_parse_query(query.c_str(), query.length());
+      return req;
+    }
+  };
+
   MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_controller, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, ControllerInterface*));
-  MOCK_METHOD1(register_fallback_controller, void(const Diameter::Dictionary::Application&));
+  MOCK_METHOD4(configure, void(const std::string&, unsigned short, int, AccessLogger*));
+  MOCK_METHOD2(register_controller, void(char*, ControllerInterface*));
   MOCK_METHOD0(start, void());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(struct msg*));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
+  MOCK_METHOD2(send_reply, void(HttpStack::Request&, int));
 };
 
 #endif

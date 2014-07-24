@@ -46,6 +46,7 @@
 #include <boost/uuid/uuid_generators.hpp>
 
 #include "utils.h"
+#include "httpresolver.h"
 #include "statistic.h"
 #include "load_monitor.h"
 #include "sasevent.h"
@@ -55,6 +56,7 @@ static const long HTTP_OK = 200;
 static const long HTTP_CREATED = 201;
 static const long HTTP_ACCEPTED = 202;
 static const long HTTP_BAD_RESULT = 400;
+static const long HTTP_UNAUTHORIZED = 401;
 static const long HTTP_FORBIDDEN = 403;
 static const long HTTP_NOT_FOUND = 404;
 static const long HTTP_BADMETHOD = 405;
@@ -72,12 +74,14 @@ class HttpConnection
 public:
   HttpConnection(const std::string& server,
                  bool assert_user,
+                 HttpResolver* resolver,
                  const std::string& stat_name,
                  LoadMonitor* load_monitor,
                  LastValueCache* lvc,
                  SASEvent::HttpLogLevel);
   HttpConnection(const std::string& server,
                  bool assert_user,
+                 HttpResolver* resolver,
                  SASEvent::HttpLogLevel);
   virtual ~HttpConnection();
 
@@ -194,14 +198,20 @@ private:
   void reset_curl_handle(CURL* curl);
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
   static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
+  static void host_port_from_server(const std::string& server, std::string& host, int& port);
+  static std::string host_from_server(const std::string& server);
+  static int port_from_server(const std::string& server);
 
   boost::uuids::uuid get_random_uuid();
 
   const std::string _server;
+  const std::string _host;
+  const int _port;
   const bool _assert_user;
   pthread_key_t _curl_thread_local;
   pthread_key_t _uuid_thread_local;
 
+  HttpResolver* _resolver;
   Statistic* _statistic;
   LoadMonitor* _load_monitor;
   pthread_mutex_t _lock;

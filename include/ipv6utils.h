@@ -1,8 +1,8 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file ipv6utils.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,28 +34,11 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+#ifndef IPV6UTILS_H_
+#define IPV6UTILS_H_
 
-#include "gmock/gmock.h"
-#include "diameterstack.h"
+#include <string>
 
-class MockDiameterStack : public Diameter::Stack
-{
-public:
-  MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_controller, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, ControllerInterface*));
-  MOCK_METHOD1(register_fallback_controller, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD0(start, void());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(struct msg*));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
-};
+bool is_ipv6(std::string address);
 
 #endif

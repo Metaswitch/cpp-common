@@ -41,7 +41,7 @@
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE = "org.projectclearwater.20140612";
+  const std::string CURRENT_RESOURCE_BUNDLE = "org.projectclearwater.20140717";
 
   // Name of the HTTP header we use to correlate the client and server in SAS.
   const std::string HTTP_BRANCH_HEADER_NAME = "X-SAS-HTTP-Branch-ID";
@@ -60,6 +60,7 @@ namespace SASEvent {
   const int SPROUT_BASE = 0x810000;
   const int HOMESTEAD_BASE = 0x820000;
   const int RALF_BASE = 0x830000;
+  const int MEMENTO_BASE = 0x840000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
@@ -98,8 +99,10 @@ namespace SASEvent {
 
   const int MEMCACHED_DELETE = COMMON_BASE + 0x000107;
 
-  const int BASERESOLVE_SRV_RESULT = COMMON_BASE + 0x000108;
-  const int BASERESOLVE_A_RESULT = COMMON_BASE + 0x000109;
+  const int BASERESOLVE_SRV_RESULT = COMMON_BASE + 0x000200;
+  const int BASERESOLVE_A_RESULT = COMMON_BASE + 0x000201;
+
+  const int CASS_CONNECT_FAIL = COMMON_BASE + 0x0300;
 
 } // namespace SASEvent
 

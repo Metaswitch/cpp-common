@@ -1,8 +1,8 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file fakehttpresolver.hpp Header file for fake HTTP resolver (for testing).
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,28 +34,58 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+#ifndef FAKEHTTPRESOLVER_H_
+#define FAKEHTTPRESOLVER_H_
 
-#include "gmock/gmock.h"
-#include "diameterstack.h"
+#include <string>
+#include "log.h"
+#include "sas.h"
+#include "httpresolver.h"
 
-class MockDiameterStack : public Diameter::Stack
+/// HttpResolver that always returns hard-coded IP address.
+class FakeHttpResolver : public HttpResolver
 {
 public:
-  MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_controller, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, ControllerInterface*));
-  MOCK_METHOD1(register_fallback_controller, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD0(start, void());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(struct msg*));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
+  FakeHttpResolver() :
+    HttpResolver(NULL, AF_INET), _targets() {}
+
+  FakeHttpResolver(const std::string& ip) :
+    HttpResolver(NULL, AF_INET), _targets()
+  {
+    AddrInfo ai;
+    ai.transport = IPPROTO_TCP;
+    parse_ip_target(ip, ai.address);
+    _targets.push_back(ai);
+  }
+
+  FakeHttpResolver(const std::string& ip1, const std::string& ip2) :
+    HttpResolver(NULL, AF_INET), _targets()
+  {
+    AddrInfo ai;
+    ai.transport = IPPROTO_TCP;
+    parse_ip_target(ip1, ai.address);
+    _targets.push_back(ai);
+    parse_ip_target(ip2, ai.address);
+    _targets.push_back(ai);
+  }
+
+  ~FakeHttpResolver() {}
+
+  void resolve(const std::string& host,
+               int port,
+               int max_targets,
+               std::vector<AddrInfo>& targets,
+               SAS::TrailId trail)
+  {
+    targets = _targets;
+    // Fix up ports.
+    for (std::vector<AddrInfo>::iterator i = targets.begin(); i != targets.end(); ++i)
+    {
+      i->port = (port != 0) ? port : 80;
+    }
+  }
+
+  std::vector<AddrInfo> _targets;
 };
 
 #endif

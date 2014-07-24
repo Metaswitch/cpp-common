@@ -1,5 +1,5 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file fakehttpconnection.h Fake HTTP connection for UT use.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,28 +34,29 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+///
+///
 
-#include "gmock/gmock.h"
-#include "diameterstack.h"
+#pragma once
 
-class MockDiameterStack : public Diameter::Stack
+#include <map>
+#include <string>
+
+#include "httpconnection.h"
+
+class FakeHttpConnection : public HttpConnection
 {
 public:
-  MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_controller, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, ControllerInterface*));
-  MOCK_METHOD1(register_fallback_controller, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD0(start, void());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(struct msg*));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
+  FakeHttpConnection();
+  virtual ~FakeHttpConnection();
+
+  void flush_all();
+
+  virtual long send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail);
+  bool put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail);
+  bool del(const std::string& uri, const std::string& username, SAS::TrailId trail);
+
+private:
+  std::map<std::string, std::string> _db;
 };
 
-#endif

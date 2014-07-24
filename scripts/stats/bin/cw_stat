@@ -20,11 +20,10 @@ def main
   options = {
     verbose: false,
     subscribe: false,
-    ports: [6666],
   }
 
   opts = OptionParser.new do |o|
-    o.banner = "Usage: cw_stat [options] <hostname> [statname]"
+    o.banner = "Usage: cw_stat [options] <hostname> <port> [statname]"
     o.on("-v", "--[no-]verbose", "Run verbosely") do |v|
       options[:verbose] = v
     end
@@ -49,24 +48,44 @@ def main
   end
   opts.parse!
 
-  if ARGV[0].nil?
-    puts "Error: You must specify a host to query"
-    puts
-    puts opts
+  # Extract and check positional arguments.
+  num_positional_args = 3
+  hostname = ARGV[0]
+  port = ARGV[1]
+  statname = ARGV[2]
+
+  if hostname.nil?
+    puts "Error: You must specify a host to query\n\n#{opts}"
+    exit 1
+  end
+
+  if port.nil?
+    puts "Error: You must specify a port to query\n\n#{opts}"
     exit 2
+  else
+    begin
+      port = Integer(port)
+    rescue ArgumentError
+      puts "Error: #{port} is not a valid port number\n\n#{opts}"
+      exit 3
+    end
   end
 
   begin
-    if ARGV[1].nil?
-      fail "Subscription is only supported for single stats" if options[:subscribe]
-      stat_collectors = CWStatCollector.all_collectors(ARGV[0], options)
+    if statname.nil?
+      if options[:subscribe]
+        puts "Subscription is only supported for single stats"
+        exit 5
+      end
+
+      stat_collectors = CWStatCollector.all_collectors(hostname, port, options)
     else
-      stat_collectors = [CWStatCollector.new(ARGV[0], ARGV[1], options)]
+      stat_collectors = [CWStatCollector.new(hostname, port, statname, options)]
     end
   rescue Exception => e
     puts "Error: #{e.message}"
     puts "Error: Terminating due to previous errors"
-    exit 2
+    exit 6
   end
 
   begin

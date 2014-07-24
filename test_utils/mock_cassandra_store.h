@@ -1,7 +1,7 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file mock_cassandra_store.h Mock for cassandra store objects.
  *
- * Project Clearwater - IMS in the Cloud
+ * Project Clearwater - IMS in the cloud.
  * Copyright (C) 2013  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -34,28 +34,37 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+#ifndef MOCK_CASSANDRA_STORE_H__
+#define MOCK_CASSANDRA_STORE_H__
 
 #include "gmock/gmock.h"
-#include "diameterstack.h"
+#include "cassandra_store.h"
 
-class MockDiameterStack : public Diameter::Stack
+template <class StoreClass>
+class MockCassandraStore : public StoreClass
 {
 public:
+  MockCassandraStore() {};
+  virtual ~MockCassandraStore() {};
+
+  //
+  // Initialization / termination methods
+  //
   MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_controller, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, ControllerInterface*));
-  MOCK_METHOD1(register_fallback_controller, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD0(start, void());
+
+  MOCK_METHOD4(configure, void(std::string cass_hostname,
+                               uint16_t cass_port,
+                               unsigned int num_threads,
+                               unsigned int max_queue));
+  MOCK_METHOD0(start, CassandraStore::ResultCode());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(struct msg*));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
+  MOCK_METHOD1(do_sync, bool(CassandraStore::Operation* op));
+  MOCK_METHOD2(do_async, void(CassandraStore::Operation*& op,
+                              CassandraStore::Transaction*& trx));
 };
 
 #endif
+
+
+

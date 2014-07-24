@@ -73,22 +73,33 @@ static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
 /// Poisson-distributed with this mean inter-arrival time.
 static const double CONNECTION_AGE_MS = 60 * 1000.0;
 
+/// Duration to blacklist hosts after we fail to connect to them.
+static const int BLACKLIST_DURATION = 30;
+
+/// Maximum number of targets to try connecting to.
+static const int MAX_TARGETS = 5;
+
 /// Create an HTTP connection object.
 ///
 /// @param server Server to send HTTP requests to.
 /// @param assert_user Assert user in header?
+/// @param resolver HTTP resolver to use to resolve server's IP addresses
 /// @param stat_name Name of statistic to report connection info to.
 /// @param load_monitor Load Monitor.
 /// @param lvc Statistics last value cache.
 /// @param sas_log_level the level to log HTTP flows at (protocol/detail).
 HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
+                               HttpResolver* resolver,
                                const std::string& stat_name,
                                LoadMonitor* load_monitor,
                                LastValueCache* lvc,
                                SASEvent::HttpLogLevel sas_log_level) :
   _server(server),
+  _host(host_from_server(server)),
+  _port(port_from_server(server)),
   _assert_user(assert_user),
+  _resolver(resolver),
   _sas_log_level(sas_log_level)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
@@ -105,12 +116,17 @@ HttpConnection::HttpConnection(const std::string& server,
 ///
 /// @param server Server to send HTTP requests to.
 /// @param assert_user Assert user in header?
+/// @param resolver HTTP resolver to use to resolve server's IP addresses
 /// @param sas_log_level the level to log HTTP flows at (protocol/detail).
 HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
+                               HttpResolver* resolver,
                                SASEvent::HttpLogLevel sas_log_level) :
   _server(server),
+  _host(host_from_server(server)),
+  _port(port_from_server(server)),
   _assert_user(assert_user),
+  _resolver(resolver),
   _sas_log_level(sas_log_level)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
@@ -118,6 +134,7 @@ HttpConnection::HttpConnection(const std::string& server,
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   _statistic = NULL;
+  _load_monitor = NULL;
 }
 
 HttpConnection::~HttpConnection()
@@ -169,17 +186,18 @@ CURL* HttpConnection::get_curl_handle()
     // Tell cURL to fail on 400+ response codes.
     curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
-    // We always talk to the same server, unless we intentionally want
-    // to rotate our requests. So a connection pool makes no sense.
+    // Only keep one TCP connection to a Homestead per thread, to
+    // avoid using unnecessary resources. We only try a different
+    // Homestead when one fails, or after we've had it open for a
+    // while, and in neither case do we want to keep the old
+    // connection around.
     curl_easy_setopt(curl, CURLOPT_MAXCONNECTS, 1L);
 
     // Maximum time to wait for a response.
     curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, TOTAL_TIMEOUT_MS);
 
-    // Time to wait until we establish a TCP connection to one of the
-    // available addresses.  We will try the first address for half of
-    // this time.
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, 2 * SINGLE_CONNECT_TIMEOUT_MS);
+    // Time to wait until we establish a TCP connection to a single host.
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, SINGLE_CONNECT_TIMEOUT_MS);
 
     // We mustn't reuse DNS responses, because cURL does no shuffling
     // of DNS entries and we rely on this for load balancing.
@@ -409,7 +427,6 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
   assert(rc == CURLE_OK);
 
-  curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
 
   if (!body.empty())
@@ -417,7 +434,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
   }
 
-  // Create a UUID to use for SAS correlation and add it to the HTTP message. 
+  // Create a UUID to use for SAS correlation and add it to the HTTP message.
   boost::uuids::uuid uuid = get_random_uuid();
   std::string uuid_str = boost::uuids::to_string(uuid);
   extra_headers = curl_slist_append(extra_headers,
@@ -425,17 +442,17 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
 
   // Now log the marker to SAS. Flag that SAS should not reactivate the trail
   // group as a result of associations on this marker (doing so after the call
-  // ends means it will take a long time to be searchable in SAS). 
+  // ends means it will take a long time to be searchable in SAS).
   SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
 
+  // Add the user's identity (if required).
   if (_assert_user)
   {
     extra_headers = curl_slist_append(extra_headers,
                                       ("X-XCAP-Asserted-Identity: " + username).c_str());
   }
-
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
 
   // Determine whether to recycle the connection, based on
@@ -445,28 +462,78 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   assert(rv == 0);
   unsigned long now_ms = tp.tv_sec * 1000 + (tp.tv_nsec / 1000000);
   bool recycle_conn = entry->is_connection_expired(now_ms);
-  bool first_error_503 = false;
 
-  // Try to get a decent connection. We may need to retry, but only
-  // once - cURL itself does most of the retrying for us.
-  for (int attempt = 0; attempt < 2; attempt++)
+  // Resolve the host.
+  std::vector<AddrInfo> targets;
+  _resolver->resolve(_host, _port, MAX_TARGETS, targets, trail);
+
+  // If we're not recycling the connection, try to get the current connection
+  // IP address and add it to the front of the target list.
+  if (!recycle_conn)
+  {
+    char* primary_ip;
+    if (curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &primary_ip) == CURLE_OK)
+    {
+      AddrInfo ai;
+      _resolver->parse_ip_target(primary_ip, ai.address);
+      ai.port = (_port != 0) ? _port : 80;
+      ai.transport = IPPROTO_TCP;
+
+      targets.erase(std::remove(targets.begin(), targets.end(), ai), targets.end());
+      targets.insert(targets.begin(), ai);
+    }
+  }
+
+  // If the list of targets only contains 1 target, clone it - we always want
+  // to retry at least once.
+  if (targets.size() == 1)
+  {
+    targets.push_back(targets[0]);
+  }
+
+  // Report the request to SAS.
+  event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                 SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
+  SAS::Event tx_http_req(trail, event_id,  0);
+  tx_http_req.add_var_param(method_str);
+  tx_http_req.add_var_param(url);
+  tx_http_req.add_var_param(body);
+  SAS::report_event(tx_http_req);
+
+  // Track the number of HTTP 503 and 504 responses and the number of timeouts
+  // or I/O errors.
+  int num_http_503_responses = 0;
+  int num_http_504_responses = 0;
+  int num_timeouts_or_io_errors = 0;
+
+  // Track the IP addresses we're connecting to.  If we fail, we failed to
+  // resolve the host, so default to that.
+  const char *remote_ip = NULL;
+  rc = CURLE_COULDNT_RESOLVE_HOST;
+
+  // Try to get a decent connection - try each of the hosts in turn (although
+  // we might quit early if we have too many HTTP-level failures).
+  for (std::vector<AddrInfo>::const_iterator i = targets.begin();
+       i != targets.end();
+       ++i)
   {
     curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, recycle_conn ? 1L : 0L);
 
-    // Report the request to SAS.
-    event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
-                   SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
-    SAS::Event tx_http_req(trail, event_id,  0);
-    tx_http_req.add_var_param(method_str);
-    tx_http_req.add_var_param(url);
-    tx_http_req.add_var_param(body);
-    SAS::report_event(tx_http_req);
+    // Convert the target IP address into a string and fix up the URL.  It
+    // would be nice to use curl_easy_setopt(CURL_RESOLVE) here, but its
+    // implementation is incomplete.
+    char buf[100];
+    remote_ip = inet_ntop(i->address.af, &i->address.addr, buf, sizeof(buf));
+    std::string ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(i->port) + path;
+    curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 
     // Send the request.
     doc.clear();
-    LOG_DEBUG("Sending HTTP request : %s (try %d) %s", url.c_str(), attempt, (recycle_conn) ? "on new connection" : "");
+    LOG_DEBUG("Sending HTTP request : %s (trying %s) %s", url.c_str(), remote_ip, (recycle_conn) ? "on new connection" : "");
     rc = curl_easy_perform(curl);
 
+    // If we performed an HTTP transaction (successfully or otherwise, get the
+    // return code.
     long http_rc = 0;
     if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
     {
@@ -490,10 +557,8 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     }
     else
     {
-      LOG_DEBUG("Received HTTP error response : %s : %s", url.c_str(), curl_easy_strerror(rc));
-
-      char* remote_ip;
-      curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &remote_ip);
+      LOG_ERROR("%s failed at server %s : %s (%d %d) : fatal",
+                url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);
 
       if (rc == CURLE_HTTP_RETURNED_ERROR)
       {
@@ -514,69 +579,74 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
         SAS::report_event(http_err);
       }
 
-      bool error_is_503 = ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == 503));
-
-      // Is this an error we should retry? If cURL itself has already
-      // retried (e.g., CURLE_COULDNT_CONNECT) then there is no point
-      // in us retrying. But if the remote application has hung
-      // (CURLE_OPERATION_TIMEDOUT) or a previously-up connection has
-      // failed (CURLE_SEND|RECV_ERROR) then we must retry once
-      // ourselves.
-      bool non_fatal = ((rc == CURLE_OPERATION_TIMEDOUT) ||
-                        (rc == CURLE_SEND_ERROR) ||
-                        (rc == CURLE_RECV_ERROR) ||
-                        (error_is_503));
-
-      if ((non_fatal) && (attempt == 0))
+      // If we forced a new connection and we failed even to establish an HTTP
+      // connection, blacklist this IP address.
+      if (recycle_conn &&
+          (rc != CURLE_HTTP_RETURNED_ERROR) &&
+          (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
+          (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
-        // Loop around and try again.  Always request a fresh connection.
-        LOG_ERROR("%s failed at server %s : %s (%d %d) : retrying",
-                  url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);
-        recycle_conn = true;
-
-        // Record that the first error was a 503 error.
-        if (error_is_503)
-        {
-          first_error_503 = true;
-        }
+        _resolver->blacklist(*i, BLACKLIST_DURATION);
       }
-      else
+
+      // Determine the failure mode and update the correct counter.
+      bool fatal_http_error = false;
+      if (rc == CURLE_HTTP_RETURNED_ERROR)
       {
-        // Fatal error or we've already retried once - we're done!
-        LOG_ERROR("%s failed at server %s : %s (%d %d) : fatal",
-                  url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);
-
-        // Check whether we should apply a penalty. We do this when:
-        //  - both attempts return 503 errors, which means the downstream
-        // node is overloaded/requests to it are timeing.
-        //  - the error is a 504, which means that the node downsteam of the node
-        // we're connecting to currently has reported that it is overloaded/was
-        // unresponsive.
-        if (((error_is_503 && first_error_503) ||
-             ((rc == CURLE_HTTP_RETURNED_ERROR) && (http_rc == HTTP_GATEWAY_TIMEOUT))) &&
-            (_load_monitor != NULL))
+        if (http_rc == 503)
         {
-          _load_monitor->incr_penalties();
+          num_http_503_responses++;
         }
+        // LCOV_EXCL_START fakecurl doesn't let us return custom return codes.
+        else if (http_rc == 504)
+        {
+          num_http_504_responses++;
+        }
+        else
+        {
+          fatal_http_error = true;
+        }
+        // LCOV_EXCL_STOP
+      }
+      else if ((rc == CURLE_REMOTE_FILE_NOT_FOUND) ||
+               (rc == CURLE_REMOTE_ACCESS_DENIED))
+      {
+        fatal_http_error = true;
+      }
+      else if ((rc == CURLE_OPERATION_TIMEDOUT) ||
+               (rc == CURLE_SEND_ERROR) ||
+               (rc == CURLE_RECV_ERROR))
+      {
+        num_timeouts_or_io_errors++;
+      }
 
+      // Decide whether to keep trying.
+      if ((num_http_503_responses + num_timeouts_or_io_errors >= 2) ||
+          (num_http_504_responses >= 1) ||
+          fatal_http_error ||
+          (rc == CURLE_COULDNT_CONNECT))
+      {
         break;
       }
     }
   }
 
+  // Check whether we should apply a penalty. We do this when:
+  //  - both attempts return 503 errors, which means the downstream node is
+  //    overloaded/requests to it are timeing.
+  //  - the error is a 504, which means that the node downsteam of the node
+  //    we're connecting to currently has reported that it is overloaded/was
+  //    unresponsive.
+  if (((num_http_503_responses >= 2) ||
+       (num_http_504_responses >= 1)) &&
+      (_load_monitor != NULL))
+  {
+    _load_monitor->incr_penalties();
+  }
+
   if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
   {
-    char* remote_ip;
-    CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &remote_ip);
-
-    if (rc == CURLE_OK)
-    {
-      entry->set_remote_ip(remote_ip);
-    }
-    else
-    {
-      entry->set_remote_ip("UNKNOWN");  // LCOV_EXCL_LINE Can't happen.
-    }
+    entry->set_remote_ip(remote_ip);
   }
   else
   {
@@ -648,24 +718,28 @@ bool HttpConnection::PoolEntry::is_connection_expired(unsigned long now_ms)
 /// successful connection.
 void HttpConnection::PoolEntry::update_deadline(unsigned long now_ms)
 {
-  // Get the next desired inter-arrival time. Choose this
-  // randomly so as to avoid spikes.
+  // Get the next desired inter-arrival time. Take a random sample
+  // from an exponential distribution so as to avoid spikes.
   unsigned long interval_ms = (unsigned long)_rand();
 
   if ((_deadline_ms == 0L) ||
       ((_deadline_ms + interval_ms) < now_ms))
   {
-    // This is the first request, or the next arrival has
+    // This is the first request, or the new arrival time has
     // already passed (in which case things must be pretty
     // quiet). Just bump the next deadline into the future.
     _deadline_ms = now_ms + interval_ms;
   }
   else
   {
-    // The next arrival is yet to come. Schedule it relative to
+    // The new arrival time is yet to come. Schedule it relative to
     // the last intended time, so as not to skew the mean
     // upwards.
-    _deadline_ms += interval_ms;
+
+    // We don't recycle any connections in the UTs. (We could do this
+    // by manipulating time, but would have no way of checking it
+    // worked.)
+    _deadline_ms += interval_ms; // LCOV_EXCL_LINE
   }
 }
 
@@ -792,4 +866,39 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
   rx_http_rsp.add_var_param(doc);
   rx_http_rsp.add_static_param(http_rc);
   SAS::report_event(rx_http_rsp);
+}
+
+void HttpConnection::host_port_from_server(const std::string& server, std::string& host, int& port)
+{
+  std::string server_copy = server;
+  Utils::trim(server_copy);
+  int colon_idx;
+  if (((server_copy[0] != '[') ||
+       (server_copy[server_copy.length() - 1] != ']')) &&
+      ((colon_idx = server_copy.find_last_of(':')) != std::string::npos))
+  {
+    host = server_copy.substr(0, colon_idx);
+    port = stoi(server_copy.substr(colon_idx + 1));
+  }
+  else
+  {
+    host = server_copy;
+    port = 0;
+  }
+}
+
+std::string HttpConnection::host_from_server(const std::string& server)
+{
+  std::string host;
+  int port;
+  host_port_from_server(server, host, port);
+  return host;
+}
+
+int HttpConnection::port_from_server(const std::string& server)
+{
+  std::string host;
+  int port;
+  host_port_from_server(server, host, port);
+  return port;
 }

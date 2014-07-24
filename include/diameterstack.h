@@ -303,7 +303,7 @@ public:
   {
     fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_fd_msg);
   }
-  inline Message(Dictionary* dict, struct msg* msg, Stack* stack) : _dict(dict), _fd_msg(msg), _stack(stack),  _free_on_delete(true), _master_msg(this) {};
+  inline Message(const Dictionary* dict, struct msg* msg, Stack* stack) : _dict(dict), _fd_msg(msg), _stack(stack),  _free_on_delete(true), _master_msg(this) {};
   inline Message(const Message& msg) : _dict(msg._dict), _fd_msg(msg._fd_msg), _stack(msg._stack),  _free_on_delete(false), _master_msg(msg._master_msg) {};
   virtual ~Message();
   inline const Dictionary* dict() const {return _dict;}
@@ -595,54 +595,24 @@ public:
     const int _rc;
   };
 
-  class Handler
+  class ControllerInterface
   {
   public:
-    inline Handler(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail) :
-      _msg(dict, *fd_msg, Stack::get_instance()), _trail(trail)
-    {}
-    virtual ~Handler() {}
+    /// Process a new Diameter request message.
+    ///
+    /// @param req pointer to a freeDiameter message. This function takes
+    ///   ownership of the message and is responsible for sending an appropriate
+    ///   answer.
+    /// @param trail the SAS trail ID associated with the reqeust.
+    virtual void process_request(struct msg** req, SAS::TrailId trail) = 0;
 
-    virtual void run() = 0;
-
-    SAS::TrailId trail() { return _trail; }
-
-  protected:
-    Diameter::Message _msg;
-    SAS::TrailId _trail;
+    /// Get the diameter dictionary this controller uses (this is required for
+    /// SAS logging).
+    ///
+    /// @return a pointer to a Diameter::Dictionary object.
+    virtual const Dictionary* get_dict() = 0;
   };
 
-  class BaseHandlerFactory
-  {
-  public:
-    BaseHandlerFactory(Dictionary *dict) : _dict(dict) {}
-    virtual Handler* create(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail) = 0;
-    Dictionary* _dict;
-  };
-
-  template <class H>
-    class HandlerFactory : public BaseHandlerFactory
-  {
-  public:
-    HandlerFactory(Dictionary* dict) : BaseHandlerFactory(dict) {};
-    Handler* create(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail)
-    {
-      return new H(fd_msg, trail);
-    }
-  };
-
-  template <class H, class C>
-    class ConfiguredHandlerFactory : public BaseHandlerFactory
-  {
-  public:
-    ConfiguredHandlerFactory(Dictionary* dict, const C* cfg) : BaseHandlerFactory(dict), _cfg(cfg) {}
-    Handler* create(Dictionary* dict, struct msg** fd_msg, SAS::TrailId trail)
-    {
-      return new H(dict, fd_msg, _cfg, trail);
-    }
-  private:
-    const C* _cfg;
-  };
 
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
@@ -652,8 +622,10 @@ public:
   virtual void advertize_application(const Dictionary::Application::Type type,
                                      const Dictionary::Vendor& vendor,
                                      const Dictionary::Application& app);
-  virtual void register_handler(const Dictionary::Application& app, const Dictionary::Message& msg, BaseHandlerFactory* factory);
-  virtual void register_fallback_handler(const Dictionary::Application& app);
+  virtual void register_controller(const Dictionary::Application& app,
+                                   const Dictionary::Message& msg,
+                                   ControllerInterface* controller);
+  virtual void register_fallback_controller(const Dictionary::Application& app);
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
@@ -675,8 +647,8 @@ private:
 
   Stack();
   virtual ~Stack();
-  static int handler_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act);
-  static int fallback_handler_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act);
+  static int request_callback_fn(struct msg** req, struct avp* avp, struct session* sess, void* handler_factory, enum disp_action* act);
+  static int fallback_request_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act);
 
   // Don't implement the following, to avoid copies of this instance.
   Stack(Stack const&);
@@ -710,6 +682,73 @@ private:
                            struct dict_object* vendor_dict);
 
   void remove_int(Peer* peer);
+};
+
+/// @class SpawningController
+///
+/// Many controllers use an asynchronous non-blocking execution model.
+/// Instead of blocking the current thread when doing external operations,
+/// they register callbacks that are called (potentially on a different
+/// thread) when the operation completes.  These controllers create a new
+/// "handler" object per request that tracks the state necessary to continue
+/// processing when the callback is triggered.
+///
+/// This class is an implementation of the controller part of this model.
+///
+/// It takes two template parameters:
+/// @tparam H the type of the handler.
+/// @tparam C Although not mandatory according to the ControllerInterface, in
+///   practice all controllers have some sort of associated config. This is
+///   the type of the config object.
+template <class H, class C>
+class SpawningController : public Stack::ControllerInterface
+{
+public:
+  SpawningController(const Dictionary* dict, const C* cfg) :
+    _cfg(cfg), _dict(dict)
+  {}
+
+  /// Process a diameter request by spawning a new handler and running it.
+  /// @param fd_msg the diameter request.
+  /// @param trail the SAS trail ID for the request.
+  void process_request(struct msg** fd_msg, SAS::TrailId trail)
+  {
+    H* handler= new H(_dict, fd_msg, _cfg, trail);
+    handler->run();
+  }
+
+  /// Get the dictionary used by the handlers.
+  /// @return a pointer to the dictionary.
+  inline const Dictionary* get_dict()
+  {
+    return _dict;
+  }
+
+private:
+  const C* _cfg;
+  const Dictionary* _dict;
+};
+
+/// @class Handler
+///
+/// Base class for per-request handler objects spawned by a SpawningController.
+class Handler
+{
+public:
+  inline Handler(const Dictionary* dict,
+                 struct msg** fd_msg,
+                 SAS::TrailId trail) :
+    _msg(dict, *fd_msg, Stack::get_instance()), _trail(trail)
+  {}
+  virtual ~Handler() {}
+
+  virtual void run() = 0;
+
+  SAS::TrailId trail() { return _trail; }
+
+protected:
+  Diameter::Message _msg;
+  SAS::TrailId _trail;
 };
 
 AVP::iterator AVP::begin() const {return AVP::iterator(*this);}

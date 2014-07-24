@@ -1,8 +1,8 @@
 /**
- * @file fakelogger.hpp Header file for fake logger (for testing).
+ * @file httpresolver.cpp  Implementation of HTTP DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,37 +34,54 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-///
-///----------------------------------------------------------------------------
-
-#pragma once
-
-#include <string>
 #include "log.h"
-#include "logger.h"
+#include "httpresolver.h"
 
-/// Logger that records what is written.
-class FakeLogger : public Logger
+HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
+                           int address_family) :
+  BaseResolver(dns_client),
+  _address_family(address_family)
 {
-public:
-  /// Get a logger with the default behaviour.
-  FakeLogger();
+  LOG_DEBUG("Creating HTTP resolver");
 
-  /// Get a logger that is explicitly noisy or not.
-  FakeLogger(bool noisy);
+  // Create the blacklist.
+  create_blacklist();
 
-  virtual ~FakeLogger();
+  LOG_STATUS("Created HTTP resolver");
+}
 
-  void write(const char* data);
-  void flush();
+HttpResolver::~HttpResolver()
+{
+  destroy_blacklist();
+}
 
-  bool contains(const char* needle);
+/// Resolve a destination host and realm name to a list of IP addresses,
+/// transports and ports.  HTTP is pretty simple - just look up the A records.
+void HttpResolver::resolve(const std::string& host,
+                           int port,
+                           int max_targets,
+                           std::vector<AddrInfo>& targets,
+                           SAS::TrailId trail)
+{
+  AddrInfo ai;
+  int dummy_ttl = 0;
 
-  static bool isNoisy();
-  static int howNoisy();
+  LOG_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
+            host.c_str(), port, _address_family);
 
-private:
-  pthread_mutex_t _logger_lock;
-  std::string _lastlog;
-  bool _noisy;
-};
+  port = (port != 0) ? port : DEFAULT_PORT;
+  targets.clear();
+
+  if (parse_ip_target(host, ai.address))
+  {
+    // The name is already an IP address, so no DNS resolution is possible.
+    LOG_DEBUG("Target is an IP address");
+    ai.port = port;
+    ai.transport = TRANSPORT;
+    targets.push_back(ai);
+  }
+  else
+  {
+    a_resolve(host, _address_family, port, TRANSPORT, max_targets, targets, dummy_ttl, trail);
+  }
+}

@@ -55,8 +55,7 @@ class CWStatCollector
   #
   # For most cases, SimpleStatRenderer will be sufficient.
   def self.register_stat(statname, renderer, options={})
-    port = options[:port] || 6666
-    @@known_stats[statname] = {renderer: renderer, port: port}
+    @@known_stats[statname] = renderer
   end
 
   # Create a collector for each known statistic.
@@ -64,13 +63,9 @@ class CWStatCollector
   # @param options Two options are supported:
   #   - :verbose to add more logging
   #   - :subscribe to use repeated mode
-  #   - :ports only return collectors for the specifed ports (passed as a comma
-  #     separated list).
-  def self.all_collectors(hostname, options)
-    @@known_stats.select do |statname, statconf|
-      options[:ports].nil? || options[:ports].include?(statconf[:port])
-    end.keys.map do |statname|
-      CWStatCollector.new(hostname, statname, options)
+  def self.all_collectors(hostname, port, options)
+    @@known_stats.keys.map do |statname|
+      CWStatCollector.new(hostname, port, statname, options)
     end
   end
 
@@ -80,10 +75,9 @@ class CWStatCollector
   # @param options Two options are supported:
   #   - :verbose to add more logging
   #   - :subscribe to use repeated mode
-  def initialize(hostname, statname, options)
+  def initialize(hostname, port, statname, options)
     fail "Statistic \"#{statname}\" not recognised" if not @@known_stats.include? statname
-    renderer = @@known_stats[statname][:renderer]
-    port = @@known_stats[statname][:port]
+    renderer = @@known_stats[statname]
 
     @verbose = options[:verbose]
     @subscribe = options[:subscribe]
@@ -115,7 +109,7 @@ class CWStatCollector
         get_stat &blk
       end
     rescue Timeout::Error => e
-      puts "Error: No response from host, ensure hostname and port(s) are correct"
+      puts "Error: No response from host, ensure hostname and port are correct"
       throw e
     rescue Exception => e
       puts "Error: Unexpected exception occurred: #{e}"
@@ -249,8 +243,7 @@ count:#{msg[4]}
   end
 end
 
-# Register the sprout/bono stats. These are served on port 6666/9 (to
-# allow both to publish stats when colocated on an all-in-one node).
+# Register the sprout/bono/sipp stats.
 CWStatCollector.register_stat("client_count", SimpleStatRenderer)
 CWStatCollector.register_stat("connected_homesteads", ConnectedIpsRenderer)
 CWStatCollector.register_stat("connected_homers", ConnectedIpsRenderer)
@@ -267,8 +260,7 @@ CWStatCollector.register_stat("incoming_requests", SimpleStatRenderer)
 CWStatCollector.register_stat("rejected_overload", SimpleStatRenderer)
 CWStatCollector.register_stat("queue_size", LatencyCountStatsRenderer)
 
-# Register for homer/homestead stats. These are served on port 6665/8 (to
-# allow both to publish stats when colocated on an all-in-one node).
+# Register for homer/homestead stats.
 CWStatCollector.register_stat("H_latency_us", LatencyCountStatsRenderer)
 CWStatCollector.register_stat("H_hss_latency_us", LatencyCountStatsRenderer)
 CWStatCollector.register_stat("H_hss_digest_latency_us", LatencyCountStatsRenderer)
@@ -277,11 +269,9 @@ CWStatCollector.register_stat("H_cache_latency_us", LatencyCountStatsRenderer)
 CWStatCollector.register_stat("H_incoming_requests", SimpleStatRenderer)
 CWStatCollector.register_stat("H_rejected_overload", SimpleStatRenderer)
 
-# Listen for the homestead-prov stats. These are served on port 6667 (to
-# allow homestead-prov to publish stats when colocated with homestead).
-#
+# Register the homestead-prov stats.
 # This currently only listens for stats for the first process.
-CWStatCollector.register_stat("P_latency_us_0", LatencyCountStatsRenderer, port: 6667)
-CWStatCollector.register_stat("P_queue_size_0", LatencyCountStatsRenderer, port: 6667)
-CWStatCollector.register_stat("P_incoming_requests_0", SimpleStatRenderer, port: 6667)
-CWStatCollector.register_stat("P_rejected_overload_0", SimpleStatRenderer, port: 6667)
+CWStatCollector.register_stat("P_latency_us_0", LatencyCountStatsRenderer)
+CWStatCollector.register_stat("P_queue_size_0", LatencyCountStatsRenderer)
+CWStatCollector.register_stat("P_incoming_requests_0", SimpleStatRenderer)
+CWStatCollector.register_stat("P_rejected_overload_0", SimpleStatRenderer)

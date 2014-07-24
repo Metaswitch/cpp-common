@@ -1,5 +1,5 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file fakecurl.hpp Fake cURL library header for testing.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,28 +34,81 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+#include <string>
+#include <list>
+#include <map>
 
-#include "gmock/gmock.h"
-#include "diameterstack.h"
+#include <curl/curl.h>
 
-class MockDiameterStack : public Diameter::Stack
+/// The content of a request.
+class Request
 {
 public:
-  MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_controller, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, ControllerInterface*));
-  MOCK_METHOD1(register_fallback_controller, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD0(start, void());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(struct msg*));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
+  std::string _method;
+  std::list<std::string> _headers;
+  std::string _body;
+  long _httpauth; //^ OR of CURLAUTH_ constants
+  std::string _username;
+  std::string _password;
+  bool _fresh;
 };
 
-#endif
+/// The content of a response.
+class Response
+{
+public:
+  CURLcode _code_once;  //< If not CURLE_OK, issue this code first then the other.
+  CURLcode _code;  //< cURL easy doesn't accept HTTP status codes
+  std::string _body;
+  std::list<std::string> _headers;
+
+  Response() :
+    _code_once(CURLE_OK),
+    _code(CURLE_OK),
+    _body("")
+  {
+  }
+
+  Response(const std::string& body) :
+    _code_once(CURLE_OK),
+    _code(CURLE_OK),
+    _body(body)
+  {
+  }
+
+  Response(CURLcode code_once, const std::string& body) :
+    _code_once(code_once),
+    _code(CURLE_OK),
+    _body(body)
+  {
+  }
+
+  Response(std::list<std::string> headers) :
+    _code_once(CURLE_OK),
+    _code(CURLE_OK),
+    _body(""),
+    _headers(headers)
+  {
+  }
+
+  Response(const char* body) :
+    _code_once(CURLE_OK),
+    _code(CURLE_OK),
+    _body(body)
+  {
+  }
+
+  Response(CURLcode code) :
+    _code_once(CURLE_OK),
+    _code(code),
+    _body("")
+  {
+  }
+};
+
+/// Responses to give, by URL.
+extern std::map<std::string,Response> fakecurl_responses;
+extern std::map<std::pair<std::string, std::string>, Response> fakecurl_responses_with_body;
+
+/// Requests received, by URL.
+extern std::map<std::string,Request> fakecurl_requests;

@@ -46,10 +46,13 @@
 #include "httpconnection.h"
 #include "chronosconnection.h"
 
-ChronosConnection::ChronosConnection(const std::string& server, std::string callback_host) :
+ChronosConnection::ChronosConnection(const std::string& server,
+                                     std::string callback_host,
+                                     HttpResolver* resolver) :
   _callback_host(callback_host),
   _http(new HttpConnection(server,
                            false,
+                           resolver,
                            SASEvent::HttpLogLevel::PROTOCOL))
 {
 }
