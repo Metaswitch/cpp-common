@@ -43,7 +43,7 @@ namespace HttpStackUtils
   // PingHandler methods.
   //
   void PingHandler::process_request(HttpStack::Request& req,
-                                       SAS::TrailId trail)
+                                    SAS::TrailId trail)
   {
     req.add_content("OK");
     req.send_reply(200, trail);
@@ -53,7 +53,7 @@ namespace HttpStackUtils
   // HandlerThreadPool methods.
   //
   HandlerThreadPool::HandlerThreadPool(unsigned int num_threads,
-                                             unsigned int max_queue) :
+                                       unsigned int max_queue) :
     _pool(num_threads, max_queue), _wrappers()
   {
     _pool.start();
@@ -87,7 +87,7 @@ namespace HttpStackUtils
   }
 
   HandlerThreadPool::Pool::Pool(unsigned int num_threads,
-                                   unsigned int max_queue) :
+                                unsigned int max_queue) :
     ThreadPool<RequestParams*>(num_threads, max_queue)
   {}
 
@@ -102,7 +102,7 @@ namespace HttpStackUtils
   }
 
   HandlerThreadPool::Wrapper::Wrapper(Pool* pool,
-                                         HandlerInterface* handler) :
+                                      HandlerInterface* handler) :
     _pool(pool), _handler(handler)
   {}
 
@@ -111,7 +111,7 @@ namespace HttpStackUtils
   // with, and a pointer to the underlying handler) and sends it to the
   // thread pool.
   void HandlerThreadPool::Wrapper::process_request(HttpStack::Request& req,
-                                                      SAS::TrailId trail)
+                                                   SAS::TrailId trail)
   {
     HandlerThreadPool::RequestParams* params =
       new HandlerThreadPool::RequestParams(_handler, req, trail);

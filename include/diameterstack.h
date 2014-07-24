@@ -612,8 +612,8 @@ public:
                                      const Dictionary::Vendor& vendor,
                                      const Dictionary::Application& app);
   virtual void register_handler(const Dictionary::Application& app,
-                                   const Dictionary::Message& msg,
-                                   HandlerInterface* handler);
+                                const Dictionary::Message& msg,
+                                HandlerInterface* handler);
   virtual void register_fallback_handler(const Dictionary::Application& app);
   virtual void start();
   virtual void stop();
@@ -725,8 +725,8 @@ class Task
 {
 public:
   inline Task(const Dictionary* dict,
-                 struct msg** fd_msg,
-                 SAS::TrailId trail) :
+              struct msg** fd_msg,
+              SAS::TrailId trail) :
     _msg(dict, *fd_msg, Stack::get_instance()), _trail(trail)
   {}
   virtual ~Task() {}

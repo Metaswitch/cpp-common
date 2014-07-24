@@ -143,7 +143,7 @@ namespace HttpStackUtils
   {
   public:
     HandlerThreadPool(unsigned int num_threads,
-                         unsigned int max_queue = 0);
+                      unsigned int max_queue = 0);
     ~HandlerThreadPool();
 
     /// Wrap a handler in a 'wrapper' object.  Requests passed to this

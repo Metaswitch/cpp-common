@@ -336,8 +336,8 @@ void Stack::advertize_application(const Dictionary::Application::Type type,
 }
 
 void Stack::register_handler(const Dictionary::Application& app,
-                                const Dictionary::Message& msg,
-                                HandlerInterface* handler)
+                             const Dictionary::Message& msg,
+                             HandlerInterface* handler)
 {
   // Register a callback for messages from our application with the specified message type.
   // DISP_HOW_CC indicates that we want to match on command code (and allows us to optionally
