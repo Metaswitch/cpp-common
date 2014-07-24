@@ -272,6 +272,7 @@ public:
 
   bool get_str_from_avp(const Dictionary::AVP& type, std::string& str) const;
   bool get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const;
+  bool get_u32_from_avp(const Dictionary::AVP& type, uint32_t& u32) const;
 
   // Populate this AVP from a JSON object
   AVP& val_json(const std::vector<std::string>& vendors,
@@ -316,8 +317,17 @@ public:
     msg.revoke_ownership();
 
     // _msg will point to the answer once this function is done.
-    fd_msg_new_answer_from_req(fd_g_config->cnf_dict, &_fd_msg, 0);
+    fd_msg_new_answer_from_req(fd_g_config->cnf_dict, &_fd_msg, MSGFL_ANSW_NOSID);
+    copy_session_id(msg);
     claim_ownership();
+  }
+
+  inline Message& copy_session_id(Message &msg)
+  {
+    std::string str;
+    msg.get_str_from_avp(dict()->SESSION_ID, str);
+    add_session_id(str);
+    return *this;
   }
 
   // Add a Session-ID to a message (either a new one or a specified).
@@ -373,6 +383,7 @@ public:
   }
   bool get_str_from_avp(const Dictionary::AVP& type, std::string& str) const;
   bool get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const;
+  bool get_u32_from_avp(const Dictionary::AVP& type, uint32_t& i32) const;
   inline bool result_code(int32_t& i32)
   {
     return get_i32_from_avp(dict()->RESULT_CODE, i32);
