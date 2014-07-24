@@ -123,13 +123,13 @@ public:
   virtual void save(CassandraStore::Operation* op) = 0;
 };
 
-template<class R, class T>
+template<class O, class T>
 class ResultRecorder : public ResultRecorderInterface
 {
 public:
   void save(CassandraStore::Operation* op)
   {
-    dynamic_cast<R*>(op)->get_result(result);
+    dynamic_cast<O*>(op)->get_result(result);
   }
 
   T result;
