@@ -323,7 +323,7 @@ public:
   }
 
   inline Message& copy_session_id(Message &msg)
-  { 
+  {
     std::string str;
     msg.get_str_from_avp(dict()->SESSION_ID, str);
     add_session_id(str);
