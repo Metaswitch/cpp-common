@@ -53,6 +53,7 @@ namespace CassandraStore
 // Client methods
 //
 
+// LCOV_EXCL_START real clients are not tested in UT.
 Client::Client(boost::shared_ptr<TProtocol> prot,
                boost::shared_ptr<TFramedTransport> transport) :
   _cass_client(prot),
@@ -102,6 +103,7 @@ void Client::remove(const std::string& key,
 {
   _cass_client.remove(key, column_path, timestamp, consistency_level);
 }
+// LCOV_EXCL_STOP
 
 
 //
