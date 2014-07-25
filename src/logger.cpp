@@ -192,7 +192,7 @@ void Logger::write_log_file(const char *data, const timestamp_t& ts)
   if (_flags & ADD_TIMESTAMPS)
   {
     char timestamp[100];
-    sprintf(timestamp, "%2.2d-%2.2d-%4.4d %2.2d:%2.2d:%2.2d.%3.3d ",
+    sprintf(timestamp, "%2.2d-%2.2d-%4.4d %2.2d:%2.2d:%2.2d.%3.3d UTC ",
             ts.mday, (ts.mon+1), (ts.year + 1900),
             ts.hour, ts.min, ts.sec, ts.msec);
     fputs(timestamp, _fd);
@@ -215,7 +215,7 @@ void Logger::cycle_log_file(const timestamp_t& ts)
     fclose(_fd);
   }
   char fname[100];
-  sprintf(fname, "%s_%4.4d%2.2d%2.2d_%2.2d00.txt",
+  sprintf(fname, "%s_%4.4d%2.2d%2.2dT%2.2d0000Z.txt",
           _prefix.c_str(),
           (ts.year + 1900),
           (ts.mon + 1),
