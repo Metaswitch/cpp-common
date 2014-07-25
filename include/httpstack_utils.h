@@ -76,7 +76,7 @@ namespace HttpStackUtils
       task->run();
     }
 
-    HttpStack::SasLogger* sas_logger(HttpStack::Request& req)
+    virtual HttpStack::SasLogger* sas_logger(HttpStack::Request& req)
     {
       if (_sas_logger != NULL)
       {
