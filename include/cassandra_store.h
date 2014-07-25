@@ -72,10 +72,10 @@
 #include "utils.h"
 #include "sas.h"
 
-namespace CassandraStore {
-
 // Shortcut for the apache cassandra namespace.
 namespace cass = org::apache::cassandra;
+
+namespace CassandraStore {
 
 // Forward declarations to break circular dependencies.
 class Operation;
@@ -141,14 +141,18 @@ private:
 };
 
 /// The possible outcomes of a cassandra interaction.
+///
+/// These values are logged to SAS so:
+/// -  Each element must have an explicit value.
+/// -  If you change the enum you must also update the resource bundle.
 enum ResultCode
 {
   OK = 0,
-  INVALID_REQUEST,
-  NOT_FOUND,
-  CONNECTION_ERROR,
-  RESOURCE_ERROR,
-  UNKNOWN_ERROR
+  INVALID_REQUEST = 1,
+  NOT_FOUND = 2,
+  CONNECTION_ERROR = 3,
+  RESOURCE_ERROR = 4,
+  UNKNOWN_ERROR = 5
 };
 
 /// The byte sequences that represent True and False in cassandra.
@@ -228,13 +232,11 @@ public:
   ///
   /// @param op              - The operation to perform. The store takes
   ///                          ownership of the object while the operation is
-  ///                          executed, and passes ownership back to
-  ///                          the user when the operation is complete.
+  ///                          executed, and deletes it once it is complete.
   /// @param trx             - The transaction that is used to call back into
   ///                          the user of the store.  The store takes
   ///                          ownership of the object while the operation is
-  ///                          executed, and passes ownership back to the user
-  ///                          when the operation is complete.
+  ///                          executed, and deletes it once it is complete.
   virtual void do_async(Operation*& op, Transaction*& trx);
 
   /// Generate a timestamp suitable for supplying on cache modification
@@ -321,14 +323,21 @@ struct RowColumns
 
   /// Constructor to build the complete object. Useful if all the parameters
   /// are known ahead of time.
-  RowColumns(std::string& cf_param,
-             std::string& row_param,
-             std::map<std::string, std::string>& columns_param) :
-    cf(cf_param), row(row_param), columns(columns_param)
+  RowColumns(const std::string& cf_param,
+             const std::string& key_param,
+             const std::map<std::string, std::string>& columns_param) :
+    cf(cf_param), key(key_param), columns(columns_param)
+  {}
+
+  /// Constructor to build the complete object but not specifying any columns
+  /// (useful when deleting an entire row).
+  RowColumns(const std::string& cf_param,
+             const std::string& key_param) :
+    cf(cf_param), key(key_param), columns()
   {}
 
   std::string cf;
-  std::string row;
+  std::string key;
   std::map<std::string, std::string> columns;
 };
 
@@ -430,7 +439,10 @@ protected:
   /// @param status       - The result code corresponding to the underlying
   ///                       exception.
   /// @param description  - A textual description of the exception.
-  virtual void unhandled_exception(ResultCode status, std::string& description);
+  /// @param trail        - The SAS trail ID in context.
+  virtual void unhandled_exception(ResultCode status,
+                                   std::string& description,
+                                   SAS::TrailId trail);
 
   /// The cassandra status of the operation.
   ResultCode _cass_status;
@@ -653,6 +665,22 @@ protected:
   void delete_columns(ClientInterface* client,
                       const std::vector<RowColumns>& columns,
                       int64_t timestamp);
+
+  /// Delete a slice of columns from a row where the slice is from start
+  /// (inclusive) to end (exclusive).
+  ///
+  /// @param client         - The client used to communicate with cassandra.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param start          - The start of the range.
+  /// @param finish         - The end of the range.
+  /// @param timestamp      - The timestamp to put on the deletion operation.
+  void delete_slice(ClientInterface* client,
+                    const std::string& column_family,
+                    const std::string& key,
+                    const std::string& start,
+                    const std::string& finish,
+                    const int64_t timestamp);
 };
 
 /// Cassandra does not treat a non-existent row as a special case. If the user

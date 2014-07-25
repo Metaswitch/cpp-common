@@ -53,6 +53,7 @@ namespace CassandraStore
 // Client methods
 //
 
+// LCOV_EXCL_START real clients are not tested in UT.
 Client::Client(boost::shared_ptr<TProtocol> prot,
                boost::shared_ptr<TFramedTransport> transport) :
   _cass_client(prot),
@@ -102,6 +103,7 @@ void Client::remove(const std::string& key,
 {
   _cass_client.remove(key, column_path, timestamp, consistency_level);
 }
+// LCOV_EXCL_STOP
 
 
 //
@@ -178,11 +180,14 @@ ResultCode Store::start()
   // Start the thread pool.
   if (rc == OK)
   {
-    _thread_pool = new Pool(this, _num_threads, _max_queue);
-
-    if (!_thread_pool->start())
+    if (_num_threads > 0)
     {
-      rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
+      _thread_pool = new Pool(this, _num_threads, _max_queue);
+
+      if (!_thread_pool->start())
+      {
+        rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
+      }
     }
   }
 
@@ -295,6 +300,12 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
 
 void Store::do_async(Operation*& op, Transaction*& trx)
 {
+  if (_thread_pool == NULL)
+  {
+    LOG_ERROR("Can't process async operation as no thread pool has been configured");
+    assert(!"Can't process async operation as no thread pool has been configured");
+  }
+
   std::pair<Operation*, Transaction*> params(op, trx);
   _thread_pool->add_work(params);
 
@@ -315,6 +326,9 @@ bool Store::run(Operation* op, SAS::TrailId trail)
   bool retry = false;
   int attempt_count = 0;
 
+  // Get a client to execute the operation.
+  ClientInterface* client = get_client();
+
   // Call perform() to actually do the business logic of the request.  Catch
   // exceptions and turn them into return codes and error text.
   do
@@ -324,7 +338,7 @@ bool Store::run(Operation* op, SAS::TrailId trail)
     try
     {
       attempt_count++;
-      success = op->perform(get_client(), trail);
+      success = op->perform(client, trail);
     }
     catch(TTransportException& te)
     {
@@ -337,7 +351,8 @@ bool Store::run(Operation* op, SAS::TrailId trail)
       event.add_var_param(cass_error_text);
       SAS::report_event(event);
 
-      release_client();
+      // Recycle the connection.
+      release_client(); client = NULL;
 
       if (attempt_count <= 1)
       {
@@ -346,7 +361,7 @@ bool Store::run(Operation* op, SAS::TrailId trail)
         LOG_DEBUG("Connection error, retrying");
         try
         {
-          get_client();
+          client = get_client();
           retry = true;
           cass_result = OK;
         }
@@ -388,7 +403,7 @@ bool Store::run(Operation* op, SAS::TrailId trail)
   {
     LOG_ERROR("Cassandra request failed: rc=%d, %s",
               cass_result, cass_error_text.c_str());
-    op->unhandled_exception(cass_result, cass_error_text);
+    op->unhandled_exception(cass_result, cass_error_text, trail);
   }
 
   return success;
@@ -442,9 +457,9 @@ void Store::Pool::process_work(std::pair<Operation*, Transaction*>& params)
     trx->on_failure(op);
   }
 
-  // We own the transaction so we have to free it.  However ownership of the
-  // *operation* is passed back to the application, so don't free that.
+  // We own the transaction and operation so have to free them.
   delete trx; trx = NULL;
+  delete op; op = NULL;
 }
 
 
@@ -464,7 +479,9 @@ std::string Operation::get_error_text()
 }
 
 
-void Operation::unhandled_exception(ResultCode rc, std::string& description)
+void Operation::unhandled_exception(ResultCode rc,
+                                    std::string& description,
+                                    SAS::TrailId trail)
 {
   _cass_status = rc;
   _cass_error_text = description;
@@ -571,7 +588,7 @@ put_columns(ClientInterface* client,
       mutations.push_back(mutation);
     }
 
-    mutmap[it->row][it->cf] = mutations;
+    mutmap[it->key][it->cf] = mutations;
   }
 
   // Execute the database operation.
@@ -835,11 +852,11 @@ delete_columns(ClientInterface* client,
   {
     if (it->columns.empty())
     {
-      LOG_DEBUG("Deleting row %s:%s", it->cf.c_str(), it->row.c_str());
+      LOG_DEBUG("Deleting row %s:%s", it->cf.c_str(), it->key.c_str());
       ColumnPath cp;
       cp.column_family = it->cf;
 
-      client->remove(it->row, cp, timestamp, ConsistencyLevel::ONE);
+      client->remove(it->key, cp, timestamp, ConsistencyLevel::ONE);
     }
     else
     {
@@ -859,14 +876,14 @@ delete_columns(ClientInterface* client,
       }
 
       what.__set_column_names(column_names);
-      LOG_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->row.c_str());
+      LOG_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->key.c_str());
 
       deletion.__set_predicate(what);
       deletion.__set_timestamp(timestamp);
       mutation.__set_deletion(deletion);
       mutations.push_back(mutation);
 
-      mutmap[it->row][it->cf] = mutations;
+      mutmap[it->key][it->cf] = mutations;
     }
   }
 
@@ -875,6 +892,37 @@ delete_columns(ClientInterface* client,
     LOG_DEBUG("Executing delete request operation");
     client->batch_mutate(mutmap, ConsistencyLevel::ONE);
   }
+}
+
+void Operation::
+delete_slice(ClientInterface* client,
+             const std::string& column_family,
+             const std::string& key,
+             const std::string& start,
+             const std::string& finish,
+             const int64_t timestamp)
+{
+  // The mutation map is of the form {"key": {"column_family": [mutations] } }
+  std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
+
+  // We need to build a mutation that contains a deletion that specifies a slice
+  // predicate that is a range of column names. Set all of this up.
+  Mutation mutation;
+  Deletion deletion;
+  SlicePredicate predicate;
+  SliceRange range;
+
+  range.__set_start(start);
+  range.__set_finish(finish);
+  predicate.__set_slice_range(range);
+  deletion.__set_predicate(predicate);
+  deletion.__set_timestamp(timestamp);
+  mutation.__set_deletion(deletion);
+
+  // Add the mutation to the mutation map with the correct key and column
+  // family and call into thrift.
+  mutmap[key][column_family].push_back(mutation);
+  client->batch_mutate(mutmap, ConsistencyLevel::ONE);
 }
 
 } // namespace CassandraStore

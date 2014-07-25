@@ -49,6 +49,11 @@ void mock_sas_collect_messages(bool collect)
   }
 }
 
+void mock_sas_discard_messages()
+{
+  mock_sas_messages.clear();
+}
+
 void record_message(bool is_marker,
                     uint32_t id,
                     const std::vector<uint32_t>& static_params,

@@ -47,6 +47,15 @@ struct MockSASMessage
 extern std::vector<MockSASMessage> mock_sas_messages;
 
 void mock_sas_collect_messages(bool collect);
+void mock_sas_discard_messages();
 
 MockSASMessage* mock_sas_find_marker(uint32_t marker_id);
 MockSASMessage* mock_sas_find_event(uint32_t event_id);
+
+// Helper macros for checking for the presence / absence of SAS events and
+// markers.
+#define EXPECT_SAS_EVENT(ID) EXPECT_TRUE(mock_sas_find_event(ID) != NULL)
+#define EXPECT_NO_SAS_EVENT(ID) EXPECT_TRUE(mock_sas_find_event(ID) == NULL)
+
+#define EXPECT_SAS_MARKER(ID) EXPECT_TRUE(mock_sas_find_marker(ID) != NULL)
+#define EXPECT_NO_SAS_MARKER(ID) EXPECT_TRUE(mock_sas_find_marker(ID) == NULL)

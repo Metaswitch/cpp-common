@@ -40,6 +40,34 @@
 #include "gmock/gmock.h"
 #include "cassandra_store.h"
 
+using ::testing::SetArgReferee;
+using ::testing::_;
+using ::testing::Invoke;
+using ::testing::WithArgs;
+
+
+MATCHER_P(PointerRefTo, ptr, "")
+{
+  return (arg == ptr);
+}
+
+
+class MockOperationMixin
+{
+public:
+  MockOperationMixin() : trx(NULL) {};
+  virtual ~MockOperationMixin()
+  {
+    delete trx; trx = NULL;
+  };
+
+  void set_trx(CassandraStore::Transaction* trx_param) { trx = trx_param; }
+  CassandraStore::Transaction* get_trx() { return trx; }
+
+  CassandraStore::Transaction* trx;
+};
+
+
 template <class StoreClass>
 class MockCassandraStore : public StoreClass
 {
@@ -62,9 +90,29 @@ public:
   MOCK_METHOD1(do_sync, bool(CassandraStore::Operation* op));
   MOCK_METHOD2(do_async, void(CassandraStore::Operation*& op,
                               CassandraStore::Transaction*& trx));
+
+  void EXPECT_DO_ASYNC(MockOperationMixin& mock_op)
+  {
+    CassandraStore::Operation* op_ptr = NULL;
+    CassandraStore::Transaction* trx_ptr = NULL;
+
+    EXPECT_CALL(*this, do_async(PointerRefTo(dynamic_cast<CassandraStore::Operation*>(&mock_op)), _))
+      .WillOnce(DoAll(WithArgs<1>(Invoke(&mock_op, &MockOperationMixin::set_trx)),
+                      SetArgReferee<0>(op_ptr),
+                      SetArgReferee<1>(trx_ptr)));
+  }
 };
 
+// Mock cassandra client that emulates the interface tot he C++ thrift bindings.
+class MockCassandraClient : public CassandraStore::ClientInterface
+{
+public:
+  MOCK_METHOD1(set_keyspace, void(const std::string& keyspace));
+  MOCK_METHOD2(batch_mutate, void(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > > & mutation_map, const cass::ConsistencyLevel::type consistency_level));
+  MOCK_METHOD5(get_slice, void(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
+  MOCK_METHOD5(multiget_slice, void(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > & _return, const std::vector<std::string>& keys, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
+  MOCK_METHOD4(remove, void(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level));
+};
+
+
 #endif
-
-
-
