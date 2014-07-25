@@ -62,8 +62,10 @@ namespace HttpStackUtils
   class SpawningHandler : public HttpStack::HandlerInterface
   {
   public:
-    inline SpawningHandler(const C* cfg) : _cfg(cfg) {}
-    virtual ~SpawningHandler() {}
+  inline SpawningHandler(const C* cfg, HttpStack::SasLogger* sas_logger = NULL) :
+    _cfg(cfg),
+    _sas_logger(sas_logger) {};
+  virtual ~SpawningHandler() {};
 
     /// Process an HTTP request by spawning a new task object and running it.
     /// @param req the request to process.
@@ -74,8 +76,21 @@ namespace HttpStackUtils
       task->run();
     }
 
+    HttpStack::SasLogger* sas_logger(HttpStack::Request& req)
+    {
+      if (_sas_logger != NULL)
+      {
+        return _sas_logger;
+      }
+      else
+      {
+        return &HttpStack::DEFAULT_SAS_LOGGER;
+      }
+    }
+
   private:
     const C* _cfg;
+    HttpStack::SasLogger* _sas_logger;
   };
 
   /// @class Task
