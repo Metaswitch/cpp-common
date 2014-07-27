@@ -41,7 +41,8 @@
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
 bool HttpStack::_ev_using_pthreads = false;
-HttpStack::SasLogger HttpStack::DEFAULT_SAS_LOGGER;
+HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
+HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 
 HttpStack::HttpStack() :
   _access_logger(NULL),
@@ -309,31 +310,6 @@ std::string HttpStack::Request::body()
 // SasLogger methods.
 //
 
-void HttpStack::SasLogger::sas_log_rx_http_req(SAS::TrailId trail,
-                                               HttpStack::Request& req,
-                                               uint32_t instance_id)
-{
-  log_correlator(trail, req, instance_id);
-  log_req_event(trail, req, instance_id);
-}
-
-
-void HttpStack::SasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
-                                               HttpStack::Request& req,
-                                               int rc,
-                                               uint32_t instance_id)
-{
-  log_rsp_event(trail, req, rc, instance_id);
-}
-
-void HttpStack::SasLogger::sas_log_overload(SAS::TrailId trail,
-                                            HttpStack::Request& req,
-                                            int rc,
-                                            uint32_t instance_id)
-{
-  log_overload_event(trail, req, rc, instance_id);
-}
-
 void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
                                           Request& req,
                                           uint32_t instance_id)
@@ -419,3 +395,33 @@ void HttpStack::SasLogger::log_overload_event(SAS::TrailId trail,
   event.add_var_param(req.full_path());
   SAS::report_event(event);
 }
+
+//
+// DefaultSasLogger methods.
+//
+
+void HttpStack::DefaultSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
+                                                      HttpStack::Request& req,
+                                                      uint32_t instance_id)
+{
+  log_correlator(trail, req, instance_id);
+  log_req_event(trail, req, instance_id);
+}
+
+
+void HttpStack::DefaultSasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
+                                                      HttpStack::Request& req,
+                                                      int rc,
+                                                      uint32_t instance_id)
+{
+  log_rsp_event(trail, req, rc, instance_id);
+}
+
+void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
+                                                   HttpStack::Request& req,
+                                                   int rc,
+                                                   uint32_t instance_id)
+{
+  log_overload_event(trail, req, rc, instance_id);
+}
+

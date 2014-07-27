@@ -137,6 +137,12 @@ namespace HttpStackUtils
   class PingHandler : public HttpStack::HandlerInterface
   {
     void process_request(HttpStack::Request& req, SAS::TrailId trail);
+
+    HttpStack::SasLogger* sas_logger(HttpStack::Request& req)
+    {
+      // Don't log any SAS events.
+      return &HttpStack::NULL_SAS_LOGGER;
+    }
   };
 
   /// @class HandlerThreadPool
