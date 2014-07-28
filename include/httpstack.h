@@ -232,7 +232,7 @@ public:
     // @instance_id unique instance ID for the event.
     virtual void sas_log_rx_http_req(SAS::TrailId trail,
                                      Request& req,
-                                     uint32_t instance_id = 0);
+                                     uint32_t instance_id = 0) = 0;
 
     // Log a transmitted HTTP response.
     //
@@ -243,7 +243,7 @@ public:
     virtual void sas_log_tx_http_rsp(SAS::TrailId trail,
                                      Request& req,
                                      int rc,
-                                     uint32_t instance_id = 0);
+                                     uint32_t instance_id = 0) = 0;
 
     // Log when an HTTP request is rejected due to overload.
     //
@@ -254,7 +254,7 @@ public:
     virtual void sas_log_overload(SAS::TrailId trail,
                                   Request& req,
                                   int rc,
-                                  uint32_t instance_id = 0);
+                                  uint32_t instance_id = 0) = 0;
 
   protected:
     //
@@ -285,6 +285,41 @@ public:
                             int rc,
                             uint32_t instance_id,
                             SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
+  };
+
+  /// Default implementation of SAS Logger.  Logs with default severity.
+  class DefaultSasLogger : public SasLogger
+  {
+  public:
+    void sas_log_rx_http_req(SAS::TrailId trail,
+                             Request& req,
+                             uint32_t instance_id = 0);
+    void sas_log_tx_http_rsp(SAS::TrailId trail,
+                             Request& req,
+                             int rc,
+                             uint32_t instance_id = 0);
+    void sas_log_overload(SAS::TrailId trail,
+                          Request& req,
+                          int rc,
+                          uint32_t instance_id = 0);
+  };
+
+  /// "Null" SAS Logger.  Does not log.
+  class NullSasLogger : public SasLogger
+  {
+  public:
+    // Implement the API but don't actually log.
+    void sas_log_rx_http_req(SAS::TrailId trail,
+                             Request& req,
+                             uint32_t instance_id = 0) {}
+    void sas_log_tx_http_rsp(SAS::TrailId trail,
+                             Request& req,
+                             int rc,
+                             uint32_t instance_id = 0) {}
+    void sas_log_overload(SAS::TrailId trail,
+                          Request& req,
+                          int rc,
+                          uint32_t instance_id = 0) {}
   };
 
   class HandlerInterface
@@ -344,7 +379,8 @@ public:
     }
   };
 
-  static SasLogger DEFAULT_SAS_LOGGER;
+  static DefaultSasLogger DEFAULT_SAS_LOGGER;
+  static NullSasLogger NULL_SAS_LOGGER;
 
 private:
   static HttpStack* INSTANCE;
