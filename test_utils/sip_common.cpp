@@ -130,7 +130,6 @@ pjsip_tpfactory* SipCommonTest::TransportFlow::tcp_factory(int port)
 {
   if (_tcp_factories[port] == NULL)
   {
-    pj_status_t status;
     pj_sockaddr_in addr;
     pjsip_host_port published_name;
     pjsip_tpfactory* tcp_factory;
@@ -143,12 +142,12 @@ pjsip_tpfactory* SipCommonTest::TransportFlow::tcp_factory(int port)
     published_name.host = pj_str("127.0.0.1");
     published_name.port = port;
 
-    status = pjsip_fake_tcp_transport_start2(_endpt,
-                                             &addr,
-                                             &published_name,
-                                             50,
-                                             &tcp_factory);
-    ASSERT_EQ(status, PJ_SUCCESS);
+    pjsip_fake_tcp_transport_start2(_endpt,
+                                    &addr,
+                                    &published_name,
+                                    50,
+                                    &tcp_factory);
+
     _tcp_factories[port] = tcp_factory;
   }
 
