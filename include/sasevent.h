@@ -61,6 +61,7 @@ namespace SASEvent {
   const int HOMESTEAD_BASE = 0x820000;
   const int RALF_BASE = 0x830000;
   const int MEMENTO_BASE = 0x840000;
+  const int GEMINI_BASE = 0x850000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
