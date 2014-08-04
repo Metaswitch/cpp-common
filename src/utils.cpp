@@ -48,6 +48,49 @@
 
 #include "utils.h"
 
+#define REPLACE(CHAR1, CHAR2, RESULT) if ((s[(ii+1)] == CHAR1) && (s[(ii+2)] == CHAR2)) { r.append(RESULT); ii = ii+2; continue; }
+
+std::string Utils::url_unescape(const std::string& s)
+{
+  std::string r;
+  r.reserve(s.length());  // Reserve enough space to avoid continually reallocating.
+
+  for (size_t ii = 0; ii < s.length(); ++ii)
+  {
+    if (((ii + 2) < s.length()) && (s[ii] == '%'))
+    {
+      REPLACE('2', '0', " ");
+      REPLACE('2', '2', "\"");
+      REPLACE('2', '3', "#");
+      REPLACE('2', '4', "$");
+      REPLACE('2', '5', "%");
+      REPLACE('2', '6', "&");
+      REPLACE('2', 'B', "+");
+      REPLACE('2', 'C', ",");
+      REPLACE('2', 'F', "/");
+      REPLACE('3', 'A', ":");
+      REPLACE('3', 'B', ";");
+      REPLACE('3', 'C', "<");
+      REPLACE('3', 'D', "=");
+      REPLACE('3', 'E', ">");
+      REPLACE('3', 'F', "?");
+      REPLACE('4', '0', "@");
+      REPLACE('5', 'B', "[");
+      REPLACE('5', 'C', "\\");
+      REPLACE('5', 'D', "]");
+      REPLACE('5', 'E', "^");
+      REPLACE('6', '0', "`");
+      REPLACE('7', 'B', "{");
+      REPLACE('7', 'C', "|");
+      REPLACE('7', 'D', "}");
+      REPLACE('7', 'E', "~");
+    }
+    r.push_back(s[ii]);
+  }
+  return r;
+}
+
+
 std::string Utils::url_escape(const std::string& s)
 {
   std::string r;
