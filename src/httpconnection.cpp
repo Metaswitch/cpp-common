@@ -524,7 +524,15 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     // implementation is incomplete.
     char buf[100];
     remote_ip = inet_ntop(i->address.af, &i->address.addr, buf, sizeof(buf));
-    std::string ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(i->port) + path;
+    std::string ip_url;
+    if (i->address.af == AF_INET6)
+    {
+      ip_url = "http://[" + std::string(remote_ip) + "]:" + std::to_string(i->port) + path;
+    }
+    else
+    {
+      ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(i->port) + path;
+    }
     curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 
     // Send the request.
