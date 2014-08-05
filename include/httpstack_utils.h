@@ -259,6 +259,9 @@ namespace HttpStackUtils
     void sas_log_overload(SAS::TrailId trail,
                           HttpStack::Request& req,
                           int rc,
+                          int target_latency,
+                          int current_latency,
+                          float rate_limit,
                           uint32_t instance_id = 0);
   };
 

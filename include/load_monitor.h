@@ -64,6 +64,10 @@ class LoadMonitor
     virtual void incr_penalties();
     virtual void request_complete(int latency);
 
+    int get_target_latency() { return target_latency; }
+    int get_current_latency() { return smoothed_latency; }
+    float get_rate_limit() { return bucket.rate; }
+
   private:
     // This must be held when accessing any of this object's member variables.
      pthread_mutex_t _lock;
