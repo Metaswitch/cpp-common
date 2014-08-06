@@ -91,7 +91,7 @@ void Log::write(int level, const char *module, int line_number, const char *fmt,
   va_end(args);
 }
 
-static void release_lock(void* notused) { pthread_mutex_unlock(&Log::serialization_lock); }
+static void release_lock(void* notused) { pthread_mutex_unlock(&Log::serialization_lock); } // LCOV_EXCL_LINE
 
 void Log::_write(int level, const char *module, int line_number, const char *fmt, va_list args)
 {
