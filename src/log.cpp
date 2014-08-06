@@ -38,6 +38,7 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <pthread.h>
 #include "log.h"
 
 const char* log_level[] = {"Error", "Warning", "Status", "Info", "Verbose", "Debug"};
@@ -90,6 +91,8 @@ void Log::write(int level, const char *module, int line_number, const char *fmt,
   va_end(args);
 }
 
+static void release_lock(void* notused) { pthread_mutex_unlock(&Log::serialization_lock); }
+
 void Log::_write(int level, const char *module, int line_number, const char *fmt, va_list args)
 {
   if (level > Log::loggingLevel)
@@ -105,6 +108,8 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
     return;
     // LCOV_EXCL_STOP
   }
+
+  pthread_cleanup_push(release_lock, 0);
 
   char logline[MAX_LOGLINE];
 
@@ -129,6 +134,7 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   logline[written+1] = '\0';
 
   Log::logger->write(logline);
+  pthread_cleanup_pop(0);
   pthread_mutex_unlock(&Log::serialization_lock);
 
 }
