@@ -261,7 +261,12 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   }
   else
   {
-    request.sas_log_overload(trail, 503, 0);
+    request.sas_log_overload(trail,
+                             503,
+                             _load_monitor->get_target_latency(),
+                             _load_monitor->get_current_latency(),
+                             _load_monitor->get_rate_limit(),
+                             0);
     send_reply_internal(request, 503, trail);
 
     if (_stats != NULL)
@@ -383,6 +388,9 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
 void HttpStack::SasLogger::log_overload_event(SAS::TrailId trail,
                                               Request& req,
                                               int rc,
+                                              int target_latency,
+                                              int current_latency,
+                                              float rate_limit,
                                               uint32_t instance_id,
                                               SASEvent::HttpLogLevel level)
 {
@@ -393,6 +401,9 @@ void HttpStack::SasLogger::log_overload_event(SAS::TrailId trail,
   event.add_static_param(rc);
   event.add_static_param(req.method());
   event.add_var_param(req.full_path());
+  event.add_static_param(target_latency);
+  event.add_static_param(current_latency);
+  event.add_static_param(rate_limit);
   SAS::report_event(event);
 }
 
@@ -420,8 +431,11 @@ void HttpStack::DefaultSasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
 void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
                                                    HttpStack::Request& req,
                                                    int rc,
+                                                   int target_latency,
+                                                   int current_latency,
+                                                   float rate_limit,
                                                    uint32_t instance_id)
 {
-  log_overload_event(trail, req, rc, instance_id);
+  log_overload_event(trail, req, rc, target_latency, current_latency, rate_limit, instance_id);
 }
 

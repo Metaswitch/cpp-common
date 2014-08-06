@@ -179,9 +179,18 @@ public:
 
     inline void sas_log_overload(SAS::TrailId trail,
                                  int rc,
+                                 int target_latency,
+                                 int current_latency,
+                                 float rate_limit,
                                  uint32_t instance_id = 0)
     {
-      _sas_logger->sas_log_overload(trail, *this, rc, instance_id);
+      _sas_logger->sas_log_overload(trail,
+                                    *this,
+                                    rc,
+                                    target_latency,
+                                    current_latency,
+                                    rate_limit,
+                                    instance_id);
     }
 
   protected:
@@ -254,6 +263,9 @@ public:
     virtual void sas_log_overload(SAS::TrailId trail,
                                   Request& req,
                                   int rc,
+                                  int target_latency,
+                                  int current_latency,
+                                  float rate_limit,
                                   uint32_t instance_id = 0) = 0;
 
   protected:
@@ -283,6 +295,9 @@ public:
     void log_overload_event(SAS::TrailId trail,
                             Request& req,
                             int rc,
+                            int target_latency,
+                            int current_latency,
+                            float rate_limit,
                             uint32_t instance_id,
                             SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
   };
@@ -301,6 +316,9 @@ public:
     void sas_log_overload(SAS::TrailId trail,
                           Request& req,
                           int rc,
+                          int target_latency,
+                          int current_latency,
+                          float rate_limit,
                           uint32_t instance_id = 0);
   };
 
@@ -319,6 +337,9 @@ public:
     void sas_log_overload(SAS::TrailId trail,
                           Request& req,
                           int rc,
+                          int target_latency,
+                          int current_latency,
+                          float rate_limit,
                           uint32_t instance_id = 0) {}
   };
 

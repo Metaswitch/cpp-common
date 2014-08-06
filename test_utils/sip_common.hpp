@@ -1,8 +1,8 @@
 /**
- * @file load_monitor.h Definitions for LoadMonitor class.
+ * @file sip_common.hpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,63 +34,77 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef LOAD_MONITOR_H__
-#define LOAD_MONITOR_H__
+#include <map>
+#include <string>
+#include <sstream>
+#include "gtest/gtest.h"
 
-#include <time.h>
-#include <pthread.h>
+extern "C" {
+#include <pjsip.h>
+#include <pjlib-util.h>
+#include <pjlib.h>
+}
 
-class TokenBucket
+class SipCommonTest : public ::testing::Test
 {
+public:
+  SipCommonTest();
+  virtual ~SipCommonTest();
+
+  static void SetUpTestCase();
+  static void TearDownTestCase();
+
+protected:
+
+  /// Class containing transport factories for the various ports.
+  class TransportFactory
+  {
   public:
-    TokenBucket(int s, float r);
-    float rate;
-    int max_size;
-    bool get_token();
-    void update_rate(float new_rate);
-  private:
-    timespec replenish_time;
-    float tokens;
-    void replenish_bucket();
-};
+    TransportFactory();
+    ~TransportFactory();
+  };
 
-class LoadMonitor
-{
+  /// Abstraction of a transport flow used for injecting or receiving SIP
+  /// messages.
+  class TransportFlow
+  {
   public:
-    LoadMonitor(int init_target_latency, int max_bucket_size,
-                float init_token_rate, float init_min_token_rate);
-    virtual ~LoadMonitor();
-    virtual bool admit_request();
-    virtual void incr_penalties();
-    virtual void request_complete(int latency);
+    enum Protocol {TCP, UDP};
 
-    int get_target_latency() { return target_latency; }
-    int get_current_latency() { return smoothed_latency; }
-    float get_rate_limit() { return bucket.rate; }
+    TransportFlow(Protocol protocol,
+                  int local_port,
+                  const char* addr,
+                  int port);
+    ~TransportFlow();
+
+    static void reset();
+
+    static pjsip_tpfactory* tcp_factory(int port);
 
   private:
-    // This must be held when accessing any of this object's member variables.
-     pthread_mutex_t _lock;
+    static std::map<int, pjsip_tpfactory*> _tcp_factories;
 
-    // Number of requests processed before each adjustment of token bucket rate
-    int ADJUST_PERIOD;
+    pjsip_transport* _transport;
+    pj_sockaddr _rem_addr;
+  };
 
-    // Adjustment parameters for token bucket
-    float DECREASE_THRESHOLD;
-    float DECREASE_FACTOR;
-    float INCREASE_THRESHOLD;
-    float INCREASE_FACTOR;
+  static SipCommonTest* _current_instance;
 
-    int accepted;
-    int rejected;
-    int penalties;
-    int pending_count;
-    int max_pending_count;
-    int target_latency;
-    int smoothed_latency;
-    int adjust_count;
-    float min_token_rate;
-    TokenBucket bucket;
+  /// Build an incoming SIP packet.
+  pjsip_rx_data* build_rxdata(const std::string& msg,
+                              TransportFlow* tp = _tp_default,
+                              pj_pool_t* rdata_pool = NULL);
+
+  /// Parse an incoming SIP message.
+  void parse_rxdata(pjsip_rx_data* rdata);
+
+  /// Parse a string containing a SIP message into a pjsip_msg.
+  pjsip_msg* parse_msg(const std::string& msg);
+
+private:
+  /// The transport we usually use when injecting messages.
+  static TransportFlow* _tp_default;
+  static pj_caching_pool _cp;
+  static pj_pool_t* _pool;
+  static pjsip_endpoint* _endpt;
 };
-
-#endif
