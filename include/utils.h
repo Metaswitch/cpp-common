@@ -98,6 +98,7 @@ namespace Utils
 
   void hashToHex(unsigned char *hash_char, unsigned char *hex_char);
 
+  std::string url_unescape(const std::string& s);
   std::string url_escape(const std::string& s);
 
   std::string ip_addr_to_arpa(IP46Address ip_addr);

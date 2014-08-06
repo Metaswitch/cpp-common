@@ -48,6 +48,61 @@
 
 #include "utils.h"
 
+#define REPLACE(CHAR1, CHAR2, RESULT) if ((s[(ii+1)] == CHAR1) && (s[(ii+2)] == CHAR2)) { r.append(RESULT); ii = ii+2; continue; }
+
+std::string Utils::url_unescape(const std::string& s)
+{
+  std::string r;
+  r.reserve(s.length());  // Reserve enough space to avoid continually reallocating.
+
+  for (size_t ii = 0; ii < s.length(); ++ii)
+  {
+    if (((ii + 2) < s.length()) && (s[ii] == '%'))
+    {
+      // The following characters are reserved, so must be percent-encoded per http://en.wikipedia.org/wiki/Percent-encoding#Percent-encoding_reserved_characters
+      REPLACE('2', '1', "!");
+      REPLACE('2', '3', "#");
+      REPLACE('2', '4', "$");
+      REPLACE('2', '6', "&");
+      REPLACE('2', '7', "'");
+      REPLACE('2', '8', "(");
+      REPLACE('2', '9', ")");
+      REPLACE('2', 'A', "*");
+      REPLACE('2', 'B', "+");
+      REPLACE('2', 'C', ",");
+      REPLACE('2', 'F', "/");
+      REPLACE('3', 'A', ":");
+      REPLACE('3', 'B', ";");
+      REPLACE('3', 'D', "=");
+      REPLACE('3', 'F', "?");
+      REPLACE('4', '0', "@");
+      REPLACE('5', 'B', "[");
+      REPLACE('5', 'D', "]");
+
+      // The following characters are commonly percent-encoded per http://en.wikipedia.org/wiki/Percent-encoding#Character_data
+      REPLACE('2', '0', " ");
+      REPLACE('2', '2', "\"");
+      REPLACE('2', '5', "%");
+      REPLACE('2', 'D', "-");
+      REPLACE('2', 'E', ".");
+      REPLACE('3', 'C', "<");
+      REPLACE('3', 'E', ">");
+      REPLACE('5', 'C', "\\");
+      REPLACE('5', 'E', "^");
+      REPLACE('5', 'F', "_");
+      REPLACE('6', '0', "`");
+      REPLACE('7', 'B', "{");
+      REPLACE('7', 'C', "|");
+      REPLACE('7', 'D', "}");
+      REPLACE('7', 'E', "~");
+
+    }
+    r.push_back(s[ii]);
+  }
+  return r;
+}
+
+
 std::string Utils::url_escape(const std::string& s)
 {
   std::string r;
@@ -57,31 +112,42 @@ std::string Utils::url_escape(const std::string& s)
   {
     switch (s[ii])
     {
-      case 0x20: r.append("%20"); break; // space
-      case 0x22: r.append("%22"); break; // "
+      // The following characters are reserved, so must be percent-encoded per http://en.wikipedia.org/wiki/Percent-encoding#Percent-encoding_reserved_characters
+      case 0x21: r.append("%21"); break; // !
       case 0x23: r.append("%23"); break; // #
       case 0x24: r.append("%24"); break; // $
       case 0x25: r.append("%25"); break; // %
       case 0x26: r.append("%26"); break; // &
+      case 0x27: r.append("%27"); break; // '
+      case 0x28: r.append("%28"); break; // (
+      case 0x29: r.append("%29"); break; // )
+      case 0x2a: r.append("%2A"); break; // *
       case 0x2b: r.append("%2B"); break; // +
       case 0x2c: r.append("%2C"); break; // ,
       case 0x2f: r.append("%2F"); break; // forward slash
       case 0x3a: r.append("%3A"); break; // :
       case 0x3b: r.append("%3B"); break; // ;
-      case 0x3c: r.append("%3C"); break; // <
       case 0x3d: r.append("%3D"); break; // =
-      case 0x3e: r.append("%3E"); break; // >
       case 0x3f: r.append("%3F"); break; // ?
       case 0x40: r.append("%40"); break; // @
       case 0x5b: r.append("%5B"); break; // [
-      case 0x5c: r.append("%5C"); break; // backslash
       case 0x5d: r.append("%5D"); break; // ]
+
+      // We don't have to percent-encode these characters, but it's
+      // common to do so
+      case 0x20: r.append("%20"); break; // space
+      case 0x22: r.append("%22"); break; // "
+      case 0x3c: r.append("%3C"); break; // <
+      case 0x3e: r.append("%3E"); break; // >
+      case 0x5c: r.append("%5C"); break; // backslash
       case 0x5e: r.append("%5E"); break; // ^
       case 0x60: r.append("%60"); break; // `
       case 0x7b: r.append("%7B"); break; // {
       case 0x7c: r.append("%7C"); break; // |
       case 0x7d: r.append("%7D"); break; // }
       case 0x7e: r.append("%7E"); break; // ~
+
+      // Otherwise, append the literal character
       default: r.push_back(s[ii]); break;
     }
   }

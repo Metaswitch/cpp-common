@@ -496,7 +496,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
                  SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
   SAS::Event tx_http_req(trail, event_id,  0);
   tx_http_req.add_var_param(method_str);
-  tx_http_req.add_var_param(url);
+  tx_http_req.add_var_param(Utils::url_unescape(url));
   tx_http_req.add_var_param(body);
   SAS::report_event(tx_http_req);
 
@@ -580,7 +580,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
                        SASEvent::HTTP_REQ_ERROR : SASEvent::HTTP_REQ_ERROR_DETAIL);
         SAS::Event http_err(trail, event_id, 0);
         http_err.add_var_param(method_str);
-        http_err.add_var_param(url);
+        http_err.add_var_param(Utils::url_unescape(url));
         http_err.add_static_param(rc);
         http_err.add_var_param(curl_easy_strerror(rc));
         http_err.add_var_param(remote_ip);
@@ -870,7 +870,7 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
                     SASEvent::RX_HTTP_RSP : SASEvent::RX_HTTP_RSP_DETAIL);
   SAS::Event rx_http_rsp(trail, event_id, instance_id);
   rx_http_rsp.add_var_param(method_str);
-  rx_http_rsp.add_var_param(url);
+  rx_http_rsp.add_var_param(Utils::url_unescape(url));
   rx_http_rsp.add_var_param(doc);
   rx_http_rsp.add_static_param(http_rc);
   SAS::report_event(rx_http_rsp);

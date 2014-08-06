@@ -155,11 +155,17 @@ namespace HttpStackUtils
   void ChronosSasLogger::sas_log_overload(SAS::TrailId trail,
                                           HttpStack::Request& req,
                                           int rc,
+                                          int target_latency,
+                                          int current_latency,
+                                          float rate_limit,
                                           uint32_t instance_id)
   {
     log_overload_event(trail,
                        req,
                        rc,
+                       target_latency,
+                       current_latency,
+                       rate_limit,
                        instance_id,
                        SASEvent::HttpLogLevel::DETAIL);
   }
