@@ -34,6 +34,10 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+extern "C" {
+#include "syslog_facade.h"
+}
+
 #include "diameterstack.h"
 #include "log.h"
 #include "sasevent.h"
@@ -59,6 +63,7 @@ void Stack::initialize()
   // constructor because we can't throw exceptions on failure.
   if (!_initialized)
   {
+    syslog(SYSLOG_NOTICE, "Diameter stack is starting");
     LOG_STATUS("Initializing Diameter stack");
     int rc = fd_core_initialize();
     if (rc != 0)
@@ -94,6 +99,7 @@ void Stack::initialize()
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
 
+    syslog(SYSLOG_NOTICE, "Diameter stack initialization completed");
     _initialized = true;
   }
 }
@@ -193,6 +199,12 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     dest_realm = "unknown";
   };
 
+  syslog(SYSLOG_ERR, "Routing error: '%s' for message with "
+            "Command-Code %d, Destination-Host %s and Destination-Realm %s",
+            (char *)other,
+            msg2.command_code(),
+            dest_host.c_str(),
+            dest_realm.c_str());
   LOG_ERROR("Routing error: '%s' for message with "
             "Command-Code %d, Destination-Host %s and Destination-Realm %s",
             (char *)other,
