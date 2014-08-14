@@ -141,15 +141,19 @@ public:
       struct timespec now;
       if (clock_gettime(CLOCK_MONOTONIC, &now) == 0)
       {
-        unsigned long service_delay_ms = (now.tv_nsec - _service_time.tv_nsec) / 1000000 +
-                                         (now.tv_sec - _service_time.tv_sec) * 1000;
+        uint64_t service_time = (_service_time.tv_sec * 1000) +
+                                (_service_time.tv_nsec / 1000000);
+        uint64_t now_time = (now.tv_sec * 1000) +
+                            (now.tv_nsec / 1000000);
 
-        if (service_delay_ms > _deadlock_threshold) 
+        if ((now_time > service_time) &&
+            ((now_time - service_time) > _deadlock_threshold))
         {
           deadlocked = true;
         }
       }
     }
+
     return deadlocked;
   }
 
@@ -279,7 +283,7 @@ public:
       }
     }
 
-    if (_deadlock_threshold > 0) 
+    if (_deadlock_threshold > 0)
     {
       // Deadlock detection is enabled, so record the time we popped an
       // item off the queue.
@@ -351,7 +355,7 @@ public:
       }
     }
 
-    if (_deadlock_threshold > 0) 
+    if (_deadlock_threshold > 0)
     {
       // Deadlock detection is enabled, so record the time we popped an
       // item off the queue.
@@ -368,7 +372,7 @@ public:
   {
     T item;
     pthread_mutex_lock(&_m);
-    if (!_q.empty()) 
+    if (!_q.empty())
     {
       item = _q.front();
     }
