@@ -146,8 +146,14 @@ public:
         uint64_t now_time = (now.tv_sec * 1000) +
                             (now.tv_nsec / 1000000);
 
+        // Check that the current time is greater than the last serviced time -
+        // if it's not then we can't be deadlocked.
+        // Give a 1 second leeway in the comparsion, as we may have compared
+        // against a service time that's in the middle of being updated
+        // (the sec and nsec aren't updated atomically, and can be updated in
+        // any order), so it could be too early by up to a second.
         if ((now_time > service_time) &&
-            ((now_time - service_time) > _deadlock_threshold))
+            ((now_time - service_time) > (_deadlock_threshold + 1000)))
         {
           deadlocked = true;
         }
