@@ -360,19 +360,16 @@ public:
   inline Message& add_app_id(const Dictionary::Application::Type type,
                              const Dictionary::Application& app)
   {
-    Diameter::AVP* application_id;
     if (type == Dictionary::Application::ACCT)
     {
-      application_id = new Diameter::AVP(dict()->ACCT_APPLICATION_ID);
+      add(Diameter::AVP(dict()->ACCT_APPLICATION_ID).val_i32(app.application_id()));
     }
     else
     {
       // LCOV_EXCL_START - we only use vendor-specific auth applications
-      application_id = new Diameter::AVP(dict()->AUTH_APPLICATION_ID);
+      add(Diameter::AVP(dict()->AUTH_APPLICATION_ID).val_i32(app.application_id()));
       // LCOV_EXCL_STOP - we only use vendor-specific auth applications
     }
-    application_id->val_i32(app.application_id());
-    add(*application_id);
     return *this;
   }
   inline Message& add_origin()
