@@ -355,12 +355,11 @@ public:
     add(vendor_specific_application_id);
     return *this;
   }
-  inline Message& add_acct_app_id(const Dictionary::Vendor& vendor, const Dictionary::Application& app)
+  inline Message& add_acct_app_id(const Dictionary::Application& app)
   {
-    Diameter::AVP vendor_specific_application_id(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
-    vendor_specific_application_id.add(Diameter::AVP(dict()->VENDOR_ID).val_i32(vendor.vendor_id()));
-    vendor_specific_application_id.add(Diameter::AVP(dict()->ACCT_APPLICATION_ID).val_i32(app.application_id()));
-    add(vendor_specific_application_id);
+    Diameter::AVP application_id(dict()->ACCT_APPLICATION_ID);
+    application_id.val_i32(app.application_id());
+    add(application_id);
     return *this;
   }
   inline Message& add_origin()
