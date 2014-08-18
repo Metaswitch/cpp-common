@@ -199,8 +199,7 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     dest_realm = "unknown";
   };
 
-  syslog(SYSLOG_ERR, "Routing error: '%s' for message with "
-            "Command-Code %d, Destination-Host %s and Destination-Realm %s",
+  syslog(SYSLOG_ERR, "Diameter routing error: %s for message with Command-Code %d, Destination-Host %s and Destination-Realm %s",
             (char *)other,
             msg2.command_code(),
             dest_host.c_str(),
@@ -272,6 +271,7 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
           }
           else if (type == HOOK_PEER_CONNECT_FAILED)
           {
+	    syslog(SYSLOG_ERR, "Failed to make a Diameter connection to host %s", host);
             LOG_WARNING("Failed to connect to %s", host);
             Diameter::Peer* stack_peer = *ii;
             _peers.erase(ii);
