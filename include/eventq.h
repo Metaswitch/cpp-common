@@ -43,6 +43,8 @@
 
 #include <queue>
 
+#include "log.h"
+
 template<class T>
 class eventq
 {
@@ -133,6 +135,8 @@ public:
   {
     bool deadlocked = false;
 
+    pthread_mutex_lock(&_m);
+
     if ((_deadlock_threshold > 0) &&
         (!_q.empty()))
     {
@@ -146,10 +150,17 @@ public:
 
         if (service_delay_ms > _deadlock_threshold) 
         {
+          LOG_ERROR("Queue is deadlocked - service delay %ld > threshold %ld",
+                    service_delay_ms, _deadlock_threshold);
+          LOG_DEBUG("  Last service time = %d.%ld", _service_time.tv_sec, _service_time.tv_nsec);
+          LOG_DEBUG("  Now = %d.%ld", now.tv_sec, now.tv_nsec);
           deadlocked = true;
         }
       }
     }
+
+    pthread_mutex_unlock(&_m);
+
     return deadlocked;
   }
 
