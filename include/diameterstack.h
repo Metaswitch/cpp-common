@@ -346,7 +346,9 @@ public:
     vendor_specific_application_id.add(Diameter::AVP(dict()->VENDOR_ID).val_i32(vendor.vendor_id()));
     if (type == Dictionary::Application::ACCT)
     {
+      // LCOV_EXCL_START - we never use a vendor-specific accounting application
       vendor_specific_application_id.add(Diameter::AVP(dict()->ACCT_APPLICATION_ID).val_i32(app.application_id()));
+      // LCOV_EXCL_STOP - we never use a vendor-specific accounting application
     }
     else
     {
@@ -355,12 +357,19 @@ public:
     add(vendor_specific_application_id);
     return *this;
   }
-  inline Message& add_acct_app_id(const Dictionary::Vendor& vendor, const Dictionary::Application& app)
+  inline Message& add_app_id(const Dictionary::Application::Type type,
+                             const Dictionary::Application& app)
   {
-    Diameter::AVP vendor_specific_application_id(dict()->VENDOR_SPECIFIC_APPLICATION_ID);
-    vendor_specific_application_id.add(Diameter::AVP(dict()->VENDOR_ID).val_i32(vendor.vendor_id()));
-    vendor_specific_application_id.add(Diameter::AVP(dict()->ACCT_APPLICATION_ID).val_i32(app.application_id()));
-    add(vendor_specific_application_id);
+    if (type == Dictionary::Application::ACCT)
+    {
+      add(Diameter::AVP(dict()->ACCT_APPLICATION_ID).val_i32(app.application_id()));
+    }
+    else
+    {
+      // LCOV_EXCL_START - we only use vendor-specific auth applications
+      add(Diameter::AVP(dict()->AUTH_APPLICATION_ID).val_i32(app.application_id()));
+      // LCOV_EXCL_STOP - we only use vendor-specific auth applications
+    }
     return *this;
   }
   inline Message& add_origin()

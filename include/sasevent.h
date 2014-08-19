@@ -53,6 +53,13 @@ namespace SASEvent {
     PROTOCOL = 60
   };
 
+  // The type used for the MARKED_ID_SIP_SUBSCRIBE_NOTIFY marker.
+  enum SubscribeNotifyType
+  {
+    SUBSCRIBE = 1,
+    NOTIFY = 2
+  };
+
   //----------------------------------------------------------------------------
   // Event spaces.
   //----------------------------------------------------------------------------
