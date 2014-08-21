@@ -472,6 +472,17 @@ Store::Status MemcachedStore::set_data(const std::string& table,
   uint32_t now = time(NULL);
   uint32_t exptime = now + expiry;
 
+  // Memcached uses a flexible mechanism for specifying expiration.
+  // - 0 indicates never expire.
+  // - <= MEMCACHED_EXPIRATION_MAXDELTA indicates a relative (delta) time.
+  // - > MEMCACHED_EXPIRATION_MAXDELTA indicates an absolute time.
+  // Absolute time is the only way to force immediate expiry.  Unfortunately,
+  // it's not reliable - see https://github.com/Metaswitch/cpp-common/issues/160
+  // for details.  Instead, we use relative time for future times (expiry > 0)
+  // and the earliest absolute time for immediate expiry (expiry == 0).
+  time_t memcached_expiration =
+    (time_t)((expiry > 0) ? expiry : MEMCACHED_EXPIRATION_MAXDELTA + 1);
+
   // First try to write the primary data record to the first responding
   // server.
   memcached_return_t rc = MEMCACHED_ERROR;
@@ -514,12 +525,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
                          key_len,
                          data.data(),
                          data.length(),
-                         // Use absolute exptime rather than relative
-                         // expiry - this means that an expiry of "0"
-                         // means a record will expire (which we might
-                         // want) rather than be stored permanently
-                         // (which we will never want).
-                         (time_t)exptime,
+                         memcached_expiration,
                          exptime);
     }
     else
@@ -531,7 +537,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
                          key_len,
                          data.data(),
                          data.length(),
-                         (time_t)exptime,
+                         memcached_expiration,
                          exptime,
                          cas);
 
@@ -544,14 +550,13 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     }
     else
     {
-      LOG_DEBUG("memcached_%s command for %s failed on replica %d, rc = %d (%s), expiry = %d, absolute expiry time = %u\n%s",
+      LOG_DEBUG("memcached_%s command for %s failed on replica %d, rc = %d (%s), expiry = %d\n%s",
                 (cas == 0) ? "add" : "cas",
                 fqkey.c_str(),
                 replica_idx,
                 rc,
                 memcached_strerror(replicas[replica_idx], rc),
                 expiry,
-                exptime,
                 memcached_last_error_message(replicas[replica_idx]));
 
       if ((rc == MEMCACHED_NOTSTORED) ||
@@ -588,8 +593,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
                     key_len,
                     data.data(),
                     data.length(),
-                    (time_t)exptime,
-                    0);
+                    memcached_expiration,
+                    exptime);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 0);
     }
   }

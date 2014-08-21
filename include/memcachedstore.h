@@ -155,6 +155,11 @@ private:
   // each vector index into the list of servers.
   std::vector<std::vector<int> > _read_replicas;
   std::vector<std::vector<int> > _write_replicas;
+
+  // The maximum expiration delta that memcached expects.  Any expiration
+  // value larger than this is assumed to be an absolute rather than relative
+  // value.  This matches the REALTIME_MAXDELTA constant defined by memcached.
+  static const int MEMCACHED_EXPIRATION_MAXDELTA = 60 * 60 * 24 * 30;
 };
 
 #endif
