@@ -249,7 +249,12 @@ public:
       entry.data = value;
 
       // Move the entry in the expiry list.
-      _expiry_list.erase(entry.expiry_i);
+      if (entry.expiry_i != _expiry_list.end()) 
+      {
+        _expiry_list.erase(entry.expiry_i);
+        --entry.refs;
+      }
+      ++entry.refs;
       entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
     }
 
@@ -271,7 +276,10 @@ public:
     if (i != _cache.end())
     {
       Entry& entry = i->second;
-      ttl = entry.expiry_i->first - time(NULL);
+      if (entry.expiry_i != _expiry_list.end()) 
+      {
+        ttl = entry.expiry_i->first - time(NULL);
+      }
     }
 
     pthread_mutex_unlock(&_lock);
@@ -323,7 +331,10 @@ private:
         // Decrement the reference count as the entry is no longer referenced
         // from the expiry list.  If the reference count is now zero we can
         // evict immediately, otherwise wait for other references to end.
+        // Set the expiry iterator to _expiry_list.end() as we are about to
+        // remove from the expiry list.
         Entry& entry = j->second;
+        entry.expiry_i = _expiry_list.end();
         if (--(entry.refs) <= 0)
         {
           // Don't release the global lock around eviction - assumption is it
@@ -337,6 +348,7 @@ private:
         }
       }
       _expiry_list.erase(i);
+
     }
   }
 

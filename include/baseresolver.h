@@ -41,6 +41,7 @@
 #include <map>
 #include <vector>
 #include <boost/regex.hpp>
+#include <pthread.h>
 
 #include "log.h"
 #include "dnscachedresolver.h"
@@ -92,6 +93,7 @@ public:
   virtual ~BaseResolver();
 
   void blacklist(const AddrInfo& ai, int ttl);
+  bool blacklisted(const AddrInfo& ai);
 
   /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
   bool parse_ip_target(const std::string& target, IP46Address& address);
@@ -231,8 +233,9 @@ protected:
   /// combinations which have been blacklisted because the destination is
   /// unresponsive (either TCP connection attempts are failing or a UDP
   /// destination is unreachable).
-  typedef TTLCache<AddrInfo, bool> BlacklistCache;
-  BlacklistCache* _blacklist;
+  pthread_mutex_t _blacklist_lock;
+  typedef std::map<AddrInfo, time_t> Blacklist;
+  Blacklist _blacklist;
 
   /// Stores a pointer to the DNS client this resolver should use.
   DnsCachedResolver* _dns_client;
