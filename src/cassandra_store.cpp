@@ -48,6 +48,10 @@ using namespace org::apache::cassandra;
 
 namespace CassandraStore
 {
+// The thrift get_slice function requires the user to specify a maximum number
+// of rows to return. We don't want a limit, but thrift does not allow this, so
+// set the limit very high instead.
+const int32_t GET_SLICE_MAX_COLUMNS = 1000000;
 
 //
 // Client methods
@@ -707,6 +711,7 @@ get_columns_with_prefix(ClientInterface* client,
   // Increment the last character of the "finish" field.
   sr.finish = prefix;
   *sr.finish.rbegin() = (*sr.finish.rbegin() + 1);
+  sr.count = GET_SLICE_MAX_COLUMNS;
 
   SlicePredicate sp;
   sp.slice_range = sr;
@@ -738,6 +743,7 @@ multiget_columns_with_prefix(ClientInterface* client,
   // Increment the last character of the "finish" field.
   sr.finish = prefix;
   *sr.finish.rbegin() = (*sr.finish.rbegin() + 1);
+  sr.count = GET_SLICE_MAX_COLUMNS;
 
   SlicePredicate sp;
   sp.slice_range = sr;
@@ -771,6 +777,7 @@ get_row(ClientInterface* client,
   SliceRange sr;
   sr.start = "";
   sr.finish = "";
+  sr.count = GET_SLICE_MAX_COLUMNS;
 
   SlicePredicate sp;
   sp.slice_range = sr;
