@@ -83,7 +83,7 @@ void BaseResolver::create_blacklist()
 {
   // Create the blacklist (no factory required).
   LOG_DEBUG("Create black list");
-  _blacklist = new BlacklistCache(NULL);
+  pthread_mutex_init(&_blacklist_lock, NULL);
 }
 
 void BaseResolver::destroy_naptr_cache()
@@ -103,7 +103,7 @@ void BaseResolver::destroy_srv_cache()
 void BaseResolver::destroy_blacklist()
 {
   LOG_DEBUG("Destroy blacklist");
-  delete _blacklist;
+  pthread_mutex_destroy(&_blacklist_lock);
 }
 
 /// This algorithm selects a number of targets (IP address/port/transport
@@ -209,7 +209,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
           ai.port = srvs[ii]->port;
           ai.address = to_ip46(a_result.records()[jj]);
 
-          if (_blacklist->ttl(ai) == 0)
+          if (!blacklisted(ai))
           {
             // Address isn't blacklisted, so copy across to the active list.
             active.push_back(ai.address);
@@ -372,7 +372,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
        ++i)
   {
     ai.address = to_ip46(*i);
-    if (_blacklist->ttl(ai) == 0)
+    if (!blacklisted(ai))
     {
       // Address isn't blacklisted, so copy across to the target list.
       targets.push_back(ai);
@@ -469,7 +469,38 @@ void BaseResolver::blacklist(const AddrInfo& ai, int ttl)
   LOG_DEBUG("Add %s:%d transport %d to blacklist for %d seconds",
             inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
             ai.port, ai.transport, ttl);
-  _blacklist->add(ai, true, ttl);
+  pthread_mutex_lock(&_blacklist_lock);
+  _blacklist[ai] = time(NULL) + ttl;
+  pthread_mutex_unlock(&_blacklist_lock);
+}
+
+bool BaseResolver::blacklisted(const AddrInfo& ai)
+{
+  bool rc = false;
+
+  pthread_mutex_lock(&_blacklist_lock);
+  std::map<AddrInfo, time_t>::iterator i = _blacklist.find(ai);
+
+  if (i != _blacklist.end()) 
+  {
+    if (i->second > time(NULL)) 
+    {
+      // Blacklist entry has yet to expire.
+      rc = true;
+    }
+    else
+    {
+      // Blacklist entry has expired, so remove it.
+      _blacklist.erase(i);
+    }
+  }
+  pthread_mutex_unlock(&_blacklist_lock);
+  char buf[100];
+  LOG_DEBUG("%s:%d transport %d is %sblacklisted",
+            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
+            ai.port, ai.transport, rc ? "" : "not ");
+
+  return rc;
 }
 
 /// Parses a target as if it was an IPv4 or IPv6 address and returns the
