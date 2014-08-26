@@ -479,7 +479,7 @@ bool BaseResolver::blacklisted(const AddrInfo& ai)
   bool rc = false;
 
   pthread_mutex_lock(&_blacklist_lock);
-  std::map<AddrInfo, time_t>::iterator i = _blacklist.find(ai);
+  Blacklist::iterator i = _blacklist.find(ai);
 
   if (i != _blacklist.end()) 
   {

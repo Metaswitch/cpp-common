@@ -234,7 +234,8 @@ protected:
   /// unresponsive (either TCP connection attempts are failing or a UDP
   /// destination is unreachable).
   pthread_mutex_t _blacklist_lock;
-  std::map<AddrInfo, time_t> _blacklist;
+  typedef std::map<AddrInfo, time_t> Blacklist;
+  Blacklist _blacklist;
 
   /// Stores a pointer to the DNS client this resolver should use.
   DnsCachedResolver* _dns_client;
