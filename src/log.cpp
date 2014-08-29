@@ -115,6 +115,7 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   char logline[MAX_LOGLINE];
 
   int written = 0;
+  int truncated = 0;
 
   const char* mod = strrchr(module, '/');
   module = (mod != NULL) ? mod + 1 : module;
@@ -130,19 +131,29 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
 
   // snprintf and vsnprintf return the bytes that would have been
   // written if their second argument was large enough, so we need to
-  // reduce the size of written to compentate if it is too large.
+  // reduce the size of written to compensate if it is too large.
   written = std::min(written, MAX_LOGLINE - 2);
 
   int bytes_available = MAX_LOGLINE - written - 2;
   written += vsnprintf(logline + written, bytes_available, fmt, args);
 
-  written = std::min(written, MAX_LOGLINE - 2);
+  if (written > (MAX_LOGLINE - 2))
+  {
+    truncated = written - (MAX_LOGLINE - 2);
+    written = MAX_LOGLINE - 2;
+  }
 
   // Add a new line and null termination.
   logline[written] = '\n';
   logline[written+1] = '\0';
 
   Log::logger->write(logline);
+  if (truncated > 0)
+  {
+    char buf[128];
+    snprintf(buf, 128, "Previous log was truncated by %d characters\n", truncated);
+    Log::logger->write(buf);
+  }
   pthread_cleanup_pop(0);
   pthread_mutex_unlock(&Log::serialization_lock);
 
@@ -162,9 +173,9 @@ void Log::backtrace(const char *fmt, ...)
   va_start(args, fmt);
   // snprintf and vsnprintf return the bytes that would have been
   // written if their second argument was large enough, so we need to
-  // reduce the size of written to compentate if it is too large.
-  int written = vsnprintf(logline, MAX_LOGLINE - 1, fmt, args);
-  written = std::min(written, MAX_LOGLINE - 1);
+  // reduce the size of written to compensate if it is too large.
+  int written = vsnprintf(logline, MAX_LOGLINE - 2, fmt, args);
+  written = std::min(written, MAX_LOGLINE - 2);
   va_end(args);
 
   // Add a new line and null termination.
