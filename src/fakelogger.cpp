@@ -56,7 +56,6 @@ PrintingTestLogger::PrintingTestLogger() : _last_logger(NULL)
 
 PrintingTestLogger::~PrintingTestLogger()
 {
-  LOG_DEBUG("Logger destruction");
   Logger* replaced = Log::setLogger(_last_logger);
 
   // Ensure that loggers are destroyed in the reverse order of creation.
