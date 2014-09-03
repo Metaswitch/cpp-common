@@ -39,6 +39,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <pthread.h>
+#include <algorithm>
 #include "log.h"
 
 const char* log_level[] = {"Error", "Warning", "Status", "Info", "Verbose", "Debug"};
@@ -114,6 +115,7 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   char logline[MAX_LOGLINE];
 
   int written = 0;
+  int truncated = 0;
 
   const char* mod = strrchr(module, '/');
   module = (mod != NULL) ? mod + 1 : module;
@@ -127,13 +129,31 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
     written = snprintf(logline, MAX_LOGLINE - 2, "%s %s: ", log_level[level], module);
   }
 
-  written += vsnprintf(logline + written, MAX_LOGLINE - written - 2, fmt, args);
+  // snprintf and vsnprintf return the bytes that would have been
+  // written if their second argument was large enough, so we need to
+  // reduce the size of written to compensate if it is too large.
+  written = std::min(written, MAX_LOGLINE - 2);
+
+  int bytes_available = MAX_LOGLINE - written - 2;
+  written += vsnprintf(logline + written, bytes_available, fmt, args);
+
+  if (written > (MAX_LOGLINE - 2))
+  {
+    truncated = written - (MAX_LOGLINE - 2);
+    written = MAX_LOGLINE - 2;
+  }
 
   // Add a new line and null termination.
   logline[written] = '\n';
   logline[written+1] = '\0';
 
   Log::logger->write(logline);
+  if (truncated > 0)
+  {
+    char buf[128];
+    snprintf(buf, 128, "Previous log was truncated by %d characters\n", truncated);
+    Log::logger->write(buf);
+  }
   pthread_cleanup_pop(0);
   pthread_mutex_unlock(&Log::serialization_lock);
 
@@ -151,7 +171,11 @@ void Log::backtrace(const char *fmt, ...)
   va_list args;
   char logline[MAX_LOGLINE];
   va_start(args, fmt);
-  int written = vsnprintf(logline, MAX_LOGLINE, fmt, args);
+  // snprintf and vsnprintf return the bytes that would have been
+  // written if their second argument was large enough, so we need to
+  // reduce the size of written to compensate if it is too large.
+  int written = vsnprintf(logline, MAX_LOGLINE - 2, fmt, args);
+  written = std::min(written, MAX_LOGLINE - 2);
   va_end(args);
 
   // Add a new line and null termination.
