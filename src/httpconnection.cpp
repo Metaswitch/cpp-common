@@ -569,8 +569,8 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     }
     else
     {
-      syslog(SYSLOG_ERR, "%s failed to communicate with http server %s with curl error %s",
-                url.c_str(), remote_ip, curl_easy_strerror(rc));
+      syslog(SYSLOG_ERR, "%s failed to communicate with http server %s with curl error %s code %d",
+	     url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
 
       LOG_ERROR("%s failed at server %s : %s (%d %d) : fatal",
                 url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);
@@ -671,7 +671,6 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   HTTPCode http_code = curl_code_to_http_code(curl, rc);
   if ((rc != CURLE_OK) && (rc != CURLE_REMOTE_FILE_NOT_FOUND))
   {
-    syslog(SYSLOG_ERR, "Error accessing HTTP server %s with curl error %s", remote_ip, curl_easy_strerror(rc));
     LOG_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
   }
 
