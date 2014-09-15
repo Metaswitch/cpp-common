@@ -34,11 +34,11 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "craft_dcea.h"
 
 #include "diameterstack.h"
 #include "log.h"
 #include "sasevent.h"
+#include "craft_dcea.h"
 
 using namespace Diameter;
 
