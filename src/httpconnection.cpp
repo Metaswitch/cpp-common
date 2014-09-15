@@ -34,15 +34,12 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-extern "C" {
-#include "syslog_facade.h"
-}
-
 #include <curl/curl.h>
 #include <cassert>
 #include <iostream>
 #include <map>
 
+#include "craft_dcea.h"
 #include "utils.h"
 #include "log.h"
 #include "sas.h"
@@ -561,8 +558,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     }
     else
     {
-      syslog(SYSLOG_ERR, "%s failed to communicate with http server %s with curl error %s code %d",
-	     url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
+      CL_HTTP_COMM_ERR.log(url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
 
       LOG_ERROR("%s failed at server %s : %s (%d %d) : fatal",
                 url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);

@@ -34,9 +34,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-extern "C" {
-#include "syslog_facade.h"
-}
+#include "craft_dcea.h"
 
 #include "diameterstack.h"
 #include "log.h"
@@ -63,7 +61,7 @@ void Stack::initialize()
   // constructor because we can't throw exceptions on failure.
   if (!_initialized)
   {
-    syslog(SYSLOG_NOTICE, "Diameter stack is starting");
+    CL_DIAMETER_START.log();
     LOG_STATUS("Initializing Diameter stack");
     int rc = fd_core_initialize();
     if (rc != 0)
@@ -99,7 +97,7 @@ void Stack::initialize()
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
 
-    syslog(SYSLOG_NOTICE, "Diameter stack initialization completed");
+    CL_DIAMETER_INIT_CMPL.log();
     _initialized = true;
   }
 }
@@ -199,11 +197,11 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     dest_realm = "unknown";
   };
 
-  syslog(SYSLOG_ERR, "Diameter routing error: %s for message with Command-Code %d, Destination-Host %s and Destination-Realm %s",
-            (char *)other,
-            msg2.command_code(),
-            dest_host.c_str(),
-            dest_realm.c_str());
+  CL_DIAMETER_ROUTE_ERR.log((char *)other,
+			    msg2.command_code(),
+			    dest_host.c_str(),
+			    dest_realm.c_str());
+
   LOG_ERROR("Routing error: '%s' for message with "
             "Command-Code %d, Destination-Host %s and Destination-Realm %s",
             (char *)other,
@@ -271,7 +269,7 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
           }
           else if (type == HOOK_PEER_CONNECT_FAILED)
           {
-	    syslog(SYSLOG_ERR, "Failed to make a Diameter connection to host %s", host);
+	    CL_DIAMETER_CONN_ERR.log(host);
             LOG_WARNING("Failed to connect to %s", host);
             Diameter::Peer* stack_peer = *ii;
             _peers.erase(ii);
