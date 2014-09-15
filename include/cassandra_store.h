@@ -71,6 +71,7 @@
 #include "threadpool.h"
 #include "utils.h"
 #include "sas.h"
+#include "communicationmonitor.h"
 
 // Shortcut for the apache cassandra namespace.
 namespace cass = org::apache::cassandra;
@@ -192,6 +193,10 @@ public:
                          unsigned int num_threads = 0,
                          unsigned int max_queue = 0);
 
+  /// Set a monitor to track communication with the local Cassandra instance,
+  /// and set/clear alarms based upon recent activity.
+  void set_comm_monitor(CommunicationMonitor* comm_monitor);
+
   /// Start the store.
   ///
   /// Check that the store can connect to cassandra, and start any necessary
@@ -275,6 +280,10 @@ private:
   unsigned int _num_threads;
   unsigned int _max_queue;
   Pool* _thread_pool;
+
+  // Helper used to track local communication state, and issue/clear alarms
+  // based upon recent activity.
+  CommunicationMonitor* _comm_monitor;
 
   /// Execute an operation.
   ///

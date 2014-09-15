@@ -53,6 +53,8 @@ public:
                     HttpResolver* resolver);
   virtual ~ChronosConnection();
 
+  void set_comm_monitor(CommunicationMonitor* comm_monitor);
+
   virtual HTTPCode send_delete(const std::string& delete_id,
                                SAS::TrailId trail);
   virtual HTTPCode send_put(std::string& put_identity,

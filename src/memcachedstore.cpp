@@ -73,13 +73,20 @@ MemcachedStore::MemcachedStore(bool binary,
   _view_number(0),
   _servers(),
   _read_replicas(_vbuckets),
-  _write_replicas(_vbuckets)
+  _write_replicas(_vbuckets),
+  _comm_monitor(NULL),
+  _vbucket_comm_state(_vbuckets),
+  _vbucket_comm_fail_count(0),
+  _vbucket_alarms(NULL)
 {
   // Create the thread local key for the per thread data.
   pthread_key_create(&_thread_local, MemcachedStore::cleanup_connection);
 
   // Create the lock for protecting the current view.
   pthread_rwlock_init(&_view_lock, NULL);
+
+  // Create the mutex for protecting vbucket comm state.
+  pthread_mutex_init(&_vbucket_comm_lock, NULL);
 
   // Set up the fixed options for memcached.  We use a very short connect
   // timeout because libmemcached tries to connect to all servers sequentially
@@ -90,7 +97,14 @@ MemcachedStore::MemcachedStore(bool binary,
 
   // Create an updater to keep the store configured appropriately.
   _updater = new Updater<void, MemcachedStore>(this, std::mem_fun(&MemcachedStore::update_view));
+
+  // Initialize vbucket comm state
+  for (int ii = 0; ii < _vbuckets; ++ii)
+  {
+    _vbucket_comm_state[ii] = OK;
+  }
 }
+
 
 MemcachedStore::~MemcachedStore()
 {
@@ -107,7 +121,24 @@ MemcachedStore::~MemcachedStore()
     cleanup_connection(conn);
   }
 
+  pthread_mutex_destroy(&_vbucket_comm_lock);
+
   pthread_rwlock_destroy(&_view_lock);
+}
+
+
+/// Set a monitor to track replica communication state, and set/clear
+/// alarms based upon recent activity.
+void MemcachedStore::set_comm_monitor(CommunicationMonitor* comm_monitor)
+{
+  _comm_monitor = comm_monitor;
+}
+
+
+/// Set alarms to be used for reporting vbucket inaccessible conditions.
+void MemcachedStore::set_vbucket_alarms(AlarmPair* vbucket_alarms)
+{
+  _vbucket_alarms = vbucket_alarms;
 }
 
 
@@ -147,9 +178,29 @@ void MemcachedStore::new_view(const std::vector<std::string>& servers,
 }
 
 
+/// Returns the vbucket for a specified key
+int MemcachedStore::vbucket_for_key(const std::string& key)
+{
+  // Hash the key and convert the hash to a vbucket.
+  int hash = memcached_generate_hash_value(key.data(), key.length(), MEMCACHED_HASH_MD5);
+  int vbucket = hash & (_vbuckets - 1);
+  LOG_DEBUG("Key %s hashes to vbucket %d via hash 0x%x", key.c_str(), vbucket, hash);
+  return vbucket;
+}
+
+
 /// Gets the set of replicas to use for a read or write operation for the
 /// specified key.
 const std::vector<memcached_st*>& MemcachedStore::get_replicas(const std::string& key,
+                                                               Op operation)
+{
+  return get_replicas(vbucket_for_key(key), operation);
+}
+
+
+/// Gets the set of replicas to use for a read or write operation for the
+/// specified vbucket.
+const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
                                                                Op operation)
 {
   MemcachedStore::connection* conn = (connection*)pthread_getspecific(_thread_local);
@@ -254,12 +305,39 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(const std::string
     pthread_rwlock_unlock(&_view_lock);
   }
 
-  // Hash the key and convert the hash to a vbucket.
-  int hash = memcached_generate_hash_value(key.data(), key.length(), MEMCACHED_HASH_MD5);
-  int vbucket = hash & (_vbuckets - 1);
-  LOG_DEBUG("Key %s hashes to vbucket %d via hash 0x%x", key.c_str(), vbucket, hash);
-
   return (operation == Op::READ) ? conn->read_replicas[vbucket] : conn->write_replicas[vbucket];
+}
+
+
+/// Update state of vbucket replica communication. If alarms are configured, a set
+/// alarm is issued if a vbucket becomes inaccessible, a clear alarm is issued once
+/// all vbuckets become accessible again. 
+void MemcachedStore::update_vbucket_comm_state(int vbucket, CommState state)
+{
+  if (_vbucket_alarms)
+  {
+    pthread_mutex_lock(&_vbucket_comm_lock);
+
+    if (_vbucket_comm_state[vbucket] != state)
+    {
+      if (state == OK)
+      {
+        if ((_vbucket_comm_fail_count--) == 0)
+        {
+          _vbucket_alarms->clear();
+        }
+      }
+      else
+      {
+        _vbucket_comm_fail_count++;
+        _vbucket_alarms->set();
+      }
+
+      _vbucket_comm_state[vbucket] = state;
+    }
+
+    pthread_mutex_unlock(&_vbucket_comm_lock);
+  }
 }
 
 
@@ -292,7 +370,8 @@ Store::Status MemcachedStore::get_data(const std::string& table,
   const char* key_ptr = fqkey.data();
   const size_t key_len = fqkey.length();
 
-  const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::READ);
+  int vbucket = vbucket_for_key(fqkey);
+  const std::vector<memcached_st*>& replicas = get_replicas(vbucket, Op::READ);
 
   if (trail != 0)
   {
@@ -392,6 +471,14 @@ Store::Status MemcachedStore::get_data(const std::string& table,
       got_data.add_static_param(cas);
       SAS::report_event(got_data);
     }
+
+    update_vbucket_comm_state(vbucket, OK);
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
+
     // Return the data and CAS value.  The CAS value is either set to the CAS
     // value from the result, or zero if an earlier active replica returned
     // NOT_FOUND.  This ensures that a subsequent set operation will succeed
@@ -410,6 +497,13 @@ Store::Status MemcachedStore::get_data(const std::string& table,
       SAS::report_event(not_found);
     }
 
+    update_vbucket_comm_state(vbucket, OK);
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
+
     LOG_DEBUG("At least one replica returned not found, so return NOT_FOUND");
     status = Store::Status::NOT_FOUND;
   }
@@ -422,6 +516,13 @@ Store::Status MemcachedStore::get_data(const std::string& table,
       SAS::Event err(trail, SASEvent::MEMCACHED_GET_ERROR, 0);
       err.add_var_param(fqkey);
       SAS::report_event(err);
+    }
+
+    update_vbucket_comm_state(vbucket, FAILED);
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_failure();
     }
 
     LOG_ERROR("Failed to read data for %s from %d replicas",
@@ -453,7 +554,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
   const char* key_ptr = fqkey.data();
   const size_t key_len = fqkey.length();
 
-  const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::WRITE);
+  int vbucket = vbucket_for_key(fqkey);
+  const std::vector<memcached_st*>& replicas = get_replicas(vbucket, Op::WRITE);
 
   if (trail != 0)
   {
@@ -610,9 +712,21 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       SAS::report_event(err);
     }
 
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_failure();
+    }
+
     LOG_ERROR("Failed to write data for %s to %d replicas",
               fqkey.c_str(), replicas.size());
     status = Store::Status::ERROR;
+  }
+  else
+  {
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
   }
 
   return status;

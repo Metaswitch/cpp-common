@@ -64,6 +64,13 @@ ChronosConnection::~ChronosConnection()
   _http = NULL;
 }
 
+/// Set a monitor to track HTTP REST communication state, and set/clear
+/// alarms based upon recent activity.
+void ChronosConnection::set_comm_monitor(CommunicationMonitor* comm_monitor)
+{
+  _http->set_comm_monitor(comm_monitor);
+}
+
 HTTPCode ChronosConnection::send_delete(const std::string& delete_identity,
                                         SAS::TrailId trail)
 {

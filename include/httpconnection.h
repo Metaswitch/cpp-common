@@ -50,6 +50,7 @@
 #include "statistic.h"
 #include "load_monitor.h"
 #include "sasevent.h"
+#include "communicationmonitor.h"
 
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
@@ -84,6 +85,8 @@ public:
                  HttpResolver* resolver,
                  SASEvent::HttpLogLevel);
   virtual ~HttpConnection();
+
+  void set_comm_monitor(CommunicationMonitor* comm_monitor);
 
   virtual long send_get(const std::string& path,
                         std::string& response,
@@ -217,6 +220,7 @@ private:
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock
   SASEvent::HttpLogLevel _sas_log_level;
+  CommunicationMonitor* _comm_monitor;
 
   friend class PoolEntry; // so it can update stats
 };

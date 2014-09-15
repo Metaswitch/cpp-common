@@ -100,7 +100,8 @@ HttpConnection::HttpConnection(const std::string& server,
   _port(port_from_server(server)),
   _assert_user(assert_user),
   _resolver(resolver),
-  _sas_log_level(sas_log_level)
+  _sas_log_level(sas_log_level),
+  _comm_monitor(NULL)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -127,7 +128,8 @@ HttpConnection::HttpConnection(const std::string& server,
   _port(port_from_server(server)),
   _assert_user(assert_user),
   _resolver(resolver),
-  _sas_log_level(sas_log_level)
+  _sas_log_level(sas_log_level),
+  _comm_monitor(NULL)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -165,6 +167,12 @@ HttpConnection::~HttpConnection()
   }
 }
 
+/// Set a monitor to track HTTP REST communication state, and set/clear
+/// alarms based upon recent activity.
+void HttpConnection::set_comm_monitor(CommunicationMonitor* comm_monitor)
+{
+  _comm_monitor = comm_monitor;
+}
 
 /// Get the thread-local curl handle if it exists, and create it if not.
 CURL* HttpConnection::get_curl_handle()
@@ -655,10 +663,27 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
   {
     entry->set_remote_ip(remote_ip);
+
+    if (_comm_monitor)
+    {
+      if (num_http_503_responses >= 2)
+      {
+        _comm_monitor->inform_failure(now_ms);
+      }
+      else
+      {
+        _comm_monitor->inform_success(now_ms);
+      }
+    }
   }
   else
   {
     entry->set_remote_ip("");
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_failure(now_ms);
+    }
   }
 
   HTTPCode http_code = curl_code_to_http_code(curl, rc);

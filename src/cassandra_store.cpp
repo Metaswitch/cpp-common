@@ -121,6 +121,7 @@ Store::Store(const std::string& keyspace) :
   _num_threads(0),
   _max_queue(0),
   _thread_pool(NULL),
+  _comm_monitor(NULL),
   _thread_local()
 {
   // Create the thread-local storage that stores cassandra connections.
@@ -149,6 +150,12 @@ void Store::configure(std::string cass_hostname,
   _cass_port = cass_port;
   _num_threads = num_threads;
   _max_queue = max_queue;
+}
+
+
+void Store::set_comm_monitor(CommunicationMonitor* comm_monitor)
+{
+  _comm_monitor = comm_monitor;
 }
 
 
@@ -403,8 +410,20 @@ bool Store::run(Operation* op, SAS::TrailId trail)
   }
   while (retry);
 
-  if (cass_result != OK)
+  if (cass_result == OK)
   {
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
+  }
+  else
+  {
+    if (cass_result == CONNECTION_ERROR && _comm_monitor)
+    {
+      _comm_monitor->inform_failure();
+    }
+
     LOG_ERROR("Cassandra request failed: rc=%d, %s",
               cass_result, cass_error_text.c_str());
     op->unhandled_exception(cass_result, cass_error_text, trail);
