@@ -42,6 +42,8 @@
 // Craft Logging(syslog) Log Description, Cause, Effect, and Action
 //
 
+#include <string>
+
 extern "C" {
 #include "syslog_facade.h"
 }
