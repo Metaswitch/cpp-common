@@ -89,6 +89,6 @@ SysLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
    SYSLOG_ERR,
    "%s failed to communicate with http server %s with curl error %s code %d",
    "An HTTP connection attempt failed to the specified server with the specified error code",
-   "This condition impacts teh ability to register, subscribe, or make a call.",
+   "This condition impacts the ability to register, subscribe, or make a call.",
    "(1). Check to see if the specified host has failed.  (2). Check to see if there is TCP connectivity to the host by using ping and/or Wireshark."
    );
