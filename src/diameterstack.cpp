@@ -509,13 +509,11 @@ void Stack::logger(int fd_log_level, const char* fmt, va_list args)
 
 void Stack::send(struct msg* fd_msg)
 {
-  _result = 0;
   fd_msg_send(&fd_msg, NULL, NULL);
 }
 
 void Stack::send(struct msg* fd_msg, Transaction* tsx)
 {
-  _result = 0;
   fd_msg_send(&fd_msg, Transaction::on_response, tsx);
 }
 
@@ -528,8 +526,6 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
   timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
-
-  _result = 0;
   fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
 }
 
