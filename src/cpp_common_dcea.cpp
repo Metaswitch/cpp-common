@@ -47,46 +47,46 @@
 / Effect:
 / Action:
 **********************************************************/
-SysLog CL_DIAMETER_START
+PDLog CL_DIAMETER_START
   (
    CL_CPP_COMMON_ID + 1,
-   SYSLOG_NOTICE,
+   PDLOG_NOTICE,
    "Diameter stack is starting",
    "Diameter stack is beginning initialization",
    "Normal",
    "None"
    );
-SysLog  CL_DIAMETER_INIT_CMPL
+PDLog  CL_DIAMETER_INIT_CMPL
   (
    CL_CPP_COMMON_ID + 2,
-   SYSLOG_NOTICE,
+   PDLOG_NOTICE,
    "Diameter stack initialization completed",
    "Diameter stack has completed initialization",
    "Normal",
    "None"
    );
-SysLog4<const char*, int, const char*, const char*> CL_DIAMETER_ROUTE_ERR
+PDLog4<const char*, int, const char*, const char*> CL_DIAMETER_ROUTE_ERR
   (
    CL_CPP_COMMON_ID + 3,
-   SYSLOG_ERR,
+   PDLOG_ERR,
    "Diameter routing error: %s for message with Command-Code %d, Destination-Host %s and Destination-Realm %s",
    "No route was found for a Diameter message",
    "The Diameter message with the specified command code could not be routed to the destination host with the destination realm",
    "(1). Check the hss_hostname and hss_port in the /etc/clearwater/config file for correctness. (2). Check to see that there is a route to the hss database.  Check for IP connectiovity between the homestead host and the hss host using ping.  Wireshark the interface on homestead and the hss"
    );
-SysLog1<const char*> CL_DIAMETER_CONN_ERR
+PDLog1<const char*> CL_DIAMETER_CONN_ERR
   (
    CL_CPP_COMMON_ID + 4,
-   SYSLOG_ERR,
+   PDLOG_ERR,
    "Failed to make a Diameter connection to host %s",
    "A Diameter connection attempt failed to the specified host",
    "This impacts the ability to register, subscribe, or make a call",
    "(1). Check the hss_hostname and hss_port in the /etc/clearwater/config file for correctness.  (2). Check to see that there is a route to the hss database.  Check for IP connectiovity between the homestead host and the hss host using ping.  Wireshark the interface on homestead and the hss"
    );
-SysLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
+PDLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
   (
    CL_CPP_COMMON_ID + 5,
-   SYSLOG_ERR,
+   PDLOG_ERR,
    "%s failed to communicate with http server %s with curl error %s code %d",
    "An HTTP connection attempt failed to the specified server with the specified error code",
    "This condition impacts the ability to register, subscribe, or make a call.",

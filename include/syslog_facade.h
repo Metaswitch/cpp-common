@@ -49,24 +49,24 @@ extern void openlog (__const char *__ident, int __option, int __facility);
 extern void syslog (int __pri, __const char *__fmt, ...)
   __attribute__ ((__format__ (__printf__, 2, 3)));
 
-#define SYSLOG_PID         0x01    /* log the pid with each message */
+#define PDLOG_PID         0x01    /* log the pid with each message */
 
-#define SYSLOG_EMERG       0       /* system is unusable */
-#define SYSLOG_ALERT       1       /* action must be taken immediately */
-#define SYSLOG_CRIT        2       /* critical conditions */
-#define SYSLOG_ERR         3       /* error conditions */
-#define SYSLOG_WARNING     4       /* warning conditions */
-#define SYSLOG_NOTICE      5       /* normal but significant condition */
-#define SYSLOG_INFO        6       /* informational */
+#define PDLOG_EMERG       0       /* system is unusable */
+#define PDLOG_ALERT       1       /* action must be taken immediately */
+#define PDLOG_CRIT        2       /* critical conditions */
+#define PDLOG_ERR         3       /* error conditions */
+#define PDLOG_WARNING     4       /* warning conditions */
+#define PDLOG_NOTICE      5       /* normal but significant condition */
+#define PDLOG_INFO        6       /* informational */
 
 
-#define SYSLOG_LOCAL0      (16<<3) /* reserved for local use */
-#define SYSLOG_LOCAL1      (17<<3) /* reserved for local use */
-#define SYSLOG_LOCAL2      (18<<3) /* reserved for local use */
-#define SYSLOG_LOCAL3      (19<<3) /* reserved for local use */
-#define SYSLOG_LOCAL4      (20<<3) /* reserved for local use */
-#define SYSLOG_LOCAL5      (21<<3) /* reserved for local use */
-#define SYSLOG_LOCAL6      (22<<3) /* reserved for local use */
+#define PDLOG_LOCAL0      (16<<3) /* reserved for local use */
+#define PDLOG_LOCAL1      (17<<3) /* reserved for local use */
+#define PDLOG_LOCAL2      (18<<3) /* reserved for local use */
+#define PDLOG_LOCAL3      (19<<3) /* reserved for local use */
+#define PDLOG_LOCAL4      (20<<3) /* reserved for local use */
+#define PDLOG_LOCAL5      (21<<3) /* reserved for local use */
+#define PDLOG_LOCAL6      (22<<3) /* reserved for local use */
 
 
 #endif
