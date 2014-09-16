@@ -47,127 +47,236 @@
 extern "C" {
 #include "syslog_facade.h"
 }
-
-#define CL_CPP_COMMON_ID 1000
-#define CL_SPROUT_ID 2000
-#define CL_CHRONOS_ID 3000
-#define CL_HOMESTEAD_ID 4000
-#define CL_RALF_ID 5000
+#include <stdarg.h>
 
 
-class SysLog {
+
+class PDLogBase
+{
  public:
- SysLog(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const std::string& action) : _log_id(log_id), _severity(severity), _msg(msg), _cause(cause), _effect(effect), _action(action) {};
-  void log() {
+  enum {
+    MAX_ARG_SIZE=10,
+    CL_CPP_COMMON_ID = 1000,
+    CL_SPROUT_ID = 2000,
+    CL_CHRONOS_ID = 3000,
+    CL_HOMESTEAD_ID = 4000,
+    CL_RALF_ID = 5000
+};
+ PDLogBase(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect) : _log_id(log_id), _severity(severity), _msg(msg), _cause(cause), _effect(effect) {};
+
+  virtual void cealog() const
+  {
+    syslog(_severity,"%d - Cause: %s", _log_id, _cause.c_str());
+    syslog(_severity,"%d - Effect: %s", _log_id, _effect.c_str());
+    for (int i=0; i < MAX_ARG_SIZE; i++)
+      {
+	if (_action[i].size() == 0)
+	  break;
+	syslog(_severity,"%d - Action: %s", _log_id, (const char*) _action[i].c_str());
+      }
+  }
+ protected:
+  int         _log_id;
+  int         _severity;
+  std::string _msg;
+  std::string _cause;
+  std::string _effect;
+  std::string _action[MAX_ARG_SIZE];
+};
+
+class PDLog : public PDLogBase {
+ public:
+ PDLog(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+   {
+    va_list ap;
+    va_start(ap, action);
+    int i = 0;
+    for (const char* p=action; *p; p++)
+      {
+	_action[i++] = p;
+      }
+    va_end(ap);
+   };
+																		void log() const {
     char buf[256];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     sprintf(buf, (const char*)_msg.c_str());
 #pragma GCC diagnostic pop
     syslog(_severity, "%d - %s", _log_id, buf);
+    cealog();
   };
 
  protected:
-  int         _log_id;
-  int         _severity;
-  std::string _msg;
-  std::string _cause;
-  std::string _effect;
-  std::string _action;
 };
 
-template<class T1> class SysLog1 {
+  template<class T1> class PDLog1 : public PDLogBase {
  public:
- SysLog1(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const std::string& action) : _log_id(log_id), _severity(severity), _msg(msg), _cause(cause), _effect(effect), _action(action) {};
-  void log(T1 v1) {
+  PDLog1(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+   {
+    va_list ap;
+    va_start(ap, action);
+    int i = 0;
+    for (const char* p=action; *p; p++)
+      {
+	_action[i++] = p;
+      }
+    va_end(ap);
+   };
+  void log(T1 v1) const {
     char buf[256];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     sprintf(buf, (const char*)_msg.c_str(), v1);
 #pragma GCC diagnostic pop
     syslog(_severity, "%d - %s", _log_id, buf);
+    cealog();
   };
 
  protected:
-  int         _log_id;
-  int         _severity;
-  std::string _msg;
-  std::string _cause;
-  std::string _effect;
-  std::string _action;
 };
 
-template<class T1, class T2> class SysLog2 {
+template<class T1, class T2> class PDLog2 : public PDLogBase {
  public:
- SysLog2(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const std::string& action) : _log_id(log_id), _severity(severity), _msg(msg), _cause(cause), _effect(effect), _action(action) {};
-  void log(T1 v1, T2 v2) {
+ PDLog2(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+   {
+    va_list ap;
+    va_start(ap, action);
+    int i = 0;
+    for (const char* p=action; *p; p++)
+      {
+	_action[i++] = p;
+      }
+    va_end(ap);
+   };
+  void log(T1 v1, T2 v2) const {
     char buf[256];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     sprintf(buf, (const char*)_msg.c_str(), v1, v2);
 #pragma GCC diagnostic pop
     syslog(_severity, "%d - %s", _log_id, buf);
+    cealog();
   };
 
  protected:
-  int         _log_id;
-  int         _severity;
-  std::string _msg;
-  std::string _cause;
-  std::string _effect;
-  std::string _action;
 };
 
-template<class T1, class T2, class T3> class SysLog3 {
+template<class T1, class T2, class T3> class PDLog3 : public PDLogBase {
  public:
- SysLog3(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const std::string& action) : _log_id(log_id), _severity(severity), _msg(msg), _cause(cause), _effect(effect), _action(action) {};
-  void log(T1 v1, T2 v2, T3 v3) {
+ PDLog3(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+   {
+    va_list ap;
+    va_start(ap, action);
+    int i = 0;
+    for (const char* p=action; *p; p++)
+      {
+	_action[i++] = p;
+      }
+    va_end(ap);
+   };
+  void log(T1 v1, T2 v2, T3 v3) const {
     char buf[256];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     sprintf(buf, (const char*)_msg.c_str(), v1, v2, v3);
 #pragma GCC diagnostic pop
     syslog(_severity, "%d - %s", _log_id, buf);
+    cealog();
   };
 
  protected:
-  int         _log_id;
-  int         _severity;
-  std::string _msg;
-  std::string _cause;
-  std::string _effect;
-  std::string _action;
 };
 
-template<class T1, class T2, class T3, class T4> class SysLog4 {
+template<class T1, class T2, class T3, class T4> class PDLog4 : public PDLogBase {
  public:
- SysLog4(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const std::string& action) : _log_id(log_id), _severity(severity), _msg(msg), _cause(cause), _effect(effect), _action(action) {};
-  void log(T1 v1, T2 v2, T3 v3, T4 v4) {
+ PDLog4(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) 
+   : PDLogBase(log_id, severity, msg, cause, effect)
+   {
+    va_list ap;
+    va_start(ap, action);
+    int i = 0;
+    for (const char* p=action; *p; p++)
+      {
+	_action[i++] = p;
+      }
+    va_end(ap);
+   };
+  void log(T1 v1, T2 v2, T3 v3, T4 v4) const {
     char buf[256];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     sprintf(buf, (const char*)_msg.c_str(), v1, v2, v3, v4);
 #pragma GCC diagnostic pop
     syslog(_severity, "%d - %s", _log_id, buf);
+    cealog();
   };
 
  protected:
-  int         _log_id;
-  int         _severity;
-  std::string _msg;
-  std::string _cause;
-  std::string _effect;
-  std::string _action;
 };
 
 
 
-
-extern SysLog CL_DIAMETER_START;
-extern SysLog  CL_DIAMETER_INIT_CMPL;
-extern SysLog4<const char*, int, const char*, const char*> CL_DIAMETER_ROUTE_ERR;
-extern SysLog1<const char*> CL_DIAMETER_CONN_ERR;
-extern SysLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR;
-
+// CPP_COMMON syslog identities
+/**********************************************************
+/ log_id
+/ severity
+/ Description: (formatted)
+/ Cause: 
+/ Effect:
+/ Action:
+**********************************************************/
+static const PDLog CL_DIAMETER_START
+  (
+   PDLogBase::CL_CPP_COMMON_ID + 1,
+   PDLOG_NOTICE,
+   "Diameter stack is starting",
+   "Diameter stack is beginning initialization",
+   "Normal",
+   "None"
+   );
+static const PDLog  CL_DIAMETER_INIT_CMPL
+  (
+   PDLogBase::CL_CPP_COMMON_ID + 2,
+   PDLOG_NOTICE,
+   "Diameter stack initialization completed",
+   "Diameter stack has completed initialization",
+   "Normal",
+   "None"
+   );
+static const PDLog4<const char*, int, const char*, const char*> CL_DIAMETER_ROUTE_ERR
+  (
+   PDLogBase::CL_CPP_COMMON_ID + 3,
+   PDLOG_ERR,
+   "Diameter routing error: %s for message with Command-Code %d, Destination-Host %s and Destination-Realm %s",
+   "No route was found for a Diameter message",
+   "The Diameter message with the specified command code could not be routed to the destination host with the destination realm",
+   "(1). Check the hss_hostname and hss_port in the /etc/clearwater/config file for correctness.",
+   "(2). Check to see that there is a route to the hss database.",
+   "Check for IP connectivity between the homestead host and the hss host using ping.",
+   "Wireshark the interface on homestead and the hss"
+   );
+static const PDLog1<const char*> CL_DIAMETER_CONN_ERR
+  (
+   PDLogBase::CL_CPP_COMMON_ID + 4,
+   PDLOG_ERR,
+   "Failed to make a Diameter connection to host %s",
+   "A Diameter connection attempt failed to the specified host",
+   "This impacts the ability to register, subscribe, or make a call",
+   "(1). Check the hss_hostname and hss_port in the /etc/clearwater/config file for correctness.",
+   "(2). Check to see that there is a route to the hss database.",
+   "Check for IP connectiovity between the homestead host and the hss host using ping.",
+   "Wireshark the interface on homestead and the hss"
+   );
+static const PDLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
+  (
+   PDLogBase::CL_CPP_COMMON_ID + 5,
+   PDLOG_ERR,
+   "%s failed to communicate with http server %s with curl error %s code %d",
+   "An HTTP connection attempt failed to the specified server with the specified error code",
+   "This condition impacts the ability to register, subscribe, or make a call.",
+   "(1). Check to see if the specified host has failed.",
+   "(2). Check to see if there is TCP connectivity to the host by using ping and/or Wireshark."
+   );
 
 #endif
