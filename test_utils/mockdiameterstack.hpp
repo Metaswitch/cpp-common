@@ -43,6 +43,8 @@
 class MockDiameterStack : public Diameter::Stack
 {
 public:
+  MockDiameterStack();
+  ~MockDiameterStack();
   MOCK_METHOD0(initialize, void());
   MOCK_METHOD1(configure, void(const std::string&));
   MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));

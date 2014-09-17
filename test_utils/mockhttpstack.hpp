@@ -81,6 +81,9 @@ public:
     }
   };
 
+  MockHttpStack();
+  ~MockHttpStack();
+
   MOCK_METHOD0(initialize, void());
   MOCK_METHOD4(configure, void(const std::string&, unsigned short, int, AccessLogger*));
   MOCK_METHOD2(register_handler, void(char*, HandlerInterface*));
