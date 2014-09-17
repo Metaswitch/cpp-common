@@ -86,14 +86,14 @@ class PDLogBase
 
 class PDLog : public PDLogBase {
  public:
- PDLog(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+ PDLog(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
    {
     va_list ap;
     va_start(ap, action);
-    int i = 0;
-    for (const char* p=action; *p; p++)
+    _action[0] = action;
+    for (int i=1; i < num; i++)
       {
-	_action[i++] = p;
+	_action[i] = va_arg(ap, const char*);
       }
     va_end(ap);
    };
@@ -112,14 +112,14 @@ class PDLog : public PDLogBase {
 
   template<class T1> class PDLog1 : public PDLogBase {
  public:
-  PDLog1(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+  PDLog1(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
    {
     va_list ap;
     va_start(ap, action);
-    int i = 0;
-    for (const char* p=action; *p; p++)
+    _action[0] = action;
+    for (int i = 1; i < num; i++)
       {
-	_action[i++] = p;
+	_action[i] = va_arg(ap, const char*);
       }
     va_end(ap);
    };
@@ -138,14 +138,14 @@ class PDLog : public PDLogBase {
 
 template<class T1, class T2> class PDLog2 : public PDLogBase {
  public:
- PDLog2(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+ PDLog2(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
    {
     va_list ap;
     va_start(ap, action);
-    int i = 0;
-    for (const char* p=action; *p; p++)
+    _action[0] = action;
+    for (int i = 1; i < num; i++)
       {
-	_action[i++] = p;
+	_action[i] = va_arg(ap, const char*);
       }
     va_end(ap);
    };
@@ -164,14 +164,14 @@ template<class T1, class T2> class PDLog2 : public PDLogBase {
 
 template<class T1, class T2, class T3> class PDLog3 : public PDLogBase {
  public:
- PDLog3(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+ PDLog3(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
    {
     va_list ap;
     va_start(ap, action);
-    int i = 0;
-    for (const char* p=action; *p; p++)
+    _action[0] = action;
+    for (int i = 1; i < num; i++)
       {
-	_action[i++] = p;
+	_action[i] = va_arg(ap, const char*);
       }
     va_end(ap);
    };
@@ -190,15 +190,15 @@ template<class T1, class T2, class T3> class PDLog3 : public PDLogBase {
 
 template<class T1, class T2, class T3, class T4> class PDLog4 : public PDLogBase {
  public:
- PDLog4(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, const char* action, ...) 
+ PDLog4(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) 
    : PDLogBase(log_id, severity, msg, cause, effect)
    {
     va_list ap;
     va_start(ap, action);
-    int i = 0;
-    for (const char* p=action; *p; p++)
+    _action[0] = action;
+    for (int i = 1; i < num; i++)
       {
-	_action[i++] = p;
+	_action[i] = va_arg(ap, const char*);
       }
     va_end(ap);
    };
@@ -233,6 +233,7 @@ static const PDLog CL_DIAMETER_START
    "Diameter stack is starting",
    "Diameter stack is beginning initialization",
    "Normal",
+   1,
    "None"
    );
 static const PDLog  CL_DIAMETER_INIT_CMPL
@@ -242,6 +243,7 @@ static const PDLog  CL_DIAMETER_INIT_CMPL
    "Diameter stack initialization completed",
    "Diameter stack has completed initialization",
    "Normal",
+   1,
    "None"
    );
 static const PDLog4<const char*, int, const char*, const char*> CL_DIAMETER_ROUTE_ERR
@@ -251,6 +253,7 @@ static const PDLog4<const char*, int, const char*, const char*> CL_DIAMETER_ROUT
    "Diameter routing error: %s for message with Command-Code %d, Destination-Host %s and Destination-Realm %s",
    "No route was found for a Diameter message",
    "The Diameter message with the specified command code could not be routed to the destination host with the destination realm",
+   4,
    "(1). Check the hss_hostname and hss_port in the /etc/clearwater/config file for correctness.",
    "(2). Check to see that there is a route to the hss database.",
    "Check for IP connectivity between the homestead host and the hss host using ping.",
@@ -263,6 +266,7 @@ static const PDLog1<const char*> CL_DIAMETER_CONN_ERR
    "Failed to make a Diameter connection to host %s",
    "A Diameter connection attempt failed to the specified host",
    "This impacts the ability to register, subscribe, or make a call",
+   4,
    "(1). Check the hss_hostname and hss_port in the /etc/clearwater/config file for correctness.",
    "(2). Check to see that there is a route to the hss database.",
    "Check for IP connectiovity between the homestead host and the hss host using ping.",
@@ -275,6 +279,7 @@ static const PDLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
    "%s failed to communicate with http server %s with curl error %s code %d",
    "An HTTP connection attempt failed to the specified server with the specified error code",
    "This condition impacts the ability to register, subscribe, or make a call.",
+   2,
    "(1). Check to see if the specified host has failed.",
    "(2). Check to see if there is TCP connectivity to the host by using ping and/or Wireshark."
    );
