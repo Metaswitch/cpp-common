@@ -49,6 +49,8 @@ AlarmReqAgent AlarmReqAgent::_instance;
 
 
 
+// LCOV_EXCL_START - No UT for base construction, nor issue/clear
+
 Alarm::Alarm(const std::string& issuer, const std::string& identifier)
              : _issuer(issuer), _identifier(identifier)
 {
@@ -80,6 +82,8 @@ void Alarm::clear_all(const std::string& issuer)
   LOG_DEBUG("%s cleared its alarms", issuer.c_str());
 }
 
+// LCOV_EXCL_STOP
+
 
 
 AlarmPair::AlarmPair(const std::string& issuer,
@@ -94,6 +98,8 @@ AlarmPair::AlarmPair(const std::string& issuer,
   _set_alarm.set_identifier(set_alarm_id);
 }
 
+
+// LCOV_EXCL_START - No UT for set/clear
 
 void AlarmPair::set()
 {
@@ -116,7 +122,11 @@ void AlarmPair::clear()
   }
 }
 
+// LCOV_EXCL_STOP
 
+
+
+// LCOV_EXCL_START - No UT for agent thread
 
 bool AlarmReqAgent::start()
 {
@@ -284,3 +294,4 @@ void AlarmReqAgent::agent()
   zmq_clean_sck();
 }
 
+// LCOV_EXCL_STOP

@@ -82,6 +82,8 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
 
   if (now_ms > _next_check)
   {
+    // LCOV_EXCL_START - no UT for check cycle 
+
     pthread_mutex_lock(&_lock);
 
     if (now_ms > _next_check)
@@ -109,6 +111,8 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
     }
 
     pthread_mutex_unlock(&_lock);
+
+    // LCOV_EXCL_STOP
   }
 }
 
