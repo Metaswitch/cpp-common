@@ -134,7 +134,7 @@ public:
 private:
   enum 
   {
-    ZMQ_PORT = 6665,
+    ZMQ_PORT = 6664,
     MAX_REPLY_LEN = 16,
     MAX_Q_DEPTH = 100
   };
