@@ -67,7 +67,7 @@ def main
 
     if statname.nil?
       if options[:subscribe]
-        puts "Error: Subscription is only supported for single stats"
+        puts "Error: Subscription is only supported for single statistics"
         exit 4
       end
 
