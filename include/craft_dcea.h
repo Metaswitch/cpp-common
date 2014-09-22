@@ -51,6 +51,8 @@ extern "C" {
 
 
 
+///
+/// Defines common definitions for PDLog classes
 class PDLogBase
 {
  public:
@@ -76,16 +78,27 @@ class PDLogBase
       }
   }
  protected:
+  /// 
+  /// Unique identity for a PDLog, e.g. CL_CPP_COMMON + 1
   int         _log_id;
+  ///
+  /// Log severity, usually PDLOG_ERR or PDLOG_NOTICE
   int         _severity;
+  /// Description of the condition
   std::string _msg;
+  /// The cause of the condition
   std::string _cause;
+  /// The effect the conditon has on the system
   std::string _effect;
+  // A list of actions to be taken for the condition
   std::string _action[MAX_ARG_SIZE];
 };
 
+///
+/// PDLog - For logs with no log arguments
 class PDLog : public PDLogBase {
  public:
+  // Not that num is the size of the action list
  PDLog(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
    {
     va_list ap;
@@ -110,6 +123,8 @@ class PDLog : public PDLogBase {
  protected:
 };
 
+///
+/// PDLOg with one log argument -- The log argument type is T1
   template<class T1> class PDLog1 : public PDLogBase {
  public:
   PDLog1(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
@@ -136,6 +151,8 @@ class PDLog : public PDLogBase {
  protected:
 };
 
+///
+/// PDLOg with two log argument -- The log argument types are T1 and T2
 template<class T1, class T2> class PDLog2 : public PDLogBase {
  public:
  PDLog2(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
@@ -162,6 +179,8 @@ template<class T1, class T2> class PDLog2 : public PDLogBase {
  protected:
 };
 
+///
+/// PDLOg with three log arguments -- The log argument types are T1, T2, and T3
 template<class T1, class T2, class T3> class PDLog3 : public PDLogBase {
  public:
  PDLog3(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
@@ -188,6 +207,10 @@ template<class T1, class T2, class T3> class PDLog3 : public PDLogBase {
  protected:
 };
 
+
+///
+/// PDLOg with four log argument -- The log argument types are T1, T2, T3, and T4
+///
 template<class T1, class T2, class T3, class T4> class PDLog4 : public PDLogBase {
  public:
  PDLog4(int log_id, int severity, const std::string& msg, const std::string& cause, const std::string& effect, int num, const char* action, ...) 
@@ -217,7 +240,7 @@ template<class T1, class T2, class T3, class T4> class PDLog4 : public PDLogBase
 
 
 
-// CPP_COMMON syslog identities
+/// CPP_COMMON syslog identities
 /**********************************************************
 / log_id
 / severity
