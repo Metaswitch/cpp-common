@@ -39,7 +39,7 @@
 #include <iostream>
 #include <map>
 
-#include "craft_log_definitions.h"
+#include "craft_ent_definitions.h"
 #include "utils.h"
 #include "log.h"
 #include "sas.h"
