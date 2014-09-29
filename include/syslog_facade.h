@@ -1,5 +1,5 @@
 /**
- * @file syslog_proxy.h
+ * @file syslog_facade.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014  Metaswitch Networks Ltd
