@@ -37,7 +37,7 @@
 #include "diameterstack.h"
 #include "log.h"
 #include "sasevent.h"
-#include "craft_log_definitions.h"
+#include "craft_ent_definitions.h"
 
 using namespace Diameter;
 
