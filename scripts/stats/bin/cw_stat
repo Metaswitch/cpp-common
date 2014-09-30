@@ -23,7 +23,7 @@ def main
   }
 
   opts = OptionParser.new do |o|
-    o.banner = "Usage: cw_stat [options] <hostname> <port> [statname]"
+    o.banner = "Usage: cw_stat [options] <hostname> <port[,port,port]> [statname]"
     o.on("-v", "--[no-]verbose", "Run verbosely") do |v|
       options[:verbose] = v
     end

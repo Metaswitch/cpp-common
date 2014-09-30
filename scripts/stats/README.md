@@ -84,13 +84,13 @@ A CLI script is supplied to query the current state of either of the two statist
     cw_stat <hostname> <port> [<statname>]
 
 Where:
- * `port` is a comma separated list of ports to connect to
+ * `port` is a comma-separated list of ports to connect to
  *  `<statname>` may be `client_count`, `connected_sprouts` or blank to query both at once.
 
 Each Clearwater component presents statistics on a different port - these are:
- * 6666 for `sprout`
- * 6667 for `homestead`
- * 6669 for `bono`
+ * 6666 for `Sprout`
+ * 6667 for `Homestead`
+ * 6669 for `Bono`
 
 The CLI may alternatively be run in subscription mode with
 
