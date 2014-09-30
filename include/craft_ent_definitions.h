@@ -35,8 +35,8 @@
  */
 
 
-#ifndef CRAFT_DCEA_H__
-#define CRAFT_DCEA_H__
+#ifndef CRAFT_ENT_DEFINITIONS_H__
+#define CRAFT_ENT_DEFINITIONS_H__
 
 //
 // Craft Logging(syslog) PDLog Classes, Description, Cause, Effect, and Action
@@ -47,10 +47,8 @@
 extern "C" {
 #include "syslog_facade.h"
 }
-#include <stdarg.h>
 
-
-
+extern const char* signalnames[];
 ///
 /// Defines common definitions for PDLog classes
 class PDLogBase
@@ -66,34 +64,13 @@ public:
     CL_RALF_ID = 5000
   };
   PDLogBase(int log_id, int severity, const std::string& msg, const std::string& cause, 
-	    const std::string& effect) : _log_id(log_id), _severity(severity), _msg(msg), 
-                                         _cause(cause), _effect(effect) {};
+	    const std::string& effect, const std::string& action) : _log_id(log_id), _severity(severity), _msg(msg), 
+    _cause(cause), _effect(effect), _action(action) {};
 
   // Writes the description. cause, effect, and actions to syslog
   virtual void dcealog(const char* buf) const
   {
-    std::string action;
-    for (int i=0; i < MAX_ARG_SIZE; i++)
-    {
-      if (_action[i].size() == 0)
-      {
-        break;
-      }
-      action = action.append(_action[i]);
-      action = action.append(" ");
-    }
-    syslog(_severity, "%d - %s Cause: %s Effect: %s Action: %s", _log_id, buf, _cause.c_str(), _effect.c_str(), action.c_str());
-    /*
-    syslog(_severity, "%d - %s", _log_id, buf);
-    syslog(_severity,"%d - Cause: %s", _log_id, _cause.c_str());
-    syslog(_severity,"%d - Effect: %s", _log_id, _effect.c_str());
-    for (int i=0; i < MAX_ARG_SIZE; i++)
-      {
-    if (_action[i].size() == 0)
-    break;
-    syslog(_severity,"%d - Action: %s", _log_id, (const char*) _action[i].c_str());
-      }
-    */
+    syslog(_severity, "%d - Description: %s Cause: %s Effect: %s Action: %s", _log_id, buf, _cause.c_str(), _effect.c_str(), _action.c_str());
   }
 protected:
   ///
@@ -114,7 +91,7 @@ protected:
   std::string _effect;
 
 /// A list of actions to be taken for the condition
-  std::string _action[MAX_ARG_SIZE];
+  std::string _action;
 };
 
 ///
@@ -125,18 +102,10 @@ public:
   // Note that num is the size of the action list
   PDLog(int log_id, int severity, const std::string& msg, const std::string& cause,
         const std::string& effect,
-        int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+        const std::string&  action) : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
     // Variable number of arguments are definec to permit multiple(optional) actions
     // Since arrays cannot be instantiated in a constructor va_args are used
-    va_list ap;
-    va_start(ap, action);
-    _action[0] = action;
-    for (int i=1; i < num; i++)
-    {
-      _action[i] = va_arg(ap, const char*);
-    }
-    va_end(ap);
   };
   void log() const
   {
@@ -160,16 +129,8 @@ template<class T1> class PDLog1 : public PDLogBase
 public:
   PDLog1(int log_id, int severity, const std::string& msg, const std::string& cause,
          const std::string& effect,
-         int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+         const std::string& action) : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
-    va_list ap;
-    va_start(ap, action);
-    _action[0] = action;
-    for (int i = 1; i < num; i++)
-    {
-      _action[i] = va_arg(ap, const char*);
-    }
-    va_end(ap);
   };
   void log(T1 v1) const
   {
@@ -193,16 +154,8 @@ template<class T1, class T2> class PDLog2 : public PDLogBase
 public:
   PDLog2(int log_id, int severity, const std::string& msg, const std::string& cause,
          const std::string& effect,
-         int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+         const std::string& action, ...) : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
-    va_list ap;
-    va_start(ap, action);
-    _action[0] = action;
-    for (int i = 1; i < num; i++)
-    {
-      _action[i] = va_arg(ap, const char*);
-    }
-    va_end(ap);
   };
   void log(T1 v1, T2 v2) const
   {
@@ -224,16 +177,8 @@ template<class T1, class T2, class T3> class PDLog3 : public PDLogBase
 public:
   PDLog3(int log_id, int severity, const std::string& msg, const std::string& cause,
          const std::string& effect,
-         int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+         const std::string& action, ...) : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
-    va_list ap;
-    va_start(ap, action);
-    _action[0] = action;
-    for (int i = 1; i < num; i++)
-    {
-      _action[i] = va_arg(ap, const char*);
-    }
-    va_end(ap);
   };
   void log(T1 v1, T2 v2, T3 v3) const
   {
@@ -257,16 +202,8 @@ template<class T1, class T2, class T3, class T4> class PDLog4 : public PDLogBase
 public:
   PDLog4(int log_id, int severity, const std::string& msg, const std::string& cause,
          const std::string& effect,
-         int num, const char* action, ...) : PDLogBase(log_id, severity, msg, cause, effect)
+         const std::string& action) : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
-    va_list ap;
-    va_start(ap, action);
-    _action[0] = action;
-    for (int i = 1; i < num; i++)
-    {
-      _action[i] = va_arg(ap, const char*);
-    }
-    va_end(ap);
   };
   void log(T1 v1, T2 v2, T3 v3, T4 v4) const
   {
@@ -280,7 +217,6 @@ public:
 
 protected:
 };
-
 
 
 /// CPP_COMMON syslog identities
@@ -299,7 +235,6 @@ static const PDLog CL_DIAMETER_START
   "Diameter stack is starting",
   "Diameter stack is beginning initialization",
   "Normal",
-  1,
   "None"
 );
 static const PDLog CL_DIAMETER_INIT_CMPL
@@ -309,7 +244,6 @@ static const PDLog CL_DIAMETER_INIT_CMPL
   "Diameter stack initialization completed",
   "Diameter stack has completed initialization",
   "Normal",
-  1,
   "None"
 );
 static const PDLog4<const char*, int, const char*, const char*> CL_DIAMETER_ROUTE_ERR
@@ -319,10 +253,9 @@ static const PDLog4<const char*, int, const char*, const char*> CL_DIAMETER_ROUT
   "Diameter routing error: %s for message with Command-Code %d, Destination-Host %s and Destination-Realm %s",
   "No route was found for a Diameter message",
   "The Diameter message with the specified command code could not be routed to the destination host with the destination realm",
-  4,
-  "(1). Check the installation guide for Diameter host configuration.",
-  "(2). Check to see that there is a route to the destination host.",
-  "Check for IP connectivity between the homestead host and the hss host using ping.",
+  "(1). Check the installation guide for Diameter host configuration. "
+  "(2). Check to see that there is a route to the destination host. "
+  "Check for IP connectivity between the homestead host and the hss host using ping. "
   "Wireshark the interface on homestead and the hss"
 );
 static const PDLog1<const char*> CL_DIAMETER_CONN_ERR
@@ -332,10 +265,9 @@ static const PDLog1<const char*> CL_DIAMETER_CONN_ERR
   "Failed to make a Diameter connection to host %s",
   "A Diameter connection attempt failed to the specified host",
   "This impacts the ability to register, subscribe, or make a call",
-  4,
-  "(1). Check the installation guide for Diameter host configuration.",
-  "(2). Check to see that there is a route to the destination host.",
-  "Check for IP connectivity between the homestead host and the hss host using ping.",
+  "(1). Check the installation guide for Diameter host configuration. "
+  "(2). Check to see that there is a route to the destination host. "
+  "Check for IP connectivity between the homestead host and the hss host using ping. "
   "Wireshark the interface on homestead and the hss"
 );
 static const PDLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
@@ -345,8 +277,7 @@ static const PDLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
   "%s failed to communicate with http server %s with curl error %s code %d",
   "An HTTP connection attempt failed to the specified server with the specified error code",
   "This condition impacts the ability to register, subscribe, or make a call.",
-  2,
-  "(1). Check to see if the specified host has failed.",
+  "(1). Check to see if the specified host has failed. "
   "(2). Check to see if there is TCP connectivity to the host by using ping and/or Wireshark."
 );
 
