@@ -81,15 +81,22 @@ _In the current implementation, this statistic is reported on every change to th
 
 A CLI script is supplied to query the current state of either of the two statistics of a given host, used as:
 
-    cw_stat <hostname> <statname> [-p <port>]
+    cw_stat <hostname> <port> [<statname>]
 
-Where `<statname>` may be `client_count`, `connected_sprouts` or blank to query both at once.
+Where:
+ * `port` is a comma-separated list of ports to connect to
+ *  `<statname>` may be `client_count`, `connected_sprouts` or blank to query both at once.
+
+Each Clearwater component presents statistics on a different port - these are:
+ * 6666 for `Sprout`
+ * 6667 for `Homestead`
+ * 6669 for `Bono`
 
 The CLI may alternatively be run in subscription mode with
 
-    cw_stat -s <hostname> <statname> [-p port]
+    cw_stat -s <hostname> <port> <statname>
 
-which will stay connected to the specified host and will report changes until killed (with `Ctrl + C`).
+which will stay connected to the specified host and will report changes until killed (with `Ctrl + C`). Subscription mode is only supported for single statistics.
 
 ## Client Usage Instructions
 
@@ -97,9 +104,9 @@ The CLI client is made up of a ruby library and launcher script, found in the `l
 
 In this folder, run `bundle install` (if you're using a system-wide ruby, you'll need `sudo` on this line) to pull in the appropriate gems then run `bin/cw_stat` for usage instructions.  As an example, to query the current client count on `bono-1.cw-ngv.com`, run
 
-    bin/cw_stat bono-1.cw-ngv.com client_count -p 6669
+    bin/cw_stat bono-1.cw-ngv.com 6669 client_count
 
-If no statistics is specified, all known statistics will be queried.
+If no statistic is specified, all known statistics will be queried.
 
 ## Future development
 

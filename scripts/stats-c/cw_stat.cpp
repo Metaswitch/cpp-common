@@ -36,7 +36,7 @@
 
 // C++ re-implementation of Ruby cw_stat tool.
 // Runs significantly faster - useful on heavily-loaded cacti systems.
-// Usage: cw_stat <hostname> <statname> <port>
+// Usage: cw_stat <hostname> <port> <statname>
 // Compile: g++ -o cw_stat cw_stat.cpp -lzmq
 
 #include <string>

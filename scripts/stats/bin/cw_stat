@@ -23,22 +23,13 @@ def main
   }
 
   opts = OptionParser.new do |o|
-    o.banner = "Usage: cw_stat [options] <hostname> <port> [statname]"
+    o.banner = "Usage: cw_stat [options] <hostname> <port[,port,port]> [statname]"
     o.on("-v", "--[no-]verbose", "Run verbosely") do |v|
       options[:verbose] = v
     end
 
     o.on("-s", "--[no-]subscribe", "Stay subscribed to changes in the statistic") do |s|
       options[:subscribe] = s
-    end
-
-    o.on("-p", "--ports PORTLIST",
-         "When collecting multiple stats, the ports to pull stats from as a ",
-         "comma separated list (e.g. 6666,6667).  Defaults to 6666") do |p|
-      options[:ports] = p.split(",").map(&:to_i)
-
-      # to_i returns 0 if the string is not an integer.
-      fail "Invalid port option specified" if options[:ports].include? 0
     end
 
     o.on("-h", "--help", "Show this help") do |h|
@@ -64,23 +55,34 @@ def main
     exit 2
   else
     begin
-      port = Integer(port)
-    rescue ArgumentError
-      puts "Error: #{port} is not a valid port number\n\n#{opts}"
-      exit 3
+      port_map = port.split(",").map{|x| Integer(x)}
+      rescue ArgumentError
+        puts "Error: #{port} contains an invalid port number\n\n"
+        exit 3
     end
   end
 
   begin
+    stat_collectors = Array.new
+
     if statname.nil?
       if options[:subscribe]
-        puts "Subscription is only supported for single stats"
+        puts "Error: Subscription is only supported for single statistics"
+        exit 4
+      end
+
+      port_map.each do |p|
+        stat_collectors += CWStatCollector.all_collectors(hostname, p, options)
+      end
+    else
+      if options[:subscribe] and port_map.length > 1
+        puts "Error: Multiple ports aren't supported for subscriptions"
         exit 5
       end
 
-      stat_collectors = CWStatCollector.all_collectors(hostname, port, options)
-    else
-      stat_collectors = [CWStatCollector.new(hostname, port, statname, options)]
+      port_map.each do |p|
+        stat_collectors << CWStatCollector.new(hostname, p, statname, options)
+      end
     end
   rescue Exception => e
     puts "Error: #{e.message}"
