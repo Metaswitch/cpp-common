@@ -35,14 +35,15 @@
  */
 
 
-#ifndef SYSLOG_PROXY_H__
-#define SYSLOG_PROXY_H__
+#ifndef SYSLOG_FACADE_H__
+#define SYSLOG_FACADE_H__
 
 #include <features.h>
 #define __need___va_list
 #include <stdarg.h>
 
-// facade to avoid name collision between syslog.h and log.h
+// Facade to avoid name collision between syslog.h and log.h
+// Note that this is an extern "C" type file and is almost an exact duplicate of syslog.h
 
 extern void closelog (void);
 extern void openlog (__const char *__ident, int __option, int __facility);
