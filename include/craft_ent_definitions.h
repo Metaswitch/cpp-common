@@ -56,7 +56,6 @@ class PDLogBase
 public:
   enum
   {
-    MAX_ARG_SIZE=10,
     CL_CPP_COMMON_ID = 1000,
     CL_SPROUT_ID = 2000,
     CL_CHRONOS_ID = 3000,
