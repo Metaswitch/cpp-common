@@ -38,7 +38,7 @@
 
 const char* signalnames[] =
   {
-    "Hangup", // 1
+    "Hangup",              // signal equate=1
     "Terminal Interrupt",
     "Terminal Quit",
     "Illegal Instruction",
@@ -47,7 +47,7 @@ const char* signalnames[] =
     "Bus Error",
     "Arithmetic Error",
     "Kill",
-    "USR1", // 10
+    "USR1",                // 10
     "Segment Trap",
     "USR2",
     "PIPE",
@@ -57,7 +57,7 @@ const char* signalnames[] =
     "CHLD",
     "CONT",
     "Stop",
-    "Terminal stop", // 20
+    "Terminal stop",       // 20
     "TTIN",
     "TTOU",
     "URG",
@@ -68,6 +68,6 @@ const char* signalnames[] =
     "WINCH",
     "POLL",
     "LOST",
-    "Power", // 30
+    "Power",               // 30
     "System"
   };

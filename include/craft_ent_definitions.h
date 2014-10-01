@@ -98,19 +98,18 @@ protected:
 class PDLog : public PDLogBase
 {
 public:
-  // Note that num is the size of the action list
   PDLog(int log_id, int severity, const std::string& msg, const std::string& cause,
         const std::string& effect,
         const std::string&  action) : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
-    // Variable number of arguments are definec to permit multiple(optional) actions
-    // Since arrays cannot be instantiated in a constructor va_args are used
   };
   void log() const
   {
     char buf[256];
     // The format for the sprintf is defined by buf
     // The pragmas are used to avoid compiler warnings
+    // Normally this would be a security issue but the 
+    // template type insures the log call agrrems with the format
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     sprintf(buf, (const char*)_msg.c_str());
@@ -122,7 +121,7 @@ protected:
 };
 
 ///
-/// PDLOg with one log argument -- The log argument type is T1
+/// PDLOg with one log method argument -- The log argument type is T1
 template<class T1> class PDLog1 : public PDLogBase
 {
 public:
@@ -136,6 +135,8 @@ public:
     char buf[256];
     // The format for the sprintf is defined by buf
     // The pragmas are used to avoid compiler warnings
+    // Normally this would be a security issue but the 
+    // template type insures the log call agrrems with the format
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     sprintf(buf, (const char*)_msg.c_str(), v1);
@@ -194,7 +195,7 @@ protected:
 
 
 ///
-/// PDLOg with four log argument -- The log argument types are T1, T2, T3, and T4
+/// PDLOg with four log arguments -- The log argument types are T1, T2, T3, and T4
 ///
 template<class T1, class T2, class T3, class T4> class PDLog4 : public PDLogBase
 {
