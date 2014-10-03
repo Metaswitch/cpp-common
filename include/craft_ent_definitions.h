@@ -56,6 +56,7 @@ class PDLogBase
 public:
   enum
   {
+    MAX_FORMAT_LINE = 512,
     CL_CPP_COMMON_ID = 1000,
     CL_SPROUT_ID = 2000,
     CL_CHRONOS_ID = 3000,
@@ -105,14 +106,14 @@ public:
   };
   void log() const
   {
-    char buf[256];
-    // The format for the sprintf is defined by buf
+    char buf[MAX_FORMAT_LINE];
+    // The format for the snprintf is defined by buf
     // The pragmas are used to avoid compiler warnings
     // Normally this would be a security issue but the 
     // template type insures the log call agrrems with the format
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
-    sprintf(buf, (const char*)_msg.c_str());
+    snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str());
 #pragma GCC diagnostic pop
     dcealog(buf);
   };
@@ -132,14 +133,14 @@ public:
   };
   void log(T1 v1) const
   {
-    char buf[256];
-    // The format for the sprintf is defined by buf
+    char buf[MAX_FORMAT_LINE];
+    // The format for the snprintf is defined by buf
     // The pragmas are used to avoid compiler warnings
     // Normally this would be a security issue but the 
     // template type insures the log call agrrems with the format
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
-    sprintf(buf, (const char*)_msg.c_str(), v1);
+    snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str(), v1);
 #pragma GCC diagnostic pop
     dcealog(buf);
   };
@@ -159,10 +160,10 @@ public:
   };
   void log(T1 v1, T2 v2) const
   {
-    char buf[256];
+    char buf[MAX_FORMAT_LINE];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
-    sprintf(buf, (const char*)_msg.c_str(), v1, v2);
+    snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str(), v1, v2);
 #pragma GCC diagnostic pop
     dcealog(buf);
   };
@@ -182,10 +183,10 @@ public:
   };
   void log(T1 v1, T2 v2, T3 v3) const
   {
-    char buf[256];
+    char buf[MAX_FORMAT_LINE];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
-    sprintf(buf, (const char*)_msg.c_str(), v1, v2, v3);
+    snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str(), v1, v2, v3);
 #pragma GCC diagnostic pop
     dcealog(buf);
   };
@@ -207,10 +208,10 @@ public:
   };
   void log(T1 v1, T2 v2, T3 v3, T4 v4) const
   {
-    char buf[256];
+    char buf[MAX_FORMAT_LINE];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
-    sprintf(buf, (const char*)_msg.c_str(), v1, v2, v3, v4);
+    snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str(), v1, v2, v3, v4);
 #pragma GCC diagnostic pop
     dcealog(buf);
   };
