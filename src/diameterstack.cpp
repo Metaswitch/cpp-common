@@ -754,7 +754,13 @@ void Transaction::on_response(void* data, struct msg** rsp)
   if (cm)
   {
     int32_t rc;
-    if (msg.result_code(rc) && ((rc >= 3001) && (rc <= 3010)))
+    if (msg.result_code(rc) && (((rc >= 3001) && (rc <= 3010)) ||
+                                ((rc >= 4002) && (rc <= 4003)) ||
+                                ((rc >= 5001) && (rc <= 5002)) ||
+                                ((rc >= 5004) && (rc <= 5005)) ||
+                                ((rc >= 5007) && (rc <= 5011)) ||
+                                ((rc >= 5013) && (rc <= 5015)) ||
+                                 (rc == 5017) || (rc == 4181)    ))
     {
       cm->inform_failure();
     }

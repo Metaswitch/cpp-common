@@ -41,10 +41,9 @@
 
 #include <string>
 #include <vector>
+#include <atomic>
 
 #include "eventq.h"
-
-
 
 /// @class Alarm
 ///
@@ -53,11 +52,7 @@
 class Alarm
 {
 public:
-  Alarm() {};
   Alarm(const std::string& issuer, const std::string& identifier);
-
-  void set_issuer(const std::string& issuer) {_issuer = issuer;}
-  void set_identifier(const std::string& identifier) {_identifier = identifier;}
 
   std::string& get_issuer() {return _issuer;}
   std::string& get_identifier() {return _identifier;}
@@ -72,8 +67,6 @@ private:
   std::string _issuer;
   std::string _identifier;  
 };  
-
-
 
 /// @class AlarmPair
 ///
@@ -98,18 +91,14 @@ public:
 
   /// Indicates if last operation via this object was a set for the non CLEAR
   /// severity alarm.
-  bool alarmed() {return _alarmed;}
+  bool alarmed() {return _alarmed.load();}
 
 private:
-  AlarmPair() {}
-
   Alarm _clear_alarm;
   Alarm _set_alarm;
 
-  bool _alarmed;
+  std::atomic<bool> _alarmed;
 };
-
-
 
 /// @class AlarmReqAgent
 ///
@@ -160,6 +149,5 @@ private:
 
   static AlarmReqAgent _instance;
 };
-
 
 #endif

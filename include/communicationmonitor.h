@@ -40,10 +40,9 @@
 #include <pthread.h>
 
 #include <string>
+#include <atomic>
 
 #include "alarm.h"
-
-
 
 /// @class CommunicationMonitor
 ///
@@ -64,26 +63,20 @@
 /// precise at low call volume.
 class CommunicationMonitor
 {
-private:
-  enum {
-    DEFAULT_CLEAR_CONFIRM_SEC = 30,
-    DEFAULT_SET_CONFIRM_SEC = 15
-  };
-
 public:
   CommunicationMonitor(const std::string& issuer,
                        const std::string& clear_alarm_id,
                        const std::string& set_alarm_id,
-                       unsigned int clear_confirm_sec = DEFAULT_CLEAR_CONFIRM_SEC,
-                       unsigned int set_confirm_sec = DEFAULT_SET_CONFIRM_SEC);
+                       unsigned int clear_confirm_sec = 30,
+                       unsigned int set_confirm_sec = 15);
 
  ~CommunicationMonitor();
 
-  /// Peg a successful communication. If the current time in mS is available
+  /// Report a successful communication. If the current time in ms is available
   /// to the caller it should be passed to avoid duplicate work.
   void inform_success(unsigned long now_ms = 0);
 
-  /// Peg a failed communication. If the current time in mS is available to
+  /// Report a failed communication. If the current time in ms is available to
   /// the caller it should be passed to avoid duplicate work.
   void inform_failure(unsigned long now_ms = 0);
 
@@ -96,14 +89,13 @@ private:
   unsigned int _clear_confirm_ms;
   unsigned int _set_confirm_ms;
 
-  unsigned int _sent;
-  unsigned int _failed;
+  std::atomic<int> _sent;
+  std::atomic<int> _failed;
 
   unsigned long _next_check;
 
   pthread_mutex_t _lock;
 };
-
 
 #endif
 

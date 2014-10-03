@@ -666,6 +666,8 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
 
     if (_comm_monitor)
     {
+      // If both attempts fail due to overloaded downstream nodes, consider
+      // it a communication failure.
       if (num_http_503_responses >= 2)
       {
         _comm_monitor->inform_failure(now_ms); // LCOV_EXCL_LINE - No UT for 503 fails

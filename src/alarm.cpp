@@ -38,21 +38,16 @@
 #include <time.h>
 #include <zmq.h>
 
-#include <sstream>
-
 #include "alarm.h"
 #include "log.h"
 
-
-
 AlarmReqAgent AlarmReqAgent::_instance;
-
-
 
 // LCOV_EXCL_START - No UT for base construction, nor issue/clear
 
-Alarm::Alarm(const std::string& issuer, const std::string& identifier)
-             : _issuer(issuer), _identifier(identifier)
+Alarm::Alarm(const std::string& issuer, const std::string& identifier) :
+  _issuer(issuer),
+  _identifier(identifier)
 {
 }
 
@@ -69,7 +64,6 @@ void Alarm::issue()
   LOG_DEBUG("%s issued %s alarm", _issuer.c_str(), _identifier.c_str());
 }
 
-
 void Alarm::clear_all(const std::string& issuer)
 {
   std::vector<std::string> req;
@@ -84,37 +78,30 @@ void Alarm::clear_all(const std::string& issuer)
 
 // LCOV_EXCL_STOP
 
-
-
 AlarmPair::AlarmPair(const std::string& issuer,
                      const std::string& clear_alarm_id,
                      const std::string& set_alarm_id) :
+  _clear_alarm(issuer, clear_alarm_id),
+  _set_alarm(issuer, set_alarm_id),
   _alarmed(false)
 {
-  _clear_alarm.set_issuer(issuer);
-  _clear_alarm.set_identifier(clear_alarm_id);
-
-  _set_alarm.set_issuer(issuer);
-  _set_alarm.set_identifier(set_alarm_id);
 }
-
 
 // LCOV_EXCL_START - No UT for set/clear
 
 void AlarmPair::set()
 {
-  bool previously_alarmed = __sync_fetch_and_or(&_alarmed, true);
+  bool previously_alarmed = _alarmed.exchange(true);
 
-  if (! previously_alarmed)
+  if (!previously_alarmed)
   {
     _set_alarm.issue();
   }
 }
 
-
 void AlarmPair::clear()
 {
-  bool previously_alarmed = __sync_fetch_and_and(&_alarmed, false);
+  bool previously_alarmed = _alarmed.exchange(false);
 
   if (previously_alarmed)
   {
@@ -124,13 +111,11 @@ void AlarmPair::clear()
 
 // LCOV_EXCL_STOP
 
-
-
 // LCOV_EXCL_START - No UT for agent thread
 
 bool AlarmReqAgent::start()
 {
-  if (! zmq_init_ctx())
+  if (!zmq_init_ctx())
   {
     return false;
   }
@@ -147,7 +132,6 @@ bool AlarmReqAgent::start()
   return true;
 }
 
-
 void AlarmReqAgent::stop()
 {
   _req_q.terminate();
@@ -157,15 +141,13 @@ void AlarmReqAgent::stop()
   pthread_join(_thread, NULL);
 }
 
-
 void AlarmReqAgent::alarm_request(std::vector<std::string> req)
 {
-  if (! _req_q.push_noblock(req))
+  if (!_req_q.push_noblock(req))
   {
     LOG_DEBUG("AlarmReqAgent: queue overflowed");
   }
 }
-
 
 void* AlarmReqAgent::agent_thread(void* alarm_req_agent)
 {
@@ -174,11 +156,9 @@ void* AlarmReqAgent::agent_thread(void* alarm_req_agent)
   return NULL;
 }
 
-
 AlarmReqAgent::AlarmReqAgent() : _ctx(NULL), _sck(NULL)
 {
 }
-
 
 bool AlarmReqAgent::zmq_init_ctx()
 {
@@ -192,7 +172,6 @@ bool AlarmReqAgent::zmq_init_ctx()
   return true;
 }
 
-
 bool AlarmReqAgent::zmq_init_sck()
 {
   _sck = zmq_socket(_ctx, ZMQ_REQ);
@@ -202,6 +181,8 @@ bool AlarmReqAgent::zmq_init_sck()
     return false;
   }
 
+  // Configure no linger period so a graceful shutdown will be immediate. It is
+  // ok for any pending messages to be dropped as a result of a shutdown.  
   int linger = 0;
   if (zmq_setsockopt(_sck, ZMQ_LINGER, &linger, sizeof(linger)) == -1)
   {
@@ -209,10 +190,8 @@ bool AlarmReqAgent::zmq_init_sck()
     return false;
   }
 
-  std::stringstream ss;
-  ss << "tcp://127.0.0.1:" << ZMQ_PORT;
-
-  if (zmq_connect(_sck, ss.str().c_str()) == -1)
+  std::string addr = "tcp://127.0.0.1:" + std::to_string(ZMQ_PORT);
+  if (zmq_connect(_sck, addr.c_str()) == -1)
   {
     LOG_ERROR("AlarmReqAgent: zmq_connect failed: %s", zmq_strerror(errno));
     return false;
@@ -220,7 +199,6 @@ bool AlarmReqAgent::zmq_init_sck()
 
   return true;
 }
-
 
 void AlarmReqAgent::zmq_clean_ctx()
 {
@@ -235,7 +213,6 @@ void AlarmReqAgent::zmq_clean_ctx()
   }
 }
 
-
 void AlarmReqAgent::zmq_clean_sck()
 {
   if (_sck)
@@ -249,10 +226,9 @@ void AlarmReqAgent::zmq_clean_sck()
   }
 }
 
-
 void AlarmReqAgent::agent()
 {
-  if (! zmq_init_sck())
+  if (!zmq_init_sck())
   {
     return;
   }

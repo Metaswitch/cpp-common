@@ -37,7 +37,6 @@
 #include "communicationmonitor.h"
 #include "log.h"
 
-
 CommunicationMonitor::CommunicationMonitor(const std::string& issuer,
                                            const std::string& clear_alarm_id,
                                            const std::string& set_alarm_id,
@@ -53,28 +52,24 @@ CommunicationMonitor::CommunicationMonitor(const std::string& issuer,
   pthread_mutex_init(&_lock, NULL);
 }
 
-
 CommunicationMonitor::~CommunicationMonitor()
 {
   pthread_mutex_destroy(&_lock);
 }
 
-
 void CommunicationMonitor::inform_success(unsigned long now_ms)
 {
-  __sync_fetch_and_add(&_sent, 1);
+  _sent++;
 
   update_alarm_state(now_ms);
 }
-
 
 void CommunicationMonitor::inform_failure(unsigned long now_ms)
 {
-  __sync_fetch_and_add(&_failed, 1);
+  _failed++;
 
   update_alarm_state(now_ms);
 }
-
 
 void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
 {
@@ -84,15 +79,25 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
   {
     // LCOV_EXCL_START - no UT for check cycle 
 
+    // Current time has passed our monitor interval time, so take the lock
+    // and see if we are the lucky thread that gets to check for an alarm
+    // condition.
     pthread_mutex_lock(&_lock);
 
+    // If current time is still past the monitor interval time we are the
+    // the lucky one, otherwise somebody beat us to the punch (so just drop
+    // the lock and return).
     if (now_ms > _next_check)
     {
-      unsigned int sent   = __sync_fetch_and_and(&_sent,   0);
-      unsigned int failed = __sync_fetch_and_and(&_failed, 0);
+      // Grab the current counts and reset them to zero in a lockless manner.
+      unsigned int sent   = _sent.fetch_and(0);
+      unsigned int failed = _failed.fetch_and(0);
 
-      if (! _alarms.alarmed())
+      if (!_alarms.alarmed())
       {
+        // A communication alarm is not currently set so see if one needs to
+        // be. This will be the case if there were no successful comms over
+        // the interval, and at least one failed comm.
         if ((sent == 0) && (failed != 0))
         {
           _alarms.set();
@@ -100,6 +105,9 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
       }
       else
       {
+        // A communication alarm is currently set so see if it needs to be
+        // cleared. This will be the case if at lease one successful comm
+        // was reported over the interval.
         if (sent != 0)
         {
           _alarms.clear();
@@ -115,7 +123,6 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
     // LCOV_EXCL_STOP
   }
 }
-
 
 unsigned long CommunicationMonitor::current_time_ms()
 {

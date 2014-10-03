@@ -396,11 +396,12 @@ public:
   bool get_u32_from_avp(const Dictionary::AVP& type, uint32_t& i32) const;
   inline bool result_code(int32_t& result)
   {
-    if (! _result)
+    if (!_result)
     {
       get_i32_from_avp(dict()->RESULT_CODE, _result);
     }
-    return (result = _result) != 0;
+    result = _result;
+    return (result != 0);
   }
   int32_t experimental_result_code() const;
   int32_t vendor_id() const;
