@@ -106,8 +106,8 @@ public:
   };
   void log() const
   {
-    char buf[MAX_FORMAT_LINE];
     // The format for the snprintf is defined by buf
+    char buf[MAX_FORMAT_LINE];
     // The pragmas are used to avoid compiler warnings
     // Normally this would be a security issue but the 
     // template type insures the log call agrrems with the format
@@ -133,8 +133,8 @@ public:
   };
   void log(T1 v1) const
   {
-    char buf[MAX_FORMAT_LINE];
     // The format for the snprintf is defined by buf
+    char buf[MAX_FORMAT_LINE];
     // The pragmas are used to avoid compiler warnings
     // Normally this would be a security issue but the 
     // template type insures the log call agrrems with the format
