@@ -56,7 +56,7 @@ class PDLogBase
 public:
   enum
   {
-    MAX_FORMAT_LINE = 512,
+    MAX_FORMAT_LINE = 1024,
     CL_CPP_COMMON_ID = 1000,
     CL_SPROUT_ID = 2000,
     CL_CHRONOS_ID = 3000,
