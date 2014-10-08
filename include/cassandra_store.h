@@ -188,14 +188,14 @@ public:
   ///                          asynchronously.  If more requests are added the
   ///                          call to do_async() will block until some existing
   ///                          requests have been processed.  0 => no limit.
+  /// @param comm_monitor    - A monitor to track communication with the local
+  ///                          Cassandra instance, and set/clear alarms based on
+  ///                          recent activity.
   virtual void configure(std::string cass_hostname,
                          uint16_t cass_port,
                          unsigned int num_threads = 0,
-                         unsigned int max_queue = 0);
-
-  /// Set a monitor to track communication with the local Cassandra instance,
-  /// and set/clear alarms based upon recent activity.
-  void set_comm_monitor(CommunicationMonitor* comm_monitor);
+                         unsigned int max_queue = 0,
+                         CommunicationMonitor* comm_monitor = NULL);
 
   /// Start the store.
   ///

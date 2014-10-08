@@ -632,8 +632,8 @@ public:
 
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
-  virtual void configure(std::string filename);
-  virtual void set_comm_monitor(CommunicationMonitor* comm_monitor);
+  virtual void configure(std::string filename, 
+                         CommunicationMonitor* comm_monitor = NULL);
   virtual CommunicationMonitor* get_comm_monitor() {return _comm_monitor;}
   virtual void advertize_application(const Dictionary::Application::Type type,
                                      const Dictionary::Application& app);

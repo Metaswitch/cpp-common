@@ -280,7 +280,8 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
   return;
 }
 
-void Stack::configure(std::string filename)
+void Stack::configure(std::string filename,
+                      CommunicationMonitor* comm_monitor)
 {
   initialize();
   LOG_STATUS("Configuring Diameter stack from file %s", filename.c_str());
@@ -290,12 +291,6 @@ void Stack::configure(std::string filename)
     throw Exception("fd_core_parseconf", rc); // LCOV_EXCL_LINE
   }
   populate_avp_map();
-}
-
-/// Set a monitor to track Diameter communication state, and set/clear
-/// alarms based upon recent activity.
-void Stack::set_comm_monitor(CommunicationMonitor* comm_monitor)
-{
   _comm_monitor = comm_monitor;
 }
 

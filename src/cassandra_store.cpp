@@ -139,7 +139,8 @@ void Store::initialize()
 void Store::configure(std::string cass_hostname,
                       uint16_t cass_port,
                       unsigned int num_threads,
-                      unsigned int max_queue)
+                      unsigned int max_queue,
+                      CommunicationMonitor* comm_monitor)
 {
   LOG_STATUS("Configuring store");
   LOG_STATUS("  Hostname:  %s", cass_hostname.c_str());
@@ -150,11 +151,6 @@ void Store::configure(std::string cass_hostname,
   _cass_port = cass_port;
   _num_threads = num_threads;
   _max_queue = max_queue;
-}
-
-
-void Store::set_comm_monitor(CommunicationMonitor* comm_monitor)
-{
   _comm_monitor = comm_monitor;
 }
 
