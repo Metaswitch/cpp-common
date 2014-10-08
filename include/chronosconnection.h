@@ -50,10 +50,9 @@ class ChronosConnection
 public:
   ChronosConnection(const std::string& chronos,
                     std::string callback_host,
-                    HttpResolver* resolver);
+                    HttpResolver* resolver,
+                    CommunicationMonitor* comm_monitor);
   virtual ~ChronosConnection();
-
-  void set_comm_monitor(CommunicationMonitor* comm_monitor);
 
   virtual HTTPCode send_delete(const std::string& delete_id,
                                SAS::TrailId trail);

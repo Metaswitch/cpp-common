@@ -79,14 +79,14 @@ public:
                  const std::string& stat_name,
                  LoadMonitor* load_monitor,
                  LastValueCache* lvc,
-                 SASEvent::HttpLogLevel);
+                 SASEvent::HttpLogLevel,
+                 CommunicationMonitor* comm_monitor);
   HttpConnection(const std::string& server,
                  bool assert_user,
                  HttpResolver* resolver,
-                 SASEvent::HttpLogLevel);
+                 SASEvent::HttpLogLevel,
+                 CommunicationMonitor* comm_monitor);
   virtual ~HttpConnection();
-
-  void set_comm_monitor(CommunicationMonitor* comm_monitor);
 
   virtual long send_get(const std::string& path,
                         std::string& response,

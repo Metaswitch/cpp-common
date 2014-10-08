@@ -48,7 +48,8 @@ FakeHttpConnection::FakeHttpConnection() :
                  "connected_homesteads",
                  NULL,
                  NULL,
-                 SASEvent::HttpLogLevel::PROTOCOL)
+                 SASEvent::HttpLogLevel::PROTOCOL,
+                 NULL)
 {
 }
 

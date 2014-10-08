@@ -94,14 +94,15 @@ HttpConnection::HttpConnection(const std::string& server,
                                const std::string& stat_name,
                                LoadMonitor* load_monitor,
                                LastValueCache* lvc,
-                               SASEvent::HttpLogLevel sas_log_level) :
+                               SASEvent::HttpLogLevel sas_log_level,
+                               CommunicationMonitor* comm_monitor) :
   _server(server),
   _host(host_from_server(server)),
   _port(port_from_server(server)),
   _assert_user(assert_user),
   _resolver(resolver),
   _sas_log_level(sas_log_level),
-  _comm_monitor(NULL)
+  _comm_monitor(comm_monitor)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -122,14 +123,15 @@ HttpConnection::HttpConnection(const std::string& server,
 HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
                                HttpResolver* resolver,
-                               SASEvent::HttpLogLevel sas_log_level) :
+                               SASEvent::HttpLogLevel sas_log_level,
+                               CommunicationMonitor* comm_monitor) :
   _server(server),
   _host(host_from_server(server)),
   _port(port_from_server(server)),
   _assert_user(assert_user),
   _resolver(resolver),
   _sas_log_level(sas_log_level),
-  _comm_monitor(NULL)
+  _comm_monitor(comm_monitor)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -165,13 +167,6 @@ HttpConnection::~HttpConnection()
     delete _statistic;
     _statistic = NULL;
   }
-}
-
-/// Set a monitor to track HTTP REST communication state, and set/clear
-/// alarms based upon recent activity.
-void HttpConnection::set_comm_monitor(CommunicationMonitor* comm_monitor)
-{
-  _comm_monitor = comm_monitor;
 }
 
 /// Get the thread-local curl handle if it exists, and create it if not.

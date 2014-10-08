@@ -61,15 +61,11 @@ extern "C" {
 class MemcachedStore : public Store
 {
 public:
-  MemcachedStore(bool binary, const std::string& config_file);
+  MemcachedStore(bool binary,
+                 const std::string& config_file,
+                 CommunicationMonitor* comm_monitor,
+                 AlarmPair* vbucket_alarms);
   ~MemcachedStore();
-
-  /// Set a monitor to track replica communication state, and set/clear
-  /// alarms based upon recent activity.
-  void set_comm_monitor(CommunicationMonitor* comm_monitor);
-
-  /// Set alarms to be used for reporting vbucket inaccessible conditions.
-  void set_vbucket_alarms(AlarmPair* vbucket_alarms);
 
   /// Flags that the store should use a new view of the memcached cluster to
   /// distribute data.  Note that this is public because it is called from

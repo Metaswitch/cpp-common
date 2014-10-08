@@ -64,7 +64,9 @@
 /// @param config_file  File name (including directory path) of the configuration
 ///                     file.
 MemcachedStore::MemcachedStore(bool binary,
-                               const std::string& config_file) :
+                               const std::string& config_file,
+                               CommunicationMonitor* comm_monitor,
+                               AlarmPair* vbucket_alarms) :
   _config_file(config_file),
   _updater(NULL),
   _replicas(2),
@@ -74,10 +76,10 @@ MemcachedStore::MemcachedStore(bool binary,
   _servers(),
   _read_replicas(_vbuckets),
   _write_replicas(_vbuckets),
-  _comm_monitor(NULL),
+  _comm_monitor(comm_monitor),
   _vbucket_comm_state(_vbuckets),
   _vbucket_comm_fail_count(0),
-  _vbucket_alarms(NULL)
+  _vbucket_alarms(vbucket_alarms)
 {
   // Create the thread local key for the per thread data.
   pthread_key_create(&_thread_local, MemcachedStore::cleanup_connection);
@@ -124,21 +126,6 @@ MemcachedStore::~MemcachedStore()
   pthread_mutex_destroy(&_vbucket_comm_lock);
 
   pthread_rwlock_destroy(&_view_lock);
-}
-
-
-/// Set a monitor to track replica communication state, and set/clear
-/// alarms based upon recent activity.
-void MemcachedStore::set_comm_monitor(CommunicationMonitor* comm_monitor)
-{
-  _comm_monitor = comm_monitor;
-}
-
-
-/// Set alarms to be used for reporting vbucket inaccessible conditions.
-void MemcachedStore::set_vbucket_alarms(AlarmPair* vbucket_alarms)
-{
-  _vbucket_alarms = vbucket_alarms;
 }
 
 

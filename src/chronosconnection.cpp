@@ -48,12 +48,14 @@
 
 ChronosConnection::ChronosConnection(const std::string& server,
                                      std::string callback_host,
-                                     HttpResolver* resolver) :
+                                     HttpResolver* resolver,
+                                     CommunicationMonitor* comm_monitor) :
   _callback_host(callback_host),
   _http(new HttpConnection(server,
                            false,
                            resolver,
-                           SASEvent::HttpLogLevel::DETAIL))
+                           SASEvent::HttpLogLevel::DETAIL,
+                           comm_monitor))
 {
 }
 
@@ -62,13 +64,6 @@ ChronosConnection::~ChronosConnection()
 {
   delete _http;
   _http = NULL;
-}
-
-/// Set a monitor to track HTTP REST communication state, and set/clear
-/// alarms based upon recent activity.
-void ChronosConnection::set_comm_monitor(CommunicationMonitor* comm_monitor)
-{
-  _http->set_comm_monitor(comm_monitor);
 }
 
 HTTPCode ChronosConnection::send_delete(const std::string& delete_identity,
