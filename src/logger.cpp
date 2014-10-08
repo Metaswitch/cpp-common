@@ -223,6 +223,13 @@ void Logger::cycle_log_file(const timestamp_t& ts)
           ts.hour);
   _fd = fopen(fname, "a");
 
+  // Set up /var/log/<component>/<component>_current.txt as a symlink
+  char cfname[100];
+  sprintf(cfname, "%s_current.txt",
+          _prefix.c_str());
+  unlink(cfname);
+  symlink(fname, cfname);
+
   if (_fd == NULL)
   {
     // Failed to open logfile, so save errno until we can log it.
