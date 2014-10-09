@@ -70,7 +70,7 @@ public:
   // Writes the description. cause, effect, and actions to syslog
   virtual void dcealog(const char* buf) const
   {
-    syslog(_severity, "%d - Description: %s Cause: %s Effect: %s Action: %s", _log_id, buf, _cause.c_str(), _effect.c_str(), _action.c_str());
+    syslog(_severity, "%d - Description: %s @@Cause: %s @@Effect: %s @@Action: %s", _log_id, buf, _cause.c_str(), _effect.c_str(), _action.c_str());
   }
 protected:
   ///
