@@ -70,15 +70,15 @@ public:
                        unsigned int clear_confirm_sec = 30,
                        unsigned int set_confirm_sec = 15);
 
- ~CommunicationMonitor();
+  virtual ~CommunicationMonitor();
 
   /// Report a successful communication. If the current time in ms is available
   /// to the caller it should be passed to avoid duplicate work.
-  void inform_success(unsigned long now_ms = 0);
+  virtual void inform_success(unsigned long now_ms = 0);
 
   /// Report a failed communication. If the current time in ms is available to
   /// the caller it should be passed to avoid duplicate work.
-  void inform_failure(unsigned long now_ms = 0);
+  virtual void inform_failure(unsigned long now_ms = 0);
 
 private:
   void update_alarm_state(unsigned long now_ms);
