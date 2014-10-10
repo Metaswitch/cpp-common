@@ -156,6 +156,11 @@ void LoadMonitor::incr_penalties()
 }
 
 
+int LoadMonitor::get_target_latency_us()
+{
+  return target_latency;
+}
+
 void LoadMonitor::request_complete(int latency)
 {
   pthread_mutex_lock(&_lock);

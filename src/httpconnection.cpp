@@ -46,12 +46,13 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
-/// Total time to wait for a response from the server before giving
-/// up.  This is the value that affects the user experience, so should
-/// be set to what we consider acceptable.  Covers lookup, possibly
-/// multiple connection attempts, request, and response.  In
-/// milliseconds.
-static const long TOTAL_TIMEOUT_MS = 500;
+/// Total time to wait for a response from the server as a multiple of the
+/// configured target latency before giving up.  This is the value that affects
+/// the user experience, so should be set to what we consider acceptable.
+/// Covers lookup, possibly multiple connection attempts, request, and
+/// response.
+static const int TIMEOUT_LATENCY_MULTIPLIER = 5;
+static const int DEFAULT_LATENCY_US = 100000;
 
 /// Approximate length of time to wait before giving up on a
 /// connection attempt to a single address (in milliseconds).  cURL
@@ -110,6 +111,9 @@ HttpConnection::HttpConnection(const std::string& server,
   _statistic = new Statistic(stat_name, lvc);
   _statistic->report_change(no_stats);
   _load_monitor = load_monitor;
+  _timeout_ms = calculate_timeout_ms(load_monitor->get_target_latency_us());
+  LOG_STATUS("HttpConnection for server %s", _server.c_str());
+  LOG_STATUS("Response timeout: %ld", _timeout_ms);
 }
 
 /// Create an HTTP connection object.
@@ -135,6 +139,9 @@ HttpConnection::HttpConnection(const std::string& server,
   curl_global_init(CURL_GLOBAL_DEFAULT);
   _statistic = NULL;
   _load_monitor = NULL;
+  _timeout_ms = calculate_timeout_ms(DEFAULT_LATENCY_US);
+  LOG_STATUS("HttpConnection for server %s", _server.c_str());
+  LOG_STATUS("Response timeout: %ld", _timeout_ms);
 }
 
 HttpConnection::~HttpConnection()
@@ -193,8 +200,9 @@ CURL* HttpConnection::get_curl_handle()
     // connection around.
     curl_easy_setopt(curl, CURLOPT_MAXCONNECTS, 1L);
 
-    // Maximum time to wait for a response.
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, TOTAL_TIMEOUT_MS);
+    // Maximum time to wait for a response.  This is the target latency for
+    // this node plus a delta
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, _timeout_ms);
 
     // Time to wait until we establish a TCP connection to a single host.
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, SINGLE_CONNECT_TIMEOUT_MS);
@@ -910,3 +918,9 @@ int HttpConnection::port_from_server(const std::string& server)
   host_port_from_server(server, host, port);
   return port;
 }
+
+long HttpConnection::calculate_timeout_ms(int latency_us)
+{
+  return std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
+}
+

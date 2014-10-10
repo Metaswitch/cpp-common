@@ -62,6 +62,7 @@ class LoadMonitor
     virtual ~LoadMonitor();
     virtual bool admit_request();
     virtual void incr_penalties();
+    virtual int get_target_latency_us();
     virtual void request_complete(int latency);
 
   private:
