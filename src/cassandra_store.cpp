@@ -415,9 +415,16 @@ bool Store::run(Operation* op, SAS::TrailId trail)
   }
   else
   {
-    if (cass_result == CONNECTION_ERROR && _comm_monitor)
+    if (_comm_monitor)
     {
-      _comm_monitor->inform_failure();
+      if (cass_result == CONNECTION_ERROR)
+      {
+        _comm_monitor->inform_failure();
+      }
+      else
+      {
+        _comm_monitor->inform_success();
+      }
     }
 
     LOG_ERROR("Cassandra request failed: rc=%d, %s",
