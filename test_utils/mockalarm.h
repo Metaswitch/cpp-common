@@ -1,5 +1,5 @@
 /**
- * @file mockcommunicationmonitor.h Mock CommunicationMonitor.
+ * @file mockalarms.h Mock AlarmPair.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014  Metaswitch Networks Ltd
@@ -34,19 +34,20 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKCOMMUNICATIONMONITOR_H__
-#define MOCKCOMMUNICATIONMONITOR_H__
+#ifndef MOCKALARM_H__
+#define MOCKALARM_H__
 
 #include "gmock/gmock.h"
-#include "communicationmonitor.h"
+#include "alarm.h"
 
-class MockCommunicationMonitor : public CommunicationMonitor
+class MockAlarmPair : public AlarmPair
 {
 public:
-  MockCommunicationMonitor() : CommunicationMonitor("issuer", "set", "clear") {}
+  MockAlarmPair() : AlarmPair("issuer", "clear", "set") {}
 
-  MOCK_METHOD1(inform_success, void(unsigned long now_ms));
-  MOCK_METHOD1(inform_failure, void(unsigned long now_ms));
+  MOCK_METHOD0(clear, void());
+  MOCK_METHOD0(set, void());
+  MOCK_METHOD0(alarmed, bool());
 };
 
 #endif

@@ -43,8 +43,6 @@
 
 AlarmReqAgent AlarmReqAgent::_instance;
 
-// LCOV_EXCL_START - No UT for base construction, nor issue/clear
-
 Alarm::Alarm(const std::string& issuer, const std::string& identifier) :
   _issuer(issuer),
   _identifier(identifier)
@@ -76,8 +74,6 @@ void Alarm::clear_all(const std::string& issuer)
   LOG_DEBUG("%s cleared its alarms", issuer.c_str());
 }
 
-// LCOV_EXCL_STOP
-
 AlarmPair::AlarmPair(const std::string& issuer,
                      const std::string& clear_alarm_id,
                      const std::string& set_alarm_id) :
@@ -86,8 +82,6 @@ AlarmPair::AlarmPair(const std::string& issuer,
   _alarmed(false)
 {
 }
-
-// LCOV_EXCL_START - No UT for set/clear
 
 void AlarmPair::set()
 {
@@ -109,10 +103,6 @@ void AlarmPair::clear()
   }
 }
 
-// LCOV_EXCL_STOP
-
-// LCOV_EXCL_START - No UT for agent thread
-
 bool AlarmReqAgent::start()
 {
   if (!zmq_init_ctx())
@@ -120,13 +110,38 @@ bool AlarmReqAgent::start()
     return false;
   }
 
+  _req_q = new eventq<std::vector<std::string> >(MAX_Q_DEPTH);
+
+  pthread_mutex_init(&_start_mutex, NULL);
+  pthread_cond_init(&_start_cond, NULL);
+
+  pthread_mutex_lock(&_start_mutex);
+
   int rc = pthread_create(&_thread, NULL, &agent_thread, (void*) &_instance);
+  if (rc == 0)
+  {
+    pthread_cond_wait(&_start_cond, &_start_mutex);
+  }
+
+  pthread_mutex_unlock(&_start_mutex);
+
+  pthread_cond_destroy(&_start_cond);
+  pthread_mutex_destroy(&_start_mutex);
+
   if (rc != 0)
   {
+    // LCOV_EXCL_START - No mock for pthread_create
+
     LOG_ERROR("AlarmReqAgent: error creating thread %s", strerror(rc));
 
     zmq_clean_ctx();
+
+    delete _req_q;
+    _req_q = NULL;
+
     return false;
+
+    // LCOV_EXCL_STOP
   }
 
   return true;
@@ -134,16 +149,19 @@ bool AlarmReqAgent::start()
 
 void AlarmReqAgent::stop()
 {
-  _req_q.terminate();
+  _req_q->terminate();
 
   zmq_clean_ctx();
 
   pthread_join(_thread, NULL);
+
+  delete _req_q;
+  _req_q = NULL;
 }
 
 void AlarmReqAgent::alarm_request(std::vector<std::string> req)
 {
-  if (!_req_q.push_noblock(req))
+  if (!_req_q->push_noblock(req))
   {
     LOG_DEBUG("AlarmReqAgent: queue overflowed");
   }
@@ -156,7 +174,7 @@ void* AlarmReqAgent::agent_thread(void* alarm_req_agent)
   return NULL;
 }
 
-AlarmReqAgent::AlarmReqAgent() : _ctx(NULL), _sck(NULL)
+AlarmReqAgent::AlarmReqAgent() : _ctx(NULL), _sck(NULL), _req_q(NULL)
 {
 }
 
@@ -228,7 +246,13 @@ void AlarmReqAgent::zmq_clean_sck()
 
 void AlarmReqAgent::agent()
 {
-  if (!zmq_init_sck())
+  bool sckOk = zmq_init_sck();
+
+  pthread_mutex_lock(&_start_mutex);
+  pthread_cond_signal(&_start_cond);
+  pthread_mutex_unlock(&_start_mutex);
+
+  if (!sckOk)
   {
     return;
   }
@@ -237,9 +261,9 @@ void AlarmReqAgent::agent()
 
   char reply[MAX_REPLY_LEN];
 
-  while (_req_q.pop(req))
+  while (_req_q && _req_q->pop(req))
   {
-    LOG_DEBUG("servicing request queue");
+    LOG_DEBUG("AlarmReqAgent: servicing request queue");
 
     for (std::vector<std::string>::iterator it = req.begin(); it != req.end(); it++)
     {
@@ -247,7 +271,7 @@ void AlarmReqAgent::agent()
       {
         if (errno != ETERM)
         {
-          LOG_ERROR("AlarmReqAgent: zmq_sendmsg failed: %s", zmq_strerror(errno));
+          LOG_ERROR("AlarmReqAgent: zmq_send failed: %s", zmq_strerror(errno));
         }
 
         zmq_clean_sck();
@@ -270,4 +294,3 @@ void AlarmReqAgent::agent()
   zmq_clean_sck();
 }
 
-// LCOV_EXCL_STOP

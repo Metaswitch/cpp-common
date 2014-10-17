@@ -81,17 +81,19 @@ public:
             const std::string& clear_alarm_id,
             const std::string& set_alarm_id);
 
+  virtual ~AlarmPair() {}
+
   /// Queues a request to generate the alarm of CLEAR severity if previously
   /// set via this object.
-  void clear();
+  virtual void clear();
 
   /// Queues a request to generate the alarm of non CLEAR severity if previously
   /// cleared via this object.
-  void set();
+  virtual void set();
 
   /// Indicates if last operation via this object was a set for the non CLEAR
   /// severity alarm.
-  bool alarmed() {return _alarmed.load();}
+  virtual bool alarmed() {return _alarmed.load();}
 
 private:
   Alarm _clear_alarm;
@@ -109,6 +111,11 @@ private:
 class AlarmReqAgent
 {
 public:
+  enum
+  {
+    MAX_Q_DEPTH = 100
+  };
+
   /// Initialize ZMQ context and start agent thread.
   bool start();
 
@@ -124,8 +131,7 @@ private:
   enum 
   {
     ZMQ_PORT = 6664,
-    MAX_REPLY_LEN = 16,
-    MAX_Q_DEPTH = 100
+    MAX_REPLY_LEN = 16
   };
 
   static void* agent_thread(void* alarm_req_agent);
@@ -142,10 +148,13 @@ private:
 
   pthread_t _thread;
 
+  pthread_mutex_t _start_mutex;
+  pthread_cond_t  _start_cond;
+
   void* _ctx;
   void* _sck;
 
-  eventq<std::vector<std::string> > _req_q; 
+  eventq<std::vector<std::string> >* _req_q; 
 
   static AlarmReqAgent _instance;
 };

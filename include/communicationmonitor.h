@@ -70,6 +70,12 @@ public:
                        unsigned int clear_confirm_sec = 30,
                        unsigned int set_confirm_sec = 15);
 
+  /// Constructor for injecting a polymorphic AlarmPair for use in unit tests
+  /// with Google Mock.
+  CommunicationMonitor(AlarmPair* alarm_pair,
+                       unsigned int clear_confirm_sec = 30,
+                       unsigned int set_confirm_sec = 15);
+
   virtual ~CommunicationMonitor();
 
   /// Report a successful communication. If the current time in ms is available
@@ -84,7 +90,8 @@ private:
   void update_alarm_state(unsigned long now_ms);
   unsigned long current_time_ms();
 
-  AlarmPair _alarms;
+  AlarmPair  _alarms;
+  AlarmPair* _alarms_p;
 
   unsigned int _clear_confirm_ms;
   unsigned int _set_confirm_ms;

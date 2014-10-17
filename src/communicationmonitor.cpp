@@ -43,6 +43,21 @@ CommunicationMonitor::CommunicationMonitor(const std::string& issuer,
                                            unsigned int clear_confirm_sec,
                                            unsigned int set_confirm_sec) :
   _alarms(issuer, clear_alarm_id, set_alarm_id),
+  _alarms_p(&_alarms),
+  _clear_confirm_ms(clear_confirm_sec * 1000),
+  _set_confirm_ms(set_confirm_sec * 1000),
+  _sent(0), _failed(0)
+{
+  _next_check = current_time_ms() + _set_confirm_ms;
+
+  pthread_mutex_init(&_lock, NULL);
+}
+
+CommunicationMonitor::CommunicationMonitor(AlarmPair* alarm_pair,
+                                           unsigned int clear_confirm_sec,
+                                           unsigned int set_confirm_sec) :
+  _alarms("", "", ""),
+  _alarms_p(alarm_pair),
   _clear_confirm_ms(clear_confirm_sec * 1000),
   _set_confirm_ms(set_confirm_sec * 1000),
   _sent(0), _failed(0)
@@ -77,8 +92,6 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
 
   if (now_ms > _next_check)
   {
-    // LCOV_EXCL_START - no UT for check cycle 
-
     // Current time has passed our monitor interval time, so take the lock
     // and see if we are the lucky thread that gets to check for an alarm
     // condition.
@@ -93,14 +106,14 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
       unsigned int sent   = _sent.fetch_and(0);
       unsigned int failed = _failed.fetch_and(0);
 
-      if (!_alarms.alarmed())
+      if (!_alarms_p->alarmed())
       {
         // A communication alarm is not currently set so see if one needs to
         // be. This will be the case if there were no successful comms over
         // the interval, and at least one failed comm.
         if ((sent == 0) && (failed != 0))
         {
-          _alarms.set();
+          _alarms_p->set();
         }
       }
       else
@@ -110,17 +123,15 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
         // was reported over the interval.
         if (sent != 0)
         {
-          _alarms.clear();
+          _alarms_p->clear();
         }
       }
 
-      _next_check = (_alarms.alarmed()) ? now_ms + _clear_confirm_ms :
-                                          now_ms + _set_confirm_ms   ;
+      _next_check = (_alarms_p->alarmed()) ? now_ms + _clear_confirm_ms :
+                                             now_ms + _set_confirm_ms   ;
     }
 
     pthread_mutex_unlock(&_lock);
-
-    // LCOV_EXCL_STOP
   }
 }
 

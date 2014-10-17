@@ -1,5 +1,5 @@
 /**
- * @file mockcommunicationmonitor.h Mock CommunicationMonitor.
+ * @file fakezmq.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014  Metaswitch Networks Ltd
@@ -34,19 +34,65 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKCOMMUNICATIONMONITOR_H__
-#define MOCKCOMMUNICATIONMONITOR_H__
+#pragma once
+
+#include <zmq.h>
+#include <pthread.h>
+
+#include <bitset>
 
 #include "gmock/gmock.h"
-#include "communicationmonitor.h"
 
-class MockCommunicationMonitor : public CommunicationMonitor
+class ZmqInterface
 {
 public:
-  MockCommunicationMonitor() : CommunicationMonitor("issuer", "set", "clear") {}
+  enum ZmqCall
+  {
+    ZMQ_CTX_NEW,
+    ZMQ_SOCKET,
+    ZMQ_SETSOCKOPT,
+    ZMQ_CONNECT,
+    ZMQ_SEND,
+    ZMQ_RECV,
+    ZMQ_CLOSE,
+    ZMQ_CTX_DESTROY,
+    ZMQ_NUM_CALLS
+  };
 
-  MOCK_METHOD1(inform_success, void(unsigned long now_ms));
-  MOCK_METHOD1(inform_failure, void(unsigned long now_ms));
+  ZmqInterface();
+
+  virtual void* zmq_ctx_new(void) = 0;
+  virtual void* zmq_socket(void* context, int type) = 0;
+  virtual int zmq_setsockopt(void* s, int option, const void* optval, size_t optvallen) = 0;
+  virtual int zmq_connect(void* s, const char* addr) = 0;
+  virtual int zmq_send(void* s, const void* buf, size_t len, int flags) = 0;
+  virtual int zmq_recv(void* s, void* buf, size_t len, int flags) = 0;
+  virtual int zmq_close(void* s) = 0;
+  virtual int zmq_ctx_destroy(void* context) = 0;
+
+  bool call_complete(ZmqCall call, int timeout);
+  void call_signal(ZmqCall call);
+
+private:
+  pthread_mutex_t _mutex;
+  pthread_cond_t  _cond;
+
+  std::bitset<ZMQ_NUM_CALLS> _calls;
 };
 
-#endif
+class MockZmqInterface : public ZmqInterface
+{
+public:
+  MOCK_METHOD0(zmq_ctx_new, void*(void));
+  MOCK_METHOD2(zmq_socket, void*(void* context, int type));
+  MOCK_METHOD4(zmq_setsockopt, int(void* s, int option, const void* optval, size_t optvallen));
+  MOCK_METHOD2(zmq_connect, int(void* s, const char* addr));
+  MOCK_METHOD4(zmq_send, int(void* s, const void *buf, size_t len, int flags));
+  MOCK_METHOD4(zmq_recv, int(void* s, void* buf, size_t len, int flags));
+  MOCK_METHOD1(zmq_close, int(void* s));
+  MOCK_METHOD1(zmq_ctx_destroy, int(void* context));
+};
+
+void cwtest_intercept_zmq(ZmqInterface* intf);
+void cwtest_restore_zmq();
+
