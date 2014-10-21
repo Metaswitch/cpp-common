@@ -43,6 +43,7 @@
 #include <vector>
 #include <atomic>
 
+#include "alarmdefinition.h"
 #include "eventq.h"
 
 /// @class Alarm
@@ -52,16 +53,18 @@
 class Alarm
 {
 public:
-  Alarm(const std::string& issuer, const std::string& identifier);
-
-  std::string& get_issuer() {return _issuer;}
-  std::string& get_identifier() {return _identifier;}
+  Alarm(const std::string& issuer,
+        AlarmDef::Index index,
+        AlarmDef::Severity severity);
 
   /// Queue request to generate the specified alarm.
   void issue();
 
   /// Queue request to clear all active alarms initiated by issuer.
   static void clear_all(const std::string& issuer);
+
+  std::string& get_issuer() {return _issuer;}
+  std::string& get_identifier() {return _identifier;}
 
 private:
   std::string _issuer;
@@ -71,15 +74,15 @@ private:
 /// @class AlarmPair
 ///
 /// Helper which encapsulates a pair of alarms that are associated with a
-/// specific error condition (i.e. alarm of CLEAR severity and its counter- 
-/// part of non CLEAR severity).
+/// specific error condition (i.e. alarm of non CLEAR severity and its
+/// counterpart of CLEAR severity (which is implied)).
 
 class AlarmPair
 {
 public:
   AlarmPair(const std::string& issuer,
-            const std::string& clear_alarm_id,
-            const std::string& set_alarm_id);
+            AlarmDef::Index index,
+            AlarmDef::Severity severity);
 
   virtual ~AlarmPair() {}
 

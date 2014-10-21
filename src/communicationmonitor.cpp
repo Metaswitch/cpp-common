@@ -38,11 +38,11 @@
 #include "log.h"
 
 CommunicationMonitor::CommunicationMonitor(const std::string& issuer,
-                                           const std::string& clear_alarm_id,
-                                           const std::string& set_alarm_id,
+                                           AlarmDef::Index alarm_index,
+                                           AlarmDef::Severity alarm_severity,
                                            unsigned int clear_confirm_sec,
                                            unsigned int set_confirm_sec) :
-  _alarms(issuer, clear_alarm_id, set_alarm_id),
+  _alarms(issuer, alarm_index, alarm_severity),
   _alarms_p(&_alarms),
   _clear_confirm_ms(clear_confirm_sec * 1000),
   _set_confirm_ms(set_confirm_sec * 1000),
@@ -56,7 +56,7 @@ CommunicationMonitor::CommunicationMonitor(const std::string& issuer,
 CommunicationMonitor::CommunicationMonitor(AlarmPair* alarm_pair,
                                            unsigned int clear_confirm_sec,
                                            unsigned int set_confirm_sec) :
-  _alarms("", "", ""),
+  _alarms("", AlarmDef::UNDEFINED_INDEX, AlarmDef::UNDEFINED_SEVERITY),
   _alarms_p(alarm_pair),
   _clear_confirm_ms(clear_confirm_sec * 1000),
   _set_confirm_ms(set_confirm_sec * 1000),

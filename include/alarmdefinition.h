@@ -1,5 +1,5 @@
 /**
- * @file mockcommunicationmonitor.h Mock CommunicationMonitor.
+ * @file alarmdefinition.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014  Metaswitch Networks Ltd
@@ -34,20 +34,91 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKCOMMUNICATIONMONITOR_H__
-#define MOCKCOMMUNICATIONMONITOR_H__
+#ifndef ALARM_DEFINITION_H__
+#define ALARM_DEFINITION_H__
 
-#include "gmock/gmock.h"
-#include "communicationmonitor.h"
+#include <string>
+#include <vector>
 
-class MockCommunicationMonitor : public CommunicationMonitor
-{
-public:
-  MockCommunicationMonitor() : 
-    CommunicationMonitor("sprout", AlarmDef::SPROUT_HOMESTEAD_COMM_ERROR, AlarmDef::CRITICAL) {}
+namespace AlarmDef {
 
-  MOCK_METHOD1(inform_success, void(unsigned long now_ms));
-  MOCK_METHOD1(inform_failure, void(unsigned long now_ms));
-};
+  enum Index {
+    UNDEFINED_INDEX,
+
+    SPROUT_PROCESS_FAIL = 1000,
+    SPROUT_HOMESTEAD_COMM_ERROR,
+    SPROUT_MEMCACHED_COMM_ERROR,
+    SPROUT_REMOTE_MEMCACHED_COMM_ERROR,
+    SPROUT_CHRONOS_COMM_ERROR,
+    SPROUT_RALF_COMM_ERROR,
+    SPROUT_ENUM_COMM_ERROR,
+    SPROUT_VBUCKET_ERROR,
+    SPROUT_REMOTE_VBUCKET_ERROR,
+
+    HOMESTEAD_PROCESS_FAIL = 1500,
+    HOMESTEAD_CASSANDRA_COMM_ERROR,
+    HOMESTEAD_HSS_COMM_ERROR,
+
+    RALF_PROCESS_FAIL = 2000,
+    RALF_MEMCACHED_COMM_ERROR,
+    RALF_CHRONOS_COMM_ERROR,
+    RALF_CDF_COMM_ERROR,
+    RALF_VBUCKET_ERROR,
+
+//  BONO_PROCESS_FAIL = 2500
+
+    CHRONOS_PROCESS_FAIL = 3000,
+    CHRONOS_TIMER_POP_ERROR,
+
+    MEMCACHED_PROCESS_FAIL = 3500,
+    
+    CASSANDRA_PROCESS_FAIL = 4000,
+    CASSANDRA_RING_NODE_FAIL,
+
+    MONIT_PROCESS_FAIL = 4500
+  };
+
+  enum Severity {
+    UNDEFINED_SEVERITY,
+    CLEARED,
+    INDETERMINATE,
+    CRITICAL,
+    MAJOR,
+    MINOR,
+    WARNING
+  };
+
+  enum Cause {
+    UNDEFINED_CAUSE,
+    SOFTWARE_ERROR = 163,
+    UNDERLAYING_RESOURCE_UNAVAILABLE = 165
+  };
+
+  enum Issuer {
+    UNDEFINED_ISSUER,
+    SPROUT,
+    HOMESTEAD,
+    RALF,
+    CHRONOS,
+    MEMCACHED,
+    CASSANDRA,
+    MONIT
+  };
+
+  struct SeverityDetails {
+    Severity    _severity;
+    std::string _description;
+    std::string _details;
+  };
+
+  struct AlarmDefinition {
+    Index _index;
+    Cause _cause;
+    std::vector<SeverityDetails> _severity_details;
+  };
+
+  extern const std::vector<AlarmDefinition> alarm_definitions;
+}
 
 #endif
+

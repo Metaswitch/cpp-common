@@ -43,7 +43,8 @@
 class MockAlarmPair : public AlarmPair
 {
 public:
-  MockAlarmPair() : AlarmPair("issuer", "clear", "set") {}
+  MockAlarmPair() : 
+    AlarmPair("sprout", AlarmDef::SPROUT_HOMESTEAD_COMM_ERROR, AlarmDef::CRITICAL) {}
 
   MOCK_METHOD0(clear, void());
   MOCK_METHOD0(set, void());

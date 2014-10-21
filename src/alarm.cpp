@@ -43,10 +43,12 @@
 
 AlarmReqAgent AlarmReqAgent::_instance;
 
-Alarm::Alarm(const std::string& issuer, const std::string& identifier) :
-  _issuer(issuer),
-  _identifier(identifier)
+Alarm::Alarm(const std::string& issuer, 
+             AlarmDef::Index index,
+             AlarmDef::Severity severity) :
+  _issuer(issuer)
 {
+  _identifier = std::to_string(index) + "." + std::to_string(severity);
 }
 
 void Alarm::issue()
@@ -75,10 +77,10 @@ void Alarm::clear_all(const std::string& issuer)
 }
 
 AlarmPair::AlarmPair(const std::string& issuer,
-                     const std::string& clear_alarm_id,
-                     const std::string& set_alarm_id) :
-  _clear_alarm(issuer, clear_alarm_id),
-  _set_alarm(issuer, set_alarm_id),
+                     AlarmDef::Index index,
+                     AlarmDef::Severity severity) :
+  _clear_alarm(issuer, index, AlarmDef::CLEARED),
+  _set_alarm(issuer, index, severity),
   _alarmed(false)
 {
 }

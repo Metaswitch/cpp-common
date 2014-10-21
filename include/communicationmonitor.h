@@ -56,17 +56,18 @@
 ///     inform_failure() method should be called
 ///
 /// If the monitor detects that all comms are failing over a set_confirm_sec
-/// interval, set_alarm_id is generated. Once alarmed the monitor will check
-/// for a successful communication at a clear_confirm_sec interval. Once one
-/// is detected, clear_alarm_id is generated. Note that timing is driven by
-/// calls to the inform_* methods. As such the intervals will not be very
-/// precise at low call volume.
+/// interval, an alarm (corresponding to alarm_index and alarm_severity) is
+/// generated. Once alarmed the monitor will check for a successful comm. at
+/// a clear_confirm_sec interval. Once one is detected, a CLEARED severity
+/// alarm (corresponding to alarm_index) is generated. Note that timing is
+/// driven by calls to the inform_* methods. As such the intervals will not
+/// be very precise at low call volume.
 class CommunicationMonitor
 {
 public:
   CommunicationMonitor(const std::string& issuer,
-                       const std::string& clear_alarm_id,
-                       const std::string& set_alarm_id,
+                       AlarmDef::Index alarm_index,
+                       AlarmDef::Severity alarm_severity,
                        unsigned int clear_confirm_sec = 30,
                        unsigned int set_confirm_sec = 15);
 
