@@ -94,13 +94,15 @@ HttpConnection::HttpConnection(const std::string& server,
                                const std::string& stat_name,
                                LoadMonitor* load_monitor,
                                LastValueCache* lvc,
-                               SASEvent::HttpLogLevel sas_log_level) :
+                               SASEvent::HttpLogLevel sas_log_level,
+                               CommunicationMonitor* comm_monitor) :
   _server(server),
   _host(host_from_server(server)),
   _port(port_from_server(server)),
   _assert_user(assert_user),
   _resolver(resolver),
-  _sas_log_level(sas_log_level)
+  _sas_log_level(sas_log_level),
+  _comm_monitor(comm_monitor)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -121,13 +123,15 @@ HttpConnection::HttpConnection(const std::string& server,
 HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
                                HttpResolver* resolver,
-                               SASEvent::HttpLogLevel sas_log_level) :
+                               SASEvent::HttpLogLevel sas_log_level,
+                               CommunicationMonitor* comm_monitor) :
   _server(server),
   _host(host_from_server(server)),
   _port(port_from_server(server)),
   _assert_user(assert_user),
   _resolver(resolver),
-  _sas_log_level(sas_log_level)
+  _sas_log_level(sas_log_level),
+  _comm_monitor(comm_monitor)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -164,7 +168,6 @@ HttpConnection::~HttpConnection()
     _statistic = NULL;
   }
 }
-
 
 /// Get the thread-local curl handle if it exists, and create it if not.
 CURL* HttpConnection::get_curl_handle()
@@ -655,10 +658,29 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
   {
     entry->set_remote_ip(remote_ip);
+
+    if (_comm_monitor)
+    {
+      // If both attempts fail due to overloaded downstream nodes, consider
+      // it a communication failure.
+      if (num_http_503_responses >= 2)
+      {
+        _comm_monitor->inform_failure(now_ms); // LCOV_EXCL_LINE - No UT for 503 fails
+      }
+      else
+      {
+        _comm_monitor->inform_success(now_ms);
+      }
+    }
   }
   else
   {
     entry->set_remote_ip("");
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_failure(now_ms);
+    }
   }
 
   HTTPCode http_code = curl_code_to_http_code(curl, rc);

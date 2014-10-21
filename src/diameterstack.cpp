@@ -43,7 +43,7 @@ using namespace Diameter;
 Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 
-Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
+Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL), _comm_monitor(NULL)
 {
   pthread_mutex_init(&_peers_lock, NULL);
 }
@@ -280,7 +280,8 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
   return;
 }
 
-void Stack::configure(std::string filename)
+void Stack::configure(std::string filename,
+                      CommunicationMonitor* comm_monitor)
 {
   initialize();
   LOG_STATUS("Configuring Diameter stack from file %s", filename.c_str());
@@ -290,6 +291,7 @@ void Stack::configure(std::string filename)
     throw Exception("fd_core_parseconf", rc); // LCOV_EXCL_LINE
   }
   populate_avp_map();
+  _comm_monitor = comm_monitor;
 }
 
 void Stack::advertize_application(const Dictionary::Application::Type type,
@@ -743,6 +745,26 @@ void Transaction::on_response(void* data, struct msg** rsp)
               msg.command_code(), tsx);
   msg.sas_log_rx(tsx->trail(), 0);
 
+  CommunicationMonitor* cm = stack->get_comm_monitor();
+  if (cm)
+  {
+    int32_t rc;
+    if (msg.result_code(rc) && (((rc >= 3001) && (rc <= 3010)) ||
+                                ((rc >= 4002) && (rc <= 4003)) ||
+                                ((rc >= 5001) && (rc <= 5002)) ||
+                                ((rc >= 5004) && (rc <= 5005)) ||
+                                ((rc >= 5007) && (rc <= 5011)) ||
+                                ((rc >= 5013) && (rc <= 5015)) ||
+                                 (rc == 5017) || (rc == 4181)    ))
+    {
+      cm->inform_failure();
+    }
+    else
+    {
+      cm->inform_success();
+    }
+  }
+
   tsx->stop_timer();
   tsx->on_response(msg);
   delete tsx;
@@ -759,6 +781,12 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
   msg.sas_log_timeout(tsx->trail(), 0);
+
+  CommunicationMonitor* cm = stack->get_comm_monitor();
+  if (cm)
+  {
+    cm->inform_failure();
+  }
 
   tsx->stop_timer();
   tsx->on_timeout();
