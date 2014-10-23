@@ -1,8 +1,8 @@
 /**
- * @file fakehttpconnection.cpp Fake HTTP connection (for testing).
+ * @file alarmdefinition.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,54 +34,91 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef ALARM_DEFINITION_H__
+#define ALARM_DEFINITION_H__
 
-#include <cstdio>
-#include "fakehttpconnection.hpp"
+#include <string>
+#include <vector>
 
-using namespace std;
+namespace AlarmDef {
 
-FakeHttpConnection::FakeHttpConnection() :
-  // Initialize with dummy values.
-  HttpConnection("localhost",
-                 true,
-                 NULL,
-                 "connected_homesteads",
-                 NULL,
-                 NULL,
-                 SASEvent::HttpLogLevel::PROTOCOL,
-                 NULL)
-{
+  enum Index {
+    UNDEFINED_INDEX,
+
+    SPROUT_PROCESS_FAIL = 1000,
+    SPROUT_HOMESTEAD_COMM_ERROR,
+    SPROUT_MEMCACHED_COMM_ERROR,
+    SPROUT_REMOTE_MEMCACHED_COMM_ERROR,
+    SPROUT_CHRONOS_COMM_ERROR,
+    SPROUT_RALF_COMM_ERROR,
+    SPROUT_ENUM_COMM_ERROR,
+    SPROUT_VBUCKET_ERROR,
+    SPROUT_REMOTE_VBUCKET_ERROR,
+
+    HOMESTEAD_PROCESS_FAIL = 1500,
+    HOMESTEAD_CASSANDRA_COMM_ERROR,
+    HOMESTEAD_HSS_COMM_ERROR,
+
+    RALF_PROCESS_FAIL = 2000,
+    RALF_MEMCACHED_COMM_ERROR,
+    RALF_CHRONOS_COMM_ERROR,
+    RALF_CDF_COMM_ERROR,
+    RALF_VBUCKET_ERROR,
+
+//  BONO_PROCESS_FAIL = 2500
+
+    CHRONOS_PROCESS_FAIL = 3000,
+    CHRONOS_TIMER_POP_ERROR,
+
+    MEMCACHED_PROCESS_FAIL = 3500,
+    
+    CASSANDRA_PROCESS_FAIL = 4000,
+    CASSANDRA_RING_NODE_FAIL,
+
+    MONIT_PROCESS_FAIL = 4500
+  };
+
+  enum Severity {
+    UNDEFINED_SEVERITY,
+    CLEARED,
+    INDETERMINATE,
+    CRITICAL,
+    MAJOR,
+    MINOR,
+    WARNING
+  };
+
+  enum Cause {
+    UNDEFINED_CAUSE,
+    SOFTWARE_ERROR = 163,
+    UNDERLAYING_RESOURCE_UNAVAILABLE = 165
+  };
+
+  enum Issuer {
+    UNDEFINED_ISSUER,
+    SPROUT,
+    HOMESTEAD,
+    RALF,
+    CHRONOS,
+    MEMCACHED,
+    CASSANDRA,
+    MONIT
+  };
+
+  struct SeverityDetails {
+    Severity    _severity;
+    std::string _description;
+    std::string _details;
+  };
+
+  struct AlarmDefinition {
+    Index _index;
+    Cause _cause;
+    std::vector<SeverityDetails> _severity_details;
+  };
+
+  extern const std::vector<AlarmDefinition> alarm_definitions;
 }
 
-FakeHttpConnection::~FakeHttpConnection()
-{
-  flush_all();
-}
+#endif
 
-void FakeHttpConnection::flush_all()
-{
-  _db.clear();
-}
-
-long FakeHttpConnection::send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  std::map<std::string, std::string>::iterator i = _db.find(uri);
-  if (i != _db.end())
-  {
-    doc = i->second;
-    return 200;
-  }
-  return 404;
-}
-
-bool FakeHttpConnection::put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  _db[uri] = doc;
-  return true;
-}
-
-bool FakeHttpConnection::del(const std::string& uri, const std::string& username, SAS::TrailId trail)
-{
-  _db.erase(uri);
-  return true;
-}

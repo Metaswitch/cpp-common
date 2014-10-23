@@ -1,8 +1,8 @@
 /**
- * @file fakehttpconnection.cpp Fake HTTP connection (for testing).
+ * @file fakezmq.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,54 +34,65 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#pragma once
 
-#include <cstdio>
-#include "fakehttpconnection.hpp"
+#include <zmq.h>
+#include <pthread.h>
 
-using namespace std;
+#include <bitset>
 
-FakeHttpConnection::FakeHttpConnection() :
-  // Initialize with dummy values.
-  HttpConnection("localhost",
-                 true,
-                 NULL,
-                 "connected_homesteads",
-                 NULL,
-                 NULL,
-                 SASEvent::HttpLogLevel::PROTOCOL,
-                 NULL)
+#include "gmock/gmock.h"
+
+class ZmqInterface
 {
-}
-
-FakeHttpConnection::~FakeHttpConnection()
-{
-  flush_all();
-}
-
-void FakeHttpConnection::flush_all()
-{
-  _db.clear();
-}
-
-long FakeHttpConnection::send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  std::map<std::string, std::string>::iterator i = _db.find(uri);
-  if (i != _db.end())
+public:
+  enum ZmqCall
   {
-    doc = i->second;
-    return 200;
-  }
-  return 404;
-}
+    ZMQ_CTX_NEW,
+    ZMQ_SOCKET,
+    ZMQ_SETSOCKOPT,
+    ZMQ_CONNECT,
+    ZMQ_SEND,
+    ZMQ_RECV,
+    ZMQ_CLOSE,
+    ZMQ_CTX_DESTROY,
+    ZMQ_NUM_CALLS
+  };
 
-bool FakeHttpConnection::put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  _db[uri] = doc;
-  return true;
-}
+  ZmqInterface();
 
-bool FakeHttpConnection::del(const std::string& uri, const std::string& username, SAS::TrailId trail)
+  virtual void* zmq_ctx_new(void) = 0;
+  virtual void* zmq_socket(void* context, int type) = 0;
+  virtual int zmq_setsockopt(void* s, int option, const void* optval, size_t optvallen) = 0;
+  virtual int zmq_connect(void* s, const char* addr) = 0;
+  virtual int zmq_send(void* s, const void* buf, size_t len, int flags) = 0;
+  virtual int zmq_recv(void* s, void* buf, size_t len, int flags) = 0;
+  virtual int zmq_close(void* s) = 0;
+  virtual int zmq_ctx_destroy(void* context) = 0;
+
+  bool call_complete(ZmqCall call, int timeout);
+  void call_signal(ZmqCall call);
+
+private:
+  pthread_mutex_t _mutex;
+  pthread_cond_t  _cond;
+
+  std::bitset<ZMQ_NUM_CALLS> _calls;
+};
+
+class MockZmqInterface : public ZmqInterface
 {
-  _db.erase(uri);
-  return true;
-}
+public:
+  MOCK_METHOD0(zmq_ctx_new, void*(void));
+  MOCK_METHOD2(zmq_socket, void*(void* context, int type));
+  MOCK_METHOD4(zmq_setsockopt, int(void* s, int option, const void* optval, size_t optvallen));
+  MOCK_METHOD2(zmq_connect, int(void* s, const char* addr));
+  MOCK_METHOD4(zmq_send, int(void* s, const void *buf, size_t len, int flags));
+  MOCK_METHOD4(zmq_recv, int(void* s, void* buf, size_t len, int flags));
+  MOCK_METHOD1(zmq_close, int(void* s));
+  MOCK_METHOD1(zmq_ctx_destroy, int(void* context));
+};
+
+void cwtest_intercept_zmq(ZmqInterface* intf);
+void cwtest_restore_zmq();
+
