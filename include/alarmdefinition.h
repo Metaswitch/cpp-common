@@ -40,6 +40,22 @@
 #include <string>
 #include <vector>
 
+// To add a new alarm:
+//
+//   - If the alarm is for a defined issuer with previous alarm defintions,
+//     simply add a new Index enumeration for the issuer at the end of its
+//     existing section. 
+//
+//   - If the alarm is for a new issuer. Add a new Issuer enumeration at 
+//     the end of the existing list for the new issuer. Add a new section
+//     at the bottom of the Index enumeration for the new issuer. The first
+//     value in the section should be set to 500 more than the first value
+//     in the previous section (i.e. room for 500 alarm index values per
+//     issuer).
+//
+//   - For any new alarm Index enumerations defined, add a corresponding
+//     AlarmDefinition to alarm_definitions in alarmdefinition.cpp.
+
 namespace AlarmDef {
 
   enum Index {
@@ -106,15 +122,15 @@ namespace AlarmDef {
   };
 
   struct SeverityDetails {
-    Severity    _severity;
-    std::string _description;
-    std::string _details;
+    const Severity    _severity;
+    const std::string _description;
+    const std::string _details;
   };
 
   struct AlarmDefinition {
-    Index _index;
-    Cause _cause;
-    std::vector<SeverityDetails> _severity_details;
+    const Index _index;
+    const Cause _cause;
+    const std::vector<SeverityDetails> _severity_details;
   };
 
   extern const std::vector<AlarmDefinition> alarm_definitions;

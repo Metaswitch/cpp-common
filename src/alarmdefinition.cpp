@@ -36,6 +36,11 @@
 
 #include "alarmdefinition.h"
 
+// See alarmdefinition.h for information on adding a new alarm. Please keep
+// AlarmDefinition's defined here in the same order as AlarmDef::Index.
+//
+// Note: strings are limited to 255 characters per the MIB definition. 
+
 namespace AlarmDef {
 
   const std::vector<AlarmDefinition> alarm_definitions =

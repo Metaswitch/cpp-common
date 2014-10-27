@@ -43,14 +43,14 @@
 
 static ZmqInterface* zmq_intf_p = NULL;
 
-static void* (*real_zmq_ctx_new)(void);
-static void* (*real_zmq_socket)(void* context, int type);
-static int (*real_zmq_setsockopt)(void* s, int option, const void* optval, size_t optvallen);
-static int (*real_zmq_connect)(void* s, const char* addr);
-static int (*real_zmq_send)(void* s, const void* buf, size_t len, int flags);
-static int (*real_zmq_recv)(void* s, void* buf, size_t len, int flags);
-static int (*real_zmq_close)(void* s);
-static int (*real_zmq_ctx_destroy)(void* context);
+static void* (*real_zmq_ctx_new)(void) = NULL;
+static void* (*real_zmq_socket)(void* context, int type) = NULL;
+static int (*real_zmq_setsockopt)(void* s, int option, const void* optval, size_t optvallen) = NULL;
+static int (*real_zmq_connect)(void* s, const char* addr) = NULL;
+static int (*real_zmq_send)(void* s, const void* buf, size_t len, int flags) = NULL;
+static int (*real_zmq_recv)(void* s, void* buf, size_t len, int flags) = NULL;
+static int (*real_zmq_close)(void* s) = NULL;
+static int (*real_zmq_ctx_destroy)(void* context) = NULL;
 
 ZmqInterface::ZmqInterface()
 {
