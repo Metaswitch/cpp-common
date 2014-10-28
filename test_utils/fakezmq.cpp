@@ -46,11 +46,16 @@ static ZmqInterface* zmq_intf_p = NULL;
 static void* (*real_zmq_ctx_new)(void) = NULL;
 static void* (*real_zmq_socket)(void* context, int type) = NULL;
 static int (*real_zmq_setsockopt)(void* s, int option, const void* optval, size_t optvallen) = NULL;
+static int (*real_zmq_getsockopt)(void* s, int option, void* optval, size_t* optvallen) = NULL;
 static int (*real_zmq_connect)(void* s, const char* addr) = NULL;
+static int (*real_zmq_bind)(void* s, const char* addr) = NULL;
 static int (*real_zmq_send)(void* s, const void* buf, size_t len, int flags) = NULL;
 static int (*real_zmq_recv)(void* s, void* buf, size_t len, int flags) = NULL;
+static int (*real_zmq_msg_recv)(zmq_msg_t* msg, void* s, int flags) = NULL;
 static int (*real_zmq_close)(void* s) = NULL;
 static int (*real_zmq_ctx_destroy)(void* context) = NULL;
+static int (*real_zmq_msg_init)(zmq_msg_t* msg) = NULL;
+static int (*real_zmq_msg_close)(zmq_msg_t* msg) = NULL;
 
 ZmqInterface::ZmqInterface()
 {
@@ -171,6 +176,29 @@ int zmq_setsockopt(void* s, int option, const void* optval, size_t optvallen)
   return rc;
 }
 
+int zmq_getsockopt(void* s, int option, void* optval, size_t* optvallen)
+{
+  int rc;
+
+  if (!real_zmq_getsockopt)
+  {
+    real_zmq_getsockopt = (int(*)(void* s, int option, void* optval, size_t* optvallen))(intptr_t)dlsym(RTLD_NEXT, "zmq_getsockopt");
+  }
+  
+  if (zmq_intf_p)
+  {
+    rc = zmq_intf_p->zmq_getsockopt(s, option, optval, optvallen);
+
+    zmq_intf_p->call_signal(ZmqInterface::ZMQ_GETSOCKOPT);
+  }
+  else
+  {
+    rc = real_zmq_getsockopt(s, option, optval, optvallen);
+  }
+
+  return rc;
+}
+
 int zmq_connect(void* s, const char* addr)
 {
   int rc;
@@ -189,6 +217,29 @@ int zmq_connect(void* s, const char* addr)
   else
   {
     rc = real_zmq_connect(s, addr);
+  }
+
+  return rc;
+}
+
+int zmq_bind(void* s, const char* addr)
+{
+  int rc;
+
+  if (!real_zmq_bind)
+  {
+    real_zmq_bind = (int(*)(void* s, const char* addr))(intptr_t)dlsym(RTLD_NEXT, "zmq_bind");
+  }
+  
+  if (zmq_intf_p)
+  {
+    rc = zmq_intf_p->zmq_bind(s, addr);
+
+    zmq_intf_p->call_signal(ZmqInterface::ZMQ_BIND);
+  }
+  else
+  {
+    rc = real_zmq_bind(s, addr);
   }
 
   return rc;
@@ -240,6 +291,29 @@ int zmq_recv(void* s, void* buf, size_t len, int flags)
   return rc;
 }
 
+int zmq_msg_recv(zmq_msg_t* msg, void* s, int flags)
+{
+  int rc;
+
+  if (!real_zmq_msg_recv)
+  {
+    real_zmq_msg_recv = (int(*)(zmq_msg_t* msg, void* s, int flags))(intptr_t)dlsym(RTLD_NEXT, "zmq_msg_recv");
+  }
+  
+  if (zmq_intf_p)
+  {
+    rc = zmq_intf_p->zmq_msg_recv(msg, s, flags);
+
+    zmq_intf_p->call_signal(ZmqInterface::ZMQ_MSG_RECV);
+  }
+  else
+  {
+    rc = real_zmq_msg_recv(msg, s, flags);
+  }
+
+  return rc;
+}
+
 int zmq_close(void* s)
 {
   int rc;
@@ -281,6 +355,54 @@ int zmq_ctx_destroy(void* context)
   else
   {
     rc = real_zmq_ctx_destroy(context);
+  }
+
+  return rc;
+}
+
+int zmq_msg_init(zmq_msg_t* msg)
+{
+  int rc;
+
+  if (!real_zmq_msg_init)
+  {
+    real_zmq_msg_init = (int(*)(zmq_msg_t* msg))(intptr_t)dlsym(RTLD_NEXT, "zmq_msg_init");
+  }
+  
+  if (zmq_intf_p)
+  {
+    real_zmq_msg_init(msg);
+
+    rc = zmq_intf_p->zmq_msg_init(msg);
+
+    zmq_intf_p->call_signal(ZmqInterface::ZMQ_MSG_INIT);
+  }
+  else
+  {
+    rc = real_zmq_msg_init(msg);
+  }
+
+  return rc;
+}
+
+int zmq_msg_close(zmq_msg_t* msg)
+{
+  int rc;
+
+  if (!real_zmq_msg_close)
+  {
+    real_zmq_msg_close = (int(*)(zmq_msg_t* msg))(intptr_t)dlsym(RTLD_NEXT, "zmq_msg_close");
+  }
+  
+  if (zmq_intf_p)
+  {
+    rc = zmq_intf_p->zmq_msg_close(msg);
+
+    zmq_intf_p->call_signal(ZmqInterface::ZMQ_MSG_CLOSE);
+  }
+  else
+  {
+    rc = real_zmq_msg_close(msg);
   }
 
   return rc;
