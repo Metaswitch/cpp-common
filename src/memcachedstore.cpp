@@ -718,6 +718,10 @@ void MemcachedStore::update_view()
       LOG_DEBUG("Update memcached store");
       this->new_view(servers, new_servers);
     }
+    else
+    {
+      LOG_ERROR("'%s' does not contain a valid set of servers - keeping previous settings", _config_file.c_str());
+    }
   }
   else
   {

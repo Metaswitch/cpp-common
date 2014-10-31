@@ -69,6 +69,8 @@ public:
   void new_view(const std::vector<std::string>& servers,
                 const std::vector<std::string>& new_servers);
 
+  bool has_servers() { return (_servers.size() > 0); };
+
   /// Gets the data for the specified table and key.
   Store::Status get_data(const std::string& table,
                          const std::string& key,
