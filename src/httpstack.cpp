@@ -343,7 +343,7 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
   SAS::Event rx_http_req(trail, event_id, instance_id);
   rx_http_req.add_static_param(req.method());
   rx_http_req.add_var_param(req.full_path());
-  rx_http_req.add_var_param(req.body());
+  rx_http_req.add_compressed_param(req.body());
   SAS::report_event(rx_http_req);
 }
 
@@ -374,12 +374,12 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
   {
     // Instead of the body, log a string explaining that the body was not
     // present.
-    tx_http_rsp.add_var_param("<Present but not logged>");
+    tx_http_rsp.add_compressed_param("<Present but not logged>");
   }
   else
   {
     // Log the body as normal.
-    tx_http_rsp.add_var_param(buffer_len, buffer);
+    tx_http_rsp.add_compressed_param(buffer_len, buffer);
   }
 
   SAS::report_event(tx_http_rsp);

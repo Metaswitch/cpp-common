@@ -1087,7 +1087,7 @@ void Message::sas_add_serialization(SAS::Event& event)
 
   if (fd_msg_bufferize(_fd_msg, &buf, &len) == 0)
   {
-    event.add_var_param(len, buf);
+    event.add_compressed_param(len, buf);
   }
 
   SAS::report_event(event);

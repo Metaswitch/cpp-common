@@ -38,6 +38,7 @@
 #define SASEVENT_H__
 
 #include <string>
+#include "sas.h"
 
 namespace SASEvent {
 
@@ -59,6 +60,13 @@ namespace SASEvent {
     SUBSCRIBE = 1,
     NOTIFY = 2
   };
+
+  //----------------------------------------------------------------------------
+  // Default compression profiles.
+  // PROFILE_SIP must match compression_profiles.sip in
+  // https://github.com/Metaswitch/clearwater-sas-resources/blob/master/clearwater_sas_resource_bundle.yaml
+  //----------------------------------------------------------------------------
+  const SAS::Profile PROFILE_SIP("PCMUACKrportSUBSCRIBEP-Access-Network-Info: BYEusert=0 0 telephone-eventAccept: transportREGISTERSubscription-State: NOTIFYServer: m=audio RTP/AVP c=IN IP4 Expires: 200 OK\r\na=rtpmap:INVITETo: application/sdpVia: Content-Type: From: CSeq: Max-Forwards: Contact: Organization: Content-Length: Call-ID: ;tag=;branch=z9hG4bKSIP/2.0/UDP<sip:");
 
   //----------------------------------------------------------------------------
   // Event spaces.
