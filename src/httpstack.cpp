@@ -372,8 +372,8 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
 
   if (omit_body && (buffer_len != 0))
   {
-    // Instead of the body, log a string explaining that the body was not
-    // present.
+    // Instead of the body, log a string explaining that the body was present
+    // but has been omitted.
     tx_http_rsp.add_compressed_param("<Present but not logged>");
   }
   else
