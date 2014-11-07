@@ -673,6 +673,13 @@ private:
   void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
 
+  static void sas_log_diameter_message(enum fd_hook_type type,
+                                       struct msg * msg,
+                                       struct peer_hdr * peer,
+                                       void * other,
+                                       struct fd_hook_permsgdata *pmd,
+                                       void * stack_ptr);
+
   bool _initialized;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
@@ -680,6 +687,8 @@ private:
   struct fd_hook_hdl* _error_cb_hdlr; /* Handler for the callback
                                        * registered for routing errors */
   struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
+  struct fd_hook_hdl* _sas_cb_hdlr;
+  struct fd_hook_data_hdl* _sas_cb_data_hdlr;
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
 

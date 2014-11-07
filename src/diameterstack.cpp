@@ -43,6 +43,50 @@ using namespace Diameter;
 Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 
+struct fd_hook_permsgdata
+{
+  SAS::TrailId trail;
+};
+
+void Stack::sas_log_diameter_message(enum fd_hook_type type,
+                                     struct msg * msg,
+                                     struct peer_hdr * peer,
+                                     void * other,
+                                     struct fd_hook_permsgdata *pmd,
+                                     void * stack_ptr)
+{
+  struct msg_hdr * hdr;
+  SAS::TrailId trail;
+  Stack* stack = (Stack*)stack_ptr;
+
+  fd_msg_hdr(msg, &hdr);
+
+  if (type == HOOK_MESSAGE_RECEIVED)
+  {
+    LOG_DEBUG("Processing a received diameter message");
+
+    if (!(hdr->msg_flags & CMD_FLAG_REQUEST))
+    {
+      trail = fd_hook_get_request_pmd(stack->_sas_cb_data_hdlr, msg)->trail;
+      LOG_DEBUG("Got existing trail ID: %lu", trail);
+    }
+    else
+    {
+      trail = SAS::new_trail(0);
+      LOG_DEBUG("Allocated new trail ID: %lu", trail);
+    }
+  }
+  else if (type == HOOK_MESSAGE_SENT)
+  {
+    LOG_DEBUG("Processing a sent diameter message");
+    trail = pmd->trail;
+    LOG_DEBUG("Got existing trail ID: %lu", trail);
+  }
+
+  // TODO log the message.
+}
+
+
 Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
 {
   pthread_mutex_init(&_peers_lock, NULL);
@@ -83,12 +127,28 @@ void Stack::initialize()
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_DATA_RECEIVED,
-                                    HOOK_MESSAGE_RECEIVED,
                                     HOOK_MESSAGE_LOCAL,
-                                    HOOK_MESSAGE_SENT,
                                     HOOK_MESSAGE_ROUTING_FORWARD,
                                     HOOK_MESSAGE_ROUTING_LOCAL),
                           fd_null_hook_cb, this, NULL, &_null_cb_hdlr);
+    if (rc != 0)
+    {
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+    }
+    rc = fd_hook_data_register(sizeof(struct fd_hook_permsgdata),
+                               NULL,
+                               NULL,
+                               &_sas_cb_data_hdlr);
+    if (rc != 0)
+    {
+      throw Exception("fd_hook_data_register", rc); // LCOV_EXCL_LINE
+    }
+    rc = fd_hook_register(HOOK_MASK(HOOK_MESSAGE_RECEIVED,
+                                    HOOK_MESSAGE_SENT),
+                          sas_log_diameter_message,
+                          this,
+                          _sas_cb_data_hdlr,
+                          &_sas_cb_hdlr);
     if (rc != 0)
     {
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
@@ -1093,3 +1153,4 @@ void Message::sas_add_serialization(SAS::Event& event)
   SAS::report_event(event);
   free(buf); buf = NULL;
 }
+
