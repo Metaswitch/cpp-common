@@ -445,7 +445,6 @@ int Stack::request_callback_fn(struct msg** req,
   // Create a new message object so and raise the necessary SAS logs.
   SAS::TrailId trail = SAS::new_trail(0);
   Message msg(handler->get_dict(), *req, Stack::get_instance());
-  msg.sas_log_rx(trail, 0);
   msg.revoke_ownership();
 
   // Pass the request to the registered handler.
@@ -560,13 +559,20 @@ void Stack::logger(int fd_log_level, const char* fmt, va_list args)
   Log::_write(log_level, "freeDiameter", 0, fmt, args);
 }
 
-void Stack::send(struct msg* fd_msg)
+void Stack::set_trail_id(struct msg* fd_msg, SAS::TrailId trail)
 {
+  fd_hook_get_pmd(_sas_cb_data_hdlr, fd_msg)->trail = trail;
+}
+
+void Stack::send(struct msg* fd_msg, SAS::TrailId trail)
+{
+  set_trail_id(fd_msg, trail);
   fd_msg_send(&fd_msg, NULL, NULL);
 }
 
 void Stack::send(struct msg* fd_msg, Transaction* tsx)
 {
+  set_trail_id(fd_msg, tsx->trail());
   fd_msg_send(&fd_msg, Transaction::on_response, tsx);
 }
 
@@ -579,6 +585,8 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
   timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
+
+  set_trail_id(fd_msg, tsx->trail());
   fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
 }
 
@@ -801,7 +809,6 @@ void Transaction::on_response(void* data, struct msg** rsp)
 
   LOG_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
               msg.command_code(), tsx);
-  msg.sas_log_rx(tsx->trail(), 0);
 
   tsx->stop_timer();
   tsx->on_response(msg);
@@ -818,7 +825,6 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 
   LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
-  msg.sas_log_timeout(tsx->trail(), 0);
 
   tsx->stop_timer();
   tsx->on_timeout();
@@ -1092,8 +1098,7 @@ void Message::send(SAS::TrailId trail)
   LOG_VERBOSE("Sending Diameter message of type %u", command_code());
   revoke_ownership();
 
-  sas_log_tx(trail, 0);
-  _stack->send(_fd_msg);
+  _stack->send(_fd_msg, trail);
 }
 
 void Message::send(Transaction* tsx)
@@ -1102,7 +1107,6 @@ void Message::send(Transaction* tsx)
   tsx->start_timer();
   revoke_ownership();
 
-  sas_log_tx(tsx->trail(), 0);
   _stack->send(_fd_msg, tsx);
 }
 
@@ -1113,28 +1117,10 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
   tsx->start_timer();
   revoke_ownership();
 
-  sas_log_tx(tsx->trail(), 0);
   _stack->send(_fd_msg, tsx, timeout_ms);
 }
 
-void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
-{
-  SAS::Event event(trail, SASEvent::DIAMETER_RX, instance_id);
-  sas_add_serialization(event);
-}
-
-void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
-{
-  SAS::Event event(trail, SASEvent::DIAMETER_TX, instance_id);
-  sas_add_serialization(event);
-}
-
-void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
-{
-  SAS::Event event(trail, SASEvent::DIAMETER_TIMEOUT, instance_id);
-  sas_add_serialization(event);
-}
-
+#if 0
 // Add the serialized version of the diameter message to a SAS event.
 //
 // This method also reports the event to SAS so that the memory is still
@@ -1153,4 +1139,4 @@ void Message::sas_add_serialization(SAS::Event& event)
   SAS::report_event(event);
   free(buf); buf = NULL;
 }
-
+#endif

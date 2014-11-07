@@ -426,10 +426,6 @@ public:
   virtual void send(Transaction* tsx, unsigned int timeout_ms);
   void operator=(Message const&);
 
-  void sas_log_rx(SAS::TrailId trail, uint32_t instance_id=0);
-  void sas_log_tx(SAS::TrailId trail, uint32_t instance_id=0);
-  void sas_log_timeout(SAS::TrailId trail, uint32_t instance_id=0);
-
   inline void revoke_ownership()
   {
     _master_msg->_free_on_delete = false;
@@ -454,8 +450,6 @@ private:
     fd_msg_hdr(_fd_msg, &hdr);
     return hdr;
   }
-
-  void sas_add_serialization(SAS::Event& event);
 };
 
 class AVP::iterator
@@ -643,7 +637,7 @@ public:
     return _avp_map;
   }
 
-  virtual void send(struct msg* fd_msg);
+  virtual void send(struct msg* fd_msg, SAS::TrailId trail);
   virtual void send(struct msg* fd_msg, Transaction* tsx);
   virtual void send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms);
 
@@ -673,6 +667,7 @@ private:
   void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
 
+  void set_trail_id(struct msg* fd_msg, SAS::TrailId trail);
   static void sas_log_diameter_message(enum fd_hook_type type,
                                        struct msg * msg,
                                        struct peer_hdr * peer,
