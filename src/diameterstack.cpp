@@ -83,7 +83,24 @@ void Stack::sas_log_diameter_message(enum fd_hook_type type,
     LOG_DEBUG("Got existing trail ID: %lu", trail);
   }
 
-  // TODO log the message.
+  struct fd_cnx_rcvdata* data = (struct fd_cnx_rcvdata*)other;
+
+  if (type == HOOK_MESSAGE_RECEIVED)
+  {
+    SAS::Event event(SASEvent::DIAMETER_RX, trail, 0);
+    event.add_var_param(data->length, data->buffer);
+
+    // TODO log IP / port
+    SAS::report_event(event);
+  }
+  else if (type == HOOK_MESSAGE_SENT)
+  {
+    SAS::Event event(SASEvent::DIAMETER_TX, trail, 0);
+    event.add_var_param(data->length, data->buffer);
+
+    // TODO log IP / port
+    SAS::report_event(event);
+  }
 }
 
 
