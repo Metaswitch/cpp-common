@@ -78,7 +78,8 @@ public:
   ///                 to the CAS value returned when the data was read, or
   ///                 zero if writing a record for the first time.
   /// @param expiry   Expiry period of the data (in seconds).  If zero the
-  ///                 data will persist forever.
+  ///                 data will expire immediately, if -1 the data will
+  ///                 persist forever.
   virtual Status set_data(const std::string& table,
                           const std::string& key,
                           const std::string& data,

@@ -468,20 +468,27 @@ Store::Status MemcachedStore::set_data(const std::string& table,
   LOG_DEBUG("%d write replicas for key %s", replicas.size(), fqkey.c_str());
 
   // Calculate the rough expected expiry time.  We store this in the flags
-  // as it may be useful in future for read repair function.
+  // as it may be useful in future for read repair function.  -1 means the
+  // data will persist forever, which is an expiry time of 0 in memcached-speak.
   uint32_t now = time(NULL);
-  uint32_t exptime = now + expiry;
+  uint32_t exptime = (expiry > 0) ? now + expiry : 0;
 
   // Memcached uses a flexible mechanism for specifying expiration.
   // - 0 indicates never expire.
   // - <= MEMCACHED_EXPIRATION_MAXDELTA indicates a relative (delta) time.
   // - > MEMCACHED_EXPIRATION_MAXDELTA indicates an absolute time.
-  // Absolute time is the only way to force immediate expiry.  Unfortunately,
-  // it's not reliable - see https://github.com/Metaswitch/cpp-common/issues/160
-  // for details.  Instead, we use relative time for future times (expiry > 0)
-  // and the earliest absolute time for immediate expiry (expiry == 0).
-  time_t memcached_expiration =
-    (time_t)((expiry > 0) ? expiry : MEMCACHED_EXPIRATION_MAXDELTA + 1);
+  time_t memcached_expiration = (time_t)expiry;
+  if (expiry == -1)
+  {
+    // -1 means the data should persist forever.
+    memcached_expiration = 0;
+  }
+  else if (expiry == 0)
+  {
+    // 0 means the data should expire immediate, so force this by setting
+    // an absolute expiry time well in the past.
+    memcached_expiration = MEMCACHED_EXPIRATION_MAXDELTA + 1;
+  }
 
   // First try to write the primary data record to the first responding
   // server.

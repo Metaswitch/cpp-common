@@ -151,8 +151,8 @@ Store::Status LocalStore::set_data(const std::string& table,
     LOG_DEBUG("Found existing record, CAS = %ld, expiry = %ld (now = %ld)",
               r.cas, r.expiry, now);
 
-    if (((r.expiry >= now) && (cas == r.cas)) ||
-        ((r.expiry < now) && (cas == 0)))
+    if ((((r.expiry == 0) || (r.expiry >= now)) && (cas == r.cas)) ||
+        (((r.expiry != 0) && (r.expiry < now)) && (cas == 0)))
     {
       // Supplied CAS is consistent (either because record hasn't expired and
       // CAS matches, or record has expired and CAS is zero) so update the
@@ -171,7 +171,16 @@ Store::Status LocalStore::set_data(const std::string& table,
     Record& r = _db[fqkey];
     r.data = data;
     r.cas = 1;
-    r.expiry = expiry + now;
+    if (expiry >= 0)
+    {
+      // Set a future expiry time.
+      r.expiry = expiry + now;
+    }
+    else
+    {
+      // Data should persist forever.
+      r.expiry = 0;
+    }
     status = Store::Status::OK;
     LOG_DEBUG("No existing record so inserted new record, CAS = %ld, expiry = %ld (now = %ld)",
               r.cas, r.expiry, now);
