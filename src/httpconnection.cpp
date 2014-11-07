@@ -111,7 +111,9 @@ HttpConnection::HttpConnection(const std::string& server,
   _statistic = new Statistic(stat_name, lvc);
   _statistic->report_change(no_stats);
   _load_monitor = load_monitor;
-  _timeout_ms = calculate_timeout_ms(load_monitor->get_target_latency_us());
+  _timeout_ms = calculate_timeout_ms((load_monitor != NULL) ?
+                      load_monitor->get_target_latency_us() :
+                      DEFAULT_LATENCY_US);
   LOG_STATUS("HttpConnection for server %s", _server.c_str());
   LOG_STATUS("Response timeout: %ld", _timeout_ms);
 }
