@@ -47,7 +47,7 @@
 /// @class CommunicationMonitor
 ///
 /// Provides a simple mechanism to track communication state for an entity,
-/// and manage alarms for error conditions. Intended use case:
+/// and manage the associated alarm reporting. Intended use case:
 ///
 ///   - whenever an entity successfully communicates with a peer, the
 ///     inform_success() method should be called
@@ -56,24 +56,15 @@
 ///     inform_failure() method should be called
 ///
 /// If the monitor detects that all comms are failing over a set_confirm_sec
-/// interval, an alarm (corresponding to alarm_index and alarm_severity) is
-/// generated. Once alarmed the monitor will check for a successful comm. at
-/// a clear_confirm_sec interval. Once one is detected, a CLEARED severity
-/// alarm (corresponding to alarm_index) is generated. Note that timing is
+/// interval, an alarm active state is requested. Once alarmed the monitor
+/// will check for a successful comm. at a clear_confirm_sec interval. Once
+/// one is detected, an alarm clear state is requested. Note that timing is
 /// driven by calls to the inform_* methods. As such the intervals will not
 /// be very precise at low call volume.
 class CommunicationMonitor
 {
 public:
-  CommunicationMonitor(const std::string& issuer,
-                       AlarmDef::Index alarm_index,
-                       AlarmDef::Severity alarm_severity,
-                       unsigned int clear_confirm_sec = 30,
-                       unsigned int set_confirm_sec = 15);
-
-  /// Constructor for injecting a polymorphic AlarmPair for use in unit tests
-  /// with Google Mock.
-  CommunicationMonitor(AlarmPair* alarm_pair,
+  CommunicationMonitor(Alarm* alarm,
                        unsigned int clear_confirm_sec = 30,
                        unsigned int set_confirm_sec = 15);
 
@@ -91,13 +82,12 @@ private:
   void update_alarm_state(unsigned long now_ms);
   unsigned long current_time_ms();
 
-  AlarmPair  _alarms;
-  AlarmPair* _alarms_p;
+  Alarm* _alarm;
 
   unsigned int _clear_confirm_ms;
   unsigned int _set_confirm_ms;
 
-  std::atomic<int> _sent;
+  std::atomic<int> _succeeded;
   std::atomic<int> _failed;
 
   unsigned long _next_check;

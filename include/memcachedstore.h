@@ -64,7 +64,7 @@ public:
   MemcachedStore(bool binary,
                  const std::string& config_file,
                  CommunicationMonitor* comm_monitor,
-                 AlarmPair* vbucket_alarms);
+                 Alarm* vbucket_alarm);
   ~MemcachedStore();
 
   /// Flags that the store should use a new view of the memcached cluster to
@@ -189,7 +189,7 @@ private:
   pthread_mutex_t _vbucket_comm_lock;
 
   // Alarms to be used for reporting vbucket inaccessible conditions.
-  AlarmPair* _vbucket_alarms;
+  Alarm* _vbucket_alarm;
 };
 
 #endif

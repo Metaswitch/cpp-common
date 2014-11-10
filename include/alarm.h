@@ -46,21 +46,24 @@
 #include "alarmdefinition.h"
 #include "eventq.h"
 
-/// @class Alarm
+/// @class AlarmState
 ///
-/// Provides the basic interface for issuing an SNMP alarm.
+/// Provides the basic interface for updating an SNMP alarm's state.
 
-class Alarm
+class AlarmState
 {
 public:
-  Alarm(const std::string& issuer,
-        AlarmDef::Index index,
-        AlarmDef::Severity severity);
+  AlarmState(const std::string& issuer,
+             AlarmDef::Index index,
+             AlarmDef::Severity severity);
 
-  /// Queue request to generate the specified alarm.
+  /// Queue request to update the alarm identified by index, to the
+  /// state associated with severity, for the specified issuer.
   void issue();
 
   /// Queue request to clear all active alarms initiated by issuer.
+  /// This will result in a state change to CLEARED for all alarms
+  /// whose state was set to non-CLEARED by the issuer.
   static void clear_all(const std::string& issuer);
 
   std::string& get_issuer() {return _issuer;}
@@ -71,36 +74,38 @@ private:
   std::string _identifier;  
 };  
 
-/// @class AlarmPair
+/// @class Alarm
 ///
-/// Helper which encapsulates a pair of alarms that are associated with a
-/// specific error condition (i.e. alarm of non CLEAR severity and its
-/// counterpart of CLEAR severity (which is implied)).
+/// Encapsulates an alarm active state and its associated alarm clear state.
+/// Used to manage the reporting of a fault condition, and subsequent clear
+/// of said condition.
 
-class AlarmPair
+class Alarm
 {
 public:
-  AlarmPair(const std::string& issuer,
-            AlarmDef::Index index,
-            AlarmDef::Severity severity);
+  Alarm(const std::string& issuer,
+        AlarmDef::Index index,
+        AlarmDef::Severity severity);
 
-  virtual ~AlarmPair() {}
+  virtual ~Alarm() {}
 
-  /// Queues a request to generate the alarm of CLEAR severity if previously
-  /// set via this object.
+  /// Queues a request to generate an alarm state change corresponding to the
+  /// CLEARED severity if a state change for the non-CLEARED severity was
+  /// previously requested via set().
   virtual void clear();
 
-  /// Queues a request to generate the alarm of non CLEAR severity if previously
-  /// cleared via this object.
+  /// Queues a request to generate an alarm state change corresponding to the
+  /// non-CLEARED severity if a state change for the CLEARED severity was
+  /// previously requestd via clear(). 
   virtual void set();
 
-  /// Indicates if last operation via this object was a set for the non CLEAR
-  /// severity alarm.
+  /// Indicates that the alarm state currently maintained by this object 
+  /// corresponds to the non-CLEARED severity.
   virtual bool alarmed() {return _alarmed.load();}
 
 private:
-  Alarm _clear_alarm;
-  Alarm _set_alarm;
+  AlarmState _clear_state;
+  AlarmState _set_state;
 
   std::atomic<bool> _alarmed;
 };

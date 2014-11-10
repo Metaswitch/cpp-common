@@ -66,7 +66,7 @@
 MemcachedStore::MemcachedStore(bool binary,
                                const std::string& config_file,
                                CommunicationMonitor* comm_monitor,
-                               AlarmPair* vbucket_alarms) :
+                               Alarm* vbucket_alarm) :
   _config_file(config_file),
   _updater(NULL),
   _replicas(2),
@@ -79,7 +79,7 @@ MemcachedStore::MemcachedStore(bool binary,
   _comm_monitor(comm_monitor),
   _vbucket_comm_state(_vbuckets),
   _vbucket_comm_fail_count(0),
-  _vbucket_alarms(vbucket_alarms)
+  _vbucket_alarm(vbucket_alarm)
 {
   // Create the thread local key for the per thread data.
   pthread_key_create(&_thread_local, MemcachedStore::cleanup_connection);
@@ -301,7 +301,7 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
 /// all vbuckets become accessible again. 
 void MemcachedStore::update_vbucket_comm_state(int vbucket, CommState state)
 {
-  if (_vbucket_alarms)
+  if (_vbucket_alarm)
   {
     pthread_mutex_lock(&_vbucket_comm_lock);
 
@@ -311,13 +311,13 @@ void MemcachedStore::update_vbucket_comm_state(int vbucket, CommState state)
       {
         if ((_vbucket_comm_fail_count--) == 0)
         {
-          _vbucket_alarms->clear();
+          _vbucket_alarm->clear();
         }
       }
       else
       {
         _vbucket_comm_fail_count++;
-        _vbucket_alarms->set();
+        _vbucket_alarm->set();
       }
 
       _vbucket_comm_state[vbucket] = state;

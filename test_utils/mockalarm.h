@@ -1,5 +1,5 @@
 /**
- * @file mockalarms.h Mock AlarmPair.
+ * @file mockalarms.h 
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014  Metaswitch Networks Ltd
@@ -40,11 +40,11 @@
 #include "gmock/gmock.h"
 #include "alarm.h"
 
-class MockAlarmPair : public AlarmPair
+class MockAlarm : public Alarm
 {
 public:
-  MockAlarmPair() : 
-    AlarmPair("sprout", AlarmDef::SPROUT_HOMESTEAD_COMM_ERROR, AlarmDef::CRITICAL) {}
+  MockAlarm() : 
+    Alarm("sprout", AlarmDef::SPROUT_HOMESTEAD_COMM_ERROR, AlarmDef::CRITICAL) {}
 
   MOCK_METHOD0(clear, void());
   MOCK_METHOD0(set, void());

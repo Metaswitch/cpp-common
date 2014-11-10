@@ -634,7 +634,6 @@ public:
   virtual void initialize();
   virtual void configure(std::string filename, 
                          CommunicationMonitor* comm_monitor = NULL);
-  virtual CommunicationMonitor* get_comm_monitor() {return _comm_monitor;}
   virtual void advertize_application(const Dictionary::Application::Type type,
                                      const Dictionary::Application& app);
   virtual void advertize_application(const Dictionary::Application::Type type,
@@ -655,6 +654,9 @@ public:
   virtual void send(struct msg* fd_msg);
   virtual void send(struct msg* fd_msg, Transaction* tsx);
   virtual void send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms);
+
+  virtual void report_tsx_result(int32_t rc);
+  virtual void report_tsx_timeout();
 
   virtual bool add(Peer* peer);
   virtual void remove(Peer* peer);

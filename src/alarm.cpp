@@ -43,15 +43,15 @@
 
 AlarmReqAgent AlarmReqAgent::_instance;
 
-Alarm::Alarm(const std::string& issuer, 
-             AlarmDef::Index index,
-             AlarmDef::Severity severity) :
+AlarmState::AlarmState(const std::string& issuer, 
+                       AlarmDef::Index index,
+                       AlarmDef::Severity severity) :
   _issuer(issuer)
 {
   _identifier = std::to_string(index) + "." + std::to_string(severity);
 }
 
-void Alarm::issue()
+void AlarmState::issue()
 {
   std::vector<std::string> req;
 
@@ -64,7 +64,7 @@ void Alarm::issue()
   LOG_DEBUG("%s issued %s alarm", _issuer.c_str(), _identifier.c_str());
 }
 
-void Alarm::clear_all(const std::string& issuer)
+void AlarmState::clear_all(const std::string& issuer)
 {
   std::vector<std::string> req;
 
@@ -76,32 +76,32 @@ void Alarm::clear_all(const std::string& issuer)
   LOG_DEBUG("%s cleared its alarms", issuer.c_str());
 }
 
-AlarmPair::AlarmPair(const std::string& issuer,
-                     AlarmDef::Index index,
-                     AlarmDef::Severity severity) :
-  _clear_alarm(issuer, index, AlarmDef::CLEARED),
-  _set_alarm(issuer, index, severity),
+Alarm::Alarm(const std::string& issuer,
+             AlarmDef::Index index,
+             AlarmDef::Severity severity) :
+  _clear_state(issuer, index, AlarmDef::CLEARED),
+  _set_state(issuer, index, severity),
   _alarmed(false)
 {
 }
 
-void AlarmPair::set()
+void Alarm::set()
 {
   bool previously_alarmed = _alarmed.exchange(true);
 
   if (!previously_alarmed)
   {
-    _set_alarm.issue();
+    _set_state.issue();
   }
 }
 
-void AlarmPair::clear()
+void Alarm::clear()
 {
   bool previously_alarmed = _alarmed.exchange(false);
 
   if (previously_alarmed)
   {
-    _clear_alarm.issue();
+    _clear_state.issue();
   }
 }
 

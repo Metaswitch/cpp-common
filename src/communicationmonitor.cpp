@@ -37,30 +37,13 @@
 #include "communicationmonitor.h"
 #include "log.h"
 
-CommunicationMonitor::CommunicationMonitor(const std::string& issuer,
-                                           AlarmDef::Index alarm_index,
-                                           AlarmDef::Severity alarm_severity,
+CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
                                            unsigned int clear_confirm_sec,
                                            unsigned int set_confirm_sec) :
-  _alarms(issuer, alarm_index, alarm_severity),
-  _alarms_p(&_alarms),
+  _alarm(alarm),
   _clear_confirm_ms(clear_confirm_sec * 1000),
   _set_confirm_ms(set_confirm_sec * 1000),
-  _sent(0), _failed(0)
-{
-  _next_check = current_time_ms() + _set_confirm_ms;
-
-  pthread_mutex_init(&_lock, NULL);
-}
-
-CommunicationMonitor::CommunicationMonitor(AlarmPair* alarm_pair,
-                                           unsigned int clear_confirm_sec,
-                                           unsigned int set_confirm_sec) :
-  _alarms("", AlarmDef::UNDEFINED_INDEX, AlarmDef::UNDEFINED_SEVERITY),
-  _alarms_p(alarm_pair),
-  _clear_confirm_ms(clear_confirm_sec * 1000),
-  _set_confirm_ms(set_confirm_sec * 1000),
-  _sent(0), _failed(0)
+  _succeeded(0), _failed(0)
 {
   _next_check = current_time_ms() + _set_confirm_ms;
 
@@ -70,11 +53,13 @@ CommunicationMonitor::CommunicationMonitor(AlarmPair* alarm_pair,
 CommunicationMonitor::~CommunicationMonitor()
 {
   pthread_mutex_destroy(&_lock);
+
+  delete _alarm;
 }
 
 void CommunicationMonitor::inform_success(unsigned long now_ms)
 {
-  _sent++;
+  _succeeded++;
 
   update_alarm_state(now_ms);
 }
@@ -88,6 +73,11 @@ void CommunicationMonitor::inform_failure(unsigned long now_ms)
 
 void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
 {
+  if (_alarm == NULL)
+  {
+    return;
+  }
+
   now_ms = now_ms ? now_ms : current_time_ms();
 
   if (now_ms > _next_check)
@@ -103,17 +93,17 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
     if (now_ms > _next_check)
     {
       // Grab the current counts and reset them to zero in a lockless manner.
-      unsigned int sent   = _sent.fetch_and(0);
+      unsigned int succeeded = _succeeded.fetch_and(0);
       unsigned int failed = _failed.fetch_and(0);
 
-      if (!_alarms_p->alarmed())
+      if (!_alarm->alarmed())
       {
         // A communication alarm is not currently set so see if one needs to
         // be. This will be the case if there were no successful comms over
         // the interval, and at least one failed comm.
-        if ((sent == 0) && (failed != 0))
+        if ((succeeded == 0) && (failed != 0))
         {
-          _alarms_p->set();
+          _alarm->set();
         }
       }
       else
@@ -121,13 +111,13 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
         // A communication alarm is currently set so see if it needs to be
         // cleared. This will be the case if at lease one successful comm
         // was reported over the interval.
-        if (sent != 0)
+        if (succeeded != 0)
         {
-          _alarms_p->clear();
+          _alarm->clear();
         }
       }
 
-      _next_check = (_alarms_p->alarmed()) ? now_ms + _clear_confirm_ms :
+      _next_check = (_alarm->alarmed()) ? now_ms + _clear_confirm_ms :
                                              now_ms + _set_confirm_ms   ;
     }
 

@@ -524,6 +524,35 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
   fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
 }
 
+void Stack::report_tsx_result(int32_t rc)
+{
+  if (_comm_monitor)
+  {
+    if (((rc >= 3001) && (rc <= 3010)) ||
+        ((rc >= 4002) && (rc <= 4003)) ||
+        ((rc >= 5001) && (rc <= 5002)) ||
+        ((rc >= 5004) && (rc <= 5005)) ||
+        ((rc >= 5007) && (rc <= 5011)) ||
+        ((rc >= 5013) && (rc <= 5015)) ||
+         (rc == 5017) || (rc == 4181)    )
+    {
+      _comm_monitor->inform_failure();
+    }
+    else
+    {
+      _comm_monitor->inform_success();
+    }
+  }
+}
+
+void Stack::report_tsx_timeout()
+{
+  if (_comm_monitor)
+  {
+    _comm_monitor->inform_failure();
+  }
+}
+
 bool Stack::add(Peer* peer)
 {
   // Set up the peer information structure.
@@ -745,25 +774,9 @@ void Transaction::on_response(void* data, struct msg** rsp)
               msg.command_code(), tsx);
   msg.sas_log_rx(tsx->trail(), 0);
 
-  CommunicationMonitor* cm = stack->get_comm_monitor();
-  if (cm)
-  {
-    int32_t rc;
-    if (msg.result_code(rc) && (((rc >= 3001) && (rc <= 3010)) ||
-                                ((rc >= 4002) && (rc <= 4003)) ||
-                                ((rc >= 5001) && (rc <= 5002)) ||
-                                ((rc >= 5004) && (rc <= 5005)) ||
-                                ((rc >= 5007) && (rc <= 5011)) ||
-                                ((rc >= 5013) && (rc <= 5015)) ||
-                                 (rc == 5017) || (rc == 4181)    ))
-    {
-      cm->inform_failure();
-    }
-    else
-    {
-      cm->inform_success();
-    }
-  }
+  int32_t rc;
+  msg.result_code(rc);
+  stack->report_tsx_result(rc);
 
   tsx->stop_timer();
   tsx->on_response(msg);
@@ -782,11 +795,7 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
               msg.command_code(), tsx);
   msg.sas_log_timeout(tsx->trail(), 0);
 
-  CommunicationMonitor* cm = stack->get_comm_monitor();
-  if (cm)
-  {
-    cm->inform_failure();
-  }
+  stack->report_tsx_timeout();
 
   tsx->stop_timer();
   tsx->on_timeout();
