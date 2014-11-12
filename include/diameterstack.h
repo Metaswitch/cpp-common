@@ -668,12 +668,12 @@ private:
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
 
   void set_trail_id(struct msg* fd_msg, SAS::TrailId trail);
-  static void sas_log_diameter_message(enum fd_hook_type type,
-                                       struct msg * msg,
-                                       struct peer_hdr * peer,
-                                       void * other,
-                                       struct fd_hook_permsgdata *pmd,
-                                       void * stack_ptr);
+  static void fd_sas_log_diameter_message(enum fd_hook_type type,
+                                          struct msg * msg,
+                                          struct peer_hdr * peer,
+                                          void * other,
+                                          struct fd_hook_permsgdata *pmd,
+                                          void * stack_ptr);
 
   bool _initialized;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
@@ -683,7 +683,12 @@ private:
                                        * registered for routing errors */
   struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
   struct fd_hook_hdl* _sas_cb_hdlr;
-  struct fd_hook_data_hdl* _sas_cb_data_hdlr;
+
+  // Data handle for the SAS logging hook. This must be static because
+  // freeDiameter has a limit on the maximum number of handles that can be
+  // registered, it stores the handles statically, and there is no way to
+  // unregister them.
+  static struct fd_hook_data_hdl* _sas_cb_data_hdl;
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
 
@@ -771,6 +776,13 @@ AVP::iterator AVP::end() const {return AVP::iterator(NULL);}
 AVP::iterator Message::begin() const {return AVP::iterator(*this);}
 AVP::iterator Message::begin(const Dictionary::AVP& type) const {return AVP::iterator(*this, type);}
 AVP::iterator Message::end() const {return AVP::iterator(NULL);}
+};
+
+/// Per-message data structure for SAS logging in free-diameter hooks.  This
+/// must have the exact name fd_hook_permsgdata.
+struct fd_hook_permsgdata
+{
+  SAS::TrailId trail;
 };
 
 #endif
