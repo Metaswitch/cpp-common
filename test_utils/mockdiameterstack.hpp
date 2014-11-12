@@ -51,7 +51,7 @@ public:
   MOCK_METHOD0(start, void());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(send, void(struct msg*));
+  MOCK_METHOD2(send, void(struct msg*, SAS::TrailId));
   MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
   MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
   MOCK_METHOD1(add, bool(Diameter::Peer*));
