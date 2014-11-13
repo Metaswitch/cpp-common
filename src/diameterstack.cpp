@@ -690,9 +690,10 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
 
     if (hdr->msg_flags & CMD_FLAG_REQUEST)
     {
-      // Received request. Allocate a new trail.
+      // Received request. Allocate a new trail and store it in PMD.
       trail = SAS::new_trail(0);
       LOG_DEBUG("Allocated new trail ID: %lu", trail);
+      pmd->trail = trail;
     }
     else
     {
