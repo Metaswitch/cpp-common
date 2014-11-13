@@ -750,7 +750,7 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
 
 
   struct fd_cnx_rcvdata* data = (struct fd_cnx_rcvdata*)other;
-  event.add_var_param(data->length, data->buffer);
+  event.add_compressed_param(data->length, data->buffer);
 
   SAS::report_event(event);
 }
@@ -896,11 +896,11 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 
     if (fd_msg_bufferize(*req, &buf, &len) == 0)
     {
-      event.add_var_param(len, buf);
+      event.add_compressed_param(len, buf);
     }
     else
     {
-      event.add_var_param("unknown");
+      event.add_compressed_param("unknown");
     }
 
     SAS::report_event(event);

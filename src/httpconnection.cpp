@@ -497,7 +497,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   SAS::Event tx_http_req(trail, event_id,  0);
   tx_http_req.add_var_param(method_str);
   tx_http_req.add_var_param(Utils::url_unescape(url));
-  tx_http_req.add_var_param(body);
+  tx_http_req.add_compressed_param(body);
   SAS::report_event(tx_http_req);
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
@@ -871,7 +871,7 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
   SAS::Event rx_http_rsp(trail, event_id, instance_id);
   rx_http_rsp.add_var_param(method_str);
   rx_http_rsp.add_var_param(Utils::url_unescape(url));
-  rx_http_rsp.add_var_param(doc);
+  rx_http_rsp.add_compressed_param(doc);
   rx_http_rsp.add_static_param(http_rc);
   SAS::report_event(rx_http_rsp);
 }

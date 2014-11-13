@@ -38,10 +38,11 @@
 #define SASEVENT_H__
 
 #include <string>
+#include "sas.h"
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE = "org.projectclearwater.20141027";
+  const std::string CURRENT_RESOURCE_BUNDLE = "org.projectclearwater.20141112";
 
   // Name of the HTTP header we use to correlate the client and server in SAS.
   const std::string HTTP_BRANCH_HEADER_NAME = "X-SAS-HTTP-Branch-ID";
@@ -61,6 +62,13 @@ namespace SASEvent {
   };
 
   //----------------------------------------------------------------------------
+  // Default compression profiles.
+  // PROFILE_SIP must match compression_profiles.sip in
+  // https://github.com/Metaswitch/clearwater-sas-resources/blob/master/clearwater_sas_resource_bundle.yaml
+  //----------------------------------------------------------------------------
+  const SAS::Profile PROFILE_SIP("PCMUACKrportSUBSCRIBEP-Access-Network-Info: BYEusert=0 0 telephone-eventAccept: transportREGISTERSubscription-State: NOTIFYServer: m=audio RTP/AVP c=IN IP4 Expires: 200 OK\r\na=rtpmap:INVITETo: application/sdpVia: Content-Type: From: CSeq: Max-Forwards: Contact: Organization: Content-Length: Call-ID: ;tag=;branch=z9hG4bKSIP/2.0/UDP<sip:");
+
+  //----------------------------------------------------------------------------
   // Event spaces.
   //----------------------------------------------------------------------------
   const int COMMON_BASE = 0x000000;
@@ -70,6 +78,7 @@ namespace SASEvent {
   const int MEMENTO_BASE = 0x840000;
   const int GEMINI_BASE = 0x850000;
   const int MMTEL_BASE = 0x860000;
+  const int MANGELWURZEL_BASE = 0x870000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
