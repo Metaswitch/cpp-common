@@ -403,10 +403,10 @@ int Stack::request_callback_fn(struct msg** req,
 {
   HandlerInterface* handler = (HandlerInterface*)handler_param;
 
-  // Create a new message object so and raise the necessary SAS logs.
-  SAS::TrailId trail = SAS::new_trail(0);
-  Message msg(handler->get_dict(), *req, Stack::get_instance());
-  msg.revoke_ownership();
+  // A SAS trail has already been allocated in fd_sas_log_diameter_message. Get
+  // it.
+  SAS::TrailId trail = fd_hook_get_pmd(_sas_cb_data_hdl, *req)->trail;
+  LOG_DEBUG("Invoke diameter request handler on trail %lu", trail);
 
   // Pass the request to the registered handler.
   handler->process_request(req, trail);
@@ -471,6 +471,10 @@ void Stack::stop()
     {
       fd_hook_unregister(_sas_cb_hdlr);
     }
+
+    // freeDiameter does not allow you to unregister data handles.  Simply NULL
+    // the handle out.
+    _sas_cb_data_hdl = NULL;
 
     int rc = fd_core_shutdown();
     if (rc != 0)
@@ -746,6 +750,8 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
 
   struct fd_cnx_rcvdata* data = (struct fd_cnx_rcvdata*)other;
   event.add_var_param(data->length, data->buffer);
+
+  SAS::report_event(event);
 }
 
 struct dict_object* Dictionary::Vendor::find(const std::string vendor)
@@ -880,6 +886,25 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 
   LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
+
+  // log the timeout to SAS.
+  {
+    SAS::Event event(SASEvent::DIAMETER_TIMEOUT, tsx->trail, 0);
+    uint8_t* buf = NULL;
+    size_t len;
+
+    if (fd_msg_bufferize(*req, &buf, &len) == 0)
+    {
+      event.add_var_param(len, buf);
+    }
+    else
+    {
+      event.add_var_param("unknown");
+    }
+
+    SAS::report_event(event);
+    free(buf); buf = NULL;
+  }
 
   tsx->stop_timer();
   tsx->on_timeout();
