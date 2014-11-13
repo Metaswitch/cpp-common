@@ -723,7 +723,7 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
   const int event_type = ((type == HOOK_MESSAGE_RECEIVED) ?
                           SASEvent::DIAMETER_RX :
                           SASEvent::DIAMETER_TX);
-  SAS::Event event(event_type, trail, 0);
+  SAS::Event event(trail, event_type, 0);
 
   if (fd_peer_cnx_remote_ip_port(peer, ip, sizeof(ip), &port) == 0)
   {
@@ -889,7 +889,7 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 
   // log the timeout to SAS.
   {
-    SAS::Event event(SASEvent::DIAMETER_TIMEOUT, tsx->trail(), 0);
+    SAS::Event event(tsx->trail(), SASEvent::DIAMETER_TIMEOUT, 0);
     uint8_t* buf = NULL;
     size_t len;
 
