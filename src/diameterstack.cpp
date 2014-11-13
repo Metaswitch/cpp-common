@@ -670,6 +670,13 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
   SAS::TrailId trail;
   Stack* stack = (Stack*)stack_ptr;
 
+  // Don't log the message if we don;t have a peer (this must be an initial
+  // CER/CEA exchange which is not logged).
+  if (peer == NULL)
+  {
+    return;
+  }
+
   fd_msg_hdr(msg, &hdr);
 
   // Get the trail ID we should be logging on.
@@ -714,13 +721,28 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
                           SASEvent::DIAMETER_TX);
   SAS::Event event(event_type, trail, 0);
 
-  fd_peer_cnx_remote_ip_port(peer, ip, sizeof(ip), &port);
-  event.add_var_param(ip);
-  event.add_static_param(port);
+  if (fd_peer_cnx_remote_ip_port(peer, ip, sizeof(ip), &port) == 0)
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+  }
 
-  fd_peer_cnx_local_ip_port(peer, ip, sizeof(ip), &port);
-  event.add_var_param(ip);
-  event.add_static_param(port);
+  if (fd_peer_cnx_local_ip_port(peer, ip, sizeof(ip), &port) == 0)
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+  }
+
 
   struct fd_cnx_rcvdata* data = (struct fd_cnx_rcvdata*)other;
   event.add_var_param(data->length, data->buffer);
