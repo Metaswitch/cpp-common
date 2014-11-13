@@ -889,7 +889,7 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 
   // log the timeout to SAS.
   {
-    SAS::Event event(SASEvent::DIAMETER_TIMEOUT, tsx->trail, 0);
+    SAS::Event event(SASEvent::DIAMETER_TIMEOUT, tsx->trail(), 0);
     uint8_t* buf = NULL;
     size_t len;
 
