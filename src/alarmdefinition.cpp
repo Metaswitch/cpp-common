@@ -364,12 +364,18 @@ namespace AlarmDef {
     {CASSANDRA_RING_NODE_FAIL, UNDERLAYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
-          "Cassandra: Ring node failure cleared",
+          "Cassandra: Ring node error/failure cleared",
           "All Cassandra ring nodes have been restored to normal operation."
         },
         {MAJOR,
-          "Cassandra: Ring node failure",
-          "Cassandra is unable to contact one or more of its ring nodes. It will periodically attempt to "
+          "Cassandra: Ring node redundancy error",
+          "Cassandra is unable to contact one of its ring nodes. It will periodically attempt to "
+          "reconnect. If this alarm does not clear, ensure that all Cassandra instances are operational and "
+          "verify network connectivity to reporting nodes."
+        },
+        {CRITICAL,
+          "Cassandra: Ring node redundancy failure",
+          "Cassandra is unable to contact more than one of its ring nodes. It will periodically attempt to "
           "reconnect. If this alarm does not clear, ensure that all Cassandra instances are operational and "
           "verify network connectivity to reporting nodes."
         }
