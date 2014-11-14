@@ -472,9 +472,9 @@ void Stack::stop()
       fd_hook_unregister(_sas_cb_hdlr);
     }
 
-    // freeDiameter does not allow you to unregister data handles.  Simply NULL
-    // the handle out.
-    _sas_cb_data_hdl = NULL;
+    // freeDiameter does not allow you to unregister data handles. Also it
+    // stores them in static data and has a maximum nunber that can be
+    // registered, so we must not NULL the handle out either.
 
     int rc = fd_core_shutdown();
     if (rc != 0)
