@@ -42,6 +42,7 @@ using namespace Diameter;
 
 Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
+struct fd_hook_data_hdl* Stack::_sas_cb_data_hdl = NULL;
 
 Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
 {
@@ -83,12 +84,32 @@ void Stack::initialize()
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_DATA_RECEIVED,
-                                    HOOK_MESSAGE_RECEIVED,
                                     HOOK_MESSAGE_LOCAL,
-                                    HOOK_MESSAGE_SENT,
                                     HOOK_MESSAGE_ROUTING_FORWARD,
                                     HOOK_MESSAGE_ROUTING_LOCAL),
                           fd_null_hook_cb, this, NULL, &_null_cb_hdlr);
+    if (rc != 0)
+    {
+      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+    }
+
+    if (_sas_cb_data_hdl == NULL)
+    {
+      rc = fd_hook_data_register(sizeof(struct fd_hook_permsgdata),
+                                 NULL,
+                                 NULL,
+                                 &_sas_cb_data_hdl);
+      if (rc != 0)
+      {
+        throw Exception("fd_hook_data_register", rc); // LCOV_EXCL_LINE
+      }
+    }
+    rc = fd_hook_register(HOOK_MASK(HOOK_MESSAGE_RECEIVED,
+                                    HOOK_MESSAGE_SENT),
+                          fd_sas_log_diameter_message,
+                          this,
+                          _sas_cb_data_hdl,
+                          &_sas_cb_hdlr);
     if (rc != 0)
     {
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
@@ -382,11 +403,10 @@ int Stack::request_callback_fn(struct msg** req,
 {
   HandlerInterface* handler = (HandlerInterface*)handler_param;
 
-  // Create a new message object so and raise the necessary SAS logs.
-  SAS::TrailId trail = SAS::new_trail(0);
-  Message msg(handler->get_dict(), *req, Stack::get_instance());
-  msg.sas_log_rx(trail, 0);
-  msg.revoke_ownership();
+  // A SAS trail has already been allocated in fd_sas_log_diameter_message. Get
+  // it.
+  SAS::TrailId trail = fd_hook_get_pmd(_sas_cb_data_hdl, *req)->trail;
+  LOG_DEBUG("Invoke diameter request handler on trail %lu", trail);
 
   // Pass the request to the registered handler.
   handler->process_request(req, trail);
@@ -447,6 +467,15 @@ void Stack::stop()
       fd_hook_unregister(_null_cb_hdlr);
     }
 
+    if (_sas_cb_hdlr)
+    {
+      fd_hook_unregister(_sas_cb_hdlr);
+    }
+
+    // freeDiameter does not allow you to unregister data handles.  Simply NULL
+    // the handle out.
+    _sas_cb_data_hdl = NULL;
+
     int rc = fd_core_shutdown();
     if (rc != 0)
     {
@@ -500,13 +529,20 @@ void Stack::logger(int fd_log_level, const char* fmt, va_list args)
   Log::_write(log_level, "freeDiameter", 0, fmt, args);
 }
 
-void Stack::send(struct msg* fd_msg)
+void Stack::set_trail_id(struct msg* fd_msg, SAS::TrailId trail)
 {
+  fd_hook_get_pmd(_sas_cb_data_hdl, fd_msg)->trail = trail;
+}
+
+void Stack::send(struct msg* fd_msg, SAS::TrailId trail)
+{
+  set_trail_id(fd_msg, trail);
   fd_msg_send(&fd_msg, NULL, NULL);
 }
 
 void Stack::send(struct msg* fd_msg, Transaction* tsx)
 {
+  set_trail_id(fd_msg, tsx->trail());
   fd_msg_send(&fd_msg, Transaction::on_response, tsx);
 }
 
@@ -519,6 +555,8 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_nsec += (timeout_ms % 1000) * 1000 * 1000;
   timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
+
+  set_trail_id(fd_msg, tsx->trail());
   fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
 }
 
@@ -623,6 +661,98 @@ void Stack::remove_int(Peer* peer)
   }
   std::string host = peer->host();
   fd_peer_remove((char*)host.c_str(), host.length());
+}
+
+void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
+                                        struct msg * msg,
+                                        struct peer_hdr * peer,
+                                        void * other,
+                                        struct fd_hook_permsgdata *pmd,
+                                        void * stack_ptr)
+{
+  struct msg_hdr * hdr;
+  SAS::TrailId trail;
+  Stack* stack = (Stack*)stack_ptr;
+
+  // Don't log the message if we don;t have a peer (this must be an initial
+  // CER/CEA exchange which is not logged).
+  if (peer == NULL)
+  {
+    return;
+  }
+
+  fd_msg_hdr(msg, &hdr);
+
+  // Get the trail ID we should be logging on.
+  if (type == HOOK_MESSAGE_RECEIVED)
+  {
+    LOG_DEBUG("Processing a received diameter message");
+
+    if (hdr->msg_flags & CMD_FLAG_REQUEST)
+    {
+      // Received request. Allocate a new trail and store it in PMD.
+      trail = SAS::new_trail(0);
+      LOG_DEBUG("Allocated new trail ID: %lu", trail);
+      pmd->trail = trail;
+    }
+    else
+    {
+      // Received answer. Get the trail from the request.
+      trail = fd_hook_get_request_pmd(stack->_sas_cb_data_hdl, msg)->trail;
+      LOG_DEBUG("Got existing trail ID: %lu", trail);
+    }
+  }
+  else if (type == HOOK_MESSAGE_SENT)
+  {
+    // Sent request / answer. Use the trail ID that the diameter stack set on
+    // the message.
+    LOG_DEBUG("Processing a sent diameter message");
+    trail = pmd->trail;
+    LOG_DEBUG("Got existing trail ID: %lu", trail);
+  }
+  else
+  {
+    LOG_ERROR("Unexpected freeDiameter hook type: %d", type);
+    return;
+  }
+
+  // Construct an event and add the remote IP/port, local IP/port, and message
+  // data.
+  char ip[64];
+  unsigned short port;
+
+  const int event_type = ((type == HOOK_MESSAGE_RECEIVED) ?
+                          SASEvent::DIAMETER_RX :
+                          SASEvent::DIAMETER_TX);
+  SAS::Event event(trail, event_type, 0);
+
+  if (fd_peer_cnx_remote_ip_port(peer, ip, sizeof(ip), &port) == 0)
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+  }
+
+  if (fd_peer_cnx_local_ip_port(peer, ip, sizeof(ip), &port) == 0)
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+  }
+
+
+  struct fd_cnx_rcvdata* data = (struct fd_cnx_rcvdata*)other;
+  event.add_compressed_param(data->length, data->buffer);
+
+  SAS::report_event(event);
 }
 
 struct dict_object* Dictionary::Vendor::find(const std::string vendor)
@@ -741,7 +871,6 @@ void Transaction::on_response(void* data, struct msg** rsp)
 
   LOG_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
               msg.command_code(), tsx);
-  msg.sas_log_rx(tsx->trail(), 0);
 
   tsx->stop_timer();
   tsx->on_response(msg);
@@ -758,7 +887,25 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 
   LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
-  msg.sas_log_timeout(tsx->trail(), 0);
+
+  // log the timeout to SAS.
+  {
+    SAS::Event event(tsx->trail(), SASEvent::DIAMETER_TIMEOUT, 0);
+    uint8_t* buf = NULL;
+    size_t len;
+
+    if (fd_msg_bufferize(*req, &buf, &len) == 0)
+    {
+      event.add_compressed_param(len, buf);
+    }
+    else
+    {
+      event.add_compressed_param("unknown");
+    }
+
+    SAS::report_event(event);
+    free(buf); buf = NULL;
+  }
 
   tsx->stop_timer();
   tsx->on_timeout();
@@ -1032,8 +1179,7 @@ void Message::send(SAS::TrailId trail)
   LOG_VERBOSE("Sending Diameter message of type %u", command_code());
   revoke_ownership();
 
-  sas_log_tx(trail, 0);
-  _stack->send(_fd_msg);
+  _stack->send(_fd_msg, trail);
 }
 
 void Message::send(Transaction* tsx)
@@ -1042,7 +1188,6 @@ void Message::send(Transaction* tsx)
   tsx->start_timer();
   revoke_ownership();
 
-  sas_log_tx(tsx->trail(), 0);
   _stack->send(_fd_msg, tsx);
 }
 
@@ -1053,43 +1198,5 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
   tsx->start_timer();
   revoke_ownership();
 
-  sas_log_tx(tsx->trail(), 0);
   _stack->send(_fd_msg, tsx, timeout_ms);
-}
-
-void Message::sas_log_rx(SAS::TrailId trail, uint32_t instance_id)
-{
-  SAS::Event event(trail, SASEvent::DIAMETER_RX, instance_id);
-  sas_add_serialization(event);
-}
-
-void Message::sas_log_tx(SAS::TrailId trail, uint32_t instance_id)
-{
-  SAS::Event event(trail, SASEvent::DIAMETER_TX, instance_id);
-  sas_add_serialization(event);
-}
-
-void Message::sas_log_timeout(SAS::TrailId trail, uint32_t instance_id)
-{
-  SAS::Event event(trail, SASEvent::DIAMETER_TIMEOUT, instance_id);
-  sas_add_serialization(event);
-}
-
-// Add the serialized version of the diameter message to a SAS event.
-//
-// This method also reports the event to SAS so that the memory is still
-// allocated at the point report_event is called (this is a workaround for
-// https://github.com/Metaswitch/sas-client/issues/23).
-void Message::sas_add_serialization(SAS::Event& event)
-{
-  uint8_t* buf = NULL;
-  size_t len;
-
-  if (fd_msg_bufferize(_fd_msg, &buf, &len) == 0)
-  {
-    event.add_compressed_param(len, buf);
-  }
-
-  SAS::report_event(event);
-  free(buf); buf = NULL;
 }

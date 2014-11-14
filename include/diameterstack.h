@@ -426,10 +426,6 @@ public:
   virtual void send(Transaction* tsx, unsigned int timeout_ms);
   void operator=(Message const&);
 
-  void sas_log_rx(SAS::TrailId trail, uint32_t instance_id=0);
-  void sas_log_tx(SAS::TrailId trail, uint32_t instance_id=0);
-  void sas_log_timeout(SAS::TrailId trail, uint32_t instance_id=0);
-
   inline void revoke_ownership()
   {
     _master_msg->_free_on_delete = false;
@@ -454,8 +450,6 @@ private:
     fd_msg_hdr(_fd_msg, &hdr);
     return hdr;
   }
-
-  void sas_add_serialization(SAS::Event& event);
 };
 
 class AVP::iterator
@@ -643,7 +637,7 @@ public:
     return _avp_map;
   }
 
-  virtual void send(struct msg* fd_msg);
+  virtual void send(struct msg* fd_msg, SAS::TrailId trail);
   virtual void send(struct msg* fd_msg, Transaction* tsx);
   virtual void send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms);
 
@@ -673,6 +667,14 @@ private:
   void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
 
+  void set_trail_id(struct msg* fd_msg, SAS::TrailId trail);
+  static void fd_sas_log_diameter_message(enum fd_hook_type type,
+                                          struct msg * msg,
+                                          struct peer_hdr * peer,
+                                          void * other,
+                                          struct fd_hook_permsgdata *pmd,
+                                          void * stack_ptr);
+
   bool _initialized;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
@@ -680,6 +682,13 @@ private:
   struct fd_hook_hdl* _error_cb_hdlr; /* Handler for the callback
                                        * registered for routing errors */
   struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
+  struct fd_hook_hdl* _sas_cb_hdlr;
+
+  // Data handle for the SAS logging hook. This must be static because
+  // freeDiameter has a limit on the maximum number of handles that can be
+  // registered, it stores the handles statically, and there is no way to
+  // unregister them.
+  static struct fd_hook_data_hdl* _sas_cb_data_hdl;
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
 
@@ -767,6 +776,13 @@ AVP::iterator AVP::end() const {return AVP::iterator(NULL);}
 AVP::iterator Message::begin() const {return AVP::iterator(*this);}
 AVP::iterator Message::begin(const Dictionary::AVP& type) const {return AVP::iterator(*this, type);}
 AVP::iterator Message::end() const {return AVP::iterator(NULL);}
+};
+
+/// Per-message data structure for SAS logging in free-diameter hooks.  This
+/// must have the exact name fd_hook_permsgdata.
+struct fd_hook_permsgdata
+{
+  SAS::TrailId trail;
 };
 
 #endif
