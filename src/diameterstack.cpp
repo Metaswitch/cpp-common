@@ -44,7 +44,7 @@ Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 struct fd_hook_data_hdl* Stack::_sas_cb_data_hdl = NULL;
 
-Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL)
+Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL), _comm_monitor(NULL)
 {
   pthread_mutex_init(&_peers_lock, NULL);
 }
@@ -301,7 +301,8 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
   return;
 }
 
-void Stack::configure(std::string filename)
+void Stack::configure(std::string filename,
+                      CommunicationMonitor* comm_monitor)
 {
   initialize();
   LOG_STATUS("Configuring Diameter stack from file %s", filename.c_str());
@@ -311,6 +312,7 @@ void Stack::configure(std::string filename)
     throw Exception("fd_core_parseconf", rc); // LCOV_EXCL_LINE
   }
   populate_avp_map();
+  _comm_monitor = comm_monitor;
 }
 
 void Stack::advertize_application(const Dictionary::Application::Type type,
@@ -558,6 +560,35 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
 
   set_trail_id(fd_msg, tsx->trail());
   fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
+}
+
+void Stack::report_tsx_result(int32_t rc)
+{
+  if (_comm_monitor)
+  {
+    if (((rc >= 3001) && (rc <= 3010)) ||
+        ((rc >= 4002) && (rc <= 4003)) ||
+        ((rc >= 5001) && (rc <= 5002)) ||
+        ((rc >= 5004) && (rc <= 5005)) ||
+        ((rc >= 5007) && (rc <= 5011)) ||
+        ((rc >= 5013) && (rc <= 5015)) ||
+         (rc == 5017) || (rc == 4181)    )
+    {
+      _comm_monitor->inform_failure();
+    }
+    else
+    {
+      _comm_monitor->inform_success();
+    }
+  }
+}
+
+void Stack::report_tsx_timeout()
+{
+  if (_comm_monitor)
+  {
+    _comm_monitor->inform_failure();
+  }
 }
 
 bool Stack::add(Peer* peer)
@@ -872,6 +903,10 @@ void Transaction::on_response(void* data, struct msg** rsp)
   LOG_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
               msg.command_code(), tsx);
 
+  int32_t rc;
+  msg.result_code(rc);
+  stack->report_tsx_result(rc);
+
   tsx->stop_timer();
   tsx->on_response(msg);
   delete tsx;
@@ -906,6 +941,8 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
     SAS::report_event(event);
     free(buf); buf = NULL;
   }
+
+  stack->report_tsx_timeout();
 
   tsx->stop_timer();
   tsx->on_timeout();

@@ -1,8 +1,8 @@
 /**
- * @file fakehttpconnection.cpp Fake HTTP connection (for testing).
+ * @file mockcommunicationmonitor.h Mock CommunicationMonitor.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,54 +34,20 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef MOCKCOMMUNICATIONMONITOR_H__
+#define MOCKCOMMUNICATIONMONITOR_H__
 
-#include <cstdio>
-#include "fakehttpconnection.hpp"
+#include "gmock/gmock.h"
+#include "communicationmonitor.h"
 
-using namespace std;
-
-FakeHttpConnection::FakeHttpConnection() :
-  // Initialize with dummy values.
-  HttpConnection("localhost",
-                 true,
-                 NULL,
-                 "connected_homesteads",
-                 NULL,
-                 NULL,
-                 SASEvent::HttpLogLevel::PROTOCOL,
-                 NULL)
+class MockCommunicationMonitor : public CommunicationMonitor
 {
-}
+public:
+  MockCommunicationMonitor() : 
+    CommunicationMonitor(new Alarm("sprout", AlarmDef::SPROUT_HOMESTEAD_COMM_ERROR, AlarmDef::CRITICAL)) {}
 
-FakeHttpConnection::~FakeHttpConnection()
-{
-  flush_all();
-}
+  MOCK_METHOD1(inform_success, void(unsigned long now_ms));
+  MOCK_METHOD1(inform_failure, void(unsigned long now_ms));
+};
 
-void FakeHttpConnection::flush_all()
-{
-  _db.clear();
-}
-
-long FakeHttpConnection::send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  std::map<std::string, std::string>::iterator i = _db.find(uri);
-  if (i != _db.end())
-  {
-    doc = i->second;
-    return 200;
-  }
-  return 404;
-}
-
-bool FakeHttpConnection::put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail)
-{
-  _db[uri] = doc;
-  return true;
-}
-
-bool FakeHttpConnection::del(const std::string& uri, const std::string& username, SAS::TrailId trail)
-{
-  _db.erase(uri);
-  return true;
-}
+#endif

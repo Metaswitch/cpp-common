@@ -48,12 +48,14 @@
 
 ChronosConnection::ChronosConnection(const std::string& server,
                                      std::string callback_host,
-                                     HttpResolver* resolver) :
+                                     HttpResolver* resolver,
+                                     CommunicationMonitor* comm_monitor) :
   _callback_host(callback_host),
   _http(new HttpConnection(server,
                            false,
                            resolver,
-                           SASEvent::HttpLogLevel::DETAIL))
+                           SASEvent::HttpLogLevel::DETAIL,
+                           comm_monitor))
 {
 }
 

@@ -53,6 +53,7 @@ extern "C" {
 #include "updater.h"
 #include "sas.h"
 #include "sasevent.h"
+#include "communicationmonitor.h"
 
 /// @class MemcachedStore
 ///
@@ -60,7 +61,10 @@ extern "C" {
 class MemcachedStore : public Store
 {
 public:
-  MemcachedStore(bool binary, const std::string& config_file);
+  MemcachedStore(bool binary,
+                 const std::string& config_file,
+                 CommunicationMonitor* comm_monitor,
+                 Alarm* vbucket_alarm);
   ~MemcachedStore();
 
   /// Flags that the store should use a new view of the memcached cluster to
@@ -116,9 +120,17 @@ private:
 
   std::string _config_file;
 
+  /// Returns the vbucket for a specified key.
+  int vbucket_for_key(const std::string& key);
+
   /// Gets the set of connections to use for a read or write operation.
   typedef enum {READ, WRITE} Op;
   const std::vector<memcached_st*>& get_replicas(const std::string& key, Op operation);
+  const std::vector<memcached_st*>& get_replicas(int vbucket, Op operation);
+
+  /// Used to set the communication state for a vbucket after a get/set. 
+  typedef enum {OK, FAILED} CommState;
+  void update_vbucket_comm_state(int vbucket, CommState state);
 
   // Called by the thread-local-storage clean-up functions when a thread ends.
   static void cleanup_connection(void* p);
@@ -162,6 +174,24 @@ private:
   // value larger than this is assumed to be an absolute rather than relative
   // value.  This matches the REALTIME_MAXDELTA constant defined by memcached.
   static const int MEMCACHED_EXPIRATION_MAXDELTA = 60 * 60 * 24 * 30;
+  
+  // Helper used to track replica communication state, and issue/clear alarms
+  // based upon recent activity.
+  CommunicationMonitor* _comm_monitor;
+
+  // State of last communication with replica(s) for a given vbucket, indexed
+  // by vbucket.
+  std::vector<CommState> _vbucket_comm_state;
+
+  // Number of vbuckets for which the previous get/set failed to contact any
+  // replicas (i.e. count of FAILED entries in _vbucket_comm_state).
+  unsigned int _vbucket_comm_fail_count;
+
+  // Lock to synchronize access to vbucket comm state accross worker threads.
+  pthread_mutex_t _vbucket_comm_lock;
+
+  // Alarms to be used for reporting vbucket inaccessible conditions.
+  Alarm* _vbucket_alarm;
 };
 
 #endif
