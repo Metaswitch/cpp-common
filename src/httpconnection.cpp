@@ -932,3 +932,39 @@ int HttpConnection::port_from_server(const std::string& server)
   host_port_from_server(server, host, port);
   return port;
 }
+
+HttpConnection::Recorder::Recorder() {}
+
+HttpConnection::Recorder::~Recorder() {}
+
+int HttpConnection::Recorder::debug_callback(CURL *handle,
+                                             curl_infotype type,
+                                             char *data,
+                                             size_t size,
+                                             void *userptr)
+{
+  return ((Recorder*)userptr)->record_data(type, data, size);
+}
+
+int HttpConnection::Recorder::record_data(curl_infotype type,
+                                          char* data,
+                                          size_t size)
+{
+  switch (type)
+  {
+  case CURLINFO_HEADER_IN:
+  case CURLINFO_DATA_IN:
+    response.append(data, size);
+    break;
+
+  case CURLINFO_HEADER_OUT:
+  case CURLINFO_DATA_OUT:
+    request.append(data, size);
+    break;
+
+  default:
+    break;
+  }
+
+  return 0;
+}

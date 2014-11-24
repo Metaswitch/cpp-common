@@ -197,6 +197,33 @@ private:
     std::string _remote_ip;
   };
 
+  /// Class used to record HTTP transactions.
+  class Recorder
+  {
+  public:
+    Recorder();
+    virtual ~Recorder();
+
+    /// Static function that can be registered with a CURL handle (as the
+    /// CURLOPT_DEBUGFUNCTION) to monitor all information it sends and receives.
+    int debug_callback(CURL *handle,
+                       curl_infotype type,
+                       char *data,
+                       size_t size,
+                       void *userptr);
+
+    /// The recorded request data.
+    std::string request;
+
+    /// The recorded response data.
+    std::string response;
+
+  private:
+    /// Method that records information sent / received by a CURL handle in
+    /// member variables.
+    int record_data(curl_infotype type, char *data, size_t size);
+  };
+
   CURL* get_curl_handle();
   void reset_curl_handle(CURL* curl);
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
