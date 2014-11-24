@@ -213,6 +213,12 @@ CURL* HttpConnection::get_curl_handle()
     // We are a multithreaded app using C-Ares. This is the
     // recommended setting.
     curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+
+    // Register a debug callback to record the HTTP transaction.  We also need
+    // to set the verbose option (otherwise setting the debug function has no
+    // effect).
+    curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, Recorder::debug_callback);
+    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
   }
   return curl;
 }
@@ -426,7 +432,6 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   std::string url = "http://" + _server + path;
   struct curl_slist *extra_headers = NULL;
   PoolEntry* entry;
-  int event_id;
   CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
   assert(rc == CURLE_OK);
 
@@ -494,15 +499,6 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     targets.push_back(targets[0]);
   }
 
-  // Report the request to SAS.
-  event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
-                 SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
-  SAS::Event tx_http_req(trail, event_id,  0);
-  tx_http_req.add_var_param(method_str);
-  tx_http_req.add_var_param(Utils::url_unescape(url));
-  tx_http_req.add_compressed_param(body, &SASEvent::PROFILE_HTTP);
-  SAS::report_event(tx_http_req);
-
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
   // or I/O errors.
   int num_http_503_responses = 0;
@@ -538,26 +534,45 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     }
     curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 
+    // Create and register an object to record the HTTP transaction.
+    Recorder recorder;
+    curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &recorder);
+
+    // Get the current timestamp before calling into curl.  This is because we
+    // can't log the request to SAS until after curl_easy_perform has returned.
+    // This could be a long time if the server is being slow, and we want to log
+    // the request with the right timestamp.
+    SAS::Timestamp req_timestamp = SAS::get_current_timestamp();
+
     // Send the request.
     doc.clear();
     LOG_DEBUG("Sending HTTP request : %s (trying %s) %s", url.c_str(), remote_ip, (recycle_conn) ? "on new connection" : "");
     rc = curl_easy_perform(curl);
 
-    // If we performed an HTTP transaction (successfully or otherwise, get the
-    // return code.
+    // If a request was sent, log it to SAS.
+    if (recorder.request.length() > 0)
+    {
+      sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
+    }
+
+    // Log the result of the request.
     long http_rc = 0;
     if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
     {
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
+      sas_log_http_rsp(trail, curl, http_rc, method_str, url, recorder.response, 0);
+      LOG_DEBUG("Received HTTP response: status=%d, doc=%s", http_rc, doc.c_str());
+    }
+    else
+    {
+      LOG_ERROR("%s failed at server %s : %s (%d) : fatal",
+                url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
+      sas_log_curl_error(trail, remote_ip, i->port, method_str, url, rc, 0);
     }
 
+    // Update the connection recycling and retry algorithms.
     if (rc == CURLE_OK)
     {
-      LOG_DEBUG("Received HTTP response : %s", doc.c_str());
-
-      // Report the response to SAS.
-      sas_log_http_rsp(trail, curl, http_rc, method_str, url, doc, 0);
-
       if (recycle_conn)
       {
         entry->update_deadline(now_ms);
@@ -568,28 +583,6 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     }
     else
     {
-      LOG_ERROR("%s failed at server %s : %s (%d %d) : fatal",
-                url.c_str(), remote_ip, curl_easy_strerror(rc), rc, http_rc);
-
-      if (rc == CURLE_HTTP_RETURNED_ERROR)
-      {
-        // Report the response to SAS
-        sas_log_http_rsp(trail, curl, http_rc, method_str, url, doc, 0);
-      }
-      else
-      {
-        // Report the error to SAS.
-        event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
-                       SASEvent::HTTP_REQ_ERROR : SASEvent::HTTP_REQ_ERROR_DETAIL);
-        SAS::Event http_err(trail, event_id, 0);
-        http_err.add_var_param(method_str);
-        http_err.add_var_param(Utils::url_unescape(url));
-        http_err.add_static_param(rc);
-        http_err.add_var_param(curl_easy_strerror(rc));
-        http_err.add_var_param(remote_ip);
-        SAS::report_event(http_err);
-      }
-
       // If we forced a new connection and we failed even to establish an HTTP
       // connection, blacklist this IP address.
       if (recycle_conn &&
@@ -880,22 +873,108 @@ boost::uuids::uuid HttpConnection::get_random_uuid()
   return (*uuid_gen)();
 }
 
+void HttpConnection::sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info)
+{
+  char* ip;
+
+  if (curl_easy_getinfo(curl, info, &ip) == CURLE_OK)
+  {
+    event.add_var_param(ip);
+  }
+  else
+  {
+    event.add_var_param("unknown");
+  }
+}
+
+void HttpConnection::sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info)
+{
+  int port;
+
+  if (curl_easy_getinfo(curl, info, &port) == CURLE_OK)
+  {
+    event.add_static_param(port);
+  }
+  else
+  {
+    event.add_static_param(0);
+  }
+}
+
+void HttpConnection::sas_add_ip_addrs_and_ports(SAS::Event& event,
+                                                CURL* curl)
+{
+  // Add the local IP and port.
+  sas_add_ip(event, curl, CURLINFO_PRIMARY_IP);
+  sas_add_port(event, curl, CURLINFO_PRIMARY_PORT);
+
+  // Now add the remote IP and port.
+  sas_add_ip(event, curl, CURLINFO_LOCAL_IP);
+  sas_add_port(event, curl, CURLINFO_LOCAL_PORT);
+}
+
+void HttpConnection::sas_log_http_req(SAS::TrailId trail,
+                                      CURL* curl,
+                                      const std::string& method_str,
+                                      const std::string& url,
+                                      const std::string& request_bytes,
+                                      SAS::Timestamp timestamp,
+                                      uint32_t instance_id)
+{
+  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                    SASEvent::RX_HTTP_REQ : SASEvent::RX_HTTP_REQ_DETAIL);
+  SAS::Event event(trail, event_id, instance_id);
+
+  sas_add_ip_addrs_and_ports(event, curl);
+  event.add_compressed_param(request_bytes);
+  event.add_var_param(method_str);
+  event.add_var_param(Utils::url_unescape(url));
+
+  event.set_timestamp(timestamp);
+  SAS::report_event(event);
+}
+
 void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
                                       CURL* curl,
                                       long http_rc,
                                       const std::string& method_str,
                                       const std::string& url,
-                                      const std::string& doc,
+                                      const std::string& response_bytes,
                                       uint32_t instance_id)
 {
   int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::RX_HTTP_RSP : SASEvent::RX_HTTP_RSP_DETAIL);
-  SAS::Event rx_http_rsp(trail, event_id, instance_id);
-  rx_http_rsp.add_var_param(method_str);
-  rx_http_rsp.add_var_param(Utils::url_unescape(url));
-  rx_http_rsp.add_compressed_param(doc, &SASEvent::PROFILE_HTTP);
-  rx_http_rsp.add_static_param(http_rc);
-  SAS::report_event(rx_http_rsp);
+  SAS::Event event(trail, event_id, instance_id);
+
+  sas_add_ip_addrs_and_ports(event, curl);
+  event.add_static_param(http_rc);
+  event.add_compressed_param(response_bytes);
+  event.add_var_param(method_str);
+  event.add_var_param(Utils::url_unescape(url));
+
+  SAS::report_event(event);
+}
+
+void HttpConnection::sas_log_curl_error(SAS::TrailId trail,
+                                        const char* remote_ip_addr,
+                                        unsigned short remote_port,
+                                        const std::string& method_str,
+                                        const std::string& url,
+                                        CURLcode code,
+                                        uint32_t instance_id)
+{
+  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                    SASEvent::HTTP_REQ_ERROR : SASEvent::HTTP_REQ_ERROR_DETAIL);
+  SAS::Event event(trail, event_id, instance_id);
+
+  event.add_static_param(remote_port);
+  event.add_static_param(code);
+  event.add_var_param(remote_ip_addr);
+  event.add_var_param(method_str);
+  event.add_var_param(Utils::url_unescape(url));
+  event.add_var_param(curl_easy_strerror(code));
+
+  SAS::report_event(event);
 }
 
 void HttpConnection::host_port_from_server(const std::string& server, std::string& host, int& port)
