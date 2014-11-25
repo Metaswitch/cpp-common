@@ -295,20 +295,93 @@ void HttpStack::record_penalty()
   }
 }
 
-std::string HttpStack::Request::body()
+std::string HttpStack::Request::get_rx_body()
 {
-  if (!_body_set)
+  if (!_rx_body_set)
   {
-    _body_set = true;
-    char buf[1024];
-    int bytes;
-    while (evbuffer_get_length(_req->buffer_in) > 0)
-    {
-      bytes = evbuffer_remove(_req->buffer_in, buf, 1024);
-      _body.append(buf, bytes);
-    }
+    _rx_body = evbuffer_to_string(_req->buffer_in);
   }
-  return _body;
+  return _rx_body;
+}
+
+std::string HttpStack::Request::get_tx_body()
+{
+  return evbuffer_to_string(_req->buffer_out);
+}
+
+std::string HttpStack::Request::get_rx_header()
+{
+  return evbuffer_to_string(_req->header_buffer_in);
+}
+
+std::string HttpStack::Request::get_tx_header(int rc)
+{
+  std::string hdr;
+  evbuffer* eb = evbuffer_new();
+
+  if (evhtp_get_response_header(_req, rc, eb) == 0)
+  {
+    hdr = evbuffer_to_string(eb);
+  }
+
+  return hdr;
+}
+
+std::string HttpStack::Request::get_rx_message()
+{
+  return get_rx_header() + get_rx_body();
+}
+
+std::string HttpStack::Request::get_tx_message(int rc)
+{
+  return get_tx_header(rc) + get_tx_body();
+}
+
+std::string HttpStack::Request::evbuffer_to_string(evbuffer* eb)
+{
+  std::string s;
+  size_t len = evbuffer_get_length(eb);
+  void* buf = evbuffer_pullup(eb, len);
+
+  if (buf != NULL)
+  {
+    s.assign((char*)buf, len);
+  }
+
+  return s;
+}
+
+
+bool HttpStack::Request::get_remote_ip_port(std::string& ip, unsigned short& port)
+{
+  bool rc = false;
+  char ip_buf[64];
+
+  if (evhtp_get_remote_ip_port(evhtp_request_get_connection(_req),
+                               ip_buf,
+                               sizeof(ip_buf),
+                               &port) == 0)
+  {
+    ip.assign(ip_buf);
+    rc = true;
+  }
+  return rc;
+}
+
+bool HttpStack::Request::get_local_ip_port(std::string& ip, unsigned short& port)
+{
+  bool rc = false;
+  char ip_buf[64];
+
+  if (evhtp_get_local_ip_port(evhtp_request_get_connection(_req),
+                              ip_buf,
+                              sizeof(ip_buf),
+                              &port) == 0)
+  {
+    ip.assign(ip_buf);
+    rc = true;
+  }
+  return rc;
 }
 
 //
@@ -343,7 +416,7 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
   SAS::Event rx_http_req(trail, event_id, instance_id);
   rx_http_req.add_static_param(req.method());
   rx_http_req.add_var_param(req.full_path());
-  rx_http_req.add_compressed_param(req.body(), &SASEvent::PROFILE_HTTP);
+  rx_http_req.add_compressed_param(req.get_rx_body(), &SASEvent::PROFILE_HTTP);
   SAS::report_event(rx_http_req);
 }
 
