@@ -315,6 +315,9 @@ public:
                             float rate_limit,
                             uint32_t instance_id,
                             SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
+
+    // Add the remote and local IP addresses and ports to an event.
+    void add_ip_addrs_and_ports(SAS::Event& event, Request& req);
   };
 
   /// Default implementation of SAS Logger.  Logs with default severity.
