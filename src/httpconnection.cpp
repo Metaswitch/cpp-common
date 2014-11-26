@@ -922,7 +922,7 @@ void HttpConnection::sas_log_http_req(SAS::TrailId trail,
                                       uint32_t instance_id)
 {
   int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
-                    SASEvent::RX_HTTP_REQ : SASEvent::RX_HTTP_REQ_DETAIL);
+                    SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
   SAS::Event event(trail, event_id, instance_id);
 
   sas_add_ip_addrs_and_ports(event, curl);
