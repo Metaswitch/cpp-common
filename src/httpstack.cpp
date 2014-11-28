@@ -324,6 +324,7 @@ std::string HttpStack::Request::get_tx_header(int rc)
     hdr = evbuffer_to_string(eb);
   }
 
+  evbuffer_free(eb);
   return hdr;
 }
 
