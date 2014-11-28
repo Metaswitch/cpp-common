@@ -149,6 +149,8 @@ CURLcode FakeCurl::easy_perform()
 
   if ((_debug_callback != NULL) && _verbose)
   {
+    // Call the debug callback with some dummy HTTP messages (to exercise SAS
+    // logging code).
     char* text;
 
     text = "GET / HTTP/1.1\r\n\r\n";
