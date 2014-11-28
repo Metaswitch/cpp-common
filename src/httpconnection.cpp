@@ -883,7 +883,7 @@ void HttpConnection::sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info)
   }
   else
   {
-    event.add_var_param("unknown");
+    event.add_var_param("unknown"); // LCOV_EXCL_LINE FakeCurl cannot fail the getinfo call.
   }
 }
 
@@ -897,7 +897,7 @@ void HttpConnection::sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info)
   }
   else
   {
-    event.add_static_param(0);
+    event.add_static_param(0); // LCOV_EXCL_LINE FakeCurl cannot fail the getinfo call.
   }
 }
 

@@ -40,10 +40,16 @@
 
 #include <cstdarg>
 #include <stdexcept>
+#include <cstring>
 
 using namespace std;
 
 typedef size_t (*datafn_ty)(char* ptr, size_t size, size_t nmemb, void* userdata);
+typedef int (*debug_callback_t)(CURL *handle,
+                                curl_infotype type,
+                                char *data,
+                                size_t size,
+                                void *userptr);
 
 /// Object representing a single fake cURL handle.
 class FakeCurl
@@ -72,6 +78,10 @@ public:
 
   void* _private;
 
+  debug_callback_t _debug_callback;
+  void* _debug_data;
+  bool _verbose;
+
   FakeCurl() :
     _method("GET"),
     _failonerror(false),
@@ -83,7 +93,9 @@ public:
     _writedata(NULL),
     _hdrfn(NULL),
     _hdrdata(NULL),
-    _private(NULL)
+    _private(NULL),
+    _debug_callback(NULL),
+    _debug_data(NULL)
   {
   }
 
@@ -134,6 +146,32 @@ CURLcode FakeCurl::easy_perform()
 
   // Send the response.
   CURLcode rc;
+
+  if ((_debug_callback != NULL) && _verbose)
+  {
+    char* text;
+
+    text = "GET / HTTP/1.1\r\n\r\n";
+    _debug_callback((CURL*)this,
+                    CURLINFO_HEADER_OUT,
+                    text,
+                    strlen(text),
+                    _debug_data);
+
+    text = "Done request, starting response\n";
+    _debug_callback((CURL*)this,
+                    CURLINFO_TEXT,
+                    text,
+                    strlen(text),
+                    _debug_data);
+
+    text = "HTTP/1.1 200 OK\r\n\r\n";
+    _debug_callback((CURL*)this,
+                    CURLINFO_HEADER_IN,
+                    text,
+                    strlen(text),
+                    _debug_data);
+  }
 
   if (resp->_code_once != CURLE_OK)
   {
@@ -314,6 +352,23 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
     char* body =  va_arg(args, char*);
     curl->_body = (body == NULL) ? "" : body;
   }
+  break;
+  case CURLOPT_DEBUGFUNCTION:
+  {
+    curl->_debug_callback = va_arg(args, debug_callback_t);
+  }
+  break;
+  case CURLOPT_DEBUGDATA:
+  {
+    curl->_debug_data = va_arg(args, void*);
+  }
+  break;
+  case CURLOPT_VERBOSE:
+  {
+    long verbose_flag = va_arg(args, long);
+    curl->_verbose = (verbose_flag != 0);
+  }
+  break;
   case CURLOPT_MAXCONNECTS:
   case CURLOPT_TIMEOUT_MS:
   case CURLOPT_CONNECTTIMEOUT_MS:
@@ -322,9 +377,6 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
   case CURLOPT_NOSIGNAL:
   case CURLOPT_READDATA:
   case CURLOPT_READFUNCTION:
-  case CURLOPT_DEBUGFUNCTION:
-  case CURLOPT_DEBUGDATA:
-  case CURLOPT_VERBOSE:
   {
     // ignore
   }
@@ -333,6 +385,7 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
   {
     throw runtime_error("cURL option unknown to FakeCurl");
   }
+  break;
   }
 
   va_end(args);  // http://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Variable-Length-Parameter-Lists clarifies that in GCC this does nothing, so is fine even in the presence of exceptions
