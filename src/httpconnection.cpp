@@ -889,7 +889,7 @@ void HttpConnection::sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info)
 
 void HttpConnection::sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info)
 {
-  int port;
+  long port;
 
   if (curl_easy_getinfo(curl, info, &port) == CURLE_OK)
   {

@@ -322,6 +322,9 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
   case CURLOPT_NOSIGNAL:
   case CURLOPT_READDATA:
   case CURLOPT_READFUNCTION:
+  case CURLOPT_DEBUGFUNCTION:
+  case CURLOPT_DEBUGDATA:
+  case CURLOPT_VERBOSE:
   {
     // ignore
   }
@@ -362,6 +365,28 @@ CURLcode curl_easy_getinfo(CURL* handle, CURLINFO info, ...)
       static char ip[] = "10.42.42.42";
       char** dataptr = va_arg(args, char**);
       *dataptr = ip;
+    }
+    break;
+
+    case CURLINFO_PRIMARY_PORT:
+    {
+      long* dataptr = va_arg(args, long*);
+      *dataptr = 80;
+    }
+    break;
+
+    case CURLINFO_LOCAL_IP:
+    {
+      static char ip[] = "10.24.24.24";
+      char** dataptr = va_arg(args, char**);
+      *dataptr = ip;
+    }
+    break;
+
+    case CURLINFO_LOCAL_PORT:
+    {
+      long* dataptr = va_arg(args, long*);
+      *dataptr = 12345;
     }
     break;
 
