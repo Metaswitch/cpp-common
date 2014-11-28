@@ -483,7 +483,7 @@ namespace AlarmDef {
         },
         {CRITICAL,
           "Memento: HTTP Server Cassandra communication error",
-          "Memento's HTTP Server is unable to contact the local Cassandra. While this condition persists, "
+          "Memento HTTP Server is unable to contact the local Cassandra. While this condition persists, "
           "requests to this server to retrieve call lists will fail, but no call list records will be "
           "lost.  The HTTP Server will periodically attempt to reconnect. If this alarm does not clear
           "automatically, ensure that the local Cassandra is configured correctly then restart it."
@@ -499,10 +499,26 @@ namespace AlarmDef {
         },
         {CRITICAL,
           "Memento: Application Server Cassandra communication error",
-          "Memento's Application Server is unable to contact the local Cassandra. While this condition "
+          "Memento Application Server is unable to contact the local Cassandra. While this condition "
           "persists, new call list records will not be written and will be lost.  The Application Server "
           "will periodically attempt to reconnect. If this alarm does not clear automatically, ensure "
           "that the local Cassandra is configured correctly then restart it."
+        }
+      }
+    },
+
+    {MEMENTO_HTTP_SERVER_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+      {
+        {CLEARED,
+          "Memento: Web Proxy HTTP Server error cleared",
+          "Memento Web Proxy communication to the local HTTP Server has been restored."
+        },
+        {CRITICAL,
+          "Memento: Web Proxy HTTP Server communication error",
+          "Memento Web Proxy is unable to Application Server is unable to contact the local Cassandra. "
+          "While this condition persists, requests to this server to retrieve call lists will fail, but "
+          "no call list records will be lost.  The Web Proxy will attempt to reconnect.  If this alarm "
+          "does not clear automatically restart the Web Proxy and HTTP Server processed."
         }
       }
     },
