@@ -50,6 +50,7 @@
 #include "statistic.h"
 #include "load_monitor.h"
 #include "sasevent.h"
+#include "communicationmonitor.h"
 
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
@@ -78,11 +79,13 @@ public:
                  const std::string& stat_name,
                  LoadMonitor* load_monitor,
                  LastValueCache* lvc,
-                 SASEvent::HttpLogLevel);
+                 SASEvent::HttpLogLevel,
+                 CommunicationMonitor* comm_monitor);
   HttpConnection(const std::string& server,
                  bool assert_user,
                  HttpResolver* resolver,
-                 SASEvent::HttpLogLevel);
+                 SASEvent::HttpLogLevel,
+                 CommunicationMonitor* comm_monitor);
   virtual ~HttpConnection();
 
   virtual long send_get(const std::string& path,
@@ -153,13 +156,6 @@ public:
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
-  void sas_log_http_rsp(SAS::TrailId trail,
-                        CURL* curl,
-                        long http_rc,
-                        const std::string& method_str,
-                        const std::string& url,
-                        const std::string& doc,
-                        uint32_t instance_id=0);
 
 private:
 
@@ -194,6 +190,64 @@ private:
     std::string _remote_ip;
   };
 
+  /// Class used to record HTTP transactions.
+  class Recorder
+  {
+  public:
+    Recorder();
+    virtual ~Recorder();
+
+    /// Static function that can be registered with a CURL handle (as the
+    /// CURLOPT_DEBUGFUNCTION) to monitor all information it sends and receives.
+    static int debug_callback(CURL *handle,
+                              curl_infotype type,
+                              char *data,
+                              size_t size,
+                              void *userptr);
+
+    /// The recorded request data.
+    std::string request;
+
+    std::string response;
+
+  private:
+    /// Method that records information sent / received by a CURL handle in
+    /// member variables.
+    int record_data(curl_infotype type, char *data, size_t size);
+  };
+
+
+  void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
+
+  void sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info);
+
+  void sas_add_ip_addrs_and_ports(SAS::Event& event,
+                                  CURL* curl);
+
+  void sas_log_http_req(SAS::TrailId trail,
+                        CURL* curl,
+                        const std::string& method_str,
+                        const std::string& url,
+                        const std::string& request_bytes,
+                        SAS::Timestamp timestamp,
+                        uint32_t instance_id);
+
+  void sas_log_http_rsp(SAS::TrailId trail,
+                        CURL* curl,
+                        long http_rc,
+                        const std::string& method_str,
+                        const std::string& url,
+                        const std::string& response_bytes,
+                        uint32_t instance_id);
+
+  void sas_log_curl_error(SAS::TrailId trail,
+                          const char* remote_ip_addr,
+                          unsigned short remote_port,
+                          const std::string& method_str,
+                          const std::string& url,
+                          CURLcode code,
+                          uint32_t instance_id);
+
   CURL* get_curl_handle();
   void reset_curl_handle(CURL* curl);
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
@@ -219,6 +273,7 @@ private:
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock
   SASEvent::HttpLogLevel _sas_log_level;
+  CommunicationMonitor* _comm_monitor;
 
   friend class PoolEntry; // so it can update stats
 };

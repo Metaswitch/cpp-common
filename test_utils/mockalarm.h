@@ -1,8 +1,8 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file mockalarms.h 
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,28 +34,21 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+#ifndef MOCKALARM_H__
+#define MOCKALARM_H__
 
 #include "gmock/gmock.h"
-#include "diameterstack.h"
+#include "alarm.h"
 
-class MockDiameterStack : public Diameter::Stack
+class MockAlarm : public Alarm
 {
 public:
-  MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_handler, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, HandlerInterface*));
-  MOCK_METHOD1(register_fallback_handler, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD0(start, void());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD2(send, void(struct msg*, SAS::TrailId));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
+  MockAlarm() : 
+    Alarm("sprout", AlarmDef::SPROUT_HOMESTEAD_COMM_ERROR, AlarmDef::CRITICAL) {}
+
+  MOCK_METHOD0(clear, void());
+  MOCK_METHOD0(set, void());
+  MOCK_METHOD0(alarmed, bool());
 };
 
 #endif

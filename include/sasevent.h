@@ -38,10 +38,11 @@
 #define SASEVENT_H__
 
 #include <string>
+#include "sas.h"
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE = "org.projectclearwater.20141002";
+  const std::string CURRENT_RESOURCE_BUNDLE = "org.projectclearwater.20141124";
 
   // Name of the HTTP header we use to correlate the client and server in SAS.
   const std::string HTTP_BRANCH_HEADER_NAME = "X-SAS-HTTP-Branch-ID";
@@ -61,6 +62,15 @@ namespace SASEvent {
   };
 
   //----------------------------------------------------------------------------
+  // Default compression profiles.
+  // PROFILE_* must match compression_profiles.* in
+  // https://github.com/Metaswitch/clearwater-sas-resources/blob/master/clearwater_sas_resource_bundle.yaml
+  //----------------------------------------------------------------------------
+  const SAS::Profile PROFILE_SIP("PCMUACKrportSUBSCRIBEP-Access-Network-Info: BYEusert=0 0 telephone-eventAccept: transportREGISTERSubscription-State: NOTIFYServer: m=audio RTP/AVP c=IN IP4 Expires: 200 OK\r\na=rtpmap:INVITETo: application/sdpVia: Content-Type: From: CSeq: Max-Forwards: Contact: Organization: Content-Length: Call-ID: ;tag=;branch=z9hG4bKSIP/2.0/UDP<sip:");
+  const SAS::Profile PROFILE_HTTP("\"]}}\"}}}}}]}}},\"Acct-Interim-Interval\":{\"aka\":{\"challenge\":\"\",\"Role-Of-Node\":\"}],\"Called-Party-Address\":\"\",\"Calling-Party-Address\":[\"\"}],\"Calling-Party-Address\":[\"\",\"Cause-Code\":\"],\"Cause-Code\":\",\"Content-Length\":,\"Content-Type\":\"\",\"crypt_key\":\"{\"digest\":{\"ha1\":\"{\"event\":{\"Accounting-Record-Type\":,\"Event-Timestamp\":,\"Event-Type\":{\"Expires\":\"],\"Event-Type\":{\"SIP-Method\":\"\"},\"From-Address\":\"{\"impi\":\"\",\"IMS-Charging-Identifier\":\"\",\"IMS-Visited-Network-Identifier\":\"\",\"Instance-Id\":\"\",\"integrity_key\":\"\",\"Inter-Operator-Identifier\":[{\"Originating-IOI\":\"\",\"mandatory-capabilities\":[\"}],\"Message-Body\":[{\"Content-Disposition\":\"\"}],\"Node-Functionality\":\",\"nonce\":\"],\"optional-capabilities\":[\",\"Originator\":\"}}},\"peers\":{\"ccf\":[\"\",\"qop\":\"\",\"realm\":\"{\"reqtype\":\",\"Requested-Party-Address\":\"\",\"response\":\"{\"result-code\":,\"Role-Of-Node\":\",\"Role-Of-Node\":,\"Route-Header-Received\":\",\"Route-Header-Transmitted\":\"\",\"Route-Header-Transmitted\":\",\"scscf\":\",\"Server-Capabilities\":{\"Server-Name\":[\",\"Service-Information\":{\"IMS-Information\":{\"Application-Server-Information\":[{\"Application-Server\":\",\"SIP-Method\":\",\"SIP-Request-Timestamp-Fraction\":,\"SIP-Response-Timestamp\":,\"SIP-Response-Timestamp-Fraction\":\"},\"Subscription-Id\":[{\"Subscription-Id-Data\":\"\",\"Subscription-Id-Type\":\",\"Terminating-IOI\":\"\"]},\"Time-Stamps\":{\"SIP-Request-Timestamp\":\"}},\"User-Name\":\"},\"User-Session-Id\":\"<ClearwaterRegData><RegistrationState><IMSSubscription xsi=\"http://www.w3.org/2001/XMLSchema-instance\" noNamespaceSchemaLocation=\"CxDataType.xsd\"><PrivateID><ServiceProfile><InitialFilterCriteria><TriggerPoint><ConditionTypeCNF><SPT><ConditionNegated><Group><Method><Extension/><ApplicationServer><ServerName><DefaultHandling><PublicIdentity><Identity><ChargingAddresses><CCF priority=\"\"><ECF priority=\"\"><Present but not logged>");
+  const SAS::Profile PROFILE_SERVICE_PROFILE("<IMSSubscription xsi=\"http://www.w3.org/2001/XMLSchema-instance\" noNamespaceSchemaLocation=\"CxDataType.xsd\"><PrivateID><ServiceProfile><InitialFilterCriteria><TriggerPoint><ConditionTypeCNF><SPT><ConditionNegated><Group><Method><Extension/><ApplicationServer><ServerName><DefaultHandling><PublicIdentity><Identity>");
+
+  //----------------------------------------------------------------------------
   // Event spaces.
   //----------------------------------------------------------------------------
   const int COMMON_BASE = 0x000000;
@@ -69,6 +79,8 @@ namespace SASEvent {
   const int RALF_BASE = 0x830000;
   const int MEMENTO_BASE = 0x840000;
   const int GEMINI_BASE = 0x850000;
+  const int MMTEL_BASE = 0x860000;
+  const int MANGELWURZEL_BASE = 0x870000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.

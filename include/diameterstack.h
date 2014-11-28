@@ -48,6 +48,7 @@
 #include "utils.h"
 #include "sas.h"
 #include "baseresolver.h"
+#include "communicationmonitor.h"
 
 namespace Diameter
 {
@@ -299,12 +300,12 @@ private:
 class Message
 {
 public:
-  inline Message(const Dictionary* dict, const Dictionary::Message& type, Stack* stack) : _dict(dict), _stack(stack), _free_on_delete(true), _master_msg(this)
+  inline Message(const Dictionary* dict, const Dictionary::Message& type, Stack* stack) : _dict(dict), _stack(stack), _free_on_delete(true), _master_msg(this), _result(0)
   {
     fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_fd_msg);
   }
-  inline Message(const Dictionary* dict, struct msg* msg, Stack* stack) : _dict(dict), _fd_msg(msg), _stack(stack),  _free_on_delete(true), _master_msg(this) {};
-  inline Message(const Message& msg) : _dict(msg._dict), _fd_msg(msg._fd_msg), _stack(msg._stack),  _free_on_delete(false), _master_msg(msg._master_msg) {};
+  inline Message(const Dictionary* dict, struct msg* msg, Stack* stack) : _dict(dict), _fd_msg(msg), _stack(stack),  _free_on_delete(true), _master_msg(this), _result(0) {};
+  inline Message(const Message& msg) : _dict(msg._dict), _fd_msg(msg._fd_msg), _stack(msg._stack),  _free_on_delete(false), _master_msg(msg._master_msg), _result(0) {};
   virtual ~Message();
   inline const Dictionary* dict() const {return _dict;}
   inline struct msg* fd_msg() const {return _fd_msg;}
@@ -393,9 +394,14 @@ public:
   bool get_str_from_avp(const Dictionary::AVP& type, std::string& str) const;
   bool get_i32_from_avp(const Dictionary::AVP& type, int32_t& i32) const;
   bool get_u32_from_avp(const Dictionary::AVP& type, uint32_t& i32) const;
-  inline bool result_code(int32_t& i32)
+  inline bool result_code(int32_t& result)
   {
-    return get_i32_from_avp(dict()->RESULT_CODE, i32);
+    if (!_result)
+    {
+      get_i32_from_avp(dict()->RESULT_CODE, _result);
+    }
+    result = _result;
+    return (result != 0);
   }
   int32_t experimental_result_code() const;
   int32_t vendor_id() const;
@@ -426,10 +432,6 @@ public:
   virtual void send(Transaction* tsx, unsigned int timeout_ms);
   void operator=(Message const&);
 
-  void sas_log_rx(SAS::TrailId trail, uint32_t instance_id=0);
-  void sas_log_tx(SAS::TrailId trail, uint32_t instance_id=0);
-  void sas_log_timeout(SAS::TrailId trail, uint32_t instance_id=0);
-
   inline void revoke_ownership()
   {
     _master_msg->_free_on_delete = false;
@@ -447,6 +449,7 @@ private:
   Stack* _stack;
   bool _free_on_delete;
   Message* _master_msg;
+  int32_t _result;
 
   inline struct msg_hdr* msg_hdr() const
   {
@@ -454,8 +457,6 @@ private:
     fd_msg_hdr(_fd_msg, &hdr);
     return hdr;
   }
-
-  void sas_add_serialization(SAS::Event& event);
 };
 
 class AVP::iterator
@@ -625,7 +626,8 @@ public:
 
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
-  virtual void configure(std::string filename);
+  virtual void configure(std::string filename, 
+                         CommunicationMonitor* comm_monitor = NULL);
   virtual void advertize_application(const Dictionary::Application::Type type,
                                      const Dictionary::Application& app);
   virtual void advertize_application(const Dictionary::Application::Type type,
@@ -643,9 +645,12 @@ public:
     return _avp_map;
   }
 
-  virtual void send(struct msg* fd_msg);
+  virtual void send(struct msg* fd_msg, SAS::TrailId trail);
   virtual void send(struct msg* fd_msg, Transaction* tsx);
   virtual void send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms);
+
+  virtual void report_tsx_result(int32_t rc);
+  virtual void report_tsx_timeout();
 
   virtual bool add(Peer* peer);
   virtual void remove(Peer* peer);
@@ -673,6 +678,14 @@ private:
   void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
 
+  void set_trail_id(struct msg* fd_msg, SAS::TrailId trail);
+  static void fd_sas_log_diameter_message(enum fd_hook_type type,
+                                          struct msg * msg,
+                                          struct peer_hdr * peer,
+                                          void * other,
+                                          struct fd_hook_permsgdata *pmd,
+                                          void * stack_ptr);
+
   bool _initialized;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
@@ -680,8 +693,16 @@ private:
   struct fd_hook_hdl* _error_cb_hdlr; /* Handler for the callback
                                        * registered for routing errors */
   struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
+  struct fd_hook_hdl* _sas_cb_hdlr;
+
+  // Data handle for the SAS logging hook. This must be static because
+  // freeDiameter has a limit on the maximum number of handles that can be
+  // registered, it stores the handles statically, and there is no way to
+  // unregister them.
+  static struct fd_hook_data_hdl* _sas_cb_data_hdl;
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
+  CommunicationMonitor* _comm_monitor;
 
   // Map of Vendor->AVP name->AVP dictionary
   std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>> _avp_map;
@@ -767,6 +788,13 @@ AVP::iterator AVP::end() const {return AVP::iterator(NULL);}
 AVP::iterator Message::begin() const {return AVP::iterator(*this);}
 AVP::iterator Message::begin(const Dictionary::AVP& type) const {return AVP::iterator(*this, type);}
 AVP::iterator Message::end() const {return AVP::iterator(NULL);}
+};
+
+/// Per-message data structure for SAS logging in free-diameter hooks.  This
+/// must have the exact name fd_hook_permsgdata.
+struct fd_hook_permsgdata
+{
+  SAS::TrailId trail;
 };
 
 #endif

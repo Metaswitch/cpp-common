@@ -120,6 +120,27 @@ SAS::TrailId SAS::new_trail(uint32_t instance)
   return 0x123456789abcdef0;
 }
 
+SAS::Compressor::Compressor() {}
+SAS::Compressor::~Compressor() {}
+
+std::string SAS::Compressor::compress(const std::string& s, const Profile* profile)
+{
+  if (profile != NULL)
+  {
+    return "compress(\"" + s + "\", \"" + profile->get_dictionary() + "\")";
+  }
+  else
+  {
+    return "compress(\"" + s + "\")";
+  }
+}
+
+SAS::Compressor _compressor;
+SAS::Compressor* SAS::Compressor::get()
+{
+  return &_compressor;
+}
+
 void SAS::report_event(const SAS::Event& event)
 {
   record_message(false, event._id, event._static_params, event._var_params);
@@ -130,4 +151,10 @@ void SAS::report_marker(const SAS::Marker& marker,
                         bool reactivate)
 {
   record_message(true, marker._id, marker._static_params, marker._var_params);
+}
+
+SAS::Timestamp SAS::get_current_timestamp()
+{
+  // Return a fake timestamp.
+  return 1400000000000;
 }

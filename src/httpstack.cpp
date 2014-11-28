@@ -295,20 +295,94 @@ void HttpStack::record_penalty()
   }
 }
 
-std::string HttpStack::Request::body()
+std::string HttpStack::Request::get_rx_body()
 {
-  if (!_body_set)
+  if (!_rx_body_set)
   {
-    _body_set = true;
-    char buf[1024];
-    int bytes;
-    while (evbuffer_get_length(_req->buffer_in) > 0)
-    {
-      bytes = evbuffer_remove(_req->buffer_in, buf, 1024);
-      _body.append(buf, bytes);
-    }
+    _rx_body = evbuffer_to_string(_req->buffer_in);
   }
-  return _body;
+  return _rx_body;
+}
+
+std::string HttpStack::Request::get_tx_body()
+{
+  return evbuffer_to_string(_req->buffer_out);
+}
+
+std::string HttpStack::Request::get_rx_header()
+{
+  return evbuffer_to_string(_req->header_buffer_in);
+}
+
+std::string HttpStack::Request::get_tx_header(int rc)
+{
+  std::string hdr;
+  evbuffer* eb = evbuffer_new();
+
+  if (evhtp_get_response_header(_req, rc, eb) == 0)
+  {
+    hdr = evbuffer_to_string(eb);
+  }
+
+  evbuffer_free(eb);
+  return hdr;
+}
+
+std::string HttpStack::Request::get_rx_message()
+{
+  return get_rx_header() + get_rx_body();
+}
+
+std::string HttpStack::Request::get_tx_message(int rc)
+{
+  return get_tx_header(rc) + get_tx_body();
+}
+
+std::string HttpStack::Request::evbuffer_to_string(evbuffer* eb)
+{
+  std::string s;
+  size_t len = evbuffer_get_length(eb);
+  void* buf = evbuffer_pullup(eb, len);
+
+  if (buf != NULL)
+  {
+    s.assign((char*)buf, len);
+  }
+
+  return s;
+}
+
+
+bool HttpStack::Request::get_remote_ip_port(std::string& ip, unsigned short& port)
+{
+  bool rc = false;
+  char ip_buf[64];
+
+  if (evhtp_get_remote_ip_port(evhtp_request_get_connection(_req),
+                               ip_buf,
+                               sizeof(ip_buf),
+                               &port) == 0)
+  {
+    ip.assign(ip_buf);
+    rc = true;
+  }
+  return rc;
+}
+
+bool HttpStack::Request::get_local_ip_port(std::string& ip, unsigned short& port)
+{
+  bool rc = false;
+  char ip_buf[64];
+
+  if (evhtp_get_local_ip_port(evhtp_request_get_connection(_req),
+                              ip_buf,
+                              sizeof(ip_buf),
+                              &port) == 0)
+  {
+    ip.assign(ip_buf);
+    rc = true;
+  }
+  return rc;
 }
 
 //
@@ -340,11 +414,14 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
 {
   int event_id = ((level == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::RX_HTTP_REQ : SASEvent::RX_HTTP_REQ_DETAIL);
-  SAS::Event rx_http_req(trail, event_id, instance_id);
-  rx_http_req.add_static_param(req.method());
-  rx_http_req.add_var_param(req.full_path());
-  rx_http_req.add_var_param(req.body());
-  SAS::report_event(rx_http_req);
+  SAS::Event event(trail, event_id, instance_id);
+
+  add_ip_addrs_and_ports(event, req);
+  event.add_static_param(req.method());
+  event.add_var_param(req.full_path());
+  event.add_compressed_param(req.get_rx_message(), &SASEvent::PROFILE_HTTP);
+
+  SAS::report_event(event);
 }
 
 void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
@@ -356,33 +433,35 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
 {
   int event_id = ((level == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::TX_HTTP_RSP : SASEvent::TX_HTTP_RSP_DETAIL);
-  SAS::Event tx_http_rsp(trail, event_id, instance_id);
+  SAS::Event event(trail, event_id, instance_id);
 
-  tx_http_rsp.add_static_param(rc);
-  tx_http_rsp.add_static_param(req.method());
+  add_ip_addrs_and_ports(event, req);
+  event.add_static_param(req.method());
+  event.add_static_param(rc);
+  event.add_var_param(req.full_path());
 
-  tx_http_rsp.add_var_param(req.full_path());
-
-  // The response body is stored in an evbuffer in libevhtp which we need to
-  // copy out into a local buffer.  Note that the longest permitted SAS message
-  // is 0xFFFF bytes, so don't bother copying out any more than that.
-  uint8_t buffer[0xFFFF];
-  ev_ssize_t buffer_len;
-  buffer_len = evbuffer_copyout(req.req()->buffer_out, buffer, sizeof(buffer));
-
-  if (omit_body && (buffer_len != 0))
+  if (!omit_body)
   {
-    // Instead of the body, log a string explaining that the body was not
-    // present.
-    tx_http_rsp.add_var_param("<Present but not logged>");
+    event.add_compressed_param(req.get_tx_message(rc), &SASEvent::PROFILE_HTTP);
   }
   else
   {
-    // Log the body as normal.
-    tx_http_rsp.add_var_param(buffer_len, buffer);
+    if (req.get_tx_body().empty())
+    {
+      // We are omitting the body but there wasn't one in the messaage. Just log
+      // the header.
+      event.add_compressed_param(req.get_tx_header(rc), &SASEvent::PROFILE_HTTP);
+    }
+    else
+    {
+      // There was a body that we need to omit. Add a fake body to the header
+      // explaining that the body was intentionally not logged.
+      event.add_compressed_param(req.get_tx_header(rc) + "<Body present but not logged>",
+                                 &SASEvent::PROFILE_HTTP);
+    }
   }
 
-  SAS::report_event(tx_http_rsp);
+  SAS::report_event(event);
 }
 
 void HttpStack::SasLogger::log_overload_event(SAS::TrailId trail,
@@ -398,13 +477,41 @@ void HttpStack::SasLogger::log_overload_event(SAS::TrailId trail,
                   SASEvent::HTTP_REJECTED_OVERLOAD :
                   SASEvent::HTTP_REJECTED_OVERLOAD_DETAIL);
   SAS::Event event(trail, event_id, instance_id);
-  event.add_static_param(rc);
   event.add_static_param(req.method());
-  event.add_var_param(req.full_path());
+  event.add_static_param(rc);
   event.add_static_param(target_latency);
   event.add_static_param(current_latency);
   event.add_static_param(rate_limit);
+  event.add_var_param(req.full_path());
   SAS::report_event(event);
+}
+
+void HttpStack::SasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& req)
+{
+  std::string ip;
+  unsigned short port;
+
+  if (req.get_remote_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+  }
+
+  if (req.get_local_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+  }
 }
 
 //
