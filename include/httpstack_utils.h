@@ -39,6 +39,9 @@
 
 #include "httpstack.h"
 #include "threadpool.h"
+#include "zmq_lvc.h"
+#include "accumulator.h"
+#include "counter.h"
 
 namespace HttpStackUtils
 {
@@ -266,6 +269,37 @@ namespace HttpStackUtils
   };
 
   extern ChronosSasLogger CHRONOS_SAS_LOGGER;
+
+  class SimpleStatsManager : public HttpStack::StatsInterface
+  {
+  public:
+    SimpleStatsManager(LastValueCache* stats_aggregator,
+                       const std::string latency_us = "http_latency_us",
+                       const std::string incoming_requests = "http_incoming_requests",
+                       const std::string rejected_overload = "http_rejected_overload") :
+      _stat_latency_us(latency_us, stats_aggregator),
+      _stat_incoming_requests(incoming_requests, stats_aggregator),
+      _stat_rejected_overload(rejected_overload, stats_aggregator)
+    {}
+
+  private:
+    virtual void update_http_latency_us(unsigned long latency_us)
+    {
+      _stat_latency_us.accumulate(latency_us);
+    }
+    virtual void incr_http_incoming_requests()
+    {
+      _stat_incoming_requests.increment();
+    }
+    virtual void incr_http_rejected_overload()
+    {
+      _stat_rejected_overload.increment();
+    }
+
+    StatisticAccumulator _stat_latency_us;
+    StatisticCounter _stat_incoming_requests;
+    StatisticCounter _stat_rejected_overload;
+  };
 
 } // namespace HttpStackUtils
 
