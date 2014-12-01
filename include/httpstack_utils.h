@@ -246,8 +246,10 @@ namespace HttpStackUtils
     std::vector<Wrapper*> _wrappers;
   };
 
-  // Implementation of an HttpStack SAS logger for logging chronos flows. This
-  // logs all transactions at "detail" level (level 40).
+  /// @class ChronosSasLogger
+  ///
+  /// Implementation of an HttpStack SAS logger for logging chronos flows. This
+  /// logs all transactions at "detail" level (level 40).
   class ChronosSasLogger : public HttpStack::SasLogger
   {
     void sas_log_rx_http_req(SAS::TrailId trail,
@@ -270,6 +272,11 @@ namespace HttpStackUtils
 
   extern ChronosSasLogger CHRONOS_SAS_LOGGER;
 
+  /// @class SimpleStatsManager
+  ///
+  /// Implementation of StatsInterface to trivially map through to 3 statistics.
+  /// Statistics names can be specified as parameters on the constructor, or just
+  /// default.
   class SimpleStatsManager : public HttpStack::StatsInterface
   {
   public:
