@@ -101,6 +101,8 @@ namespace Utils
   std::string url_unescape(const std::string& s);
   std::string url_escape(const std::string& s);
 
+  std::string xml_escape(const std::string& s);
+
   std::string ip_addr_to_arpa(IP46Address ip_addr);
 
   void create_random_token(size_t length, std::string& token);
