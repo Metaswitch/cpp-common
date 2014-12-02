@@ -255,7 +255,7 @@ private:
   static void host_port_from_server(const std::string& server, std::string& host, int& port);
   static std::string host_from_server(const std::string& server);
   static int port_from_server(const std::string& server);
-  static long calculate_timeout_ms(int latency_us);
+  static long calc_req_timeout_from_latency(int latency_us);
 
   boost::uuids::uuid get_random_uuid();
 

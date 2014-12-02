@@ -113,9 +113,9 @@ HttpConnection::HttpConnection(const std::string& server,
   _statistic = new Statistic(stat_name, lvc);
   _statistic->report_change(no_stats);
   _load_monitor = load_monitor;
-  _timeout_ms = calculate_timeout_ms((load_monitor != NULL) ?
-                      load_monitor->get_target_latency_us() :
-                      DEFAULT_LATENCY_US);
+  _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
+                               load_monitor->get_target_latency_us() :
+                               DEFAULT_LATENCY_US);
   LOG_STATUS("HttpConnection for server %s", _server.c_str());
   LOG_STATUS("Response timeout: %ld", _timeout_ms);
 }
@@ -145,7 +145,7 @@ HttpConnection::HttpConnection(const std::string& server,
   curl_global_init(CURL_GLOBAL_DEFAULT);
   _statistic = NULL;
   _load_monitor = NULL;
-  _timeout_ms = calculate_timeout_ms(DEFAULT_LATENCY_US);
+  _timeout_ms = calc_req_timeout_from_latency(DEFAULT_LATENCY_US);
   LOG_STATUS("HttpConnection for server %s", _server.c_str());
   LOG_STATUS("Response timeout: %ld", _timeout_ms);
 }
@@ -1022,7 +1022,10 @@ int HttpConnection::port_from_server(const std::string& server)
   return port;
 }
 
-long HttpConnection::calculate_timeout_ms(int latency_us)
+// This function determines an appropriate absolute HTTP request timeout
+// (in ms) given the target latency for requests that the downstream components
+// will be using.
+long HttpConnection::calc_req_timeout_from_latency(int latency_us)
 {
   return std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
 }
