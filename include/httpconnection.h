@@ -255,6 +255,7 @@ private:
   static void host_port_from_server(const std::string& server, std::string& host, int& port);
   static std::string host_from_server(const std::string& server);
   static int port_from_server(const std::string& server);
+  static long calc_req_timeout_from_latency(int latency_us);
 
   boost::uuids::uuid get_random_uuid();
 
@@ -268,6 +269,7 @@ private:
   HttpResolver* _resolver;
   Statistic* _statistic;
   LoadMonitor* _load_monitor;
+  long _timeout_ms;
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock
   SASEvent::HttpLogLevel _sas_log_level;
