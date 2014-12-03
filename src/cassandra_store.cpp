@@ -159,6 +159,40 @@ ResultCode Store::start()
 {
   ResultCode rc = OK;
 
+  // Start the store.  We don't check for connectivity to Cassandra at this
+  // point as some store users want the store to load even when Cassandra has
+  // failed (it will recover later).  If a store user cares about the status
+  // of Cassandra it should use the test() method.
+  LOG_STATUS("Starting store");
+
+  // Start the thread pool.
+  if (_num_threads > 0)
+  {
+    _thread_pool = new Pool(this, _num_threads, _max_queue);
+
+    if (!_thread_pool->start())
+    {
+      rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
+    }
+  }
+
+  return rc;
+}
+
+
+void Store::stop()
+{
+  LOG_STATUS("Stopping cache");
+  if (_thread_pool != NULL)
+  {
+    _thread_pool->stop();
+  }
+}
+
+ResultCode Store::connection_test()
+{
+  ResultCode rc = OK;
+
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the specified keyspace, so is a good test of whether
   // cassandra is working properly.
@@ -184,33 +218,8 @@ ResultCode Store::start()
     rc = UNKNOWN_ERROR;
   }
 
-  // Start the thread pool.
-  if (rc == OK)
-  {
-    if (_num_threads > 0)
-    {
-      _thread_pool = new Pool(this, _num_threads, _max_queue);
-
-      if (!_thread_pool->start())
-      {
-        rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
-      }
-    }
-  }
-
   return rc;
 }
-
-
-void Store::stop()
-{
-  LOG_STATUS("Stopping cache");
-  if (_thread_pool != NULL)
-  {
-    _thread_pool->stop();
-  }
-}
-
 
 void Store::wait_stopped()
 {
