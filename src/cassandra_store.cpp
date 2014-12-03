@@ -325,6 +325,7 @@ void Store::do_async(Operation*& op, Transaction*& trx)
 bool Store::run(Operation* op, SAS::TrailId trail)
 {
   bool success = false;
+  ClientInterface* client = NULL;
   ResultCode cass_result = OK;
   std::string cass_error_text = "";
 
@@ -332,9 +333,6 @@ bool Store::run(Operation* op, SAS::TrailId trail)
   // Only try once, unless there's connection error, in which case try twice.
   bool retry = false;
   int attempt_count = 0;
-
-  // Get a client to execute the operation.
-  ClientInterface* client = get_client();
 
   // Call perform() to actually do the business logic of the request.  Catch
   // exceptions and turn them into return codes and error text.
@@ -344,6 +342,9 @@ bool Store::run(Operation* op, SAS::TrailId trail)
 
     try
     {
+      // Get a client to execute the operation.
+      client = get_client();
+
       attempt_count++;
       success = op->perform(client, trail);
     }
@@ -366,18 +367,8 @@ bool Store::run(Operation* op, SAS::TrailId trail)
         // Connection error, destroy and recreate the connection, and retry the
         //  request once
         LOG_DEBUG("Connection error, retrying");
-        try
-        {
-          client = get_client();
-          retry = true;
-          cass_result = OK;
-        }
-        catch(...)
-        {
-          // If there's any error recreating the connection just catch the
-          // exception, and the connection will be recreated in the next cycle
-          LOG_ERROR("Cache caught unknown exception");
-        }
+        retry = true;
+        cass_result = OK;
       }
     }
     catch(InvalidRequestException& ire)
