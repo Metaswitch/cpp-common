@@ -197,7 +197,7 @@ namespace AlarmDef {
       }
     },
 
-    {HOMESTEAD_CASSANDRA_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {HOMESTEAD_CASSANDRA_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Homestead: Cassandra communication error cleared",
@@ -404,11 +404,9 @@ namespace AlarmDef {
         },
         {CRITICAL,
           "Memento: HTTP Server process failure",
-          "Monit has detected that the Memento HTTP Server process has failed. While this condition "
-          "persists, all attempts to retrieve call lists from this Memento server will fail, but no call "
-          "list records will be lost. Monit will automatically attempt to restart the HTTP Server process. "
-          "If this alarm does not clear, the HTTP Server process may have been stopped or an unrecoverable "
-          "failure may have occurred."
+          "While this condition persists, all attempts to retrieve call lists from this Memento server will "
+          "fail, but no call list records will be lost. Monit will automatically attempt to restart the HTTP "
+          "server process."
         }
       }
     },
@@ -421,11 +419,9 @@ namespace AlarmDef {
         },
         {CRITICAL,
           "Memento: Web Proxy Server process failure",
-          "Monit has detected that the Memento Web Proxy Server process has failed. While this condition "
-          "persists, all attempts to retrieve call lists from this Memento server will fail, but no call "
-          "list records will be lost. Monit will automatically attempt to restart the Web Proxy Server "
-          "process. If this alarm does not clear, the HTTP Server process may have been stopped or an "
-          "unrecoverable failure may have occurred."
+          "While this condition persists, all attempts to retrieve call lists from this Memento server will "
+          "fail, but no call list records will be lost. Monit will automatically attempt to restart the Web Proxy Server "
+          "process. "
         }
       }
     },
@@ -445,7 +441,7 @@ namespace AlarmDef {
       }
     },
 
-    {MEMENTO_VBUCKET_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
+    {MEMENTO_MEMCACHED_VBUCKET_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Memento: Memcached vBucket communication error cleared",
@@ -475,7 +471,7 @@ namespace AlarmDef {
       }
     },
 
-    {MEMENTO_CASSANDRA_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {MEMENTO_CASSANDRA_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Memento: HTTP Server Cassandra communication error cleared",
@@ -483,15 +479,13 @@ namespace AlarmDef {
         },
         {CRITICAL,
           "Memento: HTTP Server Cassandra communication error",
-          "Memento HTTP Server is unable to contact the local Cassandra. While this condition persists, "
-          "requests to this server to retrieve call lists will fail, but no call list records will be "
-          "lost.  The HTTP Server will periodically attempt to reconnect. If this alarm does not clear
-          "automatically, ensure that the local Cassandra is configured correctly then restart it."
+          "While this condition persists, requests to this server to retrieve call lists will fail, but no "
+          "call list records will be lost.  The HTTP Server will periodically attempt to reconnect. "
         }
       }
     },
 
-    {MEMENTO_AS_CASSANDRA_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {MEMENTO_AS_CASSANDRA_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Memento: Application Server Cassandra communication error cleared",
@@ -499,15 +493,13 @@ namespace AlarmDef {
         },
         {CRITICAL,
           "Memento: Application Server Cassandra communication error",
-          "Memento Application Server is unable to contact the local Cassandra. While this condition "
-          "persists, new call list records will not be written and will be lost.  The Application Server "
-          "will periodically attempt to reconnect. If this alarm does not clear automatically, ensure "
-          "that the local Cassandra is configured correctly then restart it."
+          "While this condition persists, new call list records will not be written and will be lost.  The "
+          "Application Server will periodically attempt to reconnect. "
         }
       }
     },
 
-    {MEMENTO_HTTP_SERVER_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {MEMENTO_HTTP_SERVER_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Memento: Web Proxy HTTP Server error cleared",
@@ -515,10 +507,8 @@ namespace AlarmDef {
         },
         {CRITICAL,
           "Memento: Web Proxy HTTP Server communication error",
-          "Memento Web Proxy is unable to Application Server is unable to contact the local Cassandra. "
           "While this condition persists, requests to this server to retrieve call lists will fail, but "
-          "no call list records will be lost.  The Web Proxy will attempt to reconnect.  If this alarm "
-          "does not clear automatically restart the Web Proxy and HTTP Server processed."
+          "no call list records will be lost.  The Web Proxy will attempt to reconnect. "
         }
       }
     },
