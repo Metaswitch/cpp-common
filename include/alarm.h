@@ -71,8 +71,8 @@ public:
 
 private:
   std::string _issuer;
-  std::string _identifier;  
-};  
+  std::string _identifier;
+};
 
 /// @class Alarm
 ///
@@ -96,14 +96,18 @@ public:
 
   /// Queues a request to generate an alarm state change corresponding to the
   /// non-CLEARED severity if a state change for the CLEARED severity was
-  /// previously requestd via clear(). 
+  /// previously requestd via clear().
   virtual void set();
 
-  /// Indicates that the alarm state currently maintained by this object 
+  /// Indicates that the alarm state currently maintained by this object
   /// corresponds to the non-CLEARED severity.
   virtual bool alarmed() {return _alarmed.load();}
 
+  /// Returns the index of this alarm.
+  virtual AlarmDef::Index index() const {return _index;}
+
 private:
+  AlarmDef::Index _index;
   AlarmState _clear_state;
   AlarmState _set_state;
 
@@ -136,7 +140,7 @@ public:
   static AlarmReqAgent& get_instance() {return _instance;}
 
 private:
-  enum 
+  enum
   {
     ZMQ_PORT = 6664,
     MAX_REPLY_LEN = 16
@@ -162,7 +166,7 @@ private:
   void* _ctx;
   void* _sck;
 
-  eventq<std::vector<std::string> >* _req_q; 
+  eventq<std::vector<std::string> >* _req_q;
 
   static AlarmReqAgent _instance;
 };
