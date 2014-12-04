@@ -154,6 +154,30 @@ std::string Utils::url_escape(const std::string& s)
   return r;
 }
 
+
+std::string Utils::xml_escape(const std::string& s)
+{
+  std::string r;
+  r.reserve(2*s.length());  // Reserve enough space to avoid continually reallocating.
+
+  for (size_t ii = 0; ii < s.length(); ++ii)
+  {
+    switch (s[ii])
+    {
+      case '&':  r.append("&amp;"); break;
+      case '\"': r.append("&quot;"); break;
+      case '\'': r.append("&apos;"); break;
+      case '<':  r.append("&lt;"); break;
+      case '>':  r.append("&gt;"); break;
+
+      // Otherwise, append the literal character
+      default: r.push_back(s[ii]); break;
+    }
+  }
+  return r;
+}
+
+
 // LCOV_EXCL_START - This function is tested in Homestead's realmmanager_test.cpp
 std::string Utils::ip_addr_to_arpa(IP46Address ip_addr)
 {
