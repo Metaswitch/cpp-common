@@ -351,10 +351,11 @@ bool Store::run(Operation* op, SAS::TrailId trail)
 
     try
     {
+      attempt_count++;
+
       // Get a client to execute the operation.
       client = get_client();
 
-      attempt_count++;
       success = op->perform(client, trail);
     }
     catch(TTransportException& te)
