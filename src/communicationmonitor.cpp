@@ -106,6 +106,7 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
                   succeeded, failed);
         if ((succeeded == 0) && (failed != 0))
         {
+          LOG_STATUS("Setting alarm %d", _alarm->index());
           _alarm->set();
         }
       }
@@ -118,6 +119,7 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
                   succeeded);
         if (succeeded != 0)
         {
+          LOG_STATUS("Clearing alarm %d", _alarm->index());
           _alarm->clear();
         }
       }
