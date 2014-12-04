@@ -93,6 +93,7 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
     if (now_ms > _next_check)
     {
       // Grab the current counts and reset them to zero in a lockless manner.
+      LOG_DEBUG("Check communication monitor state for alarm %d", _alarm->index());
       unsigned int succeeded = _succeeded.fetch_and(0);
       unsigned int failed = _failed.fetch_and(0);
 
@@ -101,6 +102,8 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
         // A communication alarm is not currently set so see if one needs to
         // be. This will be the case if there were no successful comms over
         // the interval, and at least one failed comm.
+        LOG_DEBUG("Alarm currently clear - successful attempts %d, failures %d",
+                  succeeded, failed);
         if ((succeeded == 0) && (failed != 0))
         {
           _alarm->set();
@@ -111,6 +114,8 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
         // A communication alarm is currently set so see if it needs to be
         // cleared. This will be the case if at lease one successful comm
         // was reported over the interval.
+        LOG_DEBUG("Alarm currently clear - successful attempts %d",
+                  succeeded);
         if (succeeded != 0)
         {
           _alarm->clear();
