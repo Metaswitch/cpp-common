@@ -63,8 +63,8 @@ class MemcachedStore : public Store
 public:
   MemcachedStore(bool binary,
                  const std::string& config_file,
-                 CommunicationMonitor* comm_monitor,
-                 Alarm* vbucket_alarm);
+                 CommunicationMonitor* comm_monitor = NULL,
+                 Alarm* vbucket_alarm = NULL);
   ~MemcachedStore();
 
   /// Flags that the store should use a new view of the memcached cluster to
