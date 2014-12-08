@@ -45,26 +45,50 @@
 #include <string>
 
 extern "C" {
+  // syslog_facade prevents name collisions between the existing
+  // Clearwater logging (LOG_) and the definitions in syslog.h
 #include "syslog_facade.h"
 }
 
-extern const char* signalnames[];
-///
-/// Defines common definitions for PDLog classes
+/// Defines common definitions for PDLog (Problem Definition Log) classes
+
+/// A PDLogBase defines the base class containing:
+///   Identity - Identifies the log id to be used in the syslog id field.
+///   Severity - One of Emergency, Alert, Critical, Error, Warning, Notice, and Info.
+///              Directly corresponds to the syslog severity types.
+///              Only Error and Notice are used.  See syslog_facade.h for definitions.
+///   Message - Formatted description of the condition.
+///   Cause - The cause of the condition.
+///   Effect - The effect the condition.
+///   Action - A list of one or more actions to take to resolve the condition if it is an error.
+/// The elements of the class are used to format a syslog call.
+/// The call to output to syslog is in the method,  dcealog.
+/// By default syslog limits a total syslog message size to 2048 bytes.  Anything
+/// above the limit is truncated.  The fromatted message, cause, effect, and action(s) are
+/// concatenated into the syslog message.  Note, as an arbitrary convention, for more
+/// than a signle action, the actions are numbered as (1)., (2)., ...  to make the actions
+/// easier to read within the syslog message.  syslog removes extra whitespace and
+/// carriage-returns/linefeeds before inserting the complete string into a message.
+/// Note also, the action(s) are a list of strings with all but the last string having a
+/// space character at the end.  The space makes the actions more readable.
+/// Most of the derived classes are templates.  The paremeterized types
+/// being values that are output as a formatted string in the Message field.
 class PDLogBase
 {
 public:
-  enum
+  static const int MAX_FORMAT_LINE = 1024;
+  // Identifies the application type reporting the log
+  enum PDNodeType
   {
-    MAX_FORMAT_LINE = 1024,
     CL_CPP_COMMON_ID = 1000,
     CL_SPROUT_ID = 2000,
     CL_CHRONOS_ID = 3000,
     CL_HOMESTEAD_ID = 4000,
     CL_RALF_ID = 5000
   };
-  PDLogBase(int log_id, int severity, const std::string& msg, const std::string& cause, 
-	    const std::string& effect, const std::string& action) : _log_id(log_id), _severity(severity), _msg(msg), 
+
+  PDLogBase(int log_id, int severity, const std::string& msg, const std::string& cause,
+            const std::string& effect, const std::string& action) : _log_id(log_id), _severity(severity), _msg(msg),
     _cause(cause), _effect(effect), _action(action) {};
 
   // Writes the description. cause, effect, and actions to syslog
@@ -73,44 +97,46 @@ public:
     syslog(_severity, "%d - Description: %s @@Cause: %s @@Effect: %s @@Action: %s", _log_id, buf, _cause.c_str(), _effect.c_str(), _action.c_str());
   }
 protected:
-  ///
-  /// Unique identity for a PDLog, e.g. CL_CPP_COMMON + 1
+  // Unique identity for a PDLog, e.g. CL_CPP_COMMON + 1
   int         _log_id;
 
-  ///
-  /// Log severity, usually PDLOG_ERR or PDLOG_NOTICE
+  // Log severity, usually PDLOG_ERR or PDLOG_NOTICE
   int         _severity;
 
-  /// Description of the condition
+  // Description of the condition
   std::string _msg;
 
-  /// The cause of the condition
+  // The cause of the condition
   std::string _cause;
 
-  /// The effect the condiiton has on the system
+  // The effect the condiiton has on the system
   std::string _effect;
 
-/// A list of actions to be taken for the condition
+  // A list of actions to be taken for the condition
   std::string _action;
 };
 
-///
 /// PDLog - For logs with no log() arguments
 class PDLog : public PDLogBase
 {
 public:
-  PDLog(int log_id, int severity, const std::string& msg, const std::string& cause,
+  PDLog(int log_id,
+        int severity,
+        const std::string& msg,
+        const std::string& cause,
         const std::string& effect,
-        const std::string&  action) : PDLogBase(log_id, severity, msg, cause, effect, action)
+        const std::string&  action)
+    : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
   };
+
   void log() const
   {
     // The format for the snprintf is defined by buf
     char buf[MAX_FORMAT_LINE];
     // The pragmas are used to avoid compiler warnings
-    // Normally this would be a security issue but the 
-    // template type insures the log call agrrems with the format
+    // Normally this would be a security issue but the
+    // template type insures the log call agrees with the format
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str());
@@ -118,26 +144,29 @@ public:
     dcealog(buf);
   };
 
-protected:
 };
 
-///
-/// PDLOg with one log method argument -- The log argument type is T1
+/// PDLog with one log method argument -- The log argument type is T1
 template<class T1> class PDLog1 : public PDLogBase
 {
 public:
-  PDLog1(int log_id, int severity, const std::string& msg, const std::string& cause,
+  PDLog1(int log_id,
+         int severity,
+         const std::string& msg,
+         const std::string& cause,
          const std::string& effect,
-         const std::string& action) : PDLogBase(log_id, severity, msg, cause, effect, action)
+         const std::string& action)
+    : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
   };
+
   void log(T1 v1) const
   {
     // The format for the snprintf is defined by buf
     char buf[MAX_FORMAT_LINE];
     // The pragmas are used to avoid compiler warnings
-    // Normally this would be a security issue but the 
-    // template type insures the log call agrrems with the format
+    // Normally this would be a security issue but the
+    // template type insures the log call agrees with the format
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str(), v1);
@@ -145,19 +174,22 @@ public:
     dcealog(buf);
   };
 
-protected:
 };
 
-///
-/// PDLOg with two log arguments -- The log argument types are T1 and T2
+/// PDLog with two log arguments -- The log argument types are T1 and T2
 template<class T1, class T2> class PDLog2 : public PDLogBase
 {
 public:
-  PDLog2(int log_id, int severity, const std::string& msg, const std::string& cause,
+  PDLog2(int log_id,
+         int severity,
+         const std::string& msg,
+         const std::string& cause,
          const std::string& effect,
-         const std::string& action, ...) : PDLogBase(log_id, severity, msg, cause, effect, action)
+         const std::string& action)
+    : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
   };
+
   void log(T1 v1, T2 v2) const
   {
     char buf[MAX_FORMAT_LINE];
@@ -168,19 +200,22 @@ public:
     dcealog(buf);
   };
 
-protected:
 };
 
-///
-/// PDLOg with three log arguments -- The log argument types are T1, T2, and T3
+/// PDLog with three log arguments -- The log argument types are T1, T2, and T3
 template<class T1, class T2, class T3> class PDLog3 : public PDLogBase
 {
 public:
-  PDLog3(int log_id, int severity, const std::string& msg, const std::string& cause,
+  PDLog3(int log_id,
+         int severity,
+         const std::string& msg,
+         const std::string& cause,
          const std::string& effect,
-         const std::string& action, ...) : PDLogBase(log_id, severity, msg, cause, effect, action)
+         const std::string& action)
+    : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
   };
+
   void log(T1 v1, T2 v2, T3 v3) const
   {
     char buf[MAX_FORMAT_LINE];
@@ -191,21 +226,23 @@ public:
     dcealog(buf);
   };
 
-protected:
 };
 
 
-///
 /// PDLOg with four log arguments -- The log argument types are T1, T2, T3, and T4
-///
 template<class T1, class T2, class T3, class T4> class PDLog4 : public PDLogBase
 {
 public:
-  PDLog4(int log_id, int severity, const std::string& msg, const std::string& cause,
+  PDLog4(int log_id,
+         int severity,
+         const std::string& msg,
+         const std::string& cause,
          const std::string& effect,
-         const std::string& action) : PDLogBase(log_id, severity, msg, cause, effect, action)
+         const std::string& action)
+    : PDLogBase(log_id, severity, msg, cause, effect, action)
   {
   };
+
   void log(T1 v1, T2 v2, T3 v3, T4 v4) const
   {
     char buf[MAX_FORMAT_LINE];
@@ -216,67 +253,70 @@ public:
     dcealog(buf);
   };
 
-protected:
 };
 
 
-/// CPP_COMMON syslog identities
+/// Description of the following PDLog definitions content
 /**********************************************************
 / log_id
 / severity
 / Description: (formatted)
 / Cause:
 / Effect:
-/ Action:
+/ Action: \n separated list
 **********************************************************/
 static const PDLog CL_DIAMETER_START
 (
   PDLogBase::CL_CPP_COMMON_ID + 1,
   PDLOG_NOTICE,
-  "Diameter stack is starting",
-  "Diameter stack is beginning initialization",
-  "Normal",
-  "None"
+  "Diameter stack is starting.",
+  "Diameter stack is beginning initialization.",
+  "Normal.",
+  "None."
 );
+
 static const PDLog CL_DIAMETER_INIT_CMPL
 (
   PDLogBase::CL_CPP_COMMON_ID + 2,
   PDLOG_NOTICE,
-  "Diameter stack initialization completed",
-  "Diameter stack has completed initialization",
-  "Normal",
-  "None"
+  "Diameter stack initialization completed.",
+  "Diameter stack has completed initialization.",
+  "Normal.",
+  "None."
 );
+
 static const PDLog4<const char*, int, const char*, const char*> CL_DIAMETER_ROUTE_ERR
 (
   PDLogBase::CL_CPP_COMMON_ID + 3,
   PDLOG_ERR,
-  "Diameter routing error: %s for message with Command-Code %d, Destination-Host %s and Destination-Realm %s",
-  "No route was found for a Diameter message",
-  "The Diameter message with the specified command code could not be routed to the destination host with the destination realm",
+  "Diameter routing error: %s for message with Command-Code %d, Destination-Host %s and Destination-Realm %s.",
+  "No route was found for a Diameter message.",
+  "The Diameter message with the specified command code could not be routed to the destination host within the destination realm.",
   "(1). Check the installation guide for Diameter host configuration. "
   "(2). Check to see that there is a route to the destination host. "
-  "Check for IP connectivity between the homestead host and the hss host using ping. "
-  "Wireshark the interface on homestead and the hss"
+  "(3). Check for IP connectivity between the homestead host and the HSS host using ping. "
+  "(4). Wireshark the interface on homestead and the HSS."
 );
+
 static const PDLog1<const char*> CL_DIAMETER_CONN_ERR
 (
   PDLogBase::CL_CPP_COMMON_ID + 4,
   PDLOG_ERR,
-  "Failed to make a Diameter connection to host %s",
-  "A Diameter connection attempt failed to the specified host",
-  "This impacts the ability to register, subscribe, or make a call",
+  "Failed to make a Diameter connection to host %s.",
+  "A Diameter connection attempt failed to the specified host.",
+  "This impacts the ability to register, subscribe, or make a call.",
   "(1). Check the installation guide for Diameter host configuration. "
   "(2). Check to see that there is a route to the destination host. "
-  "Check for IP connectivity between the homestead host and the hss host using ping. "
-  "Wireshark the interface on homestead and the hss"
+  "(3). Check for IP connectivity between the homestead host and the HSS host using ping. "
+  "(4). Wireshark the interface on homestead and the HSS."
 );
+
 static const PDLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
 (
   PDLogBase::CL_CPP_COMMON_ID + 5,
   PDLOG_ERR,
-  "%s failed to communicate with http server %s with curl error %s code %d",
-  "An HTTP connection attempt failed to the specified server with the specified error code",
+  "%s failed to communicate with http server %s with curl error %s code %d.",
+  "An HTTP connection attempt failed to the specified server with the specified error code.",
   "This condition impacts the ability to register, subscribe, or make a call.",
   "(1). Check to see if the specified host has failed. "
   "(2). Check to see if there is TCP connectivity to the host by using ping and/or Wireshark."
