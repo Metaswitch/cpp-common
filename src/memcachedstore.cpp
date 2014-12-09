@@ -298,7 +298,7 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
 
 /// Update state of vbucket replica communication. If alarms are configured, a set
 /// alarm is issued if a vbucket becomes inaccessible, a clear alarm is issued once
-/// all vbuckets become accessible again. 
+/// all vbuckets become accessible again.
 void MemcachedStore::update_vbucket_comm_state(int vbucket, CommState state)
 {
   if (_vbucket_alarm)
@@ -699,6 +699,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       SAS::report_event(err);
     }
 
+    update_vbucket_comm_state(vbucket, FAILED);
+
     if (_comm_monitor)
     {
       _comm_monitor->inform_failure();
@@ -710,6 +712,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
   }
   else
   {
+    update_vbucket_comm_state(vbucket, OK);
+
     if (_comm_monitor)
     {
       _comm_monitor->inform_success();

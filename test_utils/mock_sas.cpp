@@ -152,3 +152,9 @@ void SAS::report_marker(const SAS::Marker& marker,
 {
   record_message(true, marker._id, marker._static_params, marker._var_params);
 }
+
+SAS::Timestamp SAS::get_current_timestamp()
+{
+  // Return a fake timestamp.
+  return 1400000000000;
+}
