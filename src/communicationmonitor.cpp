@@ -115,7 +115,7 @@ void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
         // A communication alarm is currently set so see if it needs to be
         // cleared. This will be the case if at lease one successful comm
         // was reported over the interval.
-        LOG_DEBUG("Alarm currently clear - successful attempts %d",
+        LOG_DEBUG("Alarm currently set - successful attempts %d",
                   succeeded);
         if (succeeded != 0)
         {
