@@ -64,7 +64,7 @@ extern "C" {
 /// The elements of the class are used to format a syslog call.
 /// The call to output to syslog is in the method,  dcealog.
 /// By default syslog limits a total syslog message size to 2048 bytes.  Anything
-/// above the limit is truncated.  The fromatted message, cause, effect, and action(s) are
+/// above the limit is truncated.  The formatted message, cause, effect, and action(s) are
 /// concatenated into the syslog message.  Note, as an arbitrary convention, for more
 /// than a signle action, the actions are numbered as (1)., (2)., ...  to make the actions
 /// easier to read within the syslog message.  syslog removes extra whitespace and
@@ -84,7 +84,8 @@ public:
     CL_SPROUT_ID = 2000,
     CL_CHRONOS_ID = 3000,
     CL_HOMESTEAD_ID = 4000,
-    CL_RALF_ID = 5000
+    CL_RALF_ID = 5000,
+    CL_SCRIPT_ID = 6000
   };
 
   PDLogBase(int log_id, int severity, const std::string& msg, const std::string& cause,
