@@ -37,6 +37,7 @@
 #include "diameterstack.h"
 #include "log.h"
 #include "sasevent.h"
+#include "craft_ent_definitions.h"
 
 using namespace Diameter;
 
@@ -60,6 +61,7 @@ void Stack::initialize()
   // constructor because we can't throw exceptions on failure.
   if (!_initialized)
   {
+    CL_DIAMETER_START.log();
     LOG_STATUS("Initializing Diameter stack");
     int rc = fd_core_initialize();
     if (rc != 0)
@@ -93,6 +95,7 @@ void Stack::initialize()
       throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
     }
 
+    CL_DIAMETER_INIT_CMPL.log();
     if (_sas_cb_data_hdl == NULL)
     {
       rc = fd_hook_data_register(sizeof(struct fd_hook_permsgdata),
@@ -214,6 +217,11 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     dest_realm = "unknown";
   };
 
+  CL_DIAMETER_ROUTE_ERR.log((char *)other,
+			    msg2.command_code(),
+			    dest_host.c_str(),
+			    dest_realm.c_str());
+
   LOG_ERROR("Routing error: '%s' for message with "
             "Command-Code %d, Destination-Host %s and Destination-Realm %s",
             (char *)other,
@@ -281,6 +289,7 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
           }
           else if (type == HOOK_PEER_CONNECT_FAILED)
           {
+	    CL_DIAMETER_CONN_ERR.log(host);
             LOG_WARNING("Failed to connect to %s", host);
             Diameter::Peer* stack_peer = *ii;
             _peers.erase(ii);

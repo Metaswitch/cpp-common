@@ -39,6 +39,7 @@
 #include <iostream>
 #include <map>
 
+#include "craft_ent_definitions.h"
 #include "utils.h"
 #include "log.h"
 #include "sas.h"
@@ -593,6 +594,9 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     }
     else
     {
+      CL_HTTP_COMM_ERR.log(url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
+
+
       // If we forced a new connection and we failed even to establish an HTTP
       // connection, blacklist this IP address.
       if (recycle_conn &&
