@@ -117,7 +117,7 @@ namespace AlarmDef {
   enum Cause {
     UNDEFINED_CAUSE,
     SOFTWARE_ERROR = 163,
-    UNDERLYING_RESOURCE_UNAVAILABLE = 165
+    UNDERLYING_RESOURCE_UNAVAILABLE = 554
   };
 
   enum Issuer {
