@@ -65,7 +65,7 @@ public:
   {
   public:
     Request(HttpStack* stack, evhtp_request_t* req) :
-    _method(htp_method_UNKNOWN), _body_set(false), _stack(stack), _req(req), _stopwatch()
+    _method(htp_method_UNKNOWN), _rx_body_set(false), _stack(stack), _req(req), _stopwatch()
     {
       _stopwatch.start();
     }
@@ -147,12 +147,21 @@ public:
       }
     }
 
-    std::string body();
-
     void send_reply(int rc, SAS::TrailId trail);
     inline evhtp_request_t* req() { return _req; }
 
     void record_penalty() { _stack->record_penalty(); }
+
+    std::string get_rx_message();
+    std::string get_rx_header();
+    std::string get_rx_body();
+
+    std::string get_tx_message(int rc);
+    std::string get_tx_header(int rc);
+    std::string get_tx_body();
+
+    bool get_remote_ip_port(std::string& ip, unsigned short& port);
+    bool get_local_ip_port(std::string& ip, unsigned short& port);
 
     /// Get the latency of the request.
     ///
@@ -195,8 +204,8 @@ public:
 
   protected:
     htp_method _method;
-    std::string _body;
-    bool _body_set;
+    std::string _rx_body;
+    bool _rx_body_set;
 
   private:
     HttpStack* _stack;
@@ -229,6 +238,12 @@ public:
       }
       return r;
     }
+
+    /// Utility method to convert an evbuffer to a C++ string.
+    ///
+    /// @param eb  - The evbuffer to convert
+    /// @return    - A string containing a copy of the contents of the evbuffer.
+    static std::string evbuffer_to_string(evbuffer* eb);
   };
 
   class SasLogger
@@ -300,6 +315,9 @@ public:
                             float rate_limit,
                             uint32_t instance_id,
                             SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
+
+    // Add the remote and local IP addresses and ports to an event.
+    void add_ip_addrs_and_ports(SAS::Event& event, Request& req);
   };
 
   /// Default implementation of SAS Logger.  Logs with default severity.

@@ -39,13 +39,13 @@
 // See alarmdefinition.h for information on adding a new alarm. Please keep
 // AlarmDefinition's defined here in the same order as AlarmDef::Index.
 //
-// Note: strings are limited to 255 characters per the MIB definition. 
+// Note: strings are limited to 255 characters per the MIB definition.
 
 namespace AlarmDef {
 
   const std::vector<AlarmDefinition> alarm_definitions =
   {
-//         1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890 
+//         1234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890
 
     {SPROUT_PROCESS_FAIL, SOFTWARE_ERROR,
       {
@@ -62,7 +62,7 @@ namespace AlarmDef {
       }
     },
 
-    {SPROUT_HOMESTEAD_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {SPROUT_HOMESTEAD_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Sprout: Homestead communication error cleared",
@@ -77,7 +77,7 @@ namespace AlarmDef {
       }
     },
 
-    {SPROUT_MEMCACHED_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {SPROUT_MEMCACHED_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Sprout: Memcached communication error cleared",
@@ -92,7 +92,7 @@ namespace AlarmDef {
       }
     },
 
-    {SPROUT_REMOTE_MEMCACHED_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {SPROUT_REMOTE_MEMCACHED_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Sprout: Remote Memcached communication error cleared",
@@ -107,7 +107,7 @@ namespace AlarmDef {
       }
     },
 
-    {SPROUT_CHRONOS_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {SPROUT_CHRONOS_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Sprout: Chronos communication error cleared",
@@ -122,7 +122,7 @@ namespace AlarmDef {
       }
     },
 
-    {SPROUT_RALF_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {SPROUT_RALF_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Sprout: Ralf communication error cleared",
@@ -137,7 +137,7 @@ namespace AlarmDef {
       }
     },
 
-    {SPROUT_ENUM_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {SPROUT_ENUM_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Sprout: ENUM communication error cleared",
@@ -152,7 +152,7 @@ namespace AlarmDef {
       }
     },
 
-    {SPROUT_VBUCKET_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {SPROUT_VBUCKET_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Sprout: Memcached vBucket communication error cleared",
@@ -167,7 +167,7 @@ namespace AlarmDef {
       }
     },
 
-    {SPROUT_REMOTE_VBUCKET_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {SPROUT_REMOTE_VBUCKET_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Sprout: Memcached remote vBucket communication error cleared",
@@ -197,7 +197,7 @@ namespace AlarmDef {
       }
     },
 
-    {HOMESTEAD_CASSANDRA_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {HOMESTEAD_CASSANDRA_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Homestead: Cassandra communication error cleared",
@@ -212,7 +212,7 @@ namespace AlarmDef {
       }
     },
 
-    {HOMESTEAD_HSS_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {HOMESTEAD_HSS_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Homestead: HSS communication error cleared",
@@ -242,7 +242,7 @@ namespace AlarmDef {
       }
     },
 
-    {RALF_MEMCACHED_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {RALF_MEMCACHED_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Ralf: Memcached communication error cleared",
@@ -257,7 +257,7 @@ namespace AlarmDef {
       }
     },
 
-    {RALF_CHRONOS_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {RALF_CHRONOS_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Ralf: Chronos communication error cleared",
@@ -272,7 +272,7 @@ namespace AlarmDef {
       }
     },
 
-    {RALF_CDF_COMM_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {RALF_CDF_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Ralf: CDF communication error cleared",
@@ -287,7 +287,7 @@ namespace AlarmDef {
       }
     },
 
-    {RALF_VBUCKET_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {RALF_VBUCKET_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Ralf: Memcached vBucket communication error cleared",
@@ -317,7 +317,7 @@ namespace AlarmDef {
       }
     },
 
-    {CHRONOS_TIMER_POP_ERROR, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {CHRONOS_TIMER_POP_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Chronos: Timer pop error cleared",
@@ -361,7 +361,7 @@ namespace AlarmDef {
       }
     },
 
-    {CASSANDRA_RING_NODE_FAIL, UNDERLAYING_RESOURCE_UNAVAILABLE,
+    {CASSANDRA_RING_NODE_FAIL, UNDERLYING_RESOURCE_UNAVAILABLE,
       {
         {CLEARED,
           "Cassandra: Ring node error/failure cleared",
@@ -394,7 +394,124 @@ namespace AlarmDef {
           "attempted. If this alarm does not clear, an unrecoverable failure may have occurred."
         }
       }
-    }
+    },
+
+    {MEMENTO_HTTP_SERVER_PROCESS_FAIL, SOFTWARE_ERROR,
+      {
+        {CLEARED,
+          "Memento: HTTP Server process failure cleared",
+          "The Memento HTTP Server process has been restored to normal operation."
+        },
+        {CRITICAL,
+          "Memento: HTTP Server process failure",
+          "While this condition persists, all attempts to retrieve call lists from this Memento server will "
+          "fail, but no call list records will be lost. Monit will automatically attempt to restart the HTTP "
+          "server process."
+        }
+      }
+    },
+
+    {MEMENTO_PROXY_SERVER_PROCESS_FAIL, SOFTWARE_ERROR,
+      {
+        {CLEARED,
+          "Memento: Web Proxy Server process failure cleared",
+          "The Memento Web Proxy Server process has been restored to normal operation."
+        },
+        {CRITICAL,
+          "Memento: Web Proxy Server process failure",
+          "While this condition persists, all attempts to retrieve call lists from this Memento server will "
+          "fail, but no call list records will be lost. Monit will automatically attempt to restart the Web Proxy Server "
+          "process. "
+        }
+      }
+    },
+
+    {MEMENTO_MEMCACHED_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
+      {
+        {CLEARED,
+          "Memento: Memcached communication error cleared",
+          "Memento communication to at least one Memcached has been restored."
+        },
+        {CRITICAL,
+          "Memento: Memcached communication error",
+          "Memento is unable to contact any Memcacheds. It will periodically attempt to reconnect. If this "
+          "alarm does not clear, ensure that at least one Memcached is operational and that network "
+          "connectivity exists between it and Memento."
+        }
+      }
+    },
+
+    {MEMENTO_MEMCACHED_VBUCKET_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
+      {
+        {CLEARED,
+          "Memento: Memcached vBucket communication error cleared",
+          "Memento communication to Memcached for a piece of data has been restored."
+        },
+        {MAJOR,
+          "Memento: Memcached vBucket communication error",
+          "Memento is unable to contact any Memcacheds for a piece of data. Some subscriber data will be "
+          "unavailable. If this alarm does not clear, ensure that all Memcacheds are operational and "
+          "that network connectivity exists between them and Memento."
+        }
+      }
+    },
+
+    {MEMENTO_HOMESTEAD_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
+      {
+        {CLEARED,
+          "Memento: Homestead communication error cleared",
+          "Memento communication to at least one Homestead has been restored."
+        },
+        {CRITICAL,
+          "Memento: Homestead communication error",
+          "Memento is unable to contact any Homesteads. It will periodically attempt to reconnect. If this "
+          "alarm does not clear, ensure that at least one Homestead is operational and that network "
+          "connectivity exists between it and Memento."
+        }
+      }
+    },
+
+    {MEMENTO_CASSANDRA_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
+      {
+        {CLEARED,
+          "Memento: HTTP Server Cassandra communication error cleared",
+          "Memento HTTP Server communication to the local Cassandra has been restored."
+        },
+        {CRITICAL,
+          "Memento: HTTP Server Cassandra communication error",
+          "While this condition persists, requests to this server to retrieve call lists will fail, but no "
+          "call list records will be lost.  The HTTP Server will periodically attempt to reconnect. "
+        }
+      }
+    },
+
+    {MEMENTO_AS_CASSANDRA_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
+      {
+        {CLEARED,
+          "Memento: Application Server Cassandra communication error cleared",
+          "Memento Application Server communication to the local Cassandra has been restored."
+        },
+        {CRITICAL,
+          "Memento: Application Server Cassandra communication error",
+          "While this condition persists, new call list records will not be written and will be lost.  The "
+          "Application Server will periodically attempt to reconnect. "
+        }
+      }
+    },
+
+    {MEMENTO_HTTP_SERVER_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
+      {
+        {CLEARED,
+          "Memento: Web Proxy HTTP Server error cleared",
+          "Memento Web Proxy communication to the local HTTP Server has been restored."
+        },
+        {CRITICAL,
+          "Memento: Web Proxy HTTP Server communication error",
+          "While this condition persists, requests to this server to retrieve call lists will fail, but "
+          "no call list records will be lost.  The Web Proxy will attempt to reconnect. "
+        }
+      }
+    },
 
   };
 }

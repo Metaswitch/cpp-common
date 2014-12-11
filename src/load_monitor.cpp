@@ -35,7 +35,7 @@
  */
 
 #include "load_monitor.h"
-#include "log.h" 
+#include "log.h"
 
 
 TokenBucket::TokenBucket(int s, float r)
@@ -48,16 +48,16 @@ TokenBucket::TokenBucket(int s, float r)
 
 bool TokenBucket::get_token()
 {
-  replenish_bucket();   
+  replenish_bucket();
   bool rc = (tokens >= 1);
 
   if (rc)
   {
     tokens -= 1;
   }
-      
+
   return rc;
-} 
+}
 
 void TokenBucket::update_rate(float new_rate)
 {
@@ -70,7 +70,7 @@ void TokenBucket::replenish_bucket()
   clock_gettime(CLOCK_MONOTONIC, &new_replenish_time);
   float timediff = (new_replenish_time.tv_nsec - replenish_time.tv_nsec) / 1000.0 +
                    (new_replenish_time.tv_sec - replenish_time.tv_sec) * 1000000.0;
-  // The rate is in tokens/sec, and the timediff is in usec.  
+  // The rate is in tokens/sec, and the timediff is in usec.
   tokens += ((rate * timediff) / 1000000.0);
   replenish_time = new_replenish_time;
 
@@ -90,15 +90,21 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
   pthread_mutex_init(&_lock, &attrs);
   pthread_mutexattr_destroy(&attrs);
 
+  LOG_STATUS("Constructing LoadMonitor");
+  LOG_STATUS("   Target latency (usecs)   : %d", init_target_latency);
+  LOG_STATUS("   Max bucket size          : %d", max_bucket_size);
+  LOG_STATUS("   Initial token fill rate/s: %f", init_token_rate);
+  LOG_STATUS("   Min token fill rate/s    : %f", init_min_token_rate);
+
   // Number of requests processed before each adjustment of token bucket rate
   ADJUST_PERIOD = 20;
-  
+
   // Adjustment parameters for token bucket
   DECREASE_THRESHOLD = 0.0;
   DECREASE_FACTOR = 1.2;
   INCREASE_THRESHOLD = -0.005;
-  INCREASE_FACTOR = 0.5;       
-    
+  INCREASE_FACTOR = 0.5;
+
   accepted = 0;
   rejected = 0;
   penalties = 0;
@@ -109,7 +115,7 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
   adjust_count = ADJUST_PERIOD;
   min_token_rate = init_min_token_rate;
 }
-    
+
 LoadMonitor::~LoadMonitor()
 {
   // Destroy the lock
@@ -125,12 +131,12 @@ bool LoadMonitor::admit_request()
     // Got a token from the bucket, so admit the request
     accepted += 1;
     pending_count += 1;
-           
+
     if (pending_count > max_pending_count)
     {
       max_pending_count = pending_count;
     }
-    
+
     pthread_mutex_unlock(&_lock);
     return true;
   }
@@ -139,7 +145,7 @@ bool LoadMonitor::admit_request()
     rejected += 1;
     pthread_mutex_unlock(&_lock);
     return false;
-  }        
+  }
 }
 
 void LoadMonitor::incr_penalties()
@@ -149,14 +155,19 @@ void LoadMonitor::incr_penalties()
   pthread_mutex_unlock(&_lock);
 }
 
-    
+
+int LoadMonitor::get_target_latency_us()
+{
+  return target_latency;
+}
+
 void LoadMonitor::request_complete(int latency)
 {
   pthread_mutex_lock(&_lock);
   pending_count -= 1;
   smoothed_latency = (7 * smoothed_latency + latency) / 8;
   adjust_count -= 1;
-        
+
   if (adjust_count <= 0)
   {
     // This algorithm is based on the Welsh and Culler "Adaptive Overload
@@ -169,10 +180,10 @@ void LoadMonitor::request_complete(int latency)
     // Work out the percentage of accepted requests (for logs)
     float accepted_percent = (accepted + rejected == 0) ? 100.0 : 100 * (((float) accepted) / (accepted + rejected));
 
-    LOG_DEBUG("Accepted %f%% of requests, latency error = %f, overload responses = %d", 
+    LOG_DEBUG("Accepted %f%% of requests, latency error = %f, overload responses = %d",
                accepted_percent, err, penalties);
 
-    // latency is above where we want it to be, or we are getting overload responses from 
+    // latency is above where we want it to be, or we are getting overload responses from
     // Homer/Homestead, so adjust the rate downwards by a multiplicative factor
     if (err > DECREASE_THRESHOLD || penalties > 0)
     {

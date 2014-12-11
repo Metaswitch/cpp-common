@@ -43,7 +43,7 @@
 
 AlarmReqAgent AlarmReqAgent::_instance;
 
-AlarmState::AlarmState(const std::string& issuer, 
+AlarmState::AlarmState(const std::string& issuer,
                        AlarmDef::Index index,
                        AlarmDef::Severity severity) :
   _issuer(issuer)
@@ -79,6 +79,7 @@ void AlarmState::clear_all(const std::string& issuer)
 Alarm::Alarm(const std::string& issuer,
              AlarmDef::Index index,
              AlarmDef::Severity severity) :
+  _index(index),
   _clear_state(issuer, index, AlarmDef::CLEARED),
   _set_state(issuer, index, severity),
   _alarmed(false)
@@ -202,7 +203,7 @@ bool AlarmReqAgent::zmq_init_sck()
   }
 
   // Configure no linger period so a graceful shutdown will be immediate. It is
-  // ok for any pending messages to be dropped as a result of a shutdown.  
+  // ok for any pending messages to be dropped as a result of a shutdown.
   int linger = 0;
   if (zmq_setsockopt(_sck, ZMQ_LINGER, &linger, sizeof(linger)) == -1)
   {
@@ -258,7 +259,7 @@ void AlarmReqAgent::agent()
   {
     return;
   }
-  
+
   std::vector<std::string> req;
 
   char reply[MAX_REPLY_LEN];

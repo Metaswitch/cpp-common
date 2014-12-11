@@ -199,8 +199,7 @@ public:
 
   /// Start the store.
   ///
-  /// Check that the store can connect to cassandra, and start any necessary
-  /// worker threads.
+  /// Start any necessary worker threads.
   ///
   /// @return                - The result of starting the store.
   virtual ResultCode start();
@@ -210,6 +209,14 @@ public:
   /// This discards any queued requests and terminates the worker threads once
   /// their current request has completed.
   virtual void stop();
+
+  /// Tests the store.
+  ///
+  /// Checks that the store can connect to Cassandra.  This method can be called
+  /// before or after starting the store.
+  ///
+  /// @return                - The status of the store connection.
+  virtual ResultCode connection_test();
 
   /// Wait until the store has completely stopped.  This method may block.
   virtual void wait_stopped();

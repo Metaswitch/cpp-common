@@ -48,9 +48,9 @@ public:
   public:
     Request(HttpStack* stack, std::string path, std::string file, std::string query = "", std::string body = "", htp_method method = htp_method_GET) : HttpStack::Request(stack, evhtp_request(path, file, query))
     {
-      _body = body;
+      _rx_body = body;
       _method = method;
-      _body_set = true;
+      _rx_body_set = true;
     }
     ~Request()
     {

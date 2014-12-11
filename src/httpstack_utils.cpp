@@ -133,6 +133,9 @@ namespace HttpStackUtils
   // Declaration of a logger for logging chronos flows.
   ChronosSasLogger CHRONOS_SAS_LOGGER;
 
+  // LCOV_EXCL_START - Not currently unit tested as it is too closely coupled
+  // with libevhtp.
+
   // Log a request from chronos.
   void ChronosSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
                                              HttpStack::Request& req,
@@ -169,5 +172,6 @@ namespace HttpStackUtils
                        instance_id,
                        SASEvent::HttpLogLevel::DETAIL);
   }
+  // LCOV_EXCL_STOP
 
 } // namespace HttpStackUtils

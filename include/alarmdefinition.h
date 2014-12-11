@@ -44,9 +44,9 @@
 //
 //   - If the alarm is for a defined issuer with previous alarm defintions,
 //     simply add a new Index enumeration for the issuer at the end of its
-//     existing section. 
+//     existing section.
 //
-//   - If the alarm is for a new issuer. Add a new Issuer enumeration at 
+//   - If the alarm is for a new issuer. Add a new Issuer enumeration at
 //     the end of the existing list for the new issuer. Add a new section
 //     at the bottom of the Index enumeration for the new issuer. The first
 //     value in the section should be set to 500 more than the first value
@@ -87,11 +87,21 @@ namespace AlarmDef {
     CHRONOS_TIMER_POP_ERROR,
 
     MEMCACHED_PROCESS_FAIL = 3500,
-    
+
     CASSANDRA_PROCESS_FAIL = 4000,
     CASSANDRA_RING_NODE_FAIL,
 
-    MONIT_PROCESS_FAIL = 4500
+    MONIT_PROCESS_FAIL = 4500,
+
+    MEMENTO_HTTP_SERVER_PROCESS_FAIL = 5000,
+    MEMENTO_PROXY_SERVER_PROCESS_FAIL = 5001,
+    MEMENTO_MEMCACHED_COMM_ERROR = 5002,
+    MEMENTO_MEMCACHED_VBUCKET_ERROR = 5003,
+    MEMENTO_HOMESTEAD_COMM_ERROR = 5004,
+    MEMENTO_CASSANDRA_COMM_ERROR = 5005,
+    MEMENTO_AS_CASSANDRA_COMM_ERROR = 5006,
+    MEMENTO_HTTP_SERVER_COMM_ERROR = 5007,
+
   };
 
   enum Severity {
@@ -107,7 +117,7 @@ namespace AlarmDef {
   enum Cause {
     UNDEFINED_CAUSE,
     SOFTWARE_ERROR = 163,
-    UNDERLAYING_RESOURCE_UNAVAILABLE = 165
+    UNDERLYING_RESOURCE_UNAVAILABLE = 554
   };
 
   enum Issuer {

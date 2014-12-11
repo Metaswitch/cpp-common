@@ -473,6 +473,12 @@ void DnsCachedResolver::dns_response(const std::string& domain,
       }
     }
   }
+  else
+  {
+    // If we can't contact the DNS server, keep using the old record's value until we can reconnect.
+    LOG_ERROR("Failed to retrieve record for %s: %s", domain.c_str(), ares_strerror(status));
+    ce->expires = 30;
+  }
 
   // If there were no records set cache a negative entry to prevent 
   // immediate retries.
