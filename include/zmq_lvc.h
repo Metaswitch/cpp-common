@@ -44,15 +44,34 @@
 
 #define ZMQ_NEW_SUBSCRIPTION_MARKER 1
 
+// This folder has to exist and be writable by the running process.
+#define ZMQ_IPC_FOLDER_PATH "/var/run/clearwater/stats/"
+
 class LastValueCache
 {
 public:
+  /// Standard constructor
+  ///
+  /// @param   statcount - The number of statistics to connect to.
+  /// @param   statnames - An array of statistics to connect to.
+  /// @param   process_name - The name of the current process.
+  /// @param   poll_timeout_ms - Used to shorten poll times in UT.
   LastValueCache(int statcount,
                  const std::string *statnames,
-                 std::string zmq_port,
+                 std::string process_name,
                  long poll_timeout_ms = 1000);
   ~LastValueCache();
+
+  /// Retrive the publish socket for a given statistic.  Statistics
+  /// generators can use this to report changes.
+  ///
+  /// @param  statname - The statistic to be reported.
+  /// @returns         - A connected 0mq XPUB socket.
   void* get_internal_publisher(std::string statname);
+
+  /// Call to start the processing on the current thread.
+  ///
+  /// This is a blocking call.
   void run();
 
 private:
@@ -66,7 +85,7 @@ private:
   void *_context;
   int _statcount;
   const std::string *_statnames;
-  std::string _zmq_port;
+  std::string _process_name;
   const long _poll_timeout_ms;
   volatile bool _terminate;
 
