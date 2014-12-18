@@ -37,7 +37,7 @@
 #include "diameterstack.h"
 #include "log.h"
 #include "sasevent.h"
-#include "craft_ent_definitions.h"
+#include "cpp_common_ent_definitions.h"
 
 using namespace Diameter;
 
@@ -289,7 +289,7 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
           }
           else if (type == HOOK_PEER_CONNECT_FAILED)
           {
-	    CL_DIAMETER_CONN_ERR.log(host);
+            CL_DIAMETER_CONN_ERR.log(host);
             LOG_WARNING("Failed to connect to %s", host);
             Diameter::Peer* stack_peer = *ii;
             _peers.erase(ii);
