@@ -37,7 +37,7 @@
 #include "diameterstack.h"
 #include "log.h"
 #include "sasevent.h"
-#include "cpp_common_ent_definitions.h"
+#include "cpp_common_pd_definitions.h"
 
 using namespace Diameter;
 
@@ -217,10 +217,10 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     dest_realm = "unknown";
   };
 
-  CL_DIAMETER_ROUTE_ERR.log((char *)other,
-			    msg2.command_code(),
-			    dest_host.c_str(),
-			    dest_realm.c_str());
+  CL_DIAMETER_ROUTE_ERR.log((char*)other,
+                            msg2.command_code(),
+                            dest_host.c_str(),
+                            dest_realm.c_str());
 
   LOG_ERROR("Routing error: '%s' for message with "
             "Command-Code %d, Destination-Host %s and Destination-Realm %s",
