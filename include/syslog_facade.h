@@ -1,5 +1,5 @@
 /**
- * @file syslog_facade.h
+ * @file syslog_facade.h - Facade to syslog.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014  Metaswitch Networks Ltd
