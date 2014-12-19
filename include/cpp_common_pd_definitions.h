@@ -83,7 +83,7 @@ static const PDLog4<const char*, int, const char*, const char*>
   "No route was found for a Diameter message.",
   "The Diameter message with the specified command code could not "
   "be routed to the destination host within the destination realm.",
-  "(1). Check the installation guide for Diameter host configuration. "
+  "(1). Check the Diameter host configuration. "
   "(2). Check to see that there is a route to the destination host. "
   "(3). Check for IP connectivity on the Diameter interface using ping. "
   "(4). Wireshark the Diameter interface."
@@ -96,7 +96,7 @@ static const PDLog1<const char*> CL_DIAMETER_CONN_ERR
   "Failed to make a Diameter connection to host %s.",
   "A Diameter connection attempt failed to the specified host.",
   "This impacts the ability to register, subscribe, or make a call.",
-  "(1). Check the installation guide for the Diameter host configuration. "
+  "(1). Check the Diameter host configuration. "
   "(2). Check to see that there is a route to the destination host. "
   "(3). Check for IP connectivity on the Diameter interface using ping. "
   "(4). Wireshark the interface on Diameter interface."
