@@ -66,11 +66,11 @@ std::vector<std::string> MemcachedStoreView::merge_servers(const std::vector<std
                                                            const std::vector<std::string>& list2)
 {
   std::set<std::string> merged_servers;
-  for (int ii = 0; ii < list1.size(); ii++)
+  for (size_t ii = 0; ii < list1.size(); ii++)
   {
     merged_servers.insert(list1[ii]);
   }
-  for (int ii = 0; ii < list2.size(); ii++)
+  for (size_t ii = 0; ii < list2.size(); ii++)
   {
     merged_servers.insert(list2[ii]);
   }
@@ -107,7 +107,7 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
     {
       std::vector<int> server_indexes = ring.get_nodes(ii, replicas);
       _read_set[ii].clear();
-      for (int jj = 0; jj < server_indexes.size(); jj++)
+      for (size_t jj = 0; jj < server_indexes.size(); jj++)
       {
         int idx = server_indexes[jj];
         _read_set[ii].push_back(servers[idx]);
