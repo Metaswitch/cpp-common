@@ -118,6 +118,9 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
   else
   {
     LOG_DEBUG("Cluster is moving from %d nodes to %d nodes", servers.size(), new_servers.size());
+
+    // _servers should contain all the servers we might want to store
+    // data on, so combine the old and new server lists, removing any overlap.
     _servers = merge_servers(servers, new_servers);
 
     // Calculate the two rings needed to generate the vbucket replica sets
@@ -196,7 +199,8 @@ std::string MemcachedStoreView::view_to_string()
   for (int ii = 0; ii < _vbuckets; ++ii)
   {
     oss << std::left << std::setw(8) << std::setfill(' ') << std::to_string(ii);
-    oss << std::left << std::setw(30) << std::setfill(' ') << replicas_to_string(_write_set[ii]);
+    oss << std::left << std::setw(28) << std::setfill(' ') << replicas_to_string(_write_set[ii]);
+    oss << "||";
     oss << replicas_to_string(_read_set[ii]) << std::endl;
   }
   return oss.str();
@@ -210,7 +214,7 @@ std::string MemcachedStoreView::replicas_to_string(const std::vector<std::string
   {
     s += replicas[ii] + "/";
   }
-  s += replicas[replicas.size()-1] ;
+  s += replicas[replicas.size()-1];
 
   return s;
 }
