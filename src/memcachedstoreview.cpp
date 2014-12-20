@@ -40,6 +40,7 @@
 #include <vector>
 #include <map>
 #include <list>
+#include <set>
 #include <string>
 #include <sstream>
 #include <iomanip>
@@ -61,6 +62,23 @@ MemcachedStoreView::~MemcachedStoreView()
 {
 }
 
+std::vector<std::string> MemcachedStoreView::merge_servers(const std::vector<std::string>& list1,
+                                                           const std::vector<std::string>& list2)
+{
+  std::set<std::string> merged_servers;
+  for (int ii = 0; ii < list1.size(); ii++)
+  {
+    merged_servers.insert(list1[ii]);
+  }
+  for (int ii = 0; ii < list2.size(); ii++)
+  {
+    merged_servers.insert(list2[ii]);
+  }
+
+  std::vector<std::string> ret;
+  std::copy(merged_servers.begin(), merged_servers.end(), std::back_inserter(ret));
+  return ret;
+}
 
 /// Updates the view for new current and target server lists.
 void MemcachedStoreView::update(const std::vector<std::string>& servers,
@@ -87,25 +105,20 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
     // Generate the read and write replica sets from the rings.
     for (int ii = 0; ii < _vbuckets; ++ii)
     {
-      _read_set[ii] = ring.get_nodes(ii, replicas);
+      std::vector<int> server_indexes = ring.get_nodes(ii, replicas);
+      _read_set[ii].clear();
+      for (int jj = 0; jj < server_indexes.size(); jj++)
+      {
+        int idx = server_indexes[jj];
+        _read_set[ii].push_back(servers[idx]);
+      }
       _write_set[ii] = _read_set[ii];
     }
   }
   else
   {
-    // Either growing or shrinking the cluster
-    if (servers.size() > new_servers.size())
-    {
-      // Shrinking the cluster, so use the current server list.
-      LOG_DEBUG("Cluster is shrinking from %d nodes to %d nodes", servers.size(), new_servers.size());
-      _servers = servers;
-    }
-    else
-    {
-      // Growing the cluster, so use the new server list.
-      LOG_DEBUG("Cluster is growing from %d nodes to %d nodes", servers.size(), new_servers.size());
-      _servers = new_servers;
-    }
+    LOG_DEBUG("Cluster is moving from %d nodes to %d nodes", servers.size(), new_servers.size());
+    _servers = merge_servers(servers, new_servers);
 
     // Calculate the two rings needed to generate the vbucket replica sets
     Ring c_ring(_vbuckets);
@@ -116,7 +129,7 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
     for (int ii = 0; ii < _vbuckets; ++ii)
     {
       // Keep track of which nodes are in the replica sets to avoid duplicates.
-      std::vector<bool> in_set(_servers.size());
+      std::map<std::string, bool> in_set;
 
       // Calculate the read and write replica sets for this bucket for both
       // current and target node sets.
@@ -126,9 +139,13 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       // Set the first read and write replica to the first node in the
       // current replica set.  This ensures most reads will complete
       // successfully on the first server.
-      _read_set[ii].push_back(c_nodes[0]);
-      _write_set[ii].push_back(c_nodes[0]);
-      in_set[c_nodes[0]] = true;
+      _read_set[ii].clear();
+      _write_set[ii].clear();
+
+      std::string initial_server = servers[c_nodes[0]];
+      _read_set[ii].push_back(initial_server);
+      _write_set[ii].push_back(initial_server);
+      in_set[initial_server] = true;
 
       // Set the second and subsequent read and write replicas to the
       // first _replicas nodes in the new replica set, but only if the
@@ -137,11 +154,12 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       // all nodes in the new replica set will have the full set of data.
       for (int jj = 0; jj < _replicas; ++jj)
       {
-        if (!in_set[n_nodes[jj]])
+        std::string server = new_servers[n_nodes[jj]];
+        if (!in_set[server])
         {
-          _read_set[ii].push_back(n_nodes[jj]);
-          _write_set[ii].push_back(n_nodes[jj]);
-          in_set[n_nodes[jj]] = true;
+          _read_set[ii].push_back(server);
+          _write_set[ii].push_back(server);
+          in_set[server] = true;
         }
       }
 
@@ -151,10 +169,11 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       // not already in the set.
       for (int jj = 1; jj < _replicas; ++jj)
       {
-        if (!in_set[c_nodes[jj]])
+        std::string server = servers[c_nodes[jj]];
+        if (!in_set[server])
         {
-          _read_set[ii].push_back(c_nodes[jj]);
-          in_set[c_nodes[jj]] = true;
+          _read_set[ii].push_back(server);
+          in_set[server] = true;
         }
       }
     }
@@ -171,25 +190,27 @@ std::string MemcachedStoreView::view_to_string()
   std::ostringstream oss;
 
   // Write the header.
-  oss << "Bucket Write           Read" << std::endl;
+  oss << std::left << std::setw(8) << std::setfill(' ') << "Bucket";
+  oss << std::left << std::setw(30) << std::setfill(' ') << "Write";
+  oss << "Read" << std::endl;
   for (int ii = 0; ii < _vbuckets; ++ii)
   {
-    oss << std::left << std::setw(7) << std::setfill(' ') << std::to_string(ii);
-    oss << std::left << std::setw(16) << std::setfill(' ') << replicas_to_string(_write_set[ii]);
+    oss << std::left << std::setw(8) << std::setfill(' ') << std::to_string(ii);
+    oss << std::left << std::setw(30) << std::setfill(' ') << replicas_to_string(_write_set[ii]);
     oss << replicas_to_string(_read_set[ii]) << std::endl;
   }
   return oss.str();
 }
 
 
-std::string MemcachedStoreView::replicas_to_string(const std::vector<int>& replicas)
+std::string MemcachedStoreView::replicas_to_string(const std::vector<std::string>& replicas)
 {
   std::string s;
   for (size_t ii = 0; ii < replicas.size()-1; ++ii)
   {
-    s += std::to_string(replicas[ii]) + "/";
+    s += replicas[ii] + "/";
   }
-  s += std::to_string(replicas[replicas.size()-1]);
+  s += replicas[replicas.size()-1] ;
 
   return s;
 }
