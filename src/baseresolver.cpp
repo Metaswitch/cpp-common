@@ -255,7 +255,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             std::string target = inet_ntop(ai.address.af,
                                            &ai.address.addr,
                                            buf, sizeof(buf));
-            std::string tg = "Address - \"" + target + "\". Port - \"" + std::to_string(ai.port) + "\"";
+            std::string tg = "[" + target + ":" + std::to_string(ai.port) + "] ";
             targetlist_str = targetlist_str + tg;
 
             LOG_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
@@ -270,7 +270,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             std::string blacklistee = inet_ntop(ai.address.af,
                                                 &ai.address.addr,
                                                 buf, sizeof(buf));
-            std::string bl = "[" + blacklistee + ":" + std::to_string(ai.port) + "]";
+            std::string bl = "[" + blacklistee + ":" + std::to_string(ai.port) + "] ";
             blacklist_str = blacklist_str + bl;
           }
 
@@ -282,16 +282,6 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       if (targets.size() >= (size_t)retries)
       {
         // We have enough targets so don't move to the next priority level.
-        if (trail != 0)
-        {
-          SAS::Event event(trail, SASEvent::BASERESOLVE_SRV_RESULT, 0);
-          event.add_var_param(srv_name);
-          event.add_var_param(targetlist_str);
-          event.add_var_param(blacklist_str);
-          event.add_var_param(added_from_blacklist_str);
-          SAS::report_event(event);
-        }
-
         break;
       }
     }
