@@ -754,6 +754,7 @@ Store::Status MemcachedStore::delete_data(const std::string& table,
   // server.
   memcached_return_t rc = MEMCACHED_ERROR;
   size_t ii;
+
   for (ii = 0; ii < replicas.size(); ++ii)
   {
     LOG_DEBUG("Attempt delete to replica %d (connection %p)",
@@ -767,8 +768,12 @@ Store::Status MemcachedStore::delete_data(const std::string& table,
 
     if (!memcached_success(rc))
     {
-      // Deletes are unconditional so this should never happen
       LOG_ERROR("Delete failed to replica %d", ii);
+      SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILURE, 0);
+      event.add_var_param(fqkey);
+      event.add_static_param(ii);
+      event.add_static_param(replicas.size());
+      SAS::report_event(event);
     }
   }
 
