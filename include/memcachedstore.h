@@ -165,8 +165,7 @@ private:
   // The list of servers in this view.
   std::vector<std::string> _servers;
 
-  // The set of read and write replicas for each vbucket.  The integers in
-  // each vector index into the list of servers.
+  // The set of read and write replicas for each vbucket.
   std::vector<std::vector<std::string> > _read_replicas;
   std::vector<std::vector<std::string> > _write_replicas;
 
