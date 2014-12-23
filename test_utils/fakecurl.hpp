@@ -61,25 +61,29 @@ public:
   CURLcode _code;  //< cURL easy doesn't accept HTTP status codes
   std::string _body;
   std::list<std::string> _headers;
+  int _http_rc;
 
   Response() :
     _code_once(CURLE_OK),
     _code(CURLE_OK),
-    _body("")
+    _body(""),
+    _http_rc(200)
   {
   }
 
   Response(const std::string& body) :
     _code_once(CURLE_OK),
     _code(CURLE_OK),
-    _body(body)
+    _body(body),
+    _http_rc(200)
   {
   }
 
   Response(CURLcode code_once, const std::string& body) :
     _code_once(code_once),
     _code(CURLE_OK),
-    _body(body)
+    _body(body),
+    _http_rc(200)
   {
   }
 
@@ -87,21 +91,32 @@ public:
     _code_once(CURLE_OK),
     _code(CURLE_OK),
     _body(""),
-    _headers(headers)
+    _headers(headers),
+    _http_rc(200)
   {
   }
 
   Response(const char* body) :
     _code_once(CURLE_OK),
     _code(CURLE_OK),
-    _body(body)
+    _body(body),
+    _http_rc(200)
   {
   }
 
   Response(CURLcode code) :
     _code_once(CURLE_OK),
     _code(code),
-    _body("")
+    _body(""),
+    _http_rc(200)
+  {
+  }
+
+  Response(int http_rc) :
+    _code_once(CURLE_OK),
+    _code(CURLE_OK),
+    _body(""),
+    _http_rc(http_rc)
   {
   }
 };
