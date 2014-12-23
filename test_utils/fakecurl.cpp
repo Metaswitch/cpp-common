@@ -82,6 +82,8 @@ public:
   void* _debug_data;
   bool _verbose;
 
+  int _http_rc;
+
   FakeCurl() :
     _method("GET"),
     _failonerror(false),
@@ -95,7 +97,8 @@ public:
     _hdrdata(NULL),
     _private(NULL),
     _debug_callback(NULL),
-    _debug_data(NULL)
+    _debug_data(NULL),
+    _http_rc(200)
   {
   }
 
@@ -103,7 +106,7 @@ public:
   {
   }
 
-  CURLcode easy_perform();
+  CURLcode easy_perform(FakeCurl* curl);
 };
 
 /// Responses to give, by URL.
@@ -115,7 +118,7 @@ map<pair<string,string>,Response> fakecurl_responses_with_body;
 /// Requests received, by URL.
 map<string,Request> fakecurl_requests;
 
-CURLcode FakeCurl::easy_perform()
+CURLcode FakeCurl::easy_perform(FakeCurl* curl)
 {
   // Save off the request.
   Request req;
@@ -132,6 +135,7 @@ CURLcode FakeCurl::easy_perform()
   // Check if there's a response ready.
   auto iter = fakecurl_responses.find(_url);
   auto iter2 = fakecurl_responses_with_body.find(pair<string, string>(_url, _body));
+
   Response* resp;
   if (iter != fakecurl_responses.end())
   {
@@ -146,6 +150,7 @@ CURLcode FakeCurl::easy_perform()
 
   // Send the response.
   CURLcode rc;
+  curl->_http_rc = resp->_http_rc;
 
   if ((_debug_callback != NULL) && _verbose)
   {
@@ -397,7 +402,7 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
 CURLcode curl_easy_perform(CURL* handle)
 {
   FakeCurl* curl = (FakeCurl*)handle;
-  return curl->easy_perform();
+  return curl->easy_perform(curl);
 }
 
 CURLcode curl_easy_getinfo(CURL* handle, CURLINFO info, ...)
@@ -448,7 +453,7 @@ CURLcode curl_easy_getinfo(CURL* handle, CURLINFO info, ...)
     case CURLINFO_RESPONSE_CODE:
     {
       long* dataptr = va_arg(args, long*);
-      *dataptr = 503;
+      *dataptr = curl->_http_rc;
     }
     break;
 

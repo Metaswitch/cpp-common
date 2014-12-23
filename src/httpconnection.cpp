@@ -196,9 +196,6 @@ CURL* HttpConnection::get_curl_handle()
     // Retrieved data will always be written to a string.
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &string_store);
 
-    // Tell cURL to fail on 400+ response codes.
-    curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
-
     // Only keep one TCP connection to a Homestead per thread, to
     // avoid using unnecessary resources. We only try a different
     // Homestead when one fails, or after we've had it open for a
@@ -240,8 +237,12 @@ HTTPCode HttpConnection::curl_code_to_http_code(CURL* curl, CURLcode code)
   switch (code)
   {
   case CURLE_OK:
-    return HTTP_OK;
+  {
+    long http_code = 0;
+    CURLcode rc = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    return http_code;
   // LCOV_EXCL_START
+  }
   case CURLE_URL_MALFORMAT:
   case CURLE_NOT_BUILT_IN:
     return HTTP_BAD_RESULT;
@@ -254,14 +255,6 @@ HTTPCode HttpConnection::curl_code_to_http_code(CURL* curl, CURLcode code)
   case CURLE_COULDNT_CONNECT:
   case CURLE_AGAIN:
     return HTTP_NOT_FOUND;
-  case CURLE_HTTP_RETURNED_ERROR:
-    // We have an actual HTTP error available, so use that.
-  {
-    long http_code = 0;
-    CURLcode rc = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-    assert(rc == CURLE_OK);
-    return http_code;
-  }
   default:
     return HTTP_SERVER_ERROR;
   // LCOV_EXCL_STOP
@@ -568,7 +561,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
 
     // Log the result of the request.
     long http_rc = 0;
-    if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
+    if (rc == CURLE_OK)
     {
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
       sas_log_http_rsp(trail, curl, http_rc, method_str, url, recorder.response, 0);
@@ -582,7 +575,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     }
 
     // Update the connection recycling and retry algorithms.
-    if (rc == CURLE_OK)
+    if ((rc == CURLE_OK) && !(http_rc >= 400))
     {
       if (recycle_conn)
       {
@@ -595,11 +588,10 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     else
     {
       CL_HTTP_COMM_ERR.log(url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
-
       // If we forced a new connection and we failed even to establish an HTTP
       // connection, blacklist this IP address.
       if (recycle_conn &&
-          (rc != CURLE_HTTP_RETURNED_ERROR) &&
+          !(http_rc >= 400) &&
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
@@ -608,7 +600,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
 
       // Determine the failure mode and update the correct counter.
       bool fatal_http_error = false;
-      if (rc == CURLE_HTTP_RETURNED_ERROR)
+      if (http_rc >= 400)
       {
         if (http_rc == 503)
         {
@@ -661,7 +653,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
     _load_monitor->incr_penalties();
   }
 
-  if ((rc == CURLE_OK) || (rc == CURLE_HTTP_RETURNED_ERROR))
+  if (rc == CURLE_OK)
   {
     entry->set_remote_ip(remote_ip);
 
@@ -690,7 +682,8 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   }
 
   HTTPCode http_code = curl_code_to_http_code(curl, rc);
-  if ((rc != CURLE_OK) && (rc != CURLE_REMOTE_FILE_NOT_FOUND))
+
+  if (((rc != CURLE_OK) && (rc != CURLE_REMOTE_FILE_NOT_FOUND)) || (http_code >= 400))
   {
     LOG_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
   }
