@@ -383,6 +383,9 @@ void DnsCachedResolver::dns_response(const std::string& domain,
   LOG_DEBUG("Received DNS response for %s type %s",
             domain.c_str(), DnsRRecord::rrtype_to_string(dnstype).c_str());
 
+  // Stores the domain pointed to by a CNAME record
+  std::string canonical_domain;
+
   // Find the relevant node in the cache.
   DnsCacheEntryPtr ce = get_cache_entry(domain, dnstype);
 
@@ -407,8 +410,10 @@ void DnsCachedResolver::dns_response(const std::string& domain,
         if ((rr->rrtype() == ns_t_a) ||
             (rr->rrtype() == ns_t_aaaa))
         {
-          // A/AAAA record, so check that RRNAME matches the question.
-          if (strcasecmp(rr->rrname().c_str(), domain.c_str()) == 0)
+          // A/AAAA record, so check that RRNAME matches the question
+          // (or a CNAME).
+          if ((strcasecmp(rr->rrname().c_str(), domain.c_str()) == 0) ||
+              (strcasecmp(rr->rrname().c_str(), canonical_domain.c_str()) == 0))
           {
             // RRNAME matches, so add this record to the cache entry.
             add_record_to_cache(ce, rr);
@@ -425,9 +430,14 @@ void DnsCachedResolver::dns_response(const std::string& domain,
           // SRV or NAPTR record, so add it to the cache entry.
           add_record_to_cache(ce, rr);
         }
+        else if (rr->rrtype() == ns_t_cname)
+        {
+          canonical_domain = ((DnsCNAMERecord*)rr)->target();
+          LOG_DEBUG("CNAME record pointing at %s - treating this as equivalent to %s", canonical_domain.c_str(), domain.c_str());
+        }
         else
         {
-          LOG_WARNING("Ignoring %s record in DNS answer - only A, AAAA, NAPTR and SRV are supported", DnsRRecord::rrtype_to_string(rr->rrtype()).c_str());
+          LOG_WARNING("Ignoring %s record in DNS answer - only CNAME, A, AAAA, NAPTR and SRV are supported", DnsRRecord::rrtype_to_string(rr->rrtype()).c_str());
           delete rr;
         }
       }
