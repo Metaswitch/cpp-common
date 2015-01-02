@@ -428,8 +428,20 @@ bool Store::run(Operation* op, SAS::TrailId trail)
       }
     }
 
-    LOG_ERROR("Cassandra request failed: rc=%d, %s",
-              cass_result, cass_error_text.c_str());
+    if (cass_result == NOT_FOUND)
+    {
+      // We expect to get "not found" errors during normal operation
+      // (e.g. invalid usernames) so log it at a much lower level.
+      LOG_DEBUG("Cassandra request failed: rc=%d, %s",
+                cass_result, cass_error_text.c_str());
+    }
+    else
+    {
+      LOG_ERROR("Cassandra request failed: rc=%d, %s",
+                cass_result, cass_error_text.c_str());
+
+    }
+
     op->unhandled_exception(cass_result, cass_error_text, trail);
   }
 
