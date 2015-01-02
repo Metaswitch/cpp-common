@@ -415,13 +415,22 @@ void DnsCachedResolver::dns_response(const std::string& domain,
           }
           else
           {
+            LOG_DEBUG("Ignoring A/AAAA record for %s (expecting domain %s)",
+                      rr->rrname().c_str(), domain.c_str());
             delete rr;
           }
         }
-        else
+        else if ((rr->rrtype() == ns_t_srv) ||
+                 (rr->rrtype() == ns_t_naptr))
         {
           // SRV or NAPTR record, so add it to the cache entry.
           add_record_to_cache(ce, rr);
+        }
+        else
+        {
+          LOG_WARNING("Ignoring %s record in DNS answer - only A, AAAA, NAPTR and SRV are supported",
+                      DnsRRecord::rrtype_to_string(rr->rrtype()).c_str());
+          delete rr;
         }
       }
 
@@ -480,7 +489,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
     ce->expires = 30;
   }
 
-  // If there were no records set cache a negative entry to prevent 
+  // If there were no records set cache a negative entry to prevent
   // immediate retries.
   if ((ce->records.empty()) &&
       (ce->expires == 0))
