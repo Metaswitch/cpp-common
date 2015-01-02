@@ -65,6 +65,7 @@
 ///                     file.
 MemcachedStore::MemcachedStore(bool binary,
                                const std::string& config_file,
+                               unsigned int max_connect_latency_ms,
                                CommunicationMonitor* comm_monitor,
                                Alarm* vbucket_alarm) :
   _config_file(config_file),
@@ -74,6 +75,7 @@ MemcachedStore::MemcachedStore(bool binary,
   _options(),
   _view_number(0),
   _servers(),
+  _max_connect_latency_ms(max_connect_latency_ms),
   _read_replicas(_vbuckets),
   _write_replicas(_vbuckets),
   _comm_monitor(comm_monitor),
@@ -224,7 +226,7 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
       LOG_DEBUG("Set up connection %p to server %s", conn->st[ii], _servers[ii].c_str());
 
       // Switch to a longer connect timeout from here on.
-      memcached_behavior_set(conn->st[ii], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, 50);
+      memcached_behavior_set(conn->st[ii], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, _max_connect_latency_ms);
 
       // Connect to the server.  The address is specified as either <IPv4 address>:<port>
       // or [<IPv6 address>]:<port>.  Look for square brackets to determine whether

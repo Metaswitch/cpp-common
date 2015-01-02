@@ -64,7 +64,9 @@ public:
   MemcachedStore(bool binary,
                  const std::string& config_file,
                  CommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL);
+                 Alarm* vbucket_alarm = NULL,
+                 unsigned int max_connect_latency_ms = 50);
+
   ~MemcachedStore();
 
   /// Flags that the store should use a new view of the memcached cluster to
@@ -165,6 +167,11 @@ private:
   // The list of servers in this view.
   std::vector<std::string> _servers;
 
+  // The time to wait before timing out a connection to memcached.
+  // (This is only used during normal running - at start-of-day we use
+  // a fixed 10ms time, to start up as quickly as possible).
+  unsigned int _max_connect_latency_ms;
+  
   // The set of read and write replicas for each vbucket.  The integers in
   // each vector index into the list of servers.
   std::vector<std::vector<int> > _read_replicas;
