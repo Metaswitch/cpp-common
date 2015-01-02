@@ -203,28 +203,28 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
   {
     // Either the view has changed or has not yet been set up, so set up the
     // connection and replica structures for this thread.
-    for (size_t ii = 0; ii < conn->st.size(); ++ii)
+    for (std::map<std::string, memcached_st*>::iterator it = conn->st.begin();
+         it != conn->st.end();
+         it++)
     {
-      memcached_free(conn->st[ii]);
-      conn->st[ii] = NULL;
+      memcached_free(it->second);
+      it->second = NULL;
     }
     pthread_rwlock_rdlock(&_view_lock);
 
     LOG_DEBUG("Set up new view %d for thread", _view_number);
 
     // Create a set of memcached_st's one per server.
-    conn->st.resize(_servers.size());
-
     for (size_t ii = 0; ii < _servers.size(); ++ii)
     {
       // Create a new memcached_st for this server.  Do not specify the server
       // at this point as memcached() does not support IPv6 addresses.
       LOG_DEBUG("Setting up server %d for connection %p (%s)", ii, conn, _options.c_str());
-      conn->st[ii] = memcached(_options.c_str(), _options.length());
-      LOG_DEBUG("Set up connection %p to server %s", conn->st[ii], _servers[ii].c_str());
+      conn->st[_servers[ii]] = memcached(_options.c_str(), _options.length());
+      LOG_DEBUG("Set up connection %p to server %s", conn->st[_servers[ii]], _servers[ii].c_str());
 
       // Switch to a longer connect timeout from here on.
-      memcached_behavior_set(conn->st[ii], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, 50);
+      memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, 50);
 
       // Connect to the server.  The address is specified as either <IPv4 address>:<port>
       // or [<IPv6 address>]:<port>.  Look for square brackets to determine whether
@@ -265,7 +265,7 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
                 contact_details[0].c_str(),
                 contact_details[1].c_str());
       int port = atoi(contact_details[1].c_str());
-      memcached_server_add(conn->st[ii], contact_details[0].c_str(), port);
+      memcached_server_add(conn->st[_servers[ii]], contact_details[0].c_str(), port);
     }
 
     conn->read_replicas.resize(_vbuckets);
@@ -333,9 +333,12 @@ void MemcachedStore::cleanup_connection(void* p)
 {
   MemcachedStore::connection* conn = (MemcachedStore::connection*)p;
 
-  for (size_t ii = 0; ii < conn->st.size(); ++ii)
+  for (std::map<std::string, memcached_st*>::iterator it = conn->st.begin();
+       it != conn->st.end();
+       it++)
   {
-    memcached_free(conn->st[ii]);
+    memcached_free(it->second);
+    it->second = NULL;
   }
 
   delete conn;

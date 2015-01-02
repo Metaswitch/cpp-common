@@ -58,15 +58,18 @@ public:
   const std::vector<std::string>& servers() const { return _servers; };
 
   /// Returns the current read and write replica sets for each vbucket.
-  const std::vector<int>& read_replicas(int vbucket) const { return _read_set[vbucket]; };
-  const std::vector<int>& write_replicas(int vbucket) const { return _write_set[vbucket]; };
+  const std::vector<std::string>& read_replicas(int vbucket) const { return _read_set[vbucket]; };
+  const std::vector<std::string>& write_replicas(int vbucket) const { return _write_set[vbucket]; };
 
 private:
   /// Converts the view into a string suitable for logging.
   std::string view_to_string();
 
   /// Converts a set of replicas into an ordered string suitable for logging.
-  std::string replicas_to_string(const std::vector<int>& replicas);
+  std::string replicas_to_string(const std::vector<std::string>& replicas);
+
+  std::vector<std::string> merge_servers(const std::vector<std::string>& list1,
+                                         const std::vector<std::string>& list2);
 
   /// Calculates the ring used to generate the vbucket configurations.  The
   /// ring essentially maps each vbucket slot to a particular node which is
@@ -124,8 +127,8 @@ private:
   // vbucket will be the same and have exactly _replicas entries in each.  In
   // unstable configurations (scale-up/scale-down) additional read and write
   // replicas are enabled to maintain redundancy.
-  std::vector<std::vector<int> > _read_set;
-  std::vector<std::vector<int> > _write_set;
+  std::vector<std::vector<std::string> > _read_set;
+  std::vector<std::vector<std::string> > _write_set;
 };
 
 #endif
