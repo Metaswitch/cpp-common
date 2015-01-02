@@ -65,9 +65,9 @@
 ///                     file.
 MemcachedStore::MemcachedStore(bool binary,
                                const std::string& config_file,
-                               unsigned int max_connect_latency_ms,
                                CommunicationMonitor* comm_monitor,
-                               Alarm* vbucket_alarm) :
+                               Alarm* vbucket_alarm,
+                               unsigned int max_connect_latency_ms) :
   _config_file(config_file),
   _updater(NULL),
   _replicas(2),
