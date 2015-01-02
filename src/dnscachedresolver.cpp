@@ -415,7 +415,8 @@ void DnsCachedResolver::dns_response(const std::string& domain,
           }
           else
           {
-            LOG_WARNING("Ignoring A/AAAA record for %s (expecting domain %s)", rr->rrname().c_str(), domain.c_str());
+            LOG_DEBUG("Ignoring A/AAAA record for %s (expecting domain %s)",
+                      rr->rrname().c_str(), domain.c_str());
             delete rr;
           }
         }
@@ -427,7 +428,8 @@ void DnsCachedResolver::dns_response(const std::string& domain,
         }
         else
         {
-          LOG_WARNING("Ignoring %s record in DNS answer - only A, AAAA, NAPTR and SRV are supported", DnsRRecord::rrtype_to_string(rr->rrtype()).c_str());
+          LOG_WARNING("Ignoring %s record in DNS answer - only A, AAAA, NAPTR and SRV are supported",
+                      DnsRRecord::rrtype_to_string(rr->rrtype()).c_str());
           delete rr;
         }
       }
