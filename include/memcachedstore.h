@@ -110,7 +110,7 @@ private:
     uint64_t view_number;
 
     // Contains the memcached_st's for each server.
-    std::vector<memcached_st*> st;
+    std::map<std::string, memcached_st*> st;
 
     // Contains the set of read and write replicas for each vbucket.
     std::vector<std::vector<memcached_st*> > write_replicas;
@@ -165,10 +165,9 @@ private:
   // The list of servers in this view.
   std::vector<std::string> _servers;
 
-  // The set of read and write replicas for each vbucket.  The integers in
-  // each vector index into the list of servers.
-  std::vector<std::vector<int> > _read_replicas;
-  std::vector<std::vector<int> > _write_replicas;
+  // The set of read and write replicas for each vbucket.
+  std::vector<std::vector<std::string> > _read_replicas;
+  std::vector<std::vector<std::string> > _write_replicas;
 
   // The maximum expiration delta that memcached expects.  Any expiration
   // value larger than this is assumed to be an absolute rather than relative
