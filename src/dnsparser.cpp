@@ -350,10 +350,10 @@ int DnsParser::parse_rr(unsigned char* rptr, DnsRRecord*& rr)
   {
     LOG_DEBUG("Parse CNAME record RDATA");
     std::string target;
-    int target_len = parse_domain_name(rdata, target);
+    parse_domain_name(rdata, target);
     rr = new DnsCNAMERecord(rrname, ttl, target);
   }
-    else
+  else
   {
     rr = new DnsRRecord(rrname, rrtype, rrclass, ttl);
   }

@@ -432,8 +432,20 @@ void DnsCachedResolver::dns_response(const std::string& domain,
         }
         else if (rr->rrtype() == ns_t_cname)
         {
+          // Store off the CNAME value, so that if we see subsequent A
+          // records for the pointed-to name, we'll recognise them.
+          //
+          // This only works for responses that contain a CNAME
+          // followed by other valid records, e.g.
+          // example.net CNAME example.com
+          // example.com A 10.0.0.1
+          //
+          // RFC 1034 mandates this format, so this should be fine.
+          
           canonical_domain = ((DnsCNAMERecord*)rr)->target();
-          LOG_DEBUG("CNAME record pointing at %s - treating this as equivalent to %s", canonical_domain.c_str(), domain.c_str());
+          LOG_DEBUG("CNAME record pointing at %s - treating this as equivalent to %s",
+                    canonical_domain.c_str(),
+                    domain.c_str());
         }
         else
         {
