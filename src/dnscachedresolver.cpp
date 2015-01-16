@@ -205,6 +205,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
        ++i)
   {
     LOG_VERBOSE("Check cache for %s type %d", (*i).c_str(), dnstype);
+    bool do_query = false;
     if (get_cache_entry(*i, dnstype) == NULL)
     {
       LOG_DEBUG("No entry found in cache");
@@ -212,7 +213,16 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
       // Create an empty record for this cache entry.
       LOG_DEBUG("Create cache entry pending query");
       DnsCacheEntryPtr ce = create_cache_entry(*i, dnstype);
+      do_query = true;
+    }
+    else if (get_cache_entry(*i, dnstype)->expires < now)
+    {
+      LOG_DEBUG("Expired entry found in cache");
+      do_query = true;
+    }
 
+    if (do_query)
+    {
       if (channel == NULL)
       {
         // Get a DNS channel to issue any queries.
@@ -484,9 +494,16 @@ void DnsCachedResolver::dns_response(const std::string& domain,
   }
   else
   {
-    // If we can't contact the DNS server, keep using the old record's value until we can reconnect.
+    // If we can't contact the DNS server, keep using the old record's
+    // value for an extra 30 seconds.
+    //
+    // In the event of an extended outage, this will keep being
+    // extended for 30 seconds at a time. Note that this only kicks in
+    // on DNS server failure, and if a record is deliberately deleted,
+    // that will return NXDOMAIN and not be cached.
     LOG_ERROR("Failed to retrieve record for %s: %s", domain.c_str(), ares_strerror(status));
-    ce->expires = 30;
+
+    ce->expires = 30 + time(NULL);
   }
 
   // If there were no records set cache a negative entry to prevent
@@ -545,8 +562,10 @@ DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::create_cache_entry(const 
 /// Adds the cache entry to the expiry list.
 void DnsCachedResolver::add_to_expiry_list(DnsCacheEntryPtr ce)
 {
-  LOG_DEBUG("Adding %s to cache expiry list with expiry time of %d", ce->domain.c_str(), ce->expires);
-  _cache_expiry_list.insert(std::make_pair(ce->expires, std::make_pair(ce->dnstype, ce->domain)));
+  LOG_DEBUG("Adding %s to cache expiry list with deletion time of %d",
+            ce->domain.c_str(),
+            ce->expires + EXTRA_INVALID_TIME);
+  _cache_expiry_list.insert(std::make_pair(ce->expires + EXTRA_INVALID_TIME, std::make_pair(ce->dnstype, ce->domain)));
 }
 
 /// Scans for expired cache entries.  In most case records are created then
@@ -571,7 +590,7 @@ void DnsCachedResolver::expire_cache()
     {
       DnsCacheEntryPtr ce = j->second;
 
-      if (ce->expires == i->first)
+      if (ce->expires + EXTRA_INVALID_TIME == i->first)
       {
         // Record really is ready to expire, so remove it from the main cache
         // map.

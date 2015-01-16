@@ -195,6 +195,11 @@ private:
   /// @TODO - may make sense for this to be configured, or even different for
   /// each record type.
   static const int DEFAULT_NEGATIVE_CACHE_TTL = 300;
+
+  /// The time to keep records after they expire before freeing them.
+  /// This provides a grace period if a DNS server becomes temporarily
+  /// unresponsive, but doesn't risk leaking memory.
+  static const int EXTRA_INVALID_TIME = 300;
 };
 
 #endif
