@@ -562,6 +562,14 @@ DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::create_cache_entry(const 
 /// Adds the cache entry to the expiry list.
 void DnsCachedResolver::add_to_expiry_list(DnsCacheEntryPtr ce)
 {
+  int sensible_minimum = 1420070400;  // 1st January 2015
+  if ((ce->expires != 0) && (ce->expires < sensible_minimum))
+  {
+    LOG_WARNING("Cache expiry time is %d - expecting either 0 or an epoch timestamp (> %d)",
+                ce->expires,
+                sensible_minimum);
+  }
+  
   LOG_DEBUG("Adding %s to cache expiry list with deletion time of %d",
             ce->domain.c_str(),
             ce->expires + EXTRA_INVALID_TIME);
