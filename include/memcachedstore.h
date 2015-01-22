@@ -64,8 +64,7 @@ public:
   MemcachedStore(bool binary,
                  const std::string& config_file,
                  CommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL,
-                 unsigned int max_connect_latency_ms = 50);
+                 Alarm* vbucket_alarm = NULL);
 
   ~MemcachedStore();
 
@@ -76,6 +75,8 @@ public:
                 const std::vector<std::string>& new_servers);
 
   bool has_servers() { return (_servers.size() > 0); };
+
+  void set_max_connect_latency(unsigned int ms);
 
   /// Gets the data for the specified table and key.
   Store::Status get_data(const std::string& table,

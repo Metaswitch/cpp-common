@@ -66,8 +66,7 @@
 MemcachedStore::MemcachedStore(bool binary,
                                const std::string& config_file,
                                CommunicationMonitor* comm_monitor,
-                               Alarm* vbucket_alarm,
-                               unsigned int max_connect_latency_ms) :
+                               Alarm* vbucket_alarm) :
   _config_file(config_file),
   _updater(NULL),
   _replicas(2),
@@ -75,7 +74,7 @@ MemcachedStore::MemcachedStore(bool binary,
   _options(),
   _view_number(0),
   _servers(),
-  _max_connect_latency_ms(max_connect_latency_ms),
+  _max_connect_latency_ms(50),
   _read_replicas(_vbuckets),
   _write_replicas(_vbuckets),
   _comm_monitor(comm_monitor),
@@ -132,7 +131,10 @@ MemcachedStore::~MemcachedStore()
 
 
 // LCOV_EXCL_START - need real memcached to test
-
+void MemcachedStore::set_max_connect_latency(unsigned int ms)
+{
+  _max_connect_latency_ms = ms;
+}
 
 /// Set up a new view of the memcached cluster(s).  The view determines
 /// how data is distributed around the cluster.
