@@ -2,7 +2,7 @@
  * @file json_parse_utils.h Utilities for parsing JSON documents.
  *
  * Project Clearwater - IMS in the cloud.
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -52,7 +52,7 @@
 // exception is thrown. The calling code must catch this exception and take
 // recovery action.
 
-/// Object that is throw when a JSON formatting error is spotted.
+/// Object that is thrown when a JSON formatting error is spotted.
 struct JsonFormatError
 {
   /// Constructor.
