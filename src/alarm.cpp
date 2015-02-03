@@ -211,7 +211,8 @@ bool AlarmReqAgent::zmq_init_sck()
     return false;
   }
 
-  std::string addr = "tcp://127.0.0.1:" + std::to_string(ZMQ_PORT);
+  std::string addr = std::string("ipc:///var/run/clearwater/alarms");
+  LOG_DEBUG("AlarmRegAgent: addr=%s", addr.c_str());
   if (zmq_connect(_sck, addr.c_str()) == -1)
   {
     LOG_ERROR("AlarmReqAgent: zmq_connect failed: %s", zmq_strerror(errno));
