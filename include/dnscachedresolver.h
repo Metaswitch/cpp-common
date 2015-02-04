@@ -56,6 +56,7 @@ class DnsResult
 public:
   DnsResult(const std::string& domain, int dnstype, const std::vector<DnsRRecord*>& records, int ttl);
   DnsResult(const std::string& domain, int dnstype, int ttl);
+  DnsResult(const DnsResult &obj);
   ~DnsResult();
 
   const std::string& domain() const { return _domain; }

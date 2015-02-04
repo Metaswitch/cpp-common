@@ -55,13 +55,36 @@ DnsResult::DnsResult(const std::string& domain,
   _records(),
   _ttl(ttl)
 {
+  LOG_DEBUG("%x::DnsResult - records.size()=%d", this, records.size());
   // Clone the records to the result.
   for (std::vector<DnsRRecord*>::const_iterator i = records.begin();
        i != records.end();
        ++i)
   {
-    _records.push_back((*i)->clone());
+    DnsRRecord* clone=(*i)->clone();
+    LOG_DEBUG("%x::DnsResult - i=%x, clone=%x", this, i, clone);
+    _records.push_back(clone);
   }
+  LOG_DEBUG("%x::DnsResult - _records.size()=%d", this, _records.size());
+}
+
+DnsResult::DnsResult(const DnsResult &res) :
+  _domain(res._domain),
+  _dnstype(res._dnstype),
+  _records(),
+  _ttl(res._ttl)
+{
+  LOG_DEBUG("%x::DnsResult (copy) - res._records.size()=%d", this, res._records.size());
+  // Clone the records to the result.
+  for (std::vector<DnsRRecord*>::const_iterator i = res._records.begin();
+       i != res._records.end();
+       ++i)
+  {
+    DnsRRecord* clone=(*i)->clone();
+    LOG_DEBUG("%x::DnsResult (copy) - i=%x, clone=%x", this, i, clone);
+    _records.push_back(clone);
+  }
+  LOG_DEBUG("%x::DnsResult (copy) - _records.size()=%d", this, _records.size());
 }
 
 DnsResult::DnsResult(const std::string& domain,
@@ -72,15 +95,18 @@ DnsResult::DnsResult(const std::string& domain,
   _records(),
   _ttl(ttl)
 {
+    LOG_DEBUG("%x::DnsResult - no records", this);
 }
 
 DnsResult::~DnsResult()
 {
-  while (!_records.empty())
+  LOG_DEBUG("%x::~DnsResult - _records.size()=%d", this, _records.size());
+  for (int i=0; i < (int)_records.size(); i++ )
   {
-    delete _records.back();
-    _records.pop_back();
+    LOG_DEBUG("%x::~DnsResult - _records[%d]=%x", this, i, _records[i]);
+    delete _records[i];
   }
+  _records.clear();
 }
 
 DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
