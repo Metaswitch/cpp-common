@@ -52,7 +52,12 @@ public:
   /// Get a logger with the default behaviour.
   PrintingTestLogger();
 
-  virtual ~PrintingTestLogger();
+  virtual ~PrintingTestLogger()
+  {
+    Log::swapLogger(this, _last_logger);
+    Log::setLoggingLevel(_last_logging_level);
+  }
+
 
   virtual void write(const char* data);
   void flush();
@@ -70,6 +75,7 @@ public:
 protected:
   bool _noisy;
   Logger* _last_logger;
+  int _last_logging_level;
 };
 
 // Besides the function of PrintingTestLogger, captures logs to an
@@ -102,6 +108,8 @@ public:
 
   virtual ~CapturingTestLogger()
   {
+    Log::swapLogger(this, _last_logger);
+    Log::setLoggingLevel(_last_logging_level);
     pthread_mutex_destroy(&_logger_lock);
   };
 

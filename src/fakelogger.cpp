@@ -48,18 +48,10 @@ const int DEFAULT_LOGGING_LEVEL = 4;
 
 PrintingTestLogger PrintingTestLogger::DEFAULT;
 
-PrintingTestLogger::PrintingTestLogger() : _last_logger(NULL)
+PrintingTestLogger::PrintingTestLogger() : _last_logger(NULL), _last_logging_level(DEFAULT_LOGGING_LEVEL)
 {
   take_over();
   LOG_DEBUG("Logger creation");
-}
-
-PrintingTestLogger::~PrintingTestLogger()
-{
-  Logger* replaced = Log::setLogger(_last_logger);
-
-  // Ensure that loggers are destroyed in the reverse order of creation.
-  assert(replaced == this);
 }
 
 bool PrintingTestLogger::isPrinting()
@@ -124,6 +116,7 @@ void PrintingTestLogger::flush()
 
 void PrintingTestLogger::take_over()
 {
+  _last_logging_level = Log::loggingLevel;
   _last_logger = Log::setLogger(this);
   setupFromEnvironment();
 }
