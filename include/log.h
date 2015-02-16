@@ -70,8 +70,7 @@ namespace Log
 #endif
   }
   void setLoggingLevel(int level);
-  Logger* setLogger(Logger* log);
-  bool swapLogger(Logger* expected_current, Logger* new_logger);
+  Logger* setLogger(Logger *log);
   void write(int level, const char *module, int line_number, const char *fmt, ...);
   void _write(int level, const char *module, int line_number, const char *fmt, va_list args);
   void backtrace(const char *fmt, ...);

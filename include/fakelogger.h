@@ -44,18 +44,18 @@
 #include "log.h"
 #include "logger.h"
 
-/// Logger that prints logged items to stdout.
-/// PrintingTestLogger::DEFAULT should be the only instance needed.
-class PrintingTestLogger : public Logger
+const int DEFAULT_LOGGING_LEVEL = 4;
+
+class BaseTestLogger : public Logger
 {
 public:
-  /// Get a logger with the default behaviour.
-  PrintingTestLogger();
+BaseTestLogger():
+  _last_logger(NULL),
+  _last_logging_level(DEFAULT_LOGGING_LEVEL)
+ {};
 
-  virtual ~PrintingTestLogger()
+  virtual ~BaseTestLogger()
   {
-    Log::swapLogger(this, _last_logger);
-    Log::setLoggingLevel(_last_logging_level);
   }
 
 
@@ -69,14 +69,26 @@ public:
 
   void setupFromEnvironment();
   void take_over();
-
-  static PrintingTestLogger DEFAULT;
+  void relinquish_control();
 
 protected:
   bool _noisy;
   Logger* _last_logger;
   int _last_logging_level;
 };
+
+/// Logger that prints logged items to stdout.
+/// PrintingTestLogger::DEFAULT should be the only instance needed.
+class PrintingTestLogger : public BaseTestLogger
+{
+public:
+  PrintingTestLogger();
+
+  virtual ~PrintingTestLogger();
+
+  static PrintingTestLogger DEFAULT;
+};
+
 
 // Besides the function of PrintingTestLogger, captures logs to an
 // internal buffer and provides a contains() method for checking what
@@ -89,30 +101,14 @@ protected:
 // On destruction, reinstates PrintingTestLogger::DEFAULT as the
 // logger. This includes setting the logging level back from 99 to the
 // value based on the NOISY environment variable.
-class CapturingTestLogger: public PrintingTestLogger
+class CapturingTestLogger: public BaseTestLogger
 {
 public:
-  CapturingTestLogger() : PrintingTestLogger()
-  {
-    setPrinting(PrintingTestLogger::DEFAULT.isPrinting());
-    setLoggingLevel(99);
-    pthread_mutex_init(&_logger_lock, NULL);
-  };
 
-  CapturingTestLogger(int level) : PrintingTestLogger()
-  {
-    setPrinting(PrintingTestLogger::DEFAULT.isPrinting());
-    setLoggingLevel(level);
-    pthread_mutex_init(&_logger_lock, NULL);
-  };
-
-  virtual ~CapturingTestLogger()
-  {
-    Log::swapLogger(this, _last_logger);
-    Log::setLoggingLevel(_last_logging_level);
-    pthread_mutex_destroy(&_logger_lock);
-  };
-
+  CapturingTestLogger();
+  CapturingTestLogger(int level);
+  ~CapturingTestLogger();
+  
   void write(const char* line);
   bool contains(const char* fragment);
 

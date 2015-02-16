@@ -44,32 +44,74 @@
 
 #include "fakelogger.h"
 
-const int DEFAULT_LOGGING_LEVEL = 4;
-
 PrintingTestLogger PrintingTestLogger::DEFAULT;
 
-PrintingTestLogger::PrintingTestLogger() : _last_logger(NULL), _last_logging_level(DEFAULT_LOGGING_LEVEL)
+PrintingTestLogger::PrintingTestLogger() : BaseTestLogger()
 {
   take_over();
-  LOG_DEBUG("Logger creation");
 }
 
-bool PrintingTestLogger::isPrinting()
+PrintingTestLogger::~PrintingTestLogger()
+{
+  relinquish_control();
+}
+
+CapturingTestLogger::CapturingTestLogger() : BaseTestLogger()
+{
+  take_over();
+  setPrinting(PrintingTestLogger::DEFAULT.isPrinting());
+  setLoggingLevel(99);
+  pthread_mutex_init(&_logger_lock, NULL);
+};
+
+CapturingTestLogger::CapturingTestLogger(int level) : BaseTestLogger()
+{
+  take_over();
+  setPrinting(PrintingTestLogger::DEFAULT.isPrinting());
+  setLoggingLevel(level);
+  pthread_mutex_init(&_logger_lock, NULL);
+};
+
+CapturingTestLogger::~CapturingTestLogger()
+{
+  relinquish_control();
+  Log::setLoggingLevel(_last_logging_level);
+  pthread_mutex_destroy(&_logger_lock);
+};
+
+
+void BaseTestLogger::take_over()
+{
+  _last_logging_level = Log::loggingLevel;
+  _last_logger = Log::setLogger(this);
+  setupFromEnvironment();
+}
+
+void BaseTestLogger::relinquish_control()
+{
+  Log::setLoggingLevel(_last_logging_level);
+  Logger* replaced = Log::setLogger(_last_logger);
+
+  // Ensure that loggers are destroyed in the reverse order of creation.
+  assert(replaced == this);
+}
+
+bool BaseTestLogger::isPrinting()
 {
   return _noisy;
 }
 
-void PrintingTestLogger::setPrinting(bool printing)
+void BaseTestLogger::setPrinting(bool printing)
 {
   _noisy = printing;
 }
 
-void PrintingTestLogger::setLoggingLevel(int level)
+void BaseTestLogger::setLoggingLevel(int level)
 {
   Log::setLoggingLevel(level);
 }
 
-void PrintingTestLogger::write(const char* data)
+void BaseTestLogger::write(const char* data)
 {
   std::string line(data);
 
@@ -98,7 +140,7 @@ void CapturingTestLogger::write(const char* data)
   _logged.append(line);
   pthread_mutex_unlock(&_logger_lock);
 
-  PrintingTestLogger::write(data);
+  BaseTestLogger::write(data);
 }
 
 bool CapturingTestLogger::contains(const char* fragment)
@@ -110,18 +152,11 @@ bool CapturingTestLogger::contains(const char* fragment)
   return result;
 }
 
-void PrintingTestLogger::flush()
+void BaseTestLogger::flush()
 {
 }
 
-void PrintingTestLogger::take_over()
-{
-  _last_logging_level = Log::loggingLevel;
-  _last_logger = Log::setLogger(this);
-  setupFromEnvironment();
-}
-
-void PrintingTestLogger::setupFromEnvironment()
+void BaseTestLogger::setupFromEnvironment()
 {
   // Set logging to the specified level if specified in the environment.
   // NOISY=T:5 sets the level to 5.

@@ -71,7 +71,7 @@ void Log::setLoggingLevel(int level)
 // Logger if it is allocated on the heap.
 
 // Returns the previous Logger (e.g. so it can be stored off and reset).
-Logger* Log::setLogger(Logger* log)
+Logger* Log::setLogger(Logger *log)
 {
   pthread_mutex_lock(&Log::serialization_lock);
   Logger* old = Log::logger;
@@ -82,24 +82,6 @@ Logger* Log::setLogger(Logger* log)
   }
   pthread_mutex_unlock(&Log::serialization_lock);
   return old;
-}
-
-// Set new_logger as the loger if expected_current is the current
-// logger.
-bool Log::swapLogger(Logger* expected_current, Logger* new_logger)
-{
-  pthread_mutex_lock(&Log::serialization_lock);
-  bool swap = (Log::logger == expected_current);
-  if (swap)
-  {
-    Log::logger = new_logger;
-    if (Log::logger != NULL)
-    {
-      Log::logger->set_flags(Logger::FLUSH_ON_WRITE|Logger::ADD_TIMESTAMPS);
-    }
-  }
-  pthread_mutex_unlock(&Log::serialization_lock);
-  return swap;
 }
 
 void Log::write(int level, const char *module, int line_number, const char *fmt, ...)
