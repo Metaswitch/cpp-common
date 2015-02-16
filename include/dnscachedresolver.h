@@ -173,6 +173,11 @@ private:
   void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr);
   void clear_cache_entry(DnsCacheEntryPtr ce);
 
+  DnsCacheEntryPtr common_query_logic(DnsChannel** channel,
+                                      const std::string& domain,
+                                      int dnstype);
+
+  
   DnsChannel* get_dns_channel();
   void wait_for_replies(DnsChannel* channel);
   static void destroy_dns_channel(DnsChannel* channel);
