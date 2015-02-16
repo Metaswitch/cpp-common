@@ -46,6 +46,10 @@
 
 const int DEFAULT_LOGGING_LEVEL = 4;
 
+// Base class of PrintingTestLogger and CapturingTestLogger. Provides
+// the "log to stdout" functionality that's common to both, but
+// doesn't set/unset itself as the logger on construction/destruction.
+
 class BaseTestLogger : public Logger
 {
 public:
@@ -77,7 +81,10 @@ protected:
   int _last_logging_level;
 };
 
-/// Logger that prints logged items to stdout.
+/// Logger that prints logged items to stdout. This is just the
+/// function inherited from BaseTestLogger, plus a
+/// constructor/destructor that set/unset this as the global logger.
+///
 /// PrintingTestLogger::DEFAULT should be the only instance needed.
 class PrintingTestLogger : public BaseTestLogger
 {
@@ -90,7 +97,7 @@ public:
 };
 
 
-// Besides the function of PrintingTestLogger, captures logs to an
+// Besides printing logs to stdout, captures them to an
 // internal buffer and provides a contains() method for checking what
 // was logged. Be wary of using this as it leads to test fragility.
 
