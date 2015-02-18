@@ -94,8 +94,8 @@ MemcachedStore::MemcachedStore(bool binary,
   // timeout because libmemcached tries to connect to all servers sequentially
   // during start-up, and if any are not up we don't want to wait for any
   // significant length of time.
-  _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS";
-  _options += (binary) ? " --BINARY_PROTOCOL" : "";
+  _options = "--SUPPORT-CAS --POLL-TIMEOUT=250";
+  _options += (binary) ? " --BINARY-PROTOCOL" : "";
 
   // Create an updater to keep the store configured appropriately.
   _updater = new Updater<void, MemcachedStore>(this, std::mem_fun(&MemcachedStore::update_view));
@@ -224,7 +224,7 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
       LOG_DEBUG("Set up connection %p to server %s", conn->st[_servers[ii]], _servers[ii].c_str());
 
       // Switch to a longer connect timeout from here on.
-      memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, 50);
+      memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, 5000);
 
       // Connect to the server.  The address is specified as either <IPv4 address>:<port>
       // or [<IPv6 address>]:<port>.  Look for square brackets to determine whether
@@ -612,26 +612,28 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     {
       // New record, so attempt to add.  This will fail if someone else
       // gets there first.
-      rc = memcached_add(replicas[replica_idx],
-                         key_ptr,
-                         key_len,
-                         data.data(),
-                         data.length(),
-                         memcached_expiration,
-                         exptime);
+      rc = memcached_add_vb(replicas[replica_idx],
+                            key_ptr,
+                            key_len,
+                            vbucket,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            exptime);
     }
     else
     {
       // This is an update to an existing record, so use memcached_cas
       // to make sure it is atomic.
-      rc = memcached_cas(replicas[replica_idx],
-                         key_ptr,
-                         key_len,
-                         data.data(),
-                         data.length(),
-                         memcached_expiration,
-                         exptime,
-                         cas);
+      rc = memcached_cas_vb(replicas[replica_idx],
+                            key_ptr,
+                            key_len,
+                            vbucket,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            exptime,
+                            cas);
 
     }
 
@@ -680,13 +682,14 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     {
       LOG_DEBUG("Attempt unconditional write to replica %d", jj);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 1);
-      memcached_set(replicas[jj],
-                    key_ptr,
-                    key_len,
-                    data.data(),
-                    data.length(),
-                    memcached_expiration,
-                    exptime);
+      memcached_set_vb(replicas[jj],
+                      key_ptr,
+                      key_len,
+                      vbucket,
+                      data.data(),
+                      data.length(),
+                      memcached_expiration,
+                      exptime);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 0);
     }
   }
