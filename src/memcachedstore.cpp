@@ -94,7 +94,7 @@ MemcachedStore::MemcachedStore(bool binary,
   // timeout because libmemcached tries to connect to all servers sequentially
   // during start-up, and if any are not up we don't want to wait for any
   // significant length of time.
-  _options = "--SUPPORT-CAS --POLL-TIMEOUT=250";
+  _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS";
   _options += (binary) ? " --BINARY-PROTOCOL" : "";
 
   // Create an updater to keep the store configured appropriately.
@@ -224,7 +224,7 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
       LOG_DEBUG("Set up connection %p to server %s", conn->st[_servers[ii]], _servers[ii].c_str());
 
       // Switch to a longer connect timeout from here on.
-      memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, 5000);
+      memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, 50);
 
       // Connect to the server.  The address is specified as either <IPv4 address>:<port>
       // or [<IPv6 address>]:<port>.  Look for square brackets to determine whether
