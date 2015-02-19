@@ -43,6 +43,7 @@
 #define _HANDLE_EXCEPTION_H__
 
 #include <pthread.h>
+#include <setjmp.h>
 
 class HandleException
 {
@@ -51,38 +52,38 @@ public:
   ~HandleException();
 
   void handle_exception();
-  void create_wait_thread();
+  void delayed_exit_thread();
 
 private:
-  static void* wait_thread_func(void* wt);
+  static void* delayed_exit_thread_func(void* wt);
 
-  pthread_t _wait_thread;
+  pthread_t _delayed_exit_thread;
   int _ttl;
   bool _attempt_quiesce;
 };
 
 /// Stored environment
-extern pthread_key_t _jmp_buf_except;
+extern pthread_key_t _jmp_buf;
 
 /// TRY Macro
-#define TRY                                                                    \
+#define CW_TRY                                                                 \
 jmp_buf env;                                                                   \
 if (setjmp(env) == 0)                                                          \
 {                                                                              \
-  pthread_setspecific(_jmp_buf_except, env);
+  pthread_setspecific(_jmp_buf, env);
 
 /// EXCEPT Macro
-#define EXCEPT(HANDLE_EXCEPTION)                                               \
+#define CW_EXCEPT(HANDLE_EXCEPTION)                                            \
 }                                                                              \
 else                                                                           \
 {                                                                              \
-  pthread_setspecific(_jmp_buf_except, NULL);                                  \
+  pthread_setspecific(_jmp_buf, NULL);                                         \
                                                                                \
   /* Spin off waiting thread */                                                \
-  HANDLE_EXCEPTION->create_wait_thread(); 
+  HANDLE_EXCEPTION->delayed_exit_thread(); 
 
 /// END Macro
-#define END                                                                    \
+#define CW_END                                                                 \
 }
 
 #endif

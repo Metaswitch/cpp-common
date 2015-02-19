@@ -47,6 +47,7 @@
 #include "load_monitor.h"
 #include "sas.h"
 #include "sasevent.h"
+#include "handle_exception.h"
 
 class HttpStack
 {
@@ -402,7 +403,8 @@ public:
                          int num_threads,
                          AccessLogger* access_logger = NULL,
                          LoadMonitor* load_monitor = NULL,
-                         StatsInterface* stats = NULL);
+                         StatsInterface* stats = NULL,
+                         HandleException* handle_exception = NULL);
   virtual void register_handler(char* path, HandlerInterface* handler);
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
@@ -444,6 +446,7 @@ private:
   AccessLogger* _access_logger;
   StatsInterface* _stats;
   LoadMonitor* _load_monitor;
+  HandleException* _handle_exception;
 
   evbase_t* _evbase;
   evhtp_t* _evhtp;

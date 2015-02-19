@@ -37,6 +37,8 @@
 #include "httpstack.h"
 #include <cstring>
 #include "log.h"
+#include "handle_exception.h"
+#include <pthread.h>
 
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
@@ -47,7 +49,8 @@ HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 HttpStack::HttpStack() :
   _access_logger(NULL),
   _stats(NULL),
-  _load_monitor(NULL)
+  _load_monitor(NULL),
+  _handle_exception(NULL)
 {}
 
 void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
@@ -126,7 +129,8 @@ void HttpStack::configure(const std::string& bind_address,
                           int num_threads,
                           AccessLogger* access_logger,
                           LoadMonitor* load_monitor,
-                          HttpStack::StatsInterface* stats)
+                          HttpStack::StatsInterface* stats,
+                          HandleException* handle_exception)
 {
   LOG_STATUS("Configuring HTTP stack");
   LOG_STATUS("  Bind address: %s", bind_address.c_str());
@@ -138,6 +142,7 @@ void HttpStack::configure(const std::string& bind_address,
   _access_logger = access_logger;
   _load_monitor = load_monitor;
   _stats = stats;
+  _handle_exception = handle_exception;
 }
 
 void HttpStack::register_handler(char* path,
@@ -257,7 +262,21 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     LOG_VERBOSE("Process request for URL %s, args %s",
                 req->uri->path->full,
                 req->uri->query_raw);
-    handler->process_request(request, trail);
+
+    CW_TRY
+      handler->process_request(request, trail);
+    CW_EXCEPT(_handle_exception)
+      send_reply_internal(request, 500, trail);
+
+      if (_num_threads == 1)
+      {
+        // There's only one worker thread, so we can't sensibly proceed.
+        LOG_ERROR("Skipping exception handling as there's only one thread");
+        abort();
+      }
+
+      LOG_ERROR("Hit an exception when processing a SIP message");
+    CW_END
   }
   else
   {

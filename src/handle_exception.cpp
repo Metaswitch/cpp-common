@@ -42,7 +42,7 @@
 
 #include "handle_exception.h"
 
-pthread_key_t _jmp_buf_except;
+pthread_key_t _jmp_buf;
 
 HandleException::HandleException(int ttl, 
                                  bool attempt_quiesce) :
@@ -58,14 +58,14 @@ HandleException::~HandleException()
 void HandleException::handle_exception()
 {
   // Check if there's a stored jmp_buf on the thread and handle if there is
-  jmp_buf* env = (jmp_buf*)pthread_getspecific(_jmp_buf_except);
+  jmp_buf* env = (jmp_buf*)pthread_getspecific(_jmp_buf);
 
   if (env != NULL)
   {
     // Create a child thread, then abort it to create a core file.
     if (!fork())
     {
-      // Set thread local env to null
+      // TODO Set thread local env to null
       abort();
     }
 
@@ -76,16 +76,16 @@ void HandleException::handle_exception()
   }
 }
 
-void HandleException::create_wait_thread()
+void HandleException::delayed_exit_thread()
 {
-  pthread_create(&_wait_thread,
+  pthread_create(&_delayed_exit_thread,
                  NULL,
-                 wait_thread_func,
+                 delayed_exit_thread_func,
                  (void*)this);
-  pthread_detach(_wait_thread);
+  pthread_detach(_delayed_exit_thread);
 }
 
-void* HandleException::wait_thread_func(void* wt)
+void* HandleException::delayed_exit_thread_func(void* wt)
 {
   // Choose a random time between now and 10 mins
   sleep(((HandleException*)wt)->_ttl);
