@@ -97,7 +97,7 @@ public:
 
 
   /// Updates the cluster settings
-  void update_view();
+  void update_config();
 
 private:
   // A copy of this structure is maintained for each worker thread, as
@@ -128,7 +128,7 @@ private:
   const std::vector<memcached_st*>& get_replicas(const std::string& key, Op operation);
   const std::vector<memcached_st*>& get_replicas(int vbucket, Op operation);
 
-  /// Used to set the communication state for a vbucket after a get/set. 
+  /// Used to set the communication state for a vbucket after a get/set.
   typedef enum {OK, FAILED} CommState;
   void update_vbucket_comm_state(int vbucket, CommState state);
 
@@ -173,7 +173,7 @@ private:
   // value larger than this is assumed to be an absolute rather than relative
   // value.  This matches the REALTIME_MAXDELTA constant defined by memcached.
   static const int MEMCACHED_EXPIRATION_MAXDELTA = 60 * 60 * 24 * 30;
-  
+
   // Helper used to track replica communication state, and issue/clear alarms
   // based upon recent activity.
   CommunicationMonitor* _comm_monitor;
@@ -191,6 +191,14 @@ private:
 
   // Alarms to be used for reporting vbucket inaccessible conditions.
   Alarm* _vbucket_alarm;
+
+  // The lifetime (in seconds) of tombstones that are written to memcached when
+  // a record is deleted using `delete_data`. This is needed to allow active
+  // resync to spot records that have been deleted since the resync has begun.
+  //
+  // If this is set to zero the store will actually delete data in memcached
+  // instead of using tombstones.
+  int _tombstone_lifetime;
 };
 
 #endif

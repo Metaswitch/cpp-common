@@ -57,6 +57,13 @@
 #include "memcachedstore.h"
 
 
+/// The default lifetime (in seconds) of tombstones written to memcached.
+static const int DEFAULT_TOMBSTONE_LIFETIME = 0;
+
+/// The data used in memcached to represent a tombstone.
+static const std::string TOMBSTONE = "";
+
+
 /// MemcachedStore constructor
 ///
 /// @param binary       Set to true to use binary memcached protocol, false to
@@ -79,7 +86,8 @@ MemcachedStore::MemcachedStore(bool binary,
   _comm_monitor(comm_monitor),
   _vbucket_comm_state(_vbuckets),
   _vbucket_comm_fail_count(0),
-  _vbucket_alarm(vbucket_alarm)
+  _vbucket_alarm(vbucket_alarm),
+  _tombstone_lifetime(DEFAULT_TOMBSTONE_LIFETIME)
 {
   // Create the thread local key for the per thread data.
   pthread_key_create(&_thread_local, MemcachedStore::cleanup_connection);
@@ -98,7 +106,7 @@ MemcachedStore::MemcachedStore(bool binary,
   _options += (binary) ? " --BINARY_PROTOCOL" : "";
 
   // Create an updater to keep the store configured appropriately.
-  _updater = new Updater<void, MemcachedStore>(this, std::mem_fun(&MemcachedStore::update_view));
+  _updater = new Updater<void, MemcachedStore>(this, std::mem_fun(&MemcachedStore::update_config));
 
   // Initialize vbucket comm state
   for (int ii = 0; ii < _vbuckets; ++ii)
@@ -162,6 +170,82 @@ void MemcachedStore::new_view(const std::vector<std::string>& servers,
   ++_view_number;
 
   pthread_rwlock_unlock(&_view_lock);
+}
+
+
+void MemcachedStore::update_config()
+{
+  // Read the memstore file.
+  std::ifstream f(_config_file);
+  std::vector<std::string> servers;
+  std::vector<std::string> new_servers;
+
+  if (f.is_open())
+  {
+    LOG_STATUS("Reloading memcached configuration from %s file", _config_file.c_str());
+    while (f.good())
+    {
+      std::string line;
+      getline(f, line);
+
+      if (line.length() > 0)
+      {
+        // Read a non-blank line.
+        std::vector<std::string> tokens;
+        Utils::split_string(line, '=', tokens, 0, true);
+        if (tokens.size() != 2)
+        {
+          LOG_ERROR("Malformed %s file", _config_file.c_str());
+          break;
+        }
+
+        LOG_STATUS(" %s=%s", tokens[0].c_str(), tokens[1].c_str());
+
+        if (tokens[0] == "servers")
+        {
+          // Found line defining servers.
+          Utils::split_string(tokens[1], ',', servers, 0, true);
+        }
+        else if (tokens[0] == "new_servers")
+        {
+          // Found line defining new servers.
+          Utils::split_string(tokens[1], ',', new_servers, 0, true);
+        }
+        else if (tokens[0] == "tombstone_lifetime")
+        {
+          // Read the tombstone lifetime from the config file. Check it is
+          // actually a valid integer before committing to the member variable
+          // (atoi stops when it reaches non-numeric characters).
+          int lifetime = atoi(tokens[1].c_str());
+
+          if (std::to_string(lifetime) == tokens[1])
+          {
+            _tombstone_lifetime = lifetime;
+          }
+          else
+          {
+            LOG_ERROR("'%s' does not contain a valid tombstone lifetime - keeping previous setting",
+                      _config_file.c_str());
+          }
+        }
+      }
+    }
+    f.close();
+
+    if (servers.size() > 0)
+    {
+      LOG_DEBUG("Update memcached store");
+      this->new_view(servers, new_servers);
+    }
+    else
+    {
+      LOG_ERROR("'%s' does not contain a valid set of servers - keeping previous settings", _config_file.c_str());
+    }
+  }
+  else
+  {
+    LOG_ERROR("Failed to open %s file", _config_file.c_str());
+  }
 }
 
 
@@ -726,6 +810,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
   return status;
 }
 
+
 /// Delete the data for the specified namespace and key.  Writes the data
 /// unconditionally, so CAS is not needed.
 Store::Status MemcachedStore::delete_data(const std::string& table,
@@ -781,65 +866,6 @@ Store::Status MemcachedStore::delete_data(const std::string& table,
   }
 
   return status;
-}
-
-
-void MemcachedStore::update_view()
-{
-  // Read the memstore file.
-  std::ifstream f(_config_file);
-  std::vector<std::string> servers;
-  std::vector<std::string> new_servers;
-
-  if (f.is_open())
-  {
-    LOG_STATUS("Reloading memcached configuration from %s file", _config_file.c_str());
-    while (f.good())
-    {
-      std::string line;
-      getline(f, line);
-
-      if (line.length() > 0)
-      {
-        // Read a non-blank line.
-        std::vector<std::string> tokens;
-        Utils::split_string(line, '=', tokens, 0, true);
-        if (tokens.size() != 2)
-        {
-          LOG_ERROR("Malformed %s file", _config_file.c_str());
-          break;
-        }
-
-        LOG_STATUS(" %s=%s", tokens[0].c_str(), tokens[1].c_str());
-
-        if (tokens[0] == "servers")
-        {
-          // Found line defining servers.
-          Utils::split_string(tokens[1], ',', servers, 0, true);
-        }
-        else if (tokens[0] == "new_servers")
-        {
-          // Found line defining new servers.
-          Utils::split_string(tokens[1], ',', new_servers, 0, true);
-        }
-      }
-    }
-    f.close();
-
-    if (servers.size() > 0)
-    {
-      LOG_DEBUG("Update memcached store");
-      this->new_view(servers, new_servers);
-    }
-    else
-    {
-      LOG_ERROR("'%s' does not contain a valid set of servers - keeping previous settings", _config_file.c_str());
-    }
-  }
-  else
-  {
-    LOG_ERROR("Failed to open %s file", _config_file.c_str());
-  }
 }
 
 // LCOV_EXCL_STOP
