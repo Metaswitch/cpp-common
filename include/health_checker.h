@@ -38,6 +38,7 @@
 #define HEALTH_CHECKER_H
 
 #include <atomic>
+#include <pthread.h>
 
 // Health-checking object which:
 //  - is notified when "healthy behaviour" happens
@@ -55,15 +56,22 @@
 class HealthChecker
 {
 public:
+  HealthChecker();
+  ~HealthChecker();
   void health_check_passed();
   void hit_exception();
   void do_check();
+  void terminate();
 
-  static void* main_thread_function(void* health_checker);
+  static void* static_main_thread_function(void* health_checker);
+  void main_thread_function();
   
 private:
   std::atomic_int _recent_passes;
   std::atomic_bool _hit_exception;
+  std::atomic_bool _terminate;
+  pthread_cond_t _condvar;
+  pthread_mutex_t _condvar_lock;
 };
 
 #endif
