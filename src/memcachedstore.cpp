@@ -429,6 +429,49 @@ void MemcachedStore::cleanup_connection(void* p)
 }
 
 
+memcached_return_t MemcachedStore::get_from_replica(memcached_st* replica,
+                                                    const std::string& fqkey,
+                                                    std::string& data,
+                                                    uint64_t& cas)
+{
+  memcached_return_t rc = MEMCACHED_ERROR;
+  const char* key_ptr = fqkey.data();
+  const size_t key_len = fqkey.length();
+
+  cas = 0;
+
+  // We must use memcached_mget because memcached_get does not retrieve CAS
+  // values.
+  rc = memcached_mget(replica, &key_ptr, &key_len, 1);
+
+  if (memcached_success(rc))
+  {
+    // memcached_mget command was successful, so retrieve the result.
+    LOG_DEBUG("Fetch result");
+    memcached_result_st result;
+    memcached_result_create(replica, &result);
+    memcached_fetch_result(replica, &result, &rc);
+
+    if (memcached_success(rc))
+    {
+      // Found a record, so exit the read loop.
+      LOG_DEBUG("Found record on replica");
+
+      // Copy the record into a string. std::string::assign copies its
+      // arguments when used with a char*, so we can free the result
+      // afterwards.
+      data.assign(memcached_result_value(&result),
+                  memcached_result_length(&result));
+      cas = memcached_result_cas(&result);
+    }
+
+    memcached_result_free(&result);
+  }
+
+  return rc;
+}
+
+
 /// Retrieve the data for a given namespace and key.
 Store::Status MemcachedStore::get_data(const std::string& table,
                                        const std::string& key,
@@ -436,13 +479,10 @@ Store::Status MemcachedStore::get_data(const std::string& table,
                                        uint64_t& cas,
                                        SAS::TrailId trail)
 {
-  Store::Status status = Store::Status::OK;
-
+  Store::Status status;
 
   // Construct the fully qualified key.
   std::string fqkey = table + "\\\\" + key;
-  const char* key_ptr = fqkey.data();
-  const size_t key_len = fqkey.length();
 
   int vbucket = vbucket_for_key(fqkey);
   const std::vector<memcached_st*>& replicas = get_replicas(vbucket, Op::READ);
@@ -461,6 +501,7 @@ Store::Status MemcachedStore::get_data(const std::string& table,
   bool active_not_found = false;
   size_t failed_replicas = 0;
   size_t ii;
+
   // If we only have one replica, we should try it twice -
   // libmemcached won't notice a dropped TCP connection until it tries
   // to make a request on it, and will fail the request then
@@ -485,40 +526,21 @@ Store::Status MemcachedStore::get_data(const std::string& table,
     {
       replica_idx = ii;
     }
-    // We must use memcached_mget because memcached_get does not retrieve CAS
-    // values.
-    LOG_DEBUG("Attempt to read from replica %d (connection %p)", replica_idx, replicas[replica_idx]);
-    rc = memcached_mget(replicas[replica_idx], &key_ptr, &key_len, 1);
 
-    if (memcached_success(rc))
+    LOG_DEBUG("Attempt to read from replica %d (connection %p)",
+              replica_idx,
+              replicas[replica_idx]);
+    rc = get_from_replica(replicas[replica_idx], fqkey, data, cas);
+
+    if (rc == MEMCACHED_SUCCESS)
     {
-      // memcached_mget command was successful, so retrieve the result.
-      LOG_DEBUG("Fetch result");
-      memcached_result_st result;
-      memcached_result_create(replicas[replica_idx], &result);
-      memcached_fetch_result(replicas[replica_idx], &result, &rc);
-
-      if (memcached_success(rc))
-      {
-        // Found a record, so exit the read loop.
-        LOG_DEBUG("Found record on replica %d", replica_idx);
-        data.assign(memcached_result_value(&result), memcached_result_length(&result));
-        cas = (active_not_found) ? 0 : memcached_result_cas(&result);
-
-        // std::string::assign copies its arguments when used with a
-        // char*, so this is safe.
-        memcached_result_free(&result);
-        break;
-      }
-      else
-      {
-        // Free the result and continue the read loop.
-        memcached_result_free(&result);
-      }
+      // Got data back from this replica. Don't try any more.
+      LOG_DEBUG("Read for %s on replica %d returned SUCCESS",
+                fqkey.c_str(),
+                replica_idx);
+      break;
     }
-
-
-    if (rc == MEMCACHED_NOTFOUND)
+    else if (rc == MEMCACHED_NOTFOUND)
     {
       // Failed to find a record on an active replica.  Flag this so if we do
       // find data on a later replica we can reset the cas value returned to
@@ -537,29 +559,53 @@ Store::Status MemcachedStore::get_data(const std::string& table,
 
   if (memcached_success(rc))
   {
-    if (trail != 0)
+    if (data != TOMBSTONE)
     {
-      SAS::Event got_data(trail, SASEvent::MEMCACHED_GET_SUCCESS, 0);
-      got_data.add_var_param(fqkey);
-      got_data.add_var_param(data);
-      got_data.add_static_param(cas);
-      SAS::report_event(got_data);
+      if (trail != 0)
+      {
+        SAS::Event got_data(trail, SASEvent::MEMCACHED_GET_SUCCESS, 0);
+        got_data.add_var_param(fqkey);
+        got_data.add_var_param(data);
+        got_data.add_static_param(cas);
+        SAS::report_event(got_data);
+      }
+
+      // Return the data and CAS value.  The CAS value is either set to the CAS
+      // value from the result, or zero if an earlier active replica returned
+      // NOT_FOUND.  This ensures that a subsequent set operation will succeed
+      // on the earlier active replica.
+      if (active_not_found)
+      {
+        cas = 0;
+      }
+
+      LOG_DEBUG("Read %d bytes from table %s key %s, CAS = %ld",
+                data.length(), table.c_str(), key.c_str(), cas);
+      status = Store::OK;
+    }
+    else
+    {
+      if (trail != 0)
+      {
+        // TODO - SAS log
+      }
+
+      // We have read a tombstone. Return NOT_FOUND to the caller, and also
+      // zero out the CAS (returning a non-zero CAS makes the interface
+      // cleaner).
+      LOG_DEBUG("Read tombstone from table %s key %s, CAS = %ld",
+                table.c_str(), key.c_str(), cas);
+      cas = 0;
+      status = Store::NOT_FOUND;
     }
 
+    // Regardless of whether we got a tombstone, the vbucket is alive.
     update_vbucket_comm_state(vbucket, OK);
 
     if (_comm_monitor)
     {
       _comm_monitor->inform_success();
     }
-
-    // Return the data and CAS value.  The CAS value is either set to the CAS
-    // value from the result, or zero if an earlier active replica returned
-    // NOT_FOUND.  This ensures that a subsequent set operation will succeed
-    // on the earlier active replica.
-    LOG_DEBUG("Read %d bytes from table %s key %s, CAS = %ld",
-              data.length(), table.c_str(), key.c_str(), cas);
-
   }
   else if (failed_replicas < replicas.size())
   {
@@ -571,15 +617,15 @@ Store::Status MemcachedStore::get_data(const std::string& table,
       SAS::report_event(not_found);
     }
 
+    LOG_DEBUG("At least one replica returned not found, so return NOT_FOUND");
+    status = Store::Status::NOT_FOUND;
+
     update_vbucket_comm_state(vbucket, OK);
 
     if (_comm_monitor)
     {
       _comm_monitor->inform_success();
     }
-
-    LOG_DEBUG("At least one replica returned not found, so return NOT_FOUND");
-    status = Store::Status::NOT_FOUND;
   }
   else
   {
@@ -592,16 +638,16 @@ Store::Status MemcachedStore::get_data(const std::string& table,
       SAS::report_event(err);
     }
 
+    LOG_ERROR("Failed to read data for %s from %d replicas",
+              fqkey.c_str(), replicas.size());
+    status = Store::Status::ERROR;
+
     update_vbucket_comm_state(vbucket, FAILED);
 
     if (_comm_monitor)
     {
       _comm_monitor->inform_failure();
     }
-
-    LOG_ERROR("Failed to read data for %s from %d replicas",
-              fqkey.c_str(), replicas.size());
-    status = Store::Status::ERROR;
   }
 
   return status;
@@ -664,6 +710,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
   memcached_return_t rc = MEMCACHED_ERROR;
   size_t ii;
   size_t replica_idx;
+
   // If we only have one replica, we should try it twice -
   // libmemcached won't notice a dropped TCP connection until it tries
   // to make a request on it, and will fail the request then
@@ -811,48 +858,30 @@ Store::Status MemcachedStore::set_data(const std::string& table,
 }
 
 
-/// Delete the data for the specified namespace and key.  Writes the data
-/// unconditionally, so CAS is not needed.
-Store::Status MemcachedStore::delete_data(const std::string& table,
-                                          const std::string& key,
-                                          SAS::TrailId trail)
+void MemcachedStore::delete_without_tombstone(const std::string& fqkey,
+                                              const std::vector<memcached_st*>& replicas,
+                                              SAS::TrailId trail)
 {
-  Store::Status status = Store::Status::OK;
+  if (trail != 0)
+  {
+    SAS::Event event(trail, SASEvent::MEMCACHED_DELETE, 0);
+    event.add_var_param(fqkey);
+    SAS::report_event(event);
+  }
 
-  LOG_DEBUG("Deleting key %s from table %s", key.c_str(), table.c_str());
-
-  // Construct the fully qualified key.
-  std::string fqkey = table + "\\\\" + key;
   const char* key_ptr = fqkey.data();
   const size_t key_len = fqkey.length();
 
-  // Delete from the read replicas - read replicas are a superset of the write replicas
-  const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::READ);
-
-  if (trail != 0)
-  {
-    SAS::Event start(trail, SASEvent::MEMCACHED_DELETE, 0);
-    start.add_var_param(fqkey);
-    SAS::report_event(start);
-  }
-
-  LOG_DEBUG("Deleting from the %d read replicas for key %s", replicas.size(), fqkey.c_str());
-
-  // First try to write the primary data record to the first responding
-  // server.
-  memcached_return_t rc = MEMCACHED_ERROR;
-  size_t ii;
-
-  for (ii = 0; ii < replicas.size(); ++ii)
+  for (size_t ii = 0; ii < replicas.size(); ++ii)
   {
     LOG_DEBUG("Attempt delete to replica %d (connection %p)",
               ii,
               replicas[ii]);
 
-    rc = memcached_delete(replicas[ii],
-                          key_ptr,
-                          key_len,
-                          0);
+    memcached_return_t rc = memcached_delete(replicas[ii],
+                                             key_ptr,
+                                             key_len,
+                                             0);
 
     if (!memcached_success(rc))
     {
@@ -864,8 +893,74 @@ Store::Status MemcachedStore::delete_data(const std::string& table,
       SAS::report_event(event);
     }
   }
+};
 
-  return status;
+
+void MemcachedStore::delete_with_tombstone(const std::string& fqkey,
+                                           const std::vector<memcached_st*>& replicas,
+                                           SAS::TrailId trail)
+{
+  if (trail != 0)
+  {
+    // TODO - SAS log
+  }
+
+  const char* key_ptr = fqkey.data();
+  const size_t key_len = fqkey.length();
+
+  // Calculate the rough expected expiry time.  We store this in the flags
+  // as it may be useful in future for read repair function.
+  uint32_t now = time(NULL);
+  uint32_t exptime = now + _tombstone_lifetime;
+
+  for (size_t ii = 0; ii < replicas.size(); ++ii)
+  {
+    LOG_DEBUG("Attempt write tombstone to replica %d (connection %p)",
+              ii,
+              replicas[ii]);
+
+    memcached_return_t rc = memcached_set(replicas[ii],
+                                          key_ptr,
+                                          key_len,
+                                          TOMBSTONE.data(),
+                                          TOMBSTONE.length(),
+                                          _tombstone_lifetime,
+                                          exptime);
+
+    if (!memcached_success(rc))
+    {
+      LOG_ERROR("Delete write tombstone to replica %d", ii);
+      // TODO - SAS log
+    }
+  }
+};
+
+
+/// Delete the data for the specified namespace and key.  Writes the data
+/// unconditionally, so CAS is not needed.
+Store::Status MemcachedStore::delete_data(const std::string& table,
+                                          const std::string& key,
+                                          SAS::TrailId trail)
+{
+  LOG_DEBUG("Deleting key %s from table %s", key.c_str(), table.c_str());
+
+  // Construct the fully qualified key.
+  std::string fqkey = table + "\\\\" + key;
+
+  // Delete from the read replicas - read replicas are a superset of the write replicas
+  const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::READ);
+  LOG_DEBUG("Deleting from the %d read replicas for key %s", replicas.size(), fqkey.c_str());
+
+  if (_tombstone_lifetime == 0)
+  {
+    delete_without_tombstone(fqkey, replicas, trail);
+  }
+  else
+  {
+    delete_with_tombstone(fqkey, replicas, trail);
+  }
+
+  return Status::OK;
 }
 
 // LCOV_EXCL_STOP

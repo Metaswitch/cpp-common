@@ -135,6 +135,22 @@ private:
   // Called by the thread-local-storage clean-up functions when a thread ends.
   static void cleanup_connection(void* p);
 
+  // Perform a get request to a single replica.
+  memcached_return_t get_from_replica(memcached_st* replica,
+                                      const std::string& fqkey,
+                                      std::string& data,
+                                      uint64_t& cas);
+
+  // Delete a record from memcached by sending a DELETE command.
+  void delete_without_tombstone(const std::string& fqkey,
+                                const std::vector<memcached_st*>& replicas,
+                                SAS::TrailId trail);
+
+  // Delete a record from memcached by writing a tombstone record.
+  void delete_with_tombstone(const std::string& fqkey,
+                             const std::vector<memcached_st*>& replicas,
+                             SAS::TrailId trail);
+
   // Stores a pointer to an updater object
   Updater<void, MemcachedStore>* _updater;
 
