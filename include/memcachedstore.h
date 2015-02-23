@@ -137,7 +137,8 @@ private:
 
   // Perform a get request to a single replica.
   memcached_return_t get_from_replica(memcached_st* replica,
-                                      const std::string& fqkey,
+                                      const char* key_ptr,
+                                      const size_t key_len,
                                       std::string& data,
                                       uint64_t& cas);
 
@@ -150,6 +151,16 @@ private:
   void delete_with_tombstone(const std::string& fqkey,
                              const std::vector<memcached_st*>& replicas,
                              SAS::TrailId trail);
+
+  // Add a record to memcached. This overwrites any tombstone record already
+  // stored, but fails if any real data is stored.
+  memcached_return_t add_overwriting_tombstone(memcached_st* replica,
+                                               const char* key_ptr,
+                                               const size_t key_len,
+                                               const std::string& data,
+                                               time_t memcached_expiration,
+                                               uint32_t flags,
+                                               SAS::TrailId trail);
 
   // Stores a pointer to an updater object
   Updater<void, MemcachedStore>* _updater;
