@@ -546,7 +546,10 @@ Store::Status MemcachedStore::get_data(const std::string& table,
     {
       if (trail != 0)
       {
-        // TODO - SAS log
+        SAS::Event got_tombstone(trail, SASEvent::MEMCACHED_GET_TOMBSTONE, 0);
+        got_tombstone.add_var_param(fqkey);
+        got_tombstone.add_static_param(cas);
+        SAS::report_event(got_tombstone);
       }
 
       // We have read a tombstone. Return NOT_FOUND to the caller, and also
@@ -891,12 +894,14 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
                                                              uint32_t flags,
                                                              SAS::TrailId trail)
 {
-  // TODO - SAS logging
-
   memcached_return_t rc;
   uint64_t cas = 0;
 
   LOG_DEBUG("Attempting to add data for key %.*s", key_len, key_ptr);
+
+  // Convert the key into a std::string (sas-client does not like that
+  // key_{ptr,len} are constant).
+  const std::string key(key_ptr, key_len);
 
   while (true)
   {
@@ -904,29 +909,31 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
     {
       LOG_DEBUG("Attempting memcached ADD command");
       rc = memcached_add(replica,
-                             key_ptr,
-                             key_len,
-                             data.data(),
-                             data.length(),
-                             memcached_expiration,
-                             flags);
+                         key_ptr,
+                         key_len,
+                         data.data(),
+                         data.length(),
+                         memcached_expiration,
+                         flags);
     }
     else
     {
       LOG_DEBUG("Attempting memcached CAS command (cas = %d)", cas);
       rc = memcached_cas(replica,
-                             key_ptr,
-                             key_len,
-                             data.data(),
-                             data.length(),
-                             memcached_expiration,
-                             flags,
-                             cas);
+                         key_ptr,
+                         key_len,
+                         data.data(),
+                         data.length(),
+                         memcached_expiration,
+                         flags,
+                         cas);
     }
 
     if ((rc == MEMCACHED_DATA_EXISTS) ||
         (rc == MEMCACHED_NOTSTORED))
     {
+      // A record with this key already exists. If it is a tombstone, we need
+      // to overwrite it. Get the record to see what it is.
       memcached_return_t get_rc;
       std::string existing_data;
 
@@ -934,27 +941,50 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
                 "Issue GET to see if we need to overwrite a tombstone");
       get_rc = get_from_replica(replica, key_ptr, key_len, existing_data, cas);
 
-      if (get_rc == MEMCACHED_SUCCESS)
+      if (memcached_success(rc))
       {
         if (existing_data != TOMBSTONE)
         {
+          // The existing record is not a tombstone.  We mustn't overwrite
+          // this, so break out of the loop and return the original return code
+          // from the ADD/CAS.
           LOG_DEBUG("Found real data. Give up");
-          rc = MEMCACHED_DATA_EXISTS;
           break;
         }
         else
         {
+          // The existing record IS a tombstone. Go round the loop again to
+          // overwrite it. `cas` has been set to the cas of the tombstone.
           LOG_DEBUG("Found a tombstone. Attempt to overwrite");
+
+          if (trail != 0)
+          {
+            SAS::Event event(trail, SASEvent::MEMCACHED_SET_BLOCKED_BY_TOMBSTONE, 0);
+            event.add_var_param(key);
+            event.add_static_param(cas);
+            SAS::report_event(event);
+          }
         }
       }
       else if (get_rc == MEMCACHED_NOTFOUND)
       {
+        // The GET returned that there is no record for this key. This can
+        // happen if the record has expired. We need to try again (it could
+        // have been a tombstone which should not block adds).
         LOG_DEBUG("GET failed with NOT_FOUND");
+
+        if (trail != 0)
+        {
+          SAS::Event event(trail, SASEvent::MEMCACHED_SET_BLOCKED_BY_EXPIRED, 0);
+          event.add_var_param(key);
+          SAS::report_event(event);
+        }
       }
       else
       {
+        // The replica failed. Return the return code from the original ADD/CAS.
         LOG_DEBUG("GET failed, rc = %d (%s)\n%s",
-                  rc,
+                  get_rc,
                   memcached_strerror(replica, rc),
                   memcached_last_error_message(replica));
         break;
@@ -1001,12 +1031,7 @@ void MemcachedStore::delete_without_tombstone(const std::string& fqkey,
 
     if (!memcached_success(rc))
     {
-      LOG_ERROR("Delete failed to replica %d", ii);
-      SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILURE, 0);
-      event.add_var_param(fqkey);
-      event.add_static_param(ii);
-      event.add_static_param(replicas.size());
-      SAS::report_event(event);
+      log_delete_failure(fqkey, ii, replicas.size(), trail, 0);
     }
   }
 }
@@ -1018,7 +1043,10 @@ void MemcachedStore::delete_with_tombstone(const std::string& fqkey,
 {
   if (trail != 0)
   {
-    // TODO - SAS log
+    SAS::Event event(trail, SASEvent::MEMCACHED_DELETE, 0);
+    event.add_var_param(fqkey);
+    event.add_static_param(_tombstone_lifetime);
+    SAS::report_event(event);
   }
 
   const char* key_ptr = fqkey.data();
@@ -1045,9 +1073,26 @@ void MemcachedStore::delete_with_tombstone(const std::string& fqkey,
 
     if (!memcached_success(rc))
     {
-      LOG_ERROR("Delete write tombstone to replica %d", ii);
-      // TODO - SAS log
+      log_delete_failure(fqkey, ii, replicas.size(), trail, 1);
     }
+  }
+}
+
+void MemcachedStore::log_delete_failure(const std::string& fqkey,
+                                        int replica_ix,
+                                        int replica_count,
+                                        SAS::TrailId trail,
+                                        uint32_t instance)
+{
+  LOG_ERROR("Delete failed to replica %d", replica_ix);
+
+  if (trail != 0)
+  {
+    SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILURE, instance);
+    event.add_var_param(fqkey);
+    event.add_static_param(replica_ix);
+    event.add_static_param(replica_count);
+    SAS::report_event(event);
   }
 }
 

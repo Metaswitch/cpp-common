@@ -152,6 +152,14 @@ private:
                              const std::vector<memcached_st*>& replicas,
                              SAS::TrailId trail);
 
+  // Utility method to log deletion failures. Called in both the tombstone and
+  // non-tombstone cases.
+  void log_delete_failure(const std::string& fqkey,
+                          int replica_ix,
+                          int replica_count,
+                          SAS::TrailId trail,
+                          uint32_t instance);
+
   // Add a record to memcached. This overwrites any tombstone record already
   // stored, but fails if any real data is stored.
   memcached_return_t add_overwriting_tombstone(memcached_st* replica,
