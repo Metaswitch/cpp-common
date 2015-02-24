@@ -48,17 +48,30 @@
 class HandleException
 {
 public:
+  /// Constructor
   HandleException(int ttl, bool attempt_quiesce);
+
+  /// Destructor
   ~HandleException();
 
+  /// Handle an exception - call longjmp if there's a stored jmp_buf
   void handle_exception();
+
+  /// Create a thread that kills the process after a random time
   void delayed_exit_thread();
 
 private:
-  static void* delayed_exit_thread_func(void* wt);
+  /// Called by a new thread when an exception is hit. Kills the 
+  /// process after a random time
+  static void* delayed_exit_thread_func(void* det);
 
+  /// The delayed exit thread
   pthread_t _delayed_exit_thread;
+
+  /// The maximum time the process should live for
   int _ttl;
+
+  /// Whether the exception handler should attempt to quiesce the process
   bool _attempt_quiesce;
 };
 
@@ -77,13 +90,13 @@ if (setjmp(env) == 0)                                                          \
 }                                                                              \
 else                                                                           \
 {                                                                              \
-  pthread_setspecific(_jmp_buf, NULL);                                         \
-                                                                               \
   /* Spin off waiting thread */                                                \
   HANDLE_EXCEPTION->delayed_exit_thread(); 
 
 /// END Macro
 #define CW_END                                                                 \
+  /* Tidy up thread local data */                                              \
+  pthread_setspecific(_jmp_buf, NULL);                                         \
 }
 
 #endif

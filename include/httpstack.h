@@ -401,10 +401,10 @@ public:
   virtual void configure(const std::string& bind_address,
                          unsigned short port,
                          int num_threads,
+                         HandleException* handle_exception,
                          AccessLogger* access_logger = NULL,
                          LoadMonitor* load_monitor = NULL,
-                         StatsInterface* stats = NULL,
-                         HandleException* handle_exception = NULL);
+                         StatsInterface* stats = NULL);
   virtual void register_handler(char* path, HandlerInterface* handler);
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
@@ -443,10 +443,10 @@ private:
   unsigned short _bind_port;
   int _num_threads;
 
+  HandleException* _handle_exception;
   AccessLogger* _access_logger;
   StatsInterface* _stats;
   LoadMonitor* _load_monitor;
-  HandleException* _handle_exception;
 
   evbase_t* _evbase;
   evhtp_t* _evhtp;

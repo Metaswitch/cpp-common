@@ -49,6 +49,7 @@ HandleException::HandleException(int ttl,
   _ttl(ttl),
   _attempt_quiesce(attempt_quiesce)
 {
+  pthread_key_create(&_jmp_buf, NULL);
 }
 
 HandleException::~HandleException()
@@ -65,11 +66,10 @@ void HandleException::handle_exception()
     // Create a child thread, then abort it to create a core file.
     if (!fork())
     {
-      // TODO Set thread local env to null
       abort();
     }
 
-    // Let the health check know that an exception has occurred
+    // TODO Let the health check know that an exception has occurred
 
     // Jump back to the stored state
     longjmp(*env, 1);
@@ -85,19 +85,19 @@ void HandleException::delayed_exit_thread()
   pthread_detach(_delayed_exit_thread);
 }
 
-void* HandleException::delayed_exit_thread_func(void* wt)
+void* HandleException::delayed_exit_thread_func(void* det)
 {
-  // Choose a random time between now and 10 mins
-  sleep(((HandleException*)wt)->_ttl);
+  // Wait for a random time up to the _ttl. This thread was detached when it 
+  // was created, so we can safely call sleep
+  int sleep_time = rand() % ((HandleException*)det)->_ttl;
+  sleep(sleep_time);
 
-  // Raise a SIGTERM/SIGQUIT
-  if (((HandleException*)wt)->_attempt_quiesce)
+  // Raise a SIGQUIT if needed. 
+  if (((HandleException*)det)->_attempt_quiesce)
   {
     raise(SIGQUIT);
-    sleep(10);
+    sleep(5);
   }
 
-  raise(SIGTERM);
-
-  return NULL;
+  exit(1);
 }
