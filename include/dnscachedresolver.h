@@ -177,7 +177,7 @@ private:
   void wait_for_replies(DnsChannel* channel);
   static void destroy_dns_channel(DnsChannel* channel);
 
-  struct in_addr _dns_server;
+  struct in_addr _dns_servers[3];
 
   // The thread-local store - used for storing DnsChannels.
   pthread_key_t _thread_local;

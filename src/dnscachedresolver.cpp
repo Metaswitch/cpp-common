@@ -94,10 +94,10 @@ DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
   ares_library_init(ARES_LIB_INIT_ALL);
 
   // Parse the DNS server's IP address.
-  if (!inet_aton(dns_server.c_str(), &_dns_server))
+  if (!inet_aton(dns_server.c_str(), &(_dns_servers[0])))
   {
     LOG_ERROR("Failed to parse '%s' as IP address - defaulting to 127.0.0.1", dns_server.c_str());
-    (void)inet_aton("127.0.0.1", &_dns_server);
+    (void)inet_aton("127.0.0.1", &(_dns_servers[0]));
   }
 
   // We store a DNSResolver in thread-local data, so create the thread-local
@@ -680,21 +680,24 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
   // found.
   DnsChannel* channel = (DnsChannel*)pthread_getspecific(_thread_local);
   if ((channel == NULL) &&
-      (_dns_server.s_addr != 0))
+      (_dns_servers[0].s_addr != 0))
   {
+    inet_aton("8.8.4.4", &(_dns_servers[1]));
+    
     channel = new DnsChannel;
     channel->pending_queries = 0;
     channel->resolver = this;
     struct ares_options options;
-    options.flags = ARES_FLAG_PRIMARY | ARES_FLAG_STAYOPEN;
+    options.flags = ARES_FLAG_STAYOPEN;
     options.timeout = 1000;
-    options.tries = 1;
+    options.tries = 2;
     options.ndots = 0;
-    options.servers = (struct in_addr*)&_dns_server;
-    options.nservers = 1;
+    options.servers = (struct in_addr*)_dns_servers;
+    options.nservers = 2;
     ares_init_options(&channel->channel,
                       &options,
                       ARES_OPT_FLAGS |
+                      ARES_OPT_ROTATE |
                       ARES_OPT_TIMEOUTMS |
                       ARES_OPT_TRIES |
                       ARES_OPT_NDOTS |
