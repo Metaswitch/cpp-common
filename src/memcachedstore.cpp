@@ -941,7 +941,7 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
                 "Issue GET to see if we need to overwrite a tombstone");
       get_rc = get_from_replica(replica, key_ptr, key_len, existing_data, cas);
 
-      if (memcached_success(rc))
+      if (memcached_success(get_rc))
       {
         if (existing_data != TOMBSTONE)
         {
@@ -985,14 +985,14 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
         // The replica failed. Return the return code from the original ADD/CAS.
         LOG_DEBUG("GET failed, rc = %d (%s)\n%s",
                   get_rc,
-                  memcached_strerror(replica, rc),
+                  memcached_strerror(replica, get_rc),
                   memcached_last_error_message(replica));
         break;
       }
     }
     else
     {
-      LOG_DEBUG("ADD/CAS failed, rc = %d (%s)\n%s",
+      LOG_DEBUG("ADD/CAS returned rc = %d (%s)\n%s",
                 rc,
                 memcached_strerror(replica, rc),
                 memcached_last_error_message(replica));
