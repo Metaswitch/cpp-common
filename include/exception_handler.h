@@ -104,7 +104,7 @@ else                                                                           \
 #define CW_END                                                                 \
   /* Tidy up thread local data */                                              \
   pthread_setspecific(_jmp_buf, NULL);                                         \
-  pthread_exit();                                                              \
+  pthread_exit(NULL);                                                          \
 }
 
 #endif

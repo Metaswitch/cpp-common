@@ -37,7 +37,6 @@
 #include "httpstack.h"
 #include <cstring>
 #include "log.h"
-#include "handle_exception.h"
 
 HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
 HttpStack HttpStack::DEFAULT_INSTANCE;
@@ -46,7 +45,7 @@ HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
 HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 
 HttpStack::HttpStack() :
-  _handle_exception(NULL),
+  _exception_handler(NULL),
   _access_logger(NULL),
   _stats(NULL),
   _load_monitor(NULL)
@@ -126,7 +125,7 @@ void HttpStack::initialize()
 void HttpStack::configure(const std::string& bind_address,
                           unsigned short bind_port,
                           int num_threads,
-                          HandleException* handle_exception,
+                          ExceptionHandler* exception_handler,
                           AccessLogger* access_logger,
                           LoadMonitor* load_monitor,
                           HttpStack::StatsInterface* stats)
@@ -138,7 +137,7 @@ void HttpStack::configure(const std::string& bind_address,
   _bind_address = bind_address;
   _bind_port = bind_port;
   _num_threads = num_threads;
-  _handle_exception = handle_exception;
+  _exception_handler = exception_handler;
   _access_logger = access_logger;
   _load_monitor = load_monitor;
   _stats = stats;
@@ -266,7 +265,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     {
       handler->process_request(request, trail);
     }
-    CW_EXCEPT(_handle_exception)
+    CW_EXCEPT(_exception_handler)
     {
       send_reply_internal(request, 500, trail); 
     }
