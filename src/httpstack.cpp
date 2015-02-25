@@ -263,15 +263,13 @@ void HttpStack::handler_callback(evhtp_request_t* req,
                 req->uri->query_raw);
 
     CW_TRY
+    {
       handler->process_request(request, trail);
+    }
     CW_EXCEPT(_handle_exception)
+    {
       send_reply_internal(request, 500, trail); 
-
-      if (_num_threads == 1)
-      {
-        // There's only one worker thread, so we can't sensibly proceed.
-        abort();
-      }
+    }
     CW_END
   }
   else

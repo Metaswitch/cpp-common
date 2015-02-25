@@ -1,5 +1,5 @@
 /**
- * @file handle_exception
+ * @file exception_handler.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015  Metaswitch Networks Ltd
@@ -39,20 +39,24 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef _HANDLE_EXCEPTION_H__
-#define _HANDLE_EXCEPTION_H__
+#ifndef _EXCEPTION_HANDLER_H__
+#define _EXCEPTION_HANDLER_H__
 
 #include <pthread.h>
 #include <setjmp.h>
 
-class HandleException
+#include "health_checker.h"
+
+class ExceptionHandler
 {
 public:
   /// Constructor
-  HandleException(int ttl, bool attempt_quiesce);
+  ExceptionHandler(int ttl, 
+                   bool attempt_quiesce,
+                   HealthChecker* health_checker);
 
   /// Destructor
-  ~HandleException();
+  ~ExceptionHandler();
 
   /// Handle an exception - call longjmp if there's a stored jmp_buf
   void handle_exception();
@@ -73,6 +77,9 @@ private:
 
   /// Whether the exception handler should attempt to quiesce the process
   bool _attempt_quiesce;
+
+  /// Pointer to the service's health checker
+  HealthChecker* _health_checker;
 };
 
 /// Stored environment
@@ -97,6 +104,7 @@ else                                                                           \
 #define CW_END                                                                 \
   /* Tidy up thread local data */                                              \
   pthread_setspecific(_jmp_buf, NULL);                                         \
+  pthread_exit();                                                              \
 }
 
 #endif
