@@ -83,6 +83,33 @@ DnsResult::~DnsResult()
   }
 }
 
+DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
+  _cache_lock(PTHREAD_MUTEX_INITIALIZER),
+  _cache()
+{
+  // Initialize the ares library.  This might have already been done by curl
+  // but it's safe to do it twice.
+  ares_library_init(ARES_LIB_INIT_ALL);
+
+  size_t max_servers = 3;
+  _dns_servers_count = std::min(max_servers, dns_servers.size());
+
+  for (size_t i = 0; i < _dns_servers_count; i++)
+  {
+    LOG_STATUS("Creating Cached Resolver using server %s", dns_servers[i].c_str());
+    // Parse the DNS server's IP address.
+    if (!inet_aton(dns_servers[i].c_str(), &(_dns_servers[i])))
+    {
+      LOG_ERROR("Failed to parse '%s' as IP address - defaulting to 127.0.0.1", dns_servers[i].c_str());
+      (void)inet_aton("127.0.0.1", &(_dns_servers[i]));
+    }
+  }
+
+  // We store a DNSResolver in thread-local data, so create the thread-local
+  // store.
+  pthread_key_create(&_thread_local, (void(*)(void*))&destroy_dns_channel);  
+}
+
 DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
   _cache_lock(PTHREAD_MUTEX_INITIALIZER),
   _cache()
@@ -92,6 +119,8 @@ DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
   // Initialize the ares library.  This might have already been done by curl
   // but it's safe to do it twice.
   ares_library_init(ARES_LIB_INIT_ALL);
+
+  _dns_servers_count = 1;
 
   // Parse the DNS server's IP address.
   if (!inet_aton(dns_server.c_str(), &(_dns_servers[0])))
@@ -682,8 +711,6 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
   if ((channel == NULL) &&
       (_dns_servers[0].s_addr != 0))
   {
-    inet_aton("8.8.4.4", &(_dns_servers[1]));
-    
     channel = new DnsChannel;
     channel->pending_queries = 0;
     channel->resolver = this;
@@ -693,7 +720,7 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     options.tries = 2;
     options.ndots = 0;
     options.servers = (struct in_addr*)_dns_servers;
-    options.nservers = 2;
+    options.nservers = _dns_servers_count;
     ares_init_options(&channel->channel,
                       &options,
                       ARES_OPT_FLAGS |
