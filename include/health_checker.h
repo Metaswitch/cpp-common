@@ -41,18 +41,11 @@
 #include <pthread.h>
 
 // Health-checking object which:
-//  - is notified when "healthy behaviour" happens
+//  - is notified when "healthy behaviour" happens (e.g. a 200 OK response)
 //  - is notified when an exception is hit
 //  - checks every 60 seconds to see if an exception has been hit and
 //    no healthy behaviour has been seen since the last check, and
 //    aborts the process if so.
-//
-// Healthy behaviour is defined as:
-//  - an INVITE/200 OK going through a Sprout node
-//  - a successful response from Homestead to the
-//    /impi/<private ID>/registration-status URL
-//  - a successful message sent to a CDF from Ralf
-//  - a timer being created in Chronos
 class HealthChecker
 {
 public:

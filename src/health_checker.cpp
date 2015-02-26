@@ -41,11 +41,11 @@
 #include "health_checker.h"
 #include "log.h"
 
-HealthChecker::HealthChecker()
+HealthChecker::HealthChecker() :
+  _recent_passes(0),
+  _hit_exception(false),
+  _terminate(false)
 {
-  _recent_passes = 0;
-  _hit_exception = false;
-  _terminate = false;
   _condvar = PTHREAD_COND_INITIALIZER;
   _condvar_lock = PTHREAD_MUTEX_INITIALIZER; 
 
@@ -88,13 +88,13 @@ void HealthChecker::do_check()
   {
     // LCOV_EXCL_START - only covered in "death tests"
 
-    // LOG_ERROR("Check for overall system health failed - aborting");
+    // LOG_ERROR("Check for overall system health failed - exiting");
     exit(1);
     // LCOV_EXCL_STOP
   }
   else
   {
-    // LOG_DEBUG("Check for overall system health passed - not aborting");
+    // LOG_DEBUG("Check for overall system health passed - not exiting");
   }
   _recent_passes = 0;
 }
