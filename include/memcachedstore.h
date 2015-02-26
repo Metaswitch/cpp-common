@@ -97,7 +97,7 @@ public:
 
 
   /// Updates the cluster settings
-  void update_view();
+  void update_config();
 
 private:
   // A copy of this structure is maintained for each worker thread, as
@@ -128,12 +128,47 @@ private:
   const std::vector<memcached_st*>& get_replicas(const std::string& key, Op operation);
   const std::vector<memcached_st*>& get_replicas(int vbucket, Op operation);
 
-  /// Used to set the communication state for a vbucket after a get/set. 
+  /// Used to set the communication state for a vbucket after a get/set.
   typedef enum {OK, FAILED} CommState;
   void update_vbucket_comm_state(int vbucket, CommState state);
 
   // Called by the thread-local-storage clean-up functions when a thread ends.
   static void cleanup_connection(void* p);
+
+  // Perform a get request to a single replica.
+  memcached_return_t get_from_replica(memcached_st* replica,
+                                      const char* key_ptr,
+                                      const size_t key_len,
+                                      std::string& data,
+                                      uint64_t& cas);
+
+  // Delete a record from memcached by sending a DELETE command.
+  void delete_without_tombstone(const std::string& fqkey,
+                                const std::vector<memcached_st*>& replicas,
+                                SAS::TrailId trail);
+
+  // Delete a record from memcached by writing a tombstone record.
+  void delete_with_tombstone(const std::string& fqkey,
+                             const std::vector<memcached_st*>& replicas,
+                             SAS::TrailId trail);
+
+  // Utility method to log deletion failures. Called in both the tombstone and
+  // non-tombstone cases.
+  void log_delete_failure(const std::string& fqkey,
+                          int replica_ix,
+                          int replica_count,
+                          SAS::TrailId trail,
+                          uint32_t instance);
+
+  // Add a record to memcached. This overwrites any tombstone record already
+  // stored, but fails if any real data is stored.
+  memcached_return_t add_overwriting_tombstone(memcached_st* replica,
+                                               const char* key_ptr,
+                                               const size_t key_len,
+                                               const std::string& data,
+                                               time_t memcached_expiration,
+                                               uint32_t flags,
+                                               SAS::TrailId trail);
 
   // Stores a pointer to an updater object
   Updater<void, MemcachedStore>* _updater;
@@ -173,7 +208,7 @@ private:
   // value larger than this is assumed to be an absolute rather than relative
   // value.  This matches the REALTIME_MAXDELTA constant defined by memcached.
   static const int MEMCACHED_EXPIRATION_MAXDELTA = 60 * 60 * 24 * 30;
-  
+
   // Helper used to track replica communication state, and issue/clear alarms
   // based upon recent activity.
   CommunicationMonitor* _comm_monitor;
@@ -191,6 +226,16 @@ private:
 
   // Alarms to be used for reporting vbucket inaccessible conditions.
   Alarm* _vbucket_alarm;
+
+  // The lifetime (in seconds) of tombstones that are written to memcached when
+  // a record is deleted using `delete_data`. This is needed to allow active
+  // resync to spot records that have been deleted since the resync has begun.
+  //
+  // If this is set to zero the store will actually delete data in memcached
+  // instead of using tombstones.
+  //
+  // Atomic as it is set by the updater thread and read by application threads.
+  std::atomic<int> _tombstone_lifetime;
 };
 
 #endif
