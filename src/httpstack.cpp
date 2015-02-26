@@ -268,6 +268,12 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     CW_EXCEPT(_exception_handler)
     {
       send_reply_internal(request, 500, trail); 
+
+      if (_num_threads == 1)
+      {
+        // There's only one HTTP thread, so we can't sensibly proceed.
+        exit(1);
+      }
     }
     CW_END
   }

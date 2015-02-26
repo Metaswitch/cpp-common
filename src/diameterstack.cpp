@@ -45,7 +45,11 @@ Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 struct fd_hook_data_hdl* Stack::_sas_cb_data_hdl = NULL;
 
-Stack::Stack() : _initialized(false), _callback_handler(NULL), _callback_fallback_handler(NULL), _comm_monitor(NULL)
+Stack::Stack() : _initialized(false), 
+                 _callback_handler(NULL), 
+                 _callback_fallback_handler(NULL), 
+                 _exception_handler(NULL),
+                 _comm_monitor(NULL)
 {
   pthread_mutex_init(&_peers_lock, NULL);
 }
@@ -311,16 +315,20 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
 }
 
 void Stack::configure(std::string filename,
+                      ExceptionHandler* exception_handler,
                       CommunicationMonitor* comm_monitor)
 {
   initialize();
   LOG_STATUS("Configuring Diameter stack from file %s", filename.c_str());
   int rc = fd_core_parseconf(filename.c_str());
+
   if (rc != 0)
   {
     throw Exception("fd_core_parseconf", rc); // LCOV_EXCL_LINE
   }
+
   populate_avp_map();
+  _exception_handler = exception_handler;
   _comm_monitor = comm_monitor;
 }
 
@@ -420,10 +428,18 @@ int Stack::request_callback_fn(struct msg** req,
   LOG_DEBUG("Invoke diameter request handler on trail %lu", trail);
 
   // Pass the request to the registered handler.
-  handler->process_request(req, trail);
+  CW_TRY
+  {
+    handler->process_request(req, trail);
+  }
+  CW_EXCEPT(get_instance()->_exception_handler)
+  {
+    *req = NULL;
+    return EINVAL;
+  }
+  CW_END
 
   // The handler will turn the message associated with the task into an answer which we wish to send to the HSS.
-  // Setting the action to DISP_ACT_SEND ensures that we will send this answer on without going to any other callbacks.
   // Return 0 to indicate no errors with the callback.
   *req = NULL;
   *act = DISP_ACT_CONT;

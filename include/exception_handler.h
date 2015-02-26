@@ -105,6 +105,7 @@ else                                                                           \
   /* Tidy up thread local data */                                              \
   pthread_setspecific(_jmp_buf, NULL);                                         \
   pthread_exit(NULL);                                                          \
-}
+}                                                                              \
+pthread_setspecific(_jmp_buf, NULL);                                         
 
 #endif

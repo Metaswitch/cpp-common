@@ -48,6 +48,12 @@ HealthChecker::HealthChecker()
   _terminate = false;
   _condvar = PTHREAD_COND_INITIALIZER;
   _condvar_lock = PTHREAD_MUTEX_INITIALIZER; 
+
+  pthread_condattr_t cond_attr;
+  pthread_condattr_init(&cond_attr);
+  pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+  pthread_cond_init(&_condvar, &cond_attr);
+  pthread_condattr_destroy(&cond_attr);
 }
 
 HealthChecker::~HealthChecker()
@@ -83,7 +89,7 @@ void HealthChecker::do_check()
     // LCOV_EXCL_START - only covered in "death tests"
 
     // LOG_ERROR("Check for overall system health failed - aborting");
-    assert(!"Health check failed");
+    exit(1);
     // LCOV_EXCL_STOP
   }
   else
