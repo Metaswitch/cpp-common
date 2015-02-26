@@ -49,6 +49,7 @@
 #include "sas.h"
 #include "baseresolver.h"
 #include "communicationmonitor.h"
+#include "exception_handler.h"
 
 namespace Diameter
 {
@@ -627,6 +628,7 @@ public:
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
   virtual void configure(std::string filename, 
+                         ExceptionHandler* exception_handler,
                          CommunicationMonitor* comm_monitor = NULL);
   virtual void advertize_application(const Dictionary::Application::Type type,
                                      const Dictionary::Application& app);
@@ -702,6 +704,7 @@ private:
   static struct fd_hook_data_hdl* _sas_cb_data_hdl;
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
+  ExceptionHandler* _exception_handler;
   CommunicationMonitor* _comm_monitor;
 
   // Map of Vendor->AVP name->AVP dictionary
