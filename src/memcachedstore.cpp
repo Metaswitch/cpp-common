@@ -179,6 +179,7 @@ void MemcachedStore::update_config()
   std::ifstream f(_config_file);
   std::vector<std::string> servers;
   std::vector<std::string> new_servers;
+  int tombstone_lifetime = DEFAULT_TOMBSTONE_LIFETIME;
 
   if (f.is_open())
   {
@@ -195,7 +196,9 @@ void MemcachedStore::update_config()
         Utils::split_string(line, '=', tokens, 0, true);
         if (tokens.size() != 2)
         {
-          LOG_ERROR("Malformed %s file", _config_file.c_str());
+          LOG_ERROR("Malformed %s file (got bad line: '%s')",
+                    _config_file.c_str(),
+                    line.c_str());
           break;
         }
 
@@ -216,16 +219,16 @@ void MemcachedStore::update_config()
           // Read the tombstone lifetime from the config file. Check it is
           // actually a valid integer before committing to the member variable
           // (atoi stops when it reaches non-numeric characters).
-          int lifetime = atoi(tokens[1].c_str());
+          tombstone_lifetime = atoi(tokens[1].c_str());
 
-          if (std::to_string(lifetime) == tokens[1])
+          if (std::to_string(tombstone_lifetime) != tokens[1])
           {
-            _tombstone_lifetime = lifetime;
-          }
-          else
-          {
-            LOG_ERROR("'%s' does not contain a valid tombstone lifetime - keeping previous setting",
-                      _config_file.c_str());
+            LOG_ERROR("'%s' contained an invalid tombstone_lifetime line which will be ignored:\n%s",
+                      _config_file.c_str(),
+                      line.c_str());
+
+            // Set the lifetime back to the default.
+            tombstone_lifetime = DEFAULT_TOMBSTONE_LIFETIME;
           }
         }
       }
@@ -235,12 +238,16 @@ void MemcachedStore::update_config()
     if (servers.size() > 0)
     {
       LOG_DEBUG("Update memcached store");
-      this->new_view(servers, new_servers);
+      new_view(servers, new_servers);
     }
     else
     {
-      LOG_ERROR("'%s' does not contain a valid set of servers - keeping previous settings", _config_file.c_str());
+      LOG_ERROR("'%s' does not contain a valid set of servers - keeping previous settings",
+                _config_file.c_str());
     }
+
+    LOG_DEBUG("Setting tombstone lifetime to %ds", tombstone_lifetime);
+    _tombstone_lifetime = tombstone_lifetime;
   }
   else
   {

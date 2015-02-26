@@ -233,7 +233,9 @@ private:
   //
   // If this is set to zero the store will actually delete data in memcached
   // instead of using tombstones.
-  int _tombstone_lifetime;
+  //
+  // Atomic as it is set by the updater thread and read by application threads.
+  std::atomic<int> _tombstone_lifetime;
 };
 
 #endif
