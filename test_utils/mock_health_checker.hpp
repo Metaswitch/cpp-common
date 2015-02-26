@@ -1,7 +1,7 @@
 /**
- * @file health_checker.h
+ * @file mock_health_checker.hpp Mock health checker class for UT
  *
- * Project Clearwater - IMS in the Cloud
+ * Project Clearwater - IMS in the cloud.
  * Copyright (C) 2015 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
@@ -34,46 +34,20 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef HEALTH_CHECKER_H
-#define HEALTH_CHECKER_H
+#ifndef MOCK_HEALTH_CHECKER_HPP
+#define MOCK_HEALTH_CHECKER_HPP
 
-#include <atomic>
-#include <pthread.h>
+#include "gmock/gmock.h"
+#include "health_checker.h"
 
-// Health-checking object which:
-//  - is notified when "healthy behaviour" happens
-//  - is notified when an exception is hit
-//  - checks every 60 seconds to see if an exception has been hit and
-//    no healthy behaviour has been seen since the last check, and
-//    aborts the process if so.
-//
-// Healthy behaviour is defined as:
-//  - an INVITE/200 OK going through a Sprout node
-//  - a successful response from Homestead to the
-//    /impi/<private ID>/registration-status URL
-//  - a successful message sent to a CDF from Ralf
-//  - a timer being created in Chronos
-class HealthChecker
+class MockHealthChecker : public HealthChecker
 {
 public:
-  HealthChecker();
-  ~HealthChecker();
+  MockHealthChecker() : HealthChecker() {}
+  virtual ~MockHealthChecker() {}
 
-  // Virtual for mocking in UT
-  virtual void health_check_passed();
-  void hit_exception();
-  void do_check();
-  void terminate();
-
-  static void* static_main_thread_function(void* health_checker);
-  void main_thread_function();
-  
-private:
-  std::atomic_int _recent_passes;
-  std::atomic_bool _hit_exception;
-  std::atomic_bool _terminate;
-  pthread_cond_t _condvar;
-  pthread_mutex_t _condvar_lock;
+  MOCK_METHOD0(health_check_passed, void());
 };
 
 #endif
+
