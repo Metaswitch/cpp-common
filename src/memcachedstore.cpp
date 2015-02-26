@@ -498,7 +498,7 @@ Store::Status MemcachedStore::get_data(const std::string& table,
               replicas[replica_idx]);
     rc = get_from_replica(replicas[replica_idx], key_ptr, key_len, data, cas);
 
-    if (rc == MEMCACHED_SUCCESS)
+    if (memcached_success(rc))
     {
       // Got data back from this replica. Don't try any more.
       LOG_DEBUG("Read for %s on replica %d returned SUCCESS",
@@ -560,8 +560,7 @@ Store::Status MemcachedStore::get_data(const std::string& table,
       }
 
       // We have read a tombstone. Return NOT_FOUND to the caller, and also
-      // zero out the CAS (returning a non-zero CAS makes the interface
-      // cleaner).
+      // zero out the CAS (returning a zero CAS makes the interface cleaner).
       LOG_DEBUG("Read tombstone from table %s key %s, CAS = %ld",
                 table.c_str(), key.c_str(), cas);
       cas = 0;
