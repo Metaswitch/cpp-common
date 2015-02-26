@@ -45,6 +45,7 @@ HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
 HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 
 HttpStack::HttpStack() :
+  _exception_handler(NULL),
   _access_logger(NULL),
   _stats(NULL),
   _load_monitor(NULL)
@@ -124,6 +125,7 @@ void HttpStack::initialize()
 void HttpStack::configure(const std::string& bind_address,
                           unsigned short bind_port,
                           int num_threads,
+                          ExceptionHandler* exception_handler,
                           AccessLogger* access_logger,
                           LoadMonitor* load_monitor,
                           HttpStack::StatsInterface* stats)
@@ -135,6 +137,7 @@ void HttpStack::configure(const std::string& bind_address,
   _bind_address = bind_address;
   _bind_port = bind_port;
   _num_threads = num_threads;
+  _exception_handler = exception_handler;
   _access_logger = access_logger;
   _load_monitor = load_monitor;
   _stats = stats;
@@ -257,7 +260,22 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     LOG_VERBOSE("Process request for URL %s, args %s",
                 req->uri->path->full,
                 req->uri->query_raw);
-    handler->process_request(request, trail);
+
+    CW_TRY
+    {
+      handler->process_request(request, trail);
+    }
+    CW_EXCEPT(_exception_handler)
+    {
+      send_reply_internal(request, 500, trail); 
+
+      if (_num_threads == 1)
+      {
+        // There's only one HTTP thread, so we can't sensibly proceed.
+        exit(1);
+      }
+    }
+    CW_END
   }
   else
   {

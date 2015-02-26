@@ -47,6 +47,7 @@
 #include "load_monitor.h"
 #include "sas.h"
 #include "sasevent.h"
+#include "exception_handler.h"
 
 class HttpStack
 {
@@ -400,6 +401,7 @@ public:
   virtual void configure(const std::string& bind_address,
                          unsigned short port,
                          int num_threads,
+                         ExceptionHandler* exception_handler,
                          AccessLogger* access_logger = NULL,
                          LoadMonitor* load_monitor = NULL,
                          StatsInterface* stats = NULL);
@@ -441,6 +443,7 @@ private:
   unsigned short _bind_port;
   int _num_threads;
 
+  ExceptionHandler* _exception_handler;
   AccessLogger* _access_logger;
   StatsInterface* _stats;
   LoadMonitor* _load_monitor;
