@@ -79,6 +79,23 @@ DnsResult::DnsResult(const DnsResult &res) :
   }
 }
 
+DnsResult::DnsResult(DnsResult &&res) :
+  _domain(res._domain),
+  _dnstype(res._dnstype),
+  _records(),
+  _ttl(res._ttl)
+{
+  // Copy the records, then remove them from the source.
+  for (std::vector<DnsRRecord*>::const_iterator i = res._records.begin();
+       i != res._records.end();
+       ++i)
+  {
+    _records.push_back(*i);
+  }
+
+  res._records.clear();
+}
+
 DnsResult::DnsResult(const std::string& domain,
                      int dnstype,
                      int ttl) :
@@ -245,10 +262,10 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                 ce->domain.c_str(),
                 DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
 
-      results.push_back(DnsResult(ce->domain,
-                                  ce->dnstype,
-                                  ce->records,
-                                  ce->expires - time(NULL)));
+      results.push_back(std::move(DnsResult(ce->domain,
+                                            ce->dnstype,
+                                            ce->records,
+                                            ce->expires - time(NULL))));
     }
     else
     {
