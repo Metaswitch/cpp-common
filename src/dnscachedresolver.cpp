@@ -116,7 +116,7 @@ DnsResult::~DnsResult()
 }
 
 DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
-  _cache_lock(PTHREAD_MUTEX_INITIALIZER),
+  _cache_lock(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
   _cache()
 {
   LOG_STATUS("Creating Cached Resolver using server %s", dns_server.c_str());
@@ -739,13 +739,18 @@ DnsCachedResolver::DnsTsx::~DnsTsx()
 
 void DnsCachedResolver::DnsTsx::execute()
 {
+  // Note that in error cases, ares_query can call the callback
+  // synchronously on the same thread. _cache_lock has to be recursive
+  // to account for this (and it's slightly cleaner to increment
+  // pending_queries first, to stop it going negative).
+  ++_channel->pending_queries;
+  
   ares_query(_channel->channel,
              _domain.c_str(),
              ns_c_in,
              _dnstype,
              DnsTsx::ares_callback,
              this);
-  ++_channel->pending_queries;
 }
 
 void DnsCachedResolver::DnsTsx::ares_callback(void* arg,
