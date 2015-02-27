@@ -239,7 +239,7 @@ HTTPCode HttpConnection::curl_code_to_http_code(CURL* curl, CURLcode code)
   case CURLE_OK:
   {
     long http_code = 0;
-    CURLcode rc = curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
+    curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
     return http_code;
   // LCOV_EXCL_START
   }
