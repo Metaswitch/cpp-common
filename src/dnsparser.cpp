@@ -346,6 +346,13 @@ int DnsParser::parse_rr(unsigned char* rptr, DnsRRecord*& rr)
     }
     rr = (DnsRRecord*)new DnsNaptrRecord(rrname, ttl, order, preference, flags, services, regexp, replacement);
   }
+  else if ((rrclass == ns_c_in) && (rrtype == ns_t_cname))
+  {
+    LOG_DEBUG("Parse CNAME record RDATA");
+    std::string target;
+    parse_domain_name(rdata, target);
+    rr = new DnsCNAMERecord(rrname, ttl, target);
+  }
   else
   {
     rr = new DnsRRecord(rrname, rrtype, rrclass, ttl);

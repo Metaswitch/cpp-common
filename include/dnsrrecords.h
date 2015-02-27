@@ -306,4 +306,31 @@ private:
   const std::string _replacement;
 };
 
+class DnsCNAMERecord : public DnsRRecord
+{
+public:
+DnsCNAMERecord(const std::string& rrname, int ttl, const std::string& target) :
+    DnsRRecord(rrname, ns_t_cname, ns_c_in, ttl),
+    _target(target)
+  {
+  }
+
+  const std::string& target() const { return _target; }
+
+  virtual DnsCNAMERecord* clone()
+  {
+    return new DnsCNAMERecord(*this);
+  }
+
+  virtual std::string to_string() const
+  {
+    std::ostringstream oss;
+    oss << DnsRRecord::to_string() << " " << _target;
+    return oss.str();
+  }
+
+private:
+  const std::string _target;
+};
+
 #endif
