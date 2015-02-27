@@ -716,6 +716,10 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     channel->pending_queries = 0;
     channel->resolver = this;
     struct ares_options options;
+
+    // ARES_FLAG_STAYOPEN implements TCP keepalive - it doesn't do
+    // anything obviously helpful for UDP connections to the DNS server,
+    // but it's what we've always tested with so not worth the risk of removing.
     options.flags = ARES_FLAG_STAYOPEN;
     options.timeout = 1000;
     options.tries = _dns_servers_count;
