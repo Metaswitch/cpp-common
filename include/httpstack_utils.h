@@ -198,6 +198,8 @@ namespace HttpStackUtils
   public:  
     static void exception_callback(RequestParams* work)
     {
+      // Respond with a 500
+      work->request.send_reply(500, 0);
       delete work; work = NULL;
     }
 

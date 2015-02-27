@@ -262,7 +262,8 @@ public:
 
   static void exception_callback(std::pair<Operation*, Transaction*> work)
   {
-    // No recovery behaviour
+    // No recovery behaviour as this is asynchronos, so we can't sensibly
+    // respond
   }
 
 private:
