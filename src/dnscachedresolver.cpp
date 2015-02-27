@@ -94,9 +94,10 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers
   size_t max_servers = 3;
   _dns_servers_count = std::min(max_servers, dns_servers.size());
 
+  LOG_STATUS("Creating Cached Resolver using servers:");
   for (size_t i = 0; i < _dns_servers_count; i++)
   {
-    LOG_STATUS("Creating Cached Resolver using server %s", dns_servers[i].c_str());
+    LOG_STATUS("    %s", dns_servers[i].c_str());
     // Parse the DNS server's IP address.
     if (!inet_aton(dns_servers[i].c_str(), &(_dns_servers[i])))
     {
@@ -717,14 +718,13 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     struct ares_options options;
     options.flags = ARES_FLAG_STAYOPEN;
     options.timeout = 1000;
-    options.tries = 2;
+    options.tries = _dns_servers_count;
     options.ndots = 0;
     options.servers = (struct in_addr*)_dns_servers;
     options.nservers = _dns_servers_count;
     ares_init_options(&channel->channel,
                       &options,
                       ARES_OPT_FLAGS |
-                      ARES_OPT_ROTATE |
                       ARES_OPT_TIMEOUTMS |
                       ARES_OPT_TRIES |
                       ARES_OPT_NDOTS |
