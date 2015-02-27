@@ -56,6 +56,8 @@ class DnsResult
 public:
   DnsResult(const std::string& domain, int dnstype, const std::vector<DnsRRecord*>& records, int ttl);
   DnsResult(const std::string& domain, int dnstype, int ttl);
+  DnsResult(const DnsResult &obj);
+  DnsResult(DnsResult &&obj);
   ~DnsResult();
 
   const std::string& domain() const { return _domain; }
@@ -174,6 +176,7 @@ private:
   void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr);
   void clear_cache_entry(DnsCacheEntryPtr ce);
 
+  
   DnsChannel* get_dns_channel();
   void wait_for_replies(DnsChannel* channel);
   static void destroy_dns_channel(DnsChannel* channel);
@@ -197,6 +200,11 @@ private:
   /// @TODO - may make sense for this to be configured, or even different for
   /// each record type.
   static const int DEFAULT_NEGATIVE_CACHE_TTL = 300;
+
+  /// The time to keep records after they expire before freeing them.
+  /// This provides a grace period if a DNS server becomes temporarily
+  /// unresponsive, but doesn't risk leaking memory.
+  static const int EXTRA_INVALID_TIME = 300;
 };
 
 #endif
