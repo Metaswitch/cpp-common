@@ -79,13 +79,11 @@ public:
   /// @return the UUID created.
   boost::uuids::uuid operator() ()
   {
-    assert(_gen != NULL);
     return (*_gen)();
   }
 
 private:
   boost::mt19937 _prng;
-  char gap[1024];
   boost::uuids::random_generator* _gen;
 };
 
