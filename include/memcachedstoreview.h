@@ -41,6 +41,7 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <list>
 
 /// Tracks the current view of the underlying memcached cluster, including
 /// calculating the server list and the replica configurations.
@@ -60,6 +61,20 @@ public:
   /// Returns the current read and write replica sets for each vbucket.
   const std::vector<std::string>& read_replicas(int vbucket) const { return _read_set[vbucket]; };
   const std::vector<std::string>& write_replicas(int vbucket) const { return _write_set[vbucket]; };
+
+  /// Calculates the vbucket moves that are currently ongoing.
+  ///
+  /// The returned object has an entry for each moving vbucket ID, giving the
+  /// old the replica list and the new one.  vBuckets that are not moving are
+  /// skipped in the output (thus, if there's no move ongoing, this map is
+  /// empty).
+  const std::map<int,
+                 std::pair<std::vector<std::string>,
+                           std::vector<std::string>>>&
+    calculate_vbucket_moves() const
+  {
+    return _changes;
+  }
 
 private:
   /// Converts the view into a string suitable for logging.
@@ -129,6 +144,9 @@ private:
   // replicas are enabled to maintain redundancy.
   std::vector<std::vector<std::string> > _read_set;
   std::vector<std::vector<std::string> > _write_set;
+
+  // vBucket allocation hanges currently ongoing in the cluster (may be empty).
+  std::map<int, std::pair<std::vector<std::string>, std::vector<std::string>>> _changes;
 };
 
 #endif

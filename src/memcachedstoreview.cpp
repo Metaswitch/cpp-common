@@ -44,6 +44,7 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
 
 #include "log.h"
 #include "memcachedstoreview.h"
@@ -68,7 +69,7 @@ std::vector<std::string> MemcachedStoreView::merge_servers(const std::vector<std
   std::set<std::string> merged_servers;
   merged_servers.insert(list1.begin(), list1.end());
   merged_servers.insert(list2.begin(), list2.end());
-  
+
   std::vector<std::string> ret(merged_servers.begin(), merged_servers.end());
   return ret;
 }
@@ -107,6 +108,9 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       }
       _write_set[ii] = _read_set[ii];
     }
+
+    // No changes ongoing.
+    _changes.clear();
   }
   else
   {
@@ -122,6 +126,9 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
     Ring n_ring(_vbuckets);
     n_ring.update(new_servers.size());
 
+    // We'll rebuild _changes as we iterate over the list.
+    _changes.clear();
+
     for (int ii = 0; ii < _vbuckets; ++ii)
     {
       // Keep track of which nodes are in the replica sets to avoid duplicates.
@@ -131,6 +138,33 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       // current and target node sets.
       std::vector<int> c_nodes = c_ring.get_nodes(ii, _replicas);
       std::vector<int> n_nodes = n_ring.get_nodes(ii, _replicas);
+
+      // Determine if the set of nodes has changed by sorting the above two
+      // vectors and comparing.
+      std::vector<int> c_nodes_sorted = c_nodes;
+      std::vector<int> n_nodes_sorted = n_nodes;
+      std::sort(c_nodes_sorted.begin(), c_nodes_sorted.end());
+      std::sort(n_nodes_sorted.begin(), n_nodes_sorted.end());
+      if (c_nodes_sorted != n_nodes_sorted)
+      {
+        // Lists are different, add an entry to _changes to indicate this.
+        std::vector<std::string> c_replicas;
+        std::vector<std::string> n_replicas;
+        for (std::vector<int>::const_iterator it = c_nodes.begin();
+             it != c_nodes.end();
+             ++it)
+        {
+          c_replicas.push_back(servers[*it]);
+        }
+        for (std::vector<int>::const_iterator it = n_nodes.begin();
+             it != n_nodes.end();
+             ++it)
+        {
+          n_replicas.push_back(new_servers[*it]);
+        }
+        std::pair<std::vector<std::string>, std::vector<std::string>> change_entry(c_replicas, n_replicas);
+        _changes[ii] = change_entry;
+      }
 
       // Set the first read and write replica to the first node in the
       // current replica set.  This ensures most reads will complete
