@@ -53,8 +53,13 @@ namespace HttpStackUtils
   // HandlerThreadPool methods.
   //
   HandlerThreadPool::HandlerThreadPool(unsigned int num_threads,
+                                       ExceptionHandler* exception_handler,
                                        unsigned int max_queue) :
-    _pool(num_threads, max_queue), _wrappers()
+    _pool(num_threads, 
+          exception_handler, 
+          &exception_callback, 
+          max_queue),
+    _wrappers()
   {
     _pool.start();
   }
@@ -87,8 +92,10 @@ namespace HttpStackUtils
   }
 
   HandlerThreadPool::Pool::Pool(unsigned int num_threads,
+                                ExceptionHandler* exception_handler,
+                                void (*callback)(HttpStackUtils::HandlerThreadPool::RequestParams*),
                                 unsigned int max_queue) :
-    ThreadPool<RequestParams*>(num_threads, max_queue)
+    ThreadPool<RequestParams*>(num_threads, exception_handler, callback, max_queue)
   {}
 
   // This function defines how the worker threads process received requests.
