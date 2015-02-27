@@ -83,6 +83,34 @@ DnsResult::~DnsResult()
   }
 }
 
+DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
+  _cache_lock(PTHREAD_MUTEX_INITIALIZER),
+  _cache()
+{
+  // Initialize the ares library.  This might have already been done by curl
+  // but it's safe to do it twice.
+  ares_library_init(ARES_LIB_INIT_ALL);
+
+  size_t max_servers = 3;
+  _dns_servers_count = std::min(max_servers, dns_servers.size());
+
+  LOG_STATUS("Creating Cached Resolver using servers:");
+  for (size_t i = 0; i < _dns_servers_count; i++)
+  {
+    LOG_STATUS("    %s", dns_servers[i].c_str());
+    // Parse the DNS server's IP address.
+    if (!inet_aton(dns_servers[i].c_str(), &(_dns_servers[i])))
+    {
+      LOG_ERROR("Failed to parse '%s' as IP address - defaulting to 127.0.0.1", dns_servers[i].c_str());
+      (void)inet_aton("127.0.0.1", &(_dns_servers[i]));
+    }
+  }
+
+  // We store a DNSResolver in thread-local data, so create the thread-local
+  // store.
+  pthread_key_create(&_thread_local, (void(*)(void*))&destroy_dns_channel);  
+}
+
 DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
   _cache_lock(PTHREAD_MUTEX_INITIALIZER),
   _cache()
@@ -93,11 +121,13 @@ DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
   // but it's safe to do it twice.
   ares_library_init(ARES_LIB_INIT_ALL);
 
+  _dns_servers_count = 1;
+
   // Parse the DNS server's IP address.
-  if (!inet_aton(dns_server.c_str(), &_dns_server))
+  if (!inet_aton(dns_server.c_str(), &(_dns_servers[0])))
   {
     LOG_ERROR("Failed to parse '%s' as IP address - defaulting to 127.0.0.1", dns_server.c_str());
-    (void)inet_aton("127.0.0.1", &_dns_server);
+    (void)inet_aton("127.0.0.1", &(_dns_servers[0]));
   }
 
   // We store a DNSResolver in thread-local data, so create the thread-local
@@ -680,18 +710,22 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
   // found.
   DnsChannel* channel = (DnsChannel*)pthread_getspecific(_thread_local);
   if ((channel == NULL) &&
-      (_dns_server.s_addr != 0))
+      (_dns_servers[0].s_addr != 0))
   {
     channel = new DnsChannel;
     channel->pending_queries = 0;
     channel->resolver = this;
     struct ares_options options;
-    options.flags = ARES_FLAG_PRIMARY | ARES_FLAG_STAYOPEN;
+
+    // ARES_FLAG_STAYOPEN implements TCP keepalive - it doesn't do
+    // anything obviously helpful for UDP connections to the DNS server,
+    // but it's what we've always tested with so not worth the risk of removing.
+    options.flags = ARES_FLAG_STAYOPEN;
     options.timeout = 1000;
-    options.tries = 1;
+    options.tries = _dns_servers_count;
     options.ndots = 0;
-    options.servers = (struct in_addr*)&_dns_server;
-    options.nservers = 1;
+    options.servers = (struct in_addr*)_dns_servers;
+    options.nservers = _dns_servers_count;
     ares_init_options(&channel->channel,
                       &options,
                       ARES_OPT_FLAGS |
