@@ -138,6 +138,7 @@ void Store::initialize()
 
 void Store::configure(std::string cass_hostname,
                       uint16_t cass_port,
+                      ExceptionHandler* exception_handler,
                       unsigned int num_threads,
                       unsigned int max_queue,
                       CommunicationMonitor* comm_monitor)
@@ -149,6 +150,7 @@ void Store::configure(std::string cass_hostname,
   LOG_STATUS("  Max Queue: %u", max_queue);
   _cass_hostname = cass_hostname;
   _cass_port = cass_port;
+  _exception_handler = exception_handler;
   _num_threads = num_threads;
   _max_queue = max_queue;
   _comm_monitor = comm_monitor;
@@ -168,7 +170,11 @@ ResultCode Store::start()
   // Start the thread pool.
   if (_num_threads > 0)
   {
-    _thread_pool = new Pool(this, _num_threads, _max_queue);
+    _thread_pool = new Pool(this, 
+                            _num_threads, 
+                            _exception_handler, 
+                            &exception_callback, 
+                            _max_queue);
 
     if (!_thread_pool->start())
     {
@@ -453,8 +459,15 @@ bool Store::run(Operation* op, SAS::TrailId trail)
 // Pool methods
 //
 
-Store::Pool::Pool(Store* store, unsigned int num_threads, unsigned int max_queue) :
-  ThreadPool<std::pair<Operation*, Transaction*> >(num_threads, max_queue),
+Store::Pool::Pool(Store* store, 
+                  unsigned int num_threads, 
+                  ExceptionHandler* exception_handler, 
+                  void (*callback)(std::pair<Operation*, Transaction*>), 
+                  unsigned int max_queue) :
+  ThreadPool<std::pair<Operation*, Transaction*> >(num_threads, 
+                                                   exception_handler, 
+                                                   callback, 
+                                                   max_queue),
   _store(store)
 {}
 

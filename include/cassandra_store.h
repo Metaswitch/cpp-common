@@ -177,22 +177,25 @@ public:
 
   /// Configure the store.
   ///
-  /// @param cass_hostname   - The hostname for the cassandra database.
-  /// @param cass_port       - The port to connect to cassandra on.
-  /// @param num_threads     - The number of worker threads to use for
-  ///                          processing cassandra requests asynchronously.
-  ///                          Can be 0, in which case the store may only be
-  ///                          used synchronously.
-  /// @param max_queue       - The maximum number of requests that can be queued
-  ///                          waiting for a worker thread when running requests
-  ///                          asynchronously.  If more requests are added the
-  ///                          call to do_async() will block until some existing
-  ///                          requests have been processed.  0 => no limit.
-  /// @param comm_monitor    - A monitor to track communication with the local
-  ///                          Cassandra instance, and set/clear alarms based on
-  ///                          recent activity.
+  /// @param cass_hostname     - The hostname for the cassandra database.
+  /// @param cass_port         - The port to connect to cassandra on.
+  /// @param exception_handler - The exception handler
+  /// @param num_threads       - The number of worker threads to use for
+  ///                            processing cassandra requests asynchronously.
+  ///                            Can be 0, in which case the store may only be
+  ///                            used synchronously.
+  /// @param max_queue         - The maximum number of requests that can be 
+  ///                            queued waiting for a worker thread when running 
+  ///                            requests asynchronously.  If more requests are
+  ///                            added the call to do_async() will block until 
+  ///                            some existing requests have been processed. 
+  ///                            0 => no limit.
+  /// @param comm_monitor      - A monitor to track communication with the local
+  ///                            Cassandra instance, and set/clear alarms based 
+  ///                            on recent activity.
   virtual void configure(std::string cass_hostname,
                          uint16_t cass_port,
+                         ExceptionHandler* exception_handler,
                          unsigned int num_threads = 0,
                          unsigned int max_queue = 0,
                          CommunicationMonitor* comm_monitor = NULL);
@@ -257,13 +260,22 @@ public:
   /// @return                - The current time (in micro-seconds).
   static int64_t generate_timestamp();
 
+  static void exception_callback(std::pair<Operation*, Transaction*> work)
+  {
+    // No recovery behaviour
+  }
+
 private:
   /// The thread pool used by the store.  This is a simple subclass of
   /// ThreadPool that also stores a pointer back to the store.
   class Pool : public ThreadPool<std::pair<Operation*, Transaction*> >
   {
   public:
-    Pool(Store* store, unsigned int num_threads, unsigned int max_queue = 0);
+    Pool(Store* store, 
+         unsigned int num_threads, 
+         ExceptionHandler* exception_handler,
+         void (*callback)(std::pair<Operation*, Transaction*>), 
+         unsigned int max_queue = 0);
     virtual ~Pool();
 
   private:
@@ -279,6 +291,9 @@ private:
   // Cassandra connection information.
   std::string _cass_hostname;
   uint16_t _cass_port;
+
+  // Exception handler
+  ExceptionHandler* _exception_handler;
 
   // Thread pool management.
   //

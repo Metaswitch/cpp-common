@@ -167,6 +167,7 @@ namespace HttpStackUtils
   {
   public:
     HandlerThreadPool(unsigned int num_threads,
+                      ExceptionHandler* exception_handler,
                       unsigned int max_queue = 0);
     ~HandlerThreadPool();
 
@@ -194,6 +195,13 @@ namespace HttpStackUtils
       SAS::TrailId trail;
     };
 
+  public:  
+    static void exception_callback(RequestParams* work)
+    {
+      delete work; work = NULL;
+    }
+
+  private:
     /// @class Pool
     ///
     /// The thread pool that manages the worker threads and defines how a work
@@ -202,6 +210,8 @@ namespace HttpStackUtils
     {
     public:
       Pool(unsigned int num_threads,
+           ExceptionHandler* exception_handler,
+           void (*callback)(RequestParams*),
            unsigned int max_queue = 0);
 
       void process_work(RequestParams*& params);
