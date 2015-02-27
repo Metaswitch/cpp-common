@@ -35,6 +35,7 @@
  */
 
 #include <eventq.h>
+#include "exception_handler.h"
 #include <log.h>
 
 #ifndef THREADPOOL_H__
@@ -65,10 +66,14 @@ public:
   // @param max_queue the number of work items that can be queued waiting for a
   //   free thread (0 => no limit).
   ThreadPool(unsigned int num_threads,
+             ExceptionHandler* exception_handler,
+             void (*callback)(T),
              unsigned int max_queue = 0) :
     _num_threads(num_threads),
+    _exception_handler(exception_handler),
     _threads(0),
-    _queue(max_queue)
+    _queue(max_queue),
+    _callback(callback)
   {}
 
   // Destroy the thread pool.
@@ -138,8 +143,12 @@ public:
 
 private:
   unsigned int _num_threads;
+  ExceptionHandler* _exception_handler;
   std::vector<pthread_t> _threads;
   eventq<T> _queue;
+
+  // Recovery function provided by the callers
+  void (*_callback)(T);
 
   // Static worker thread function that is passed into pthread_create.
   //
@@ -170,7 +179,15 @@ private:
 
       if (got_work)
       {
-        process_work(work);
+        CW_TRY
+        {
+          process_work(work);
+        }
+        CW_EXCEPT(_exception_handler)
+        {
+          _callback(work);
+        }
+        CW_END
       }
 
       // If we haven't got any work then the queue must have been terminated,
