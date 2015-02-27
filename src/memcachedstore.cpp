@@ -81,6 +81,7 @@ MemcachedStore::MemcachedStore(bool binary,
   _options(),
   _view_number(0),
   _servers(),
+  _max_connect_latency_ms(50),
   _read_replicas(_vbuckets),
   _write_replicas(_vbuckets),
   _comm_monitor(comm_monitor),
@@ -138,7 +139,10 @@ MemcachedStore::~MemcachedStore()
 
 
 // LCOV_EXCL_START - need real memcached to test
-
+void MemcachedStore::set_max_connect_latency(unsigned int ms)
+{
+  _max_connect_latency_ms = ms;
+}
 
 /// Set up a new view of the memcached cluster(s).  The view determines
 /// how data is distributed around the cluster.
@@ -315,7 +319,7 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
       LOG_DEBUG("Set up connection %p to server %s", conn->st[_servers[ii]], _servers[ii].c_str());
 
       // Switch to a longer connect timeout from here on.
-      memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, 50);
+      memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, _max_connect_latency_ms);
 
       // Connect to the server.  The address is specified as either <IPv4 address>:<port>
       // or [<IPv6 address>]:<port>.  Look for square brackets to determine whether
