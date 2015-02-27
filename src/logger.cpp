@@ -224,11 +224,16 @@ void Logger::cycle_log_file(const timestamp_t& ts)
   _fd = fopen(fname, "a");
 
   // Set up /var/log/<component>/<component>_current.txt as a symlink
+  // If this fails, there's not much we can do, it's not like we can drop
+  // a log.
   char cfname[100];
   sprintf(cfname, "%s_current.txt",
           _prefix.c_str());
   unlink(cfname);
-  symlink(fname, cfname);
+  if (symlink(fname, cfname) < 0)
+  {
+    // We don't get a helpful symlink.
+  }
 
   if (_fd == NULL)
   {
