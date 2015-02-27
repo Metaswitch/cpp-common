@@ -44,15 +44,24 @@
 #include "log.h"
 #include "logger.h"
 
-/// Logger that prints logged items to stdout.
-/// PrintingTestLogger::DEFAULT should be the only instance needed.
-class PrintingTestLogger : public Logger
+const int DEFAULT_LOGGING_LEVEL = 4;
+
+// Base class of PrintingTestLogger and CapturingTestLogger. Provides
+// the "log to stdout" functionality that's common to both, but
+// doesn't set/unset itself as the logger on construction/destruction.
+
+class BaseTestLogger : public Logger
 {
 public:
-  /// Get a logger with the default behaviour.
-  PrintingTestLogger();
+BaseTestLogger():
+  _last_logger(NULL),
+  _last_logging_level(DEFAULT_LOGGING_LEVEL)
+ {};
 
-  virtual ~PrintingTestLogger();
+  virtual ~BaseTestLogger()
+  {
+  }
+
 
   virtual void write(const char* data);
   void flush();
@@ -64,15 +73,31 @@ public:
 
   void setupFromEnvironment();
   void take_over();
-
-  static PrintingTestLogger DEFAULT;
+  void relinquish_control();
 
 protected:
   bool _noisy;
   Logger* _last_logger;
+  int _last_logging_level;
 };
 
-// Besides the function of PrintingTestLogger, captures logs to an
+/// Logger that prints logged items to stdout. This is just the
+/// function inherited from BaseTestLogger, plus a
+/// constructor/destructor that set/unset this as the global logger.
+///
+/// PrintingTestLogger::DEFAULT should be the only instance needed.
+class PrintingTestLogger : public BaseTestLogger
+{
+public:
+  PrintingTestLogger();
+
+  virtual ~PrintingTestLogger();
+
+  static PrintingTestLogger DEFAULT;
+};
+
+
+// Besides printing logs to stdout, captures them to an
 // internal buffer and provides a contains() method for checking what
 // was logged. Be wary of using this as it leads to test fragility.
 
@@ -83,28 +108,14 @@ protected:
 // On destruction, reinstates PrintingTestLogger::DEFAULT as the
 // logger. This includes setting the logging level back from 99 to the
 // value based on the NOISY environment variable.
-class CapturingTestLogger: public PrintingTestLogger
+class CapturingTestLogger: public BaseTestLogger
 {
 public:
-  CapturingTestLogger() : PrintingTestLogger()
-  {
-    setPrinting(PrintingTestLogger::DEFAULT.isPrinting());
-    setLoggingLevel(99);
-    pthread_mutex_init(&_logger_lock, NULL);
-  };
 
-  CapturingTestLogger(int level) : PrintingTestLogger()
-  {
-    setPrinting(PrintingTestLogger::DEFAULT.isPrinting());
-    setLoggingLevel(level);
-    pthread_mutex_init(&_logger_lock, NULL);
-  };
-
-  virtual ~CapturingTestLogger()
-  {
-    pthread_mutex_destroy(&_logger_lock);
-  };
-
+  CapturingTestLogger();
+  CapturingTestLogger(int level);
+  ~CapturingTestLogger();
+  
   void write(const char* line);
   bool contains(const char* fragment);
 
