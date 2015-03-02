@@ -41,7 +41,6 @@
 #include <map>
 #include <string>
 #include <vector>
-#include <list>
 
 /// Tracks the current view of the underlying memcached cluster, including
 /// calculating the server list and the replica configurations.
@@ -65,13 +64,12 @@ public:
   /// Calculates the vbucket moves that are currently ongoing.
   ///
   /// The returned object has an entry for each moving vbucket ID, giving the
-  /// old the replica list and the new one.  vBuckets that are not moving are
+  /// old replica list and the new one.  vBuckets that are not moving are
   /// skipped in the output (thus, if there's no move ongoing, this map is
   /// empty).
-  const std::map<int,
-                 std::pair<std::vector<std::string>,
-                           std::vector<std::string>>>&
-    calculate_vbucket_moves() const
+  typedef std::vector<std::string> ReplicaList;
+  typedef std::pair<ReplicaList, ReplicaList> ReplicaChange;
+  const std::map<int, ReplicaChange>& calculate_vbucket_moves() const
   {
     return _changes;
   }
