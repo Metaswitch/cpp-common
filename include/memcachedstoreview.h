@@ -50,9 +50,8 @@ public:
   MemcachedStoreView(int vbuckets, int replicas);
   ~MemcachedStoreView();
 
-  /// Updates the view for new current and target server lists.
-  void update(const std::vector<std::string>& servers,
-              const std::vector<std::string>& new_servers);
+  /// Updates the view based on new configuration.
+  void update(const MemcachedConfig& config);
 
   /// Returns the current server list.
   const std::vector<std::string>& servers() const { return _servers; };
