@@ -50,7 +50,7 @@ class HealthChecker
 {
 public:
   HealthChecker();
-  ~HealthChecker();
+  virtual ~HealthChecker();
 
   // Virtual for mocking in UT
   virtual void health_check_passed();

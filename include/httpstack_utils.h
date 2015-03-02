@@ -232,6 +232,7 @@ namespace HttpStackUtils
     {
     public:
       Wrapper(Pool* pool, HandlerInterface* handler);
+      virtual ~Wrapper(){};
 
       /// Implementation of HandlerInterface::process_request(). This passes
       /// the request to a thread pool for processing.
