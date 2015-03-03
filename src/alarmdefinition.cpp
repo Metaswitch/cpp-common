@@ -513,6 +513,36 @@ namespace AlarmDef {
       }
     },
 
+    {ASTAIRE_PROCESS_FAIL, SOFTWARE_ERROR,
+      {
+        {CLEARED,
+          "Astaire: Process failure cleared",
+          "The Astaire process has been restored to normal operation."
+        },
+        {CRITICAL,
+          "Astaire: Process failure",
+          "Monit has detected that the Astaire process has failed. A restart will automatically be attempted. "
+          "If this alarm does not clear, the Astaire process may have been stopped or an unrecoverable failure "
+          "may have occurred."
+        }
+      }
+    },
+
+    {ASTAIRE_RESYNC_IN_PROGRESS, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Astaire: Memcached database synchronized",
+          "The local Memcached process is synchronized with the rest of the cluster. If a scale-up or "
+          "scale-down operation is in progress, it can now be completed."
+        },
+        {MINOR,
+          "Astaire: Memcached database resynchronization in progress",
+          "Astaire is resynchronizing the local Memcached process with the rest of the cluster. Service should "
+          "be unaffected. If a scale-up or scale-down operation is in progress, wait for resynchronization to "
+          "finish before completing the operation."
+        }
+      }
+    },
   };
 }
 
