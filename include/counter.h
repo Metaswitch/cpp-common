@@ -56,6 +56,8 @@ public:
     reset();
   }
 
+  virtual ~Counter() {}
+
   /// Increment function
   void increment(void);
 
