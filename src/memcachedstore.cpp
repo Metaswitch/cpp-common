@@ -57,9 +57,6 @@
 #include "memcachedstore.h"
 
 
-/// The default lifetime (in seconds) of tombstones written to memcached.
-static const int DEFAULT_TOMBSTONE_LIFETIME = 0;
-
 /// The data used in memcached to represent a tombstone.
 static const std::string TOMBSTONE = "";
 
@@ -88,7 +85,8 @@ MemcachedStore::MemcachedStore(bool binary,
   _vbucket_comm_state(_vbuckets),
   _vbucket_comm_fail_count(0),
   _vbucket_alarm(vbucket_alarm),
-  _tombstone_lifetime(DEFAULT_TOMBSTONE_LIFETIME)
+  _tombstone_lifetime(0),
+  _config_reader(new MemcachedConfigFileReader(config_file))
 {
   // Create the thread local key for the per thread data.
   pthread_key_create(&_thread_local, MemcachedStore::cleanup_connection);
@@ -119,8 +117,9 @@ MemcachedStore::MemcachedStore(bool binary,
 
 MemcachedStore::~MemcachedStore()
 {
-  // Destroy the updater (if it was created).
-  delete _updater;
+  // Destroy the updater (if it was created) and the config reader.
+  delete _updater; _updater = NULL;
+  delete _config_reader; _config_reader = NULL;
 
   // Clean up this thread's connection now, rather than waiting for
   // pthread_exit.  This is to support use by single-threaded code
@@ -146,14 +145,13 @@ void MemcachedStore::set_max_connect_latency(unsigned int ms)
 
 /// Set up a new view of the memcached cluster(s).  The view determines
 /// how data is distributed around the cluster.
-void MemcachedStore::new_view(const std::vector<std::string>& servers,
-                              const std::vector<std::string>& new_servers)
+void MemcachedStore::new_view(const MemcachedConfig& config)
 {
   LOG_STATUS("Updating memcached store configuration");
 
   // Create a new view with the new server lists.
   MemcachedStoreView view(_vbuckets, _replicas);
-  view.update(servers, new_servers);
+  view.update(config);
 
   // Now copy the view so it can be accessed by the worker threads.
   pthread_rwlock_wrlock(&_view_lock);
@@ -179,83 +177,16 @@ void MemcachedStore::new_view(const std::vector<std::string>& servers,
 
 void MemcachedStore::update_config()
 {
-  // Read the memstore file.
-  std::ifstream f(_config_file);
-  std::vector<std::string> servers;
-  std::vector<std::string> new_servers;
-  int tombstone_lifetime = DEFAULT_TOMBSTONE_LIFETIME;
+  MemcachedConfig cfg;
 
-  if (f.is_open())
+  if (_config_reader->read_config(cfg))
   {
-    LOG_STATUS("Reloading memcached configuration from %s file", _config_file.c_str());
-    while (f.good())
-    {
-      std::string line;
-      getline(f, line);
-
-      if (line.length() > 0)
-      {
-        // Read a non-blank line.
-        std::vector<std::string> tokens;
-        Utils::split_string(line, '=', tokens, 0, true);
-        if (tokens.size() != 2)
-        {
-          LOG_ERROR("Malformed %s file (got bad line: '%s')",
-                    _config_file.c_str(),
-                    line.c_str());
-          break;
-        }
-
-        LOG_STATUS(" %s=%s", tokens[0].c_str(), tokens[1].c_str());
-
-        if (tokens[0] == "servers")
-        {
-          // Found line defining servers.
-          Utils::split_string(tokens[1], ',', servers, 0, true);
-        }
-        else if (tokens[0] == "new_servers")
-        {
-          // Found line defining new servers.
-          Utils::split_string(tokens[1], ',', new_servers, 0, true);
-        }
-        else if (tokens[0] == "tombstone_lifetime")
-        {
-          // Read the tombstone lifetime from the config file. Check it is
-          // actually a valid integer before committing to the member variable
-          // (atoi stops when it reaches non-numeric characters).
-          tombstone_lifetime = atoi(tokens[1].c_str());
-
-          if (std::to_string(tombstone_lifetime) != tokens[1])
-          {
-            LOG_ERROR("'%s' contained an invalid tombstone_lifetime line which will be ignored:\n%s",
-                      _config_file.c_str(),
-                      line.c_str());
-
-            // Set the lifetime back to the default.
-            tombstone_lifetime = DEFAULT_TOMBSTONE_LIFETIME;
-          }
-        }
-      }
-    }
-    f.close();
-
-    if (servers.size() > 0)
-    {
-      LOG_DEBUG("Update memcached store");
-      new_view(servers, new_servers);
-    }
-    else
-    {
-      LOG_ERROR("'%s' does not contain a valid set of servers - keeping previous settings",
-                _config_file.c_str());
-    }
-
-    LOG_DEBUG("Setting tombstone lifetime to %ds", tombstone_lifetime);
-    _tombstone_lifetime = tombstone_lifetime;
+    new_view(cfg);
+    _tombstone_lifetime = cfg.tombstone_lifetime;
   }
   else
   {
-    LOG_ERROR("Failed to open %s file", _config_file.c_str());
+    LOG_ERROR("Failed to read config, keeping previous settings");
   }
 }
 

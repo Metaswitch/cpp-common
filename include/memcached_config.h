@@ -38,6 +38,9 @@
 #ifndef MEMCACHED_CONFIG_H_
 #define MEMCACHED_CONFIG_H_
 
+#include <vector>
+#include <string>
+
 
 /// Structure holding memcached configuration parameters.
 struct MemcachedConfig
@@ -77,12 +80,12 @@ public:
   virtual bool read_config(MemcachedConfig& config) = 0;
 
   /// Virtual destructor.
-  virtual ~MemcachedConfigReader();
+  virtual ~MemcachedConfigReader() {};
 };
 
 
 /// Class that reads the memcached config from a file on disk.
-class MemcachedConfigFileReader
+class MemcachedConfigFileReader : public MemcachedConfigReader
 {
 public:
   /// Constructor

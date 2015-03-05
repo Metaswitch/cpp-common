@@ -49,6 +49,7 @@ extern "C" {
 }
 
 #include "store.h"
+#include "memcached_config.h"
 #include "memcachedstoreview.h"
 #include "updater.h"
 #include "sas.h"
@@ -71,8 +72,7 @@ public:
   /// Flags that the store should use a new view of the memcached cluster to
   /// distribute data.  Note that this is public because it is called from
   /// the MemcachedStoreUpdater class and from UT classes.
-  void new_view(const std::vector<std::string>& servers,
-                const std::vector<std::string>& new_servers);
+  void new_view(const MemcachedConfig& config);
 
   bool has_servers() { return (_servers.size() > 0); };
 
@@ -207,7 +207,7 @@ private:
   // (This is only used during normal running - at start-of-day we use
   // a fixed 10ms time, to start up as quickly as possible).
   unsigned int _max_connect_latency_ms;
-  
+
   // The set of read and write replicas for each vbucket.
   std::vector<std::vector<std::string> > _read_replicas;
   std::vector<std::vector<std::string> > _write_replicas;
@@ -244,6 +244,9 @@ private:
   //
   // Atomic as it is set by the updater thread and read by application threads.
   std::atomic<int> _tombstone_lifetime;
+
+  // Object used to read the memcached config.
+  MemcachedConfigReader* _config_reader;
 };
 
 #endif

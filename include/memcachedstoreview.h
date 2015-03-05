@@ -42,6 +42,8 @@
 #include <string>
 #include <vector>
 
+#include "memcached_config.h"
+
 /// Tracks the current view of the underlying memcached cluster, including
 /// calculating the server list and the replica configurations.
 class MemcachedStoreView
