@@ -116,7 +116,8 @@ DnsResult::~DnsResult()
 }
 
 DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
-  _cache_lock(PTHREAD_MUTEX_INITIALIZER),
+  _cache_lock(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
+  _got_reply_cond(PTHREAD_COND_INITIALIZER),
   _cache()
 {
   // Initialize the ares library.  This might have already been done by curl
@@ -145,6 +146,7 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers
 
 DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
   _cache_lock(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
+  _got_reply_cond(PTHREAD_COND_INITIALIZER),
   _cache()
 {
   LOG_STATUS("Creating Cached Resolver using server %s", dns_server.c_str());
@@ -245,7 +247,6 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
         // same query.
         LOG_DEBUG("Create and execute DNS query transaction");
         ce->pending_query = true;
-        pthread_mutex_lock(&ce->lock);
         DnsTsx* tsx = new DnsTsx(channel, *domain, dnstype);
         tsx->execute();
       }
@@ -271,21 +272,17 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   {
     DnsCacheEntryPtr ce = get_cache_entry(*i, dnstype);
 
+    // If we found the cache entry, check whether it is still pending a query.
+    while ((ce != NULL) && (ce->pending_query))
+    {
+      // We must release the global lock and let the other thread finish
+      // the query.
+      pthread_cond_wait(&_got_reply_cond, &_cache_lock);
+      ce = get_cache_entry(*i, dnstype);
+    }
+
     if (ce != NULL)
     {
-      // Found the cache entry, so check whether it is still pending a query.
-      if (ce->pending_query)
-      {
-        // We must release the global lock and let the other thread finish
-        // the query.
-        // @TODO - may need to do something with reference counting of the
-        // DnsCacheEntry to make this watertight.
-        pthread_mutex_unlock(&_cache_lock);
-        pthread_mutex_lock(&ce->lock);
-        pthread_mutex_unlock(&ce->lock);
-        pthread_mutex_lock(&_cache_lock);
-      }
-
       // Can now pull the information from the cache entry in to the results.
       LOG_DEBUG("Pulling %d records from cache for %s %s",
                 ce->records.size(),
@@ -561,7 +558,10 @@ void DnsCachedResolver::dns_response(const std::string& domain,
   // Flag that the cache entry is no longer pending a query, and release
   // the lock on the cache entry.
   ce->pending_query = false;
-  pthread_mutex_unlock(&ce->lock);
+
+  // Another thread may be waiting for our query to finish, so
+  // broadcast a signal to wake it up.
+  pthread_cond_signal(&_got_reply_cond);
 
   pthread_mutex_unlock(&_cache_lock);
 }
@@ -589,7 +589,6 @@ DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::get_cache_entry(const std
 DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::create_cache_entry(const std::string& domain, int dnstype)
 {
   DnsCacheEntryPtr ce = DnsCacheEntryPtr(new DnsCacheEntry());
-  pthread_mutex_init(&ce->lock, NULL);
   ce->domain = domain;
   ce->dnstype = dnstype;
   ce->expires = 0;
@@ -821,7 +820,7 @@ void DnsCachedResolver::DnsTsx::ares_callback(void* arg,
 
 void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned char* abuf, int alen)
 {
-  --_channel->pending_queries;
   _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen);
+  --_channel->pending_queries;
 }
 

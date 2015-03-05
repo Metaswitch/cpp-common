@@ -125,7 +125,6 @@ private:
 
   struct DnsCacheEntry
   {
-    pthread_mutex_t lock;
     bool pending_query;
     std::string domain;
     int dnstype;
@@ -190,6 +189,7 @@ private:
   /// The cache itself is held in a map indexed on RRTYPE and RRNAME, and a
   /// multimap indexed on expiry time.
   pthread_mutex_t _cache_lock;
+  pthread_cond_t _got_reply_cond;
   DnsCache _cache;
 
   // Expiry is done efficiently by storing pointers to cache entries in a
