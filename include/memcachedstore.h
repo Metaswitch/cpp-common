@@ -56,18 +56,23 @@ extern "C" {
 #include "sasevent.h"
 #include "communicationmonitor.h"
 
-/// @class MemcachedStore
-///
-/// A memcached-based implementation of the Store class.
-class MemcachedStore : public Store
+//
+// This file contains the definition of a memcached-based store. This is split
+// across two classes:
+// -  BaseMemcachedStore which contains the majority of the code.
+// -  MemcachedStore. This is the class that users of the store should
+//    create.
+//
+// MemcacheStore is separate class as this allows different constructors to be
+// defined which all delegate to the BaseMemcachedStore class. This is required
+// as BaseMemcachedStore contains constant memebers, and our version of GCC
+// does not support delegating to constructors in the same class.
+//
+
+class BaseMemcachedStore : public Store
 {
 public:
-  MemcachedStore(bool binary,
-                 const std::string& config_file,
-                 CommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL);
-
-  ~MemcachedStore();
+  ~BaseMemcachedStore();
 
   /// Flags that the store should use a new view of the memcached cluster to
   /// distribute data.  Note that this is public because it is called from
@@ -103,6 +108,13 @@ public:
   void update_config();
 
 private:
+  // Constructor. This is private to prevent the BaseMemcachedStore from being
+  // instantiated directly.
+  BaseMemcachedStore(bool binary,
+                     MemcachedConfigReader* config_reader,
+                     CommunicationMonitor* comm_monitor,
+                     Alarm* vbucket_alarm);
+
   // A copy of this structure is maintained for each worker thread, as
   // thread local data.
   typedef struct connection
@@ -120,8 +132,6 @@ private:
     std::vector<std::vector<memcached_st*> > read_replicas;
 
   } connection;
-
-  std::string _config_file;
 
   /// Returns the vbucket for a specified key.
   int vbucket_for_key(const std::string& key);
@@ -174,7 +184,7 @@ private:
                                                SAS::TrailId trail);
 
   // Stores a pointer to an updater object
-  Updater<void, MemcachedStore>* _updater;
+  Updater<void, BaseMemcachedStore>* _updater;
 
   // Used to store a connection structure for each worker thread.
   pthread_key_t _thread_local;
@@ -247,6 +257,43 @@ private:
 
   // Object used to read the memcached config.
   MemcachedConfigReader* _config_reader;
+};
+
+
+/// @class MemcachedStore
+///
+/// A memcached-based implementation of the Store class.
+class MemcachedStore : public BaseMemcachedStore
+{
+public:
+  /// Construct a MemcachedStore that reads its config from a file.
+  ///
+  /// @param binary        - Whether to use the binary or text interface to
+  ///                        memcached.
+  /// @param config_file   - The file (name and path) to read the config from.
+  /// @param comm_monitor  - Object tracking memcached communications.
+  /// @param vbucket_alarm - Alarm object to kick if a vbucket is
+  ///                        uncontactable.
+  MemcachedStore(bool binary,
+                 const std::string& config_file,
+                 CommunicationMonitor* comm_monitor = NULL,
+                 Alarm* vbucket_alarm = NULL);
+
+  /// Construct a MemcachedStore that reads its config from a user-supplied
+  /// object.
+  ///
+  /// @param binary        - Whether to use the binary or text interface to
+  ///                        memcached.
+  /// @param config_file   - A MemcachedConfigReader that the store will use to
+  ///                        fetch its config. The store takes ownership of
+  ///                        this object and is responsible for freeing it.
+  /// @param comm_monitor  - Object tracking memcached communications.
+  /// @param vbucket_alarm - Alarm object to kick if a vbucket is
+  ///                        uncontactable.
+  MemcachedStore(bool binary,
+                 MemcachedConfigReader* config_reader,
+                 CommunicationMonitor* comm_monitor = NULL,
+                 Alarm* vbucket_alarm = NULL);
 };
 
 #endif
