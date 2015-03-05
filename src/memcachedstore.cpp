@@ -74,6 +74,7 @@ MemcachedStore::MemcachedStore(bool binary,
                                const std::string& config_file,
                                CommunicationMonitor* comm_monitor,
                                Alarm* vbucket_alarm) :
+  _binary(binary),
   _config_file(config_file),
   _updater(NULL),
   _replicas(2),
@@ -103,7 +104,7 @@ MemcachedStore::MemcachedStore(bool binary,
   // during start-up, and if any are not up we don't want to wait for any
   // significant length of time.
   _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS";
-  _options += (binary) ? " --BINARY-PROTOCOL" : "";
+  _options += (_binary) ? " --BINARY-PROTOCOL" : "";
 
   // Create an updater to keep the store configured appropriately.
   _updater = new Updater<void, MemcachedStore>(this, std::mem_fun(&MemcachedStore::update_config));
@@ -702,7 +703,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       replica_idx = ii;
     }
 
-    LOG_DEBUG("Attempt conditional write to replica %d (connection %p), CAS = %ld, expiry = %d",
+    LOG_DEBUG("Attempt conditional write to vbucket %d on replica %d (connection %p), CAS = %ld, expiry = %d",
+              vbucket,
               replica_idx,
               replicas[replica_idx],
               cas,
@@ -729,7 +731,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       rc = memcached_cas_vb(replicas[replica_idx],
                             key_ptr,
                             key_len,
-                            vbucket,
+                            _binary ? vbucket : 0,
                             data.data(),
                             data.length(),
                             memcached_expiration,
@@ -781,7 +783,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       memcached_set_vb(replicas[jj],
                       key_ptr,
                       key_len,
-                      vbucket,
+                      _binary ? vbucket : 0,
                       data.data(),
                       data.length(),
                       memcached_expiration,
@@ -921,7 +923,7 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
       rc = memcached_add_vb(replica,
                             key_ptr,
                             key_len,
-                            vbucket,
+                            _binary ? vbucket : 0,
                             data.data(),
                             data.length(),
                             memcached_expiration,
@@ -933,7 +935,7 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
       rc = memcached_cas_vb(replica,
                             key_ptr,
                             key_len,
-                            vbucket,
+                            _binary ? vbucket : 0,
                             data.data(),
                             data.length(),
                             memcached_expiration,

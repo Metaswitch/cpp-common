@@ -118,6 +118,7 @@ private:
 
   } connection;
 
+  bool _binary;
   std::string _config_file;
 
   /// Returns the vbucket for a specified key.
