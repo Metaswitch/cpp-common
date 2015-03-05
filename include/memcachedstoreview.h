@@ -143,8 +143,9 @@ private:
   std::vector<std::vector<std::string> > _read_set;
   std::vector<std::vector<std::string> > _write_set;
 
-  // vBucket allocation hanges currently ongoing in the cluster (may be empty).
-  std::map<int, std::pair<std::vector<std::string>, std::vector<std::string>>> _changes;
+  // vBucket allocation changes currently ongoing in the cluster (may be
+  // empty).
+  std::map<int, ReplicaChange> _changes;
 };
 
 #endif
