@@ -117,7 +117,6 @@ DnsResult::~DnsResult()
 
 DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
   _cache_lock(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
-  _got_reply_cond(PTHREAD_COND_INITIALIZER),
   _cache()
 {
   // Initialize the ares library.  This might have already been done by curl
@@ -142,11 +141,16 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers
   // We store a DNSResolver in thread-local data, so create the thread-local
   // store.
   pthread_key_create(&_thread_local, (void(*)(void*))&destroy_dns_channel);  
+
+  pthread_condattr_t cond_attr;
+  pthread_condattr_init(&cond_attr);
+  pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+  pthread_cond_init(&_got_reply_cond, &cond_attr);
+  pthread_condattr_destroy(&cond_attr);
 }
 
 DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
   _cache_lock(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
-  _got_reply_cond(PTHREAD_COND_INITIALIZER),
   _cache()
 {
   LOG_STATUS("Creating Cached Resolver using server %s", dns_server.c_str());
@@ -167,6 +171,12 @@ DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
   // We store a DNSResolver in thread-local data, so create the thread-local
   // store.
   pthread_key_create(&_thread_local, (void(*)(void*))&destroy_dns_channel);
+
+  pthread_condattr_t cond_attr;
+  pthread_condattr_init(&cond_attr);
+  pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+  pthread_cond_init(&_got_reply_cond, &cond_attr);
+  pthread_condattr_destroy(&cond_attr);
 }
 
 DnsCachedResolver::~DnsCachedResolver()
@@ -561,7 +571,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
 
   // Another thread may be waiting for our query to finish, so
   // broadcast a signal to wake it up.
-  pthread_cond_signal(&_got_reply_cond);
+  pthread_cond_broadcast(&_got_reply_cond);
 
   pthread_mutex_unlock(&_cache_lock);
 }
