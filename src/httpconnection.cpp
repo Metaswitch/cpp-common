@@ -632,8 +632,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
       // Decide whether to keep trying.
       if ((num_http_503_responses + num_timeouts_or_io_errors >= 2) ||
           (num_http_504_responses >= 1) ||
-          fatal_http_error ||
-          (rc == CURLE_COULDNT_CONNECT))
+          fatal_http_error)
       {
         break;
       }
