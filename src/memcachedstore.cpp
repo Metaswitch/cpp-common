@@ -1071,19 +1071,23 @@ void MemcachedStore::delete_with_tombstone(const std::string& fqkey,
   uint32_t now = time(NULL);
   uint32_t exptime = now + _tombstone_lifetime;
 
+  // Calculate the vbucket for this key.
+  int vbucket = vbucket_for_key(fqkey);
+
   for (size_t ii = 0; ii < replicas.size(); ++ii)
   {
     LOG_DEBUG("Attempt write tombstone to replica %d (connection %p)",
               ii,
               replicas[ii]);
 
-    memcached_return_t rc = memcached_set(replicas[ii],
-                                          key_ptr,
-                                          key_len,
-                                          TOMBSTONE.data(),
-                                          TOMBSTONE.length(),
-                                          _tombstone_lifetime,
-                                          exptime);
+    memcached_return_t rc = memcached_set_vb(replicas[ii],
+                                             key_ptr,
+                                             key_len,
+                                             _binary ? vbucket : 0,
+                                             TOMBSTONE.data(),
+                                             TOMBSTONE.length(),
+                                             _tombstone_lifetime,
+                                             exptime);
 
     if (!memcached_success(rc))
     {
