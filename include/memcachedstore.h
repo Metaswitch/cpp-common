@@ -107,14 +107,15 @@ public:
   /// Updates the cluster settings
   void update_config();
 
-private:
-  // Constructor. This is private to prevent the BaseMemcachedStore from being
+protected:
+  // Constructor. This is protected to prevent the BaseMemcachedStore from being
   // instantiated directly.
   BaseMemcachedStore(bool binary,
                      MemcachedConfigReader* config_reader,
                      CommunicationMonitor* comm_monitor,
                      Alarm* vbucket_alarm);
 
+private:
   // A copy of this structure is maintained for each worker thread, as
   // thread local data.
   typedef struct connection
