@@ -49,30 +49,35 @@ extern "C" {
 }
 
 #include "store.h"
+#include "memcached_config.h"
 #include "memcachedstoreview.h"
 #include "updater.h"
 #include "sas.h"
 #include "sasevent.h"
 #include "communicationmonitor.h"
 
-/// @class MemcachedStore
-///
-/// A memcached-based implementation of the Store class.
-class MemcachedStore : public Store
+//
+// This file contains the definition of a memcached-based store. This is split
+// across two classes:
+// -  BaseMemcachedStore which contains the majority of the code.
+// -  MemcachedStore. This is the class that users of the store should
+//    create.
+//
+// MemcacheStore is separate class as this allows different constructors to be
+// defined which all delegate to the BaseMemcachedStore class. This is required
+// as BaseMemcachedStore contains constant memebers, and our version of GCC
+// does not support delegating to constructors in the same class.
+//
+
+class BaseMemcachedStore : public Store
 {
 public:
-  MemcachedStore(bool binary,
-                 const std::string& config_file,
-                 CommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL);
-
-  ~MemcachedStore();
+  ~BaseMemcachedStore();
 
   /// Flags that the store should use a new view of the memcached cluster to
   /// distribute data.  Note that this is public because it is called from
   /// the MemcachedStoreUpdater class and from UT classes.
-  void new_view(const std::vector<std::string>& servers,
-                const std::vector<std::string>& new_servers);
+  void new_view(const MemcachedConfig& config);
 
   bool has_servers() { return (_servers.size() > 0); };
 
@@ -102,6 +107,14 @@ public:
   /// Updates the cluster settings
   void update_config();
 
+protected:
+  // Constructor. This is protected to prevent the BaseMemcachedStore from being
+  // instantiated directly.
+  BaseMemcachedStore(bool binary,
+                     MemcachedConfigReader* config_reader,
+                     CommunicationMonitor* comm_monitor,
+                     Alarm* vbucket_alarm);
+
 private:
   // A copy of this structure is maintained for each worker thread, as
   // thread local data.
@@ -120,8 +133,6 @@ private:
     std::vector<std::vector<memcached_st*> > read_replicas;
 
   } connection;
-
-  std::string _config_file;
 
   /// Returns the vbucket for a specified key.
   int vbucket_for_key(const std::string& key);
@@ -174,7 +185,7 @@ private:
                                                SAS::TrailId trail);
 
   // Stores a pointer to an updater object
-  Updater<void, MemcachedStore>* _updater;
+  Updater<void, BaseMemcachedStore>* _updater;
 
   // Used to store a connection structure for each worker thread.
   pthread_key_t _thread_local;
@@ -207,7 +218,7 @@ private:
   // (This is only used during normal running - at start-of-day we use
   // a fixed 10ms time, to start up as quickly as possible).
   unsigned int _max_connect_latency_ms;
-  
+
   // The set of read and write replicas for each vbucket.
   std::vector<std::vector<std::string> > _read_replicas;
   std::vector<std::vector<std::string> > _write_replicas;
@@ -244,6 +255,46 @@ private:
   //
   // Atomic as it is set by the updater thread and read by application threads.
   std::atomic<int> _tombstone_lifetime;
+
+  // Object used to read the memcached config.
+  MemcachedConfigReader* _config_reader;
+};
+
+
+/// @class MemcachedStore
+///
+/// A memcached-based implementation of the Store class.
+class MemcachedStore : public BaseMemcachedStore
+{
+public:
+  /// Construct a MemcachedStore that reads its config from a file.
+  ///
+  /// @param binary        - Whether to use the binary or text interface to
+  ///                        memcached.
+  /// @param config_file   - The file (name and path) to read the config from.
+  /// @param comm_monitor  - Object tracking memcached communications.
+  /// @param vbucket_alarm - Alarm object to kick if a vbucket is
+  ///                        uncontactable.
+  MemcachedStore(bool binary,
+                 const std::string& config_file,
+                 CommunicationMonitor* comm_monitor = NULL,
+                 Alarm* vbucket_alarm = NULL);
+
+  /// Construct a MemcachedStore that reads its config from a user-supplied
+  /// object.
+  ///
+  /// @param binary        - Whether to use the binary or text interface to
+  ///                        memcached.
+  /// @param config_file   - A MemcachedConfigReader that the store will use to
+  ///                        fetch its config. The store takes ownership of
+  ///                        this object and is responsible for freeing it.
+  /// @param comm_monitor  - Object tracking memcached communications.
+  /// @param vbucket_alarm - Alarm object to kick if a vbucket is
+  ///                        uncontactable.
+  MemcachedStore(bool binary,
+                 MemcachedConfigReader* config_reader,
+                 CommunicationMonitor* comm_monitor = NULL,
+                 Alarm* vbucket_alarm = NULL);
 };
 
 #endif
