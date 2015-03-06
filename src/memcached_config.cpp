@@ -63,7 +63,7 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
 
   std::ifstream f(_filename);
 
-  if (f.is_open())
+  if (f.is_open() && f.good())
   {
     LOG_STATUS("Reloading memcached configuration from '%s'", _filename.c_str());
 
@@ -71,6 +71,8 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
     {
       std::string line;
       getline(f, line);
+
+      LOG_DEBUG("Got line: %s", line.c_str());
 
       if (line.length() > 0)
       {
@@ -120,7 +122,7 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
     return false;
   }
 
-  if (config.servers.size() < 0)
+  if (config.servers.size() == 0)
   {
     LOG_ERROR("'%s' does not contain a valid set of servers", _filename.c_str());
     return false;
