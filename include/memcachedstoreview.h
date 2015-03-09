@@ -61,6 +61,19 @@ public:
   const std::vector<std::string>& read_replicas(int vbucket) const { return _read_set[vbucket]; };
   const std::vector<std::string>& write_replicas(int vbucket) const { return _write_set[vbucket]; };
 
+  /// Calculates the vbucket moves that are currently ongoing.
+  ///
+  /// The returned object has an entry for each moving vbucket ID, giving the
+  /// old replica list and the new one.  vBuckets that are not moving are
+  /// skipped in the output (thus, if there's no move ongoing, this map is
+  /// empty).
+  typedef std::vector<std::string> ReplicaList;
+  typedef std::pair<ReplicaList, ReplicaList> ReplicaChange;
+  const std::map<int, ReplicaChange>& calculate_vbucket_moves() const
+  {
+    return _changes;
+  }
+
 private:
   /// Converts the view into a string suitable for logging.
   std::string view_to_string();
@@ -129,6 +142,10 @@ private:
   // replicas are enabled to maintain redundancy.
   std::vector<std::vector<std::string> > _read_set;
   std::vector<std::vector<std::string> > _write_set;
+
+  // vBucket allocation changes currently ongoing in the cluster (may be
+  // empty).
+  std::map<int, ReplicaChange> _changes;
 };
 
 #endif

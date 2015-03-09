@@ -44,6 +44,7 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include <algorithm>
 
 #include "log.h"
 #include "memcachedstoreview.h"
@@ -68,7 +69,7 @@ std::vector<std::string> MemcachedStoreView::merge_servers(const std::vector<std
   std::set<std::string> merged_servers;
   merged_servers.insert(list1.begin(), list1.end());
   merged_servers.insert(list2.begin(), list2.end());
-  
+
   std::vector<std::string> ret(merged_servers.begin(), merged_servers.end());
   return ret;
 }
@@ -107,6 +108,9 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       }
       _write_set[ii] = _read_set[ii];
     }
+
+    // No changes ongoing.
+    _changes.clear();
   }
   else
   {
@@ -117,10 +121,13 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
     _servers = merge_servers(servers, new_servers);
 
     // Calculate the two rings needed to generate the vbucket replica sets
-    Ring c_ring(_vbuckets);
-    c_ring.update(servers.size());
-    Ring n_ring(_vbuckets);
-    n_ring.update(new_servers.size());
+    Ring current_ring(_vbuckets);
+    current_ring.update(servers.size());
+    Ring new_ring(_vbuckets);
+    new_ring.update(new_servers.size());
+
+    // We'll rebuild _changes as we iterate over the list.
+    _changes.clear();
 
     for (int ii = 0; ii < _vbuckets; ++ii)
     {
@@ -129,8 +136,39 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
 
       // Calculate the read and write replica sets for this bucket for both
       // current and target node sets.
-      std::vector<int> c_nodes = c_ring.get_nodes(ii, _replicas);
-      std::vector<int> n_nodes = n_ring.get_nodes(ii, _replicas);
+      std::vector<int> current_nodes = current_ring.get_nodes(ii, _replicas);
+      std::vector<int> new_nodes = new_ring.get_nodes(ii, _replicas);
+
+      // Determine if the set of nodes has changed by sorting the above two
+      // vectors and comparing.
+      std::vector<int> current_nodes_sorted = current_nodes;
+      std::vector<int> new_nodes_sorted = new_nodes;
+      std::sort(current_nodes_sorted.begin(), current_nodes_sorted.end());
+      std::sort(new_nodes_sorted.begin(), new_nodes_sorted.end());
+      if (current_nodes_sorted != new_nodes_sorted)
+      {
+        // Lists are different, add an entry to _changes to indicate this.
+        //
+        // Build the structure from the inside out (build both replica lists,
+        // create a pair from them then add to the _changes map under the
+        // vbucket index.
+        std::vector<std::string> current_replicas;
+        std::vector<std::string> new_replicas;
+        for (std::vector<int>::const_iterator it = current_nodes.begin();
+             it != current_nodes.end();
+             ++it)
+        {
+          current_replicas.push_back(servers[*it]);
+        }
+        for (std::vector<int>::const_iterator it = new_nodes.begin();
+             it != new_nodes.end();
+             ++it)
+        {
+          new_replicas.push_back(new_servers[*it]);
+        }
+        std::pair<std::vector<std::string>, std::vector<std::string>> change_entry(current_replicas, new_replicas);
+        _changes[ii] = change_entry;
+      }
 
       // Set the first read and write replica to the first node in the
       // current replica set.  This ensures most reads will complete
@@ -138,7 +176,7 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       _read_set[ii].clear();
       _write_set[ii].clear();
 
-      std::string initial_server = servers[c_nodes[0]];
+      std::string initial_server = servers[current_nodes[0]];
       _read_set[ii].push_back(initial_server);
       _write_set[ii].push_back(initial_server);
       in_set[initial_server] = true;
@@ -150,7 +188,7 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       // all nodes in the new replica set will have the full set of data.
       for (int jj = 0; jj < _replicas; ++jj)
       {
-        std::string server = new_servers[n_nodes[jj]];
+        std::string server = new_servers[new_nodes[jj]];
         if (!in_set[server])
         {
           _read_set[ii].push_back(server);
@@ -165,7 +203,7 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       // not already in the set.
       for (int jj = 1; jj < _replicas; ++jj)
       {
-        std::string server = servers[c_nodes[jj]];
+        std::string server = servers[current_nodes[jj]];
         if (!in_set[server])
         {
           _read_set[ii].push_back(server);
