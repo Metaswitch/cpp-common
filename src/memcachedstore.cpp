@@ -74,6 +74,7 @@ MemcachedStore::MemcachedStore(bool binary,
                                const std::string& config_file,
                                CommunicationMonitor* comm_monitor,
                                Alarm* vbucket_alarm) :
+  _binary(binary),
   _config_file(config_file),
   _updater(NULL),
   _replicas(2),
@@ -104,7 +105,7 @@ MemcachedStore::MemcachedStore(bool binary,
   // during start-up, and if any are not up we don't want to wait for any
   // significant length of time.
   _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS --POLL-TIMEOUT=250";
-  _options += (binary) ? " --BINARY_PROTOCOL" : "";
+  _options += (binary) ? " --BINARY-PROTOCOL" : "";
 
   // Create an updater to keep the store configured appropriately.
   _updater = new Updater<void, MemcachedStore>(this, std::mem_fun(&MemcachedStore::update_config));
@@ -706,7 +707,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       replica_idx = ii;
     }
 
-    LOG_DEBUG("Attempt conditional write to replica %d (connection %p), CAS = %ld, expiry = %d",
+    LOG_DEBUG("Attempt conditional write to vbucket %d on replica %d (connection %p), CAS = %ld, expiry = %d",
+              vbucket,
               replica_idx,
               replicas[replica_idx],
               cas,
@@ -720,6 +722,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       rc = add_overwriting_tombstone(replicas[replica_idx],
                                      key_ptr,
                                      key_len,
+                                     vbucket,
                                      data,
                                      memcached_expiration,
                                      exptime,
@@ -729,14 +732,15 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     {
       // This is an update to an existing record, so use memcached_cas
       // to make sure it is atomic.
-      rc = memcached_cas(replicas[replica_idx],
-                         key_ptr,
-                         key_len,
-                         data.data(),
-                         data.length(),
-                         memcached_expiration,
-                         exptime,
-                         cas);
+      rc = memcached_cas_vb(replicas[replica_idx],
+                            key_ptr,
+                            key_len,
+                            _binary ? vbucket : 0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            exptime,
+                            cas);
 
       if (!memcached_success(rc))
       {
@@ -780,13 +784,14 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     {
       LOG_DEBUG("Attempt unconditional write to replica %d", jj);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 1);
-      memcached_set(replicas[jj],
-                    key_ptr,
-                    key_len,
-                    data.data(),
-                    data.length(),
-                    memcached_expiration,
-                    exptime);
+      memcached_set_vb(replicas[jj],
+                      key_ptr,
+                      key_len,
+                      _binary ? vbucket : 0,
+                      data.data(),
+                      data.length(),
+                      memcached_expiration,
+                      exptime);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 0);
     }
   }
@@ -899,6 +904,7 @@ memcached_return_t MemcachedStore::get_from_replica(memcached_st* replica,
 memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* replica,
                                                              const char* key_ptr,
                                                              const size_t key_len,
+                                                             const uint32_t vbucket,
                                                              const std::string& data,
                                                              time_t memcached_expiration,
                                                              uint32_t flags,
@@ -918,25 +924,27 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
     if (cas == 0)
     {
       LOG_DEBUG("Attempting memcached ADD command");
-      rc = memcached_add(replica,
-                         key_ptr,
-                         key_len,
-                         data.data(),
-                         data.length(),
-                         memcached_expiration,
-                         flags);
+      rc = memcached_add_vb(replica,
+                            key_ptr,
+                            key_len,
+                            _binary ? vbucket : 0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            flags);
     }
     else
     {
       LOG_DEBUG("Attempting memcached CAS command (cas = %d)", cas);
-      rc = memcached_cas(replica,
-                         key_ptr,
-                         key_len,
-                         data.data(),
-                         data.length(),
-                         memcached_expiration,
-                         flags,
-                         cas);
+      rc = memcached_cas_vb(replica,
+                            key_ptr,
+                            key_len,
+                            _binary ? vbucket : 0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            flags,
+                            cas);
     }
 
     if ((rc == MEMCACHED_DATA_EXISTS) ||
@@ -1067,19 +1075,23 @@ void MemcachedStore::delete_with_tombstone(const std::string& fqkey,
   uint32_t now = time(NULL);
   uint32_t exptime = now + _tombstone_lifetime;
 
+  // Calculate the vbucket for this key.
+  int vbucket = vbucket_for_key(fqkey);
+
   for (size_t ii = 0; ii < replicas.size(); ++ii)
   {
     LOG_DEBUG("Attempt write tombstone to replica %d (connection %p)",
               ii,
               replicas[ii]);
 
-    memcached_return_t rc = memcached_set(replicas[ii],
-                                          key_ptr,
-                                          key_len,
-                                          TOMBSTONE.data(),
-                                          TOMBSTONE.length(),
-                                          _tombstone_lifetime,
-                                          exptime);
+    memcached_return_t rc = memcached_set_vb(replicas[ii],
+                                             key_ptr,
+                                             key_len,
+                                             _binary ? vbucket : 0,
+                                             TOMBSTONE.data(),
+                                             TOMBSTONE.length(),
+                                             _tombstone_lifetime,
+                                             exptime);
 
     if (!memcached_success(rc))
     {

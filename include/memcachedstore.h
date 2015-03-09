@@ -121,6 +121,7 @@ private:
 
   } connection;
 
+  bool _binary;
   std::string _config_file;
 
   /// Returns the vbucket for a specified key.
@@ -168,6 +169,7 @@ private:
   memcached_return_t add_overwriting_tombstone(memcached_st* replica,
                                                const char* key_ptr,
                                                const size_t key_len,
+                                               const uint32_t vbucket,
                                                const std::string& data,
                                                time_t memcached_expiration,
                                                uint32_t flags,
