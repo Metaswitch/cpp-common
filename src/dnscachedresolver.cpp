@@ -280,7 +280,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     pthread_mutex_unlock(&_cache_lock);
     wait_for_replies(channel);
     pthread_mutex_lock(&_cache_lock);
-    LOG_DEBUG("Received all query responses for %s type %d", domain->c_str(), dnstype);
+    LOG_DEBUG("Received all query responses");
   }
 
   // We should now have responses for everything (unless another thread was
@@ -299,7 +299,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
       LOG_DEBUG("Pending query");
       pthread_cond_wait(&_got_reply_cond, &_cache_lock);
       ce = get_cache_entry(*i, dnstype);
-      LOG_DEBUG("Reawoken from wait for %s type %d. Entry pointer %p", domain->c_str(), dnstype, ce);
+      LOG_DEBUG("Reawoken from wait for %s type %d", i->c_str(), dnstype);
     }
 
     if (ce != NULL)
