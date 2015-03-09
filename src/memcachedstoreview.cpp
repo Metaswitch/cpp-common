@@ -75,15 +75,14 @@ std::vector<std::string> MemcachedStoreView::merge_servers(const std::vector<std
 }
 
 /// Updates the view for new current and target server lists.
-void MemcachedStoreView::update(const std::vector<std::string>& servers,
-                                const std::vector<std::string>& new_servers)
+void MemcachedStoreView::update(const MemcachedConfig& config)
 {
   // Generate the appropriate rings and the resulting vbuckets arrays.
-  if (new_servers.empty())
+  if (config.new_servers.empty())
   {
     // Stable configuration.
-    LOG_DEBUG("View is stable with %d nodes", servers.size());
-    _servers = servers;
+    LOG_DEBUG("View is stable with %d nodes", config.servers.size());
+    _servers = config.servers;
 
     // Only need to generate a single ring.
     Ring ring(_vbuckets);
@@ -104,7 +103,7 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       for (size_t jj = 0; jj < server_indexes.size(); jj++)
       {
         int idx = server_indexes[jj];
-        _read_set[ii].push_back(servers[idx]);
+        _read_set[ii].push_back(config.servers[idx]);
       }
       _write_set[ii] = _read_set[ii];
     }
@@ -114,17 +113,19 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
   }
   else
   {
-    LOG_DEBUG("Cluster is moving from %d nodes to %d nodes", servers.size(), new_servers.size());
+    LOG_DEBUG("Cluster is moving from %d nodes to %d nodes",
+              config.servers.size(),
+              config.new_servers.size());
 
     // _servers should contain all the servers we might want to store
     // data on, so combine the old and new server lists, removing any overlap.
-    _servers = merge_servers(servers, new_servers);
+    _servers = merge_servers(config.servers, config.new_servers);
 
     // Calculate the two rings needed to generate the vbucket replica sets
     Ring current_ring(_vbuckets);
-    current_ring.update(servers.size());
+    current_ring.update(config.servers.size());
     Ring new_ring(_vbuckets);
-    new_ring.update(new_servers.size());
+    new_ring.update(config.new_servers.size());
 
     // We'll rebuild _changes as we iterate over the list.
     _changes.clear();
@@ -158,13 +159,13 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
              it != current_nodes.end();
              ++it)
         {
-          current_replicas.push_back(servers[*it]);
+          current_replicas.push_back(config.servers[*it]);
         }
         for (std::vector<int>::const_iterator it = new_nodes.begin();
              it != new_nodes.end();
              ++it)
         {
-          new_replicas.push_back(new_servers[*it]);
+          new_replicas.push_back(config.new_servers[*it]);
         }
         std::pair<std::vector<std::string>, std::vector<std::string>> change_entry(current_replicas, new_replicas);
         _changes[ii] = change_entry;
@@ -176,7 +177,7 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       _read_set[ii].clear();
       _write_set[ii].clear();
 
-      std::string initial_server = servers[current_nodes[0]];
+      std::string initial_server = config.servers[current_nodes[0]];
       _read_set[ii].push_back(initial_server);
       _write_set[ii].push_back(initial_server);
       in_set[initial_server] = true;
@@ -188,7 +189,7 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       // all nodes in the new replica set will have the full set of data.
       for (int jj = 0; jj < _replicas; ++jj)
       {
-        std::string server = new_servers[new_nodes[jj]];
+        std::string server = config.new_servers[new_nodes[jj]];
         if (!in_set[server])
         {
           _read_set[ii].push_back(server);
@@ -203,7 +204,7 @@ void MemcachedStoreView::update(const std::vector<std::string>& servers,
       // not already in the set.
       for (int jj = 1; jj < _replicas; ++jj)
       {
-        std::string server = servers[current_nodes[jj]];
+        std::string server = config.servers[current_nodes[jj]];
         if (!in_set[server])
         {
           _read_set[ii].push_back(server);
