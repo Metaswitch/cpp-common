@@ -245,46 +245,14 @@ const std::vector<memcached_st*>& BaseMemcachedStore::get_replicas(int vbucket,
       // Switch to a longer connect timeout from here on.
       memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, _max_connect_latency_ms);
 
-      // Connect to the server.  The address is specified as either <IPv4 address>:<port>
-      // or [<IPv6 address>]:<port>.  Look for square brackets to determine whether
-      // this is an IPv6 address.
-      std::vector<std::string> contact_details;
-      size_t close_bracket = _servers[ii].find(']');
+      std::string server;
+      int port;
+      Utils::split_host_port(_servers[ii], server, port);
 
-      if (close_bracket == _servers[ii].npos)
-      {
-        // IPv4 connection.  Split the string on the colon.
-        Utils::split_string(_servers[ii], ':', contact_details);
-        if (contact_details.size() != 2)
-        {
-          LOG_ERROR("Malformed contact details %s", _servers[ii].c_str());
-          break;
-        }
-      }
-      else
-      {
-        // IPv6 connection.  Split the string on ']', which removes any white
-        // space from the start and the end, then remove the '[' from the
-        // start of the IP addreess string and the start of the ';' from the start
-        // of the port string.
-        Utils::split_string(_servers[ii], ']', contact_details);
-        if ((contact_details.size() != 2) ||
-            (contact_details[0][0] != '[') ||
-            (contact_details[1][0] != ':'))
-        {
-          LOG_ERROR("Malformed contact details %s", _servers[ii].c_str());
-          break;
-        }
-
-        contact_details[0].erase(contact_details[0].begin());
-        contact_details[1].erase(contact_details[1].begin());
-      }
-
-      LOG_DEBUG("Setting server to IP address %s port %s",
-                contact_details[0].c_str(),
-                contact_details[1].c_str());
-      int port = atoi(contact_details[1].c_str());
-      memcached_server_add(conn->st[_servers[ii]], contact_details[0].c_str(), port);
+      LOG_DEBUG("Setting server to IP address %s port %d",
+                server.c_str(),
+                port);
+      memcached_server_add(conn->st[_servers[ii]], server.c_str(), port);
     }
 
     conn->read_replicas.resize(_vbuckets);

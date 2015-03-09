@@ -231,6 +231,15 @@ namespace Utils
     }
   }
 
+  // Splits a host/port string of the form <IPaddress>:<port> into the address
+  // and port.  Supports hostnames (localhost:port), IPv4 addresses
+  // (z.y.x.w:port) and IPv6 addresses ([abcd::1234]:port).
+  //
+  // Returns true on success.
+  bool split_host_port(const std::string& host_port,
+                       std::string& host,
+                       int& port);
+
   /// Generates a random number which is exponentially distributed
   class ExponentialDistribution
   {
