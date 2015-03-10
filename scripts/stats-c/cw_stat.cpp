@@ -36,7 +36,7 @@
 
 // C++ re-implementation of Ruby cw_stat tool.
 // Runs significantly faster - useful on heavily-loaded cacti systems.
-// Usage: cw_stat <hostname> <port> <statname>
+// Usage: cw_stat <service> <statname>
 // Compile: g++ -o cw_stat cw_stat.cpp -lzmq
 
 #include <string>
@@ -44,12 +44,13 @@
 #include <vector>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <zmq.h>
 
 // Gets a block of messages from the specified host, for the specified
 // statistic.
 // Return true on success, false on failure.
-bool get_msgs(char* host, char* port, char* stat, std::vector<std::string>& msgs)
+bool get_msgs(char* service, char* stat, std::vector<std::string>& msgs)
 {
   // Create the context.
   void* ctx = zmq_ctx_new();
@@ -68,7 +69,7 @@ bool get_msgs(char* host, char* port, char* stat, std::vector<std::string>& msgs
   }
 
   std::ostringstream oss;
-  oss << "tcp://" << host << ":" << port;
+  oss << "ipc:///var/run/clearwater/stats/" << service;
   if (zmq_connect(sck, oss.str().c_str()) != 0)
   {
     perror("zmq_connect");
@@ -188,18 +189,79 @@ void render_count_latency_us(std::vector<std::string>& msgs)
   }
 }
 
+// Render a set of global Astaire statistics - just 5 integers.
+void render_astaire_global(std::vector<std::string>& msgs)
+{
+  if (msgs.size() >= 7 )
+  {
+    printf("bucketsNeedingResync:%s\n", msgs[2].c_str());
+    printf("bucketsResynchronized:%s\n", msgs[3].c_str());
+    printf("entriesResynchronized:%s\n", msgs[4].c_str());
+    printf("dataResynchronized:%s\n", msgs[5].c_str());
+    printf("bandwidth:%s\n", msgs[6].c_str());
+  }
+  else
+  {
+    fprintf(stderr, "Too short Astaire globals - %d < 7", (int)msgs.size());
+  }
+}
+
+// Render a set of Astaire per-connection statistics.  This consists of a series of
+// connections, each of which has an arbitrary number of associated buckets.
+void render_astaire_connections(std::vector<std::string>& msgs)
+{
+  int connection = 0;
+  for (int ii = 2; ii < msgs.size(); )
+  {
+    if (msgs.size() >= ii + 5)
+    {
+      printf("connection[%d]InetAddr:%s\n", connection, msgs[ii].c_str());
+      printf("connection[%d]InetPort:%s\n", connection, msgs[ii + 1].c_str());
+      printf("connection[%d]BucketNeedingResync:%s\n", connection, msgs[ii + 2].c_str());
+      printf("connection[%d]BucketEntriesResynchronized:%s\n", connection, msgs[ii + 3].c_str());
+      int num_buckets = atoi(msgs[ii + 4].c_str());
+      ii += 5;
+      int end_buckets = ii + num_buckets * 4;
+
+      if (msgs.size() >= end_buckets)
+      {
+        int bucket = 0;
+        for (; ii < end_buckets; ii += 4)
+        {
+          printf("connection[%d]Bucket[%d]Id:%s\n", connection, bucket, msgs[ii].c_str());
+          printf("connection[%d]Bucket[%d]EntriesResynchronized:%s\n", connection, bucket, msgs[ii + 1].c_str());
+          printf("connection[%d]Bucket[%d]DataResynchronized:%s\n", connection, bucket, msgs[ii + 2].c_str());
+          printf("connection[%d]Bucket[%d]Bandwidth:%s\n", connection, bucket, msgs[ii + 3].c_str());
+          bucket++;
+        }
+      }
+      else
+      {
+        fprintf(stderr, "Too short Astaire bucket list - %d < 7", (int)msgs.size(), end_buckets);
+        break;
+      }
+    }
+    else
+    {
+      fprintf(stderr, "Too short Astaire connection - %d < %d", (int)msgs.size(), ii + 4);
+      break;
+    }
+    connection++;
+  }
+}
+
 int main(int argc, char** argv)
 {
   // Check arguments.
   if (argc != 4)
   {
-    fprintf(stderr, "Usage: %s <hostname> <port> <statname>\n", argv[0]);
+    fprintf(stderr, "Usage: %s <service> <statname>\n", argv[0]);
     return 1;
   }
 
   // Get messages from the server.
   std::vector<std::string> msgs;
-  if (!get_msgs(argv[1], argv[2], argv[3], msgs))
+  if (!get_msgs(argv[1], argv[2], msgs))
   {
     return 2;
   }
@@ -251,6 +313,14 @@ int main(int argc, char** argv)
              (msgs[0] == "P_latency_us_0"))
     {
       render_count_latency_us(msgs);
+    }
+    else if (msgs[0] == "astaire_global")
+    {
+      render_astaire_global(msgs);
+    }
+    else if (msgs[0] == "astaire_connections")
+    {
+      render_astaire_connections(msgs);
     }
     else
     {
