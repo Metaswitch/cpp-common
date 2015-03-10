@@ -296,7 +296,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     {
       // We must release the global lock and let the other thread finish
       // the query.
-      LOG_DEBUG("Pending query");
+      LOG_DEBUG("Waiting for (non-cached) DNS query for %s", i->c_str());
       pthread_cond_wait(&_got_reply_cond, &_cache_lock);
       ce = get_cache_entry(*i, dnstype);
       LOG_DEBUG("Reawoken from wait for %s type %d", i->c_str(), dnstype);
