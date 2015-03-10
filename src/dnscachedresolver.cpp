@@ -140,7 +140,7 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers
 
   // We store a DNSResolver in thread-local data, so create the thread-local
   // store.
-  pthread_key_create(&_thread_local, (void(*)(void*))&destroy_dns_channel);  
+  pthread_key_create(&_thread_local, (void(*)(void*))&destroy_dns_channel);
 
   pthread_condattr_t cond_attr;
   pthread_condattr_init(&cond_attr);
@@ -229,7 +229,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     if (ce == NULL)
     {
       LOG_DEBUG("No entry found in cache");
-      
+
       // Create an empty record for this cache entry.
       LOG_DEBUG("Create cache entry pending query");
       ce = create_cache_entry(*domain, dnstype);
@@ -238,9 +238,18 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     else if (ce->expires < now)
     {
       LOG_DEBUG("Expired entry found in cache");
-      do_query = true;
+      // Only query if we don't have another thread already doing this query
+      // for us
+      if (ce->pending_query)
+      {
+        LOG_DEBUG("Query already in progress on another thread");
+      }
+      else
+      {
+        do_query = true;
+      }
     }
-  
+
     if (do_query)
     {
       if (channel == NULL)
@@ -287,8 +296,10 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     {
       // We must release the global lock and let the other thread finish
       // the query.
+      LOG_DEBUG("Waiting for (non-cached) DNS query for %s", i->c_str());
       pthread_cond_wait(&_got_reply_cond, &_cache_lock);
       ce = get_cache_entry(*i, dnstype);
+      LOG_DEBUG("Reawoken from wait for %s type %d", i->c_str(), dnstype);
     }
 
     if (ce != NULL)
@@ -467,7 +478,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
           // example.com A 10.0.0.1
           //
           // RFC 1034 mandates this format, so this should be fine.
-          
+
           canonical_domain = ((DnsCNAMERecord*)rr)->target();
           LOG_DEBUG("CNAME record pointing at %s - treating this as equivalent to %s",
                     canonical_domain.c_str(),
@@ -550,7 +561,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
     else
     {
       ce->expires = 30 + time(NULL);
-    }    
+    }
   }
 
   // If there were no records set cache a negative entry to prevent
@@ -618,7 +629,7 @@ void DnsCachedResolver::add_to_expiry_list(DnsCacheEntryPtr ce)
                 ce->expires,
                 sensible_minimum);
   }
-  
+
   LOG_DEBUG("Adding %s to cache expiry list with deletion time of %d",
             ce->domain.c_str(),
             ce->expires + EXTRA_INVALID_TIME);
@@ -809,7 +820,7 @@ void DnsCachedResolver::DnsTsx::execute()
   // to account for this (and it's slightly cleaner to increment
   // pending_queries first, to stop it going negative).
   ++_channel->pending_queries;
-  
+
   ares_query(_channel->channel,
              _domain.c_str(),
              ns_c_in,
