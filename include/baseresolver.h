@@ -146,7 +146,7 @@ protected:
     NAPTRCacheFactory(const std::map<std::string, int>& services,
                       int default_ttl,
                       DnsCachedResolver* dns_client);
-    ~NAPTRCacheFactory();
+    virtual ~NAPTRCacheFactory();
 
     NAPTRReplacement* get(std::string key, int& ttl);
     void evict(std::string key, NAPTRReplacement* value);
@@ -186,7 +186,7 @@ protected:
   {
   public:
     SRVCacheFactory(int default_ttl, DnsCachedResolver* dns_client);
-    ~SRVCacheFactory();
+    virtual ~SRVCacheFactory();
 
     SRVPriorityList* get(std::string key, int&ttl);
     void evict(std::string key, SRVPriorityList* value);

@@ -986,7 +986,7 @@ void HttpConnection::host_port_from_server(const std::string& server, std::strin
 {
   std::string server_copy = server;
   Utils::trim(server_copy);
-  int colon_idx;
+  size_t colon_idx;
   if (((server_copy[0] != '[') ||
        (server_copy[server_copy.length() - 1] != ']')) &&
       ((colon_idx = server_copy.find_last_of(':')) != std::string::npos))

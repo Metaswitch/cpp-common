@@ -741,6 +741,8 @@ public:
     _cfg(cfg), _dict(dict)
   {}
 
+  virtual ~SpawningHandler() {}
+
   /// Process a diameter request by spawning a new task and running it.
   /// @param fd_msg the diameter request.
   /// @param trail the SAS trail ID for the request.

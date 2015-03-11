@@ -57,6 +57,8 @@ public:
     reset();
   }
 
+  virtual ~Accumulator() {}
+
   /// Accumulate a sample into our results.
   virtual void accumulate(unsigned long sample);
 
