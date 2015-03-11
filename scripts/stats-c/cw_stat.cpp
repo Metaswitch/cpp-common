@@ -253,7 +253,7 @@ void render_astaire_connections(std::vector<std::string>& msgs)
 int main(int argc, char** argv)
 {
   // Check arguments.
-  if (argc != 4)
+  if (argc != 3)
   {
     fprintf(stderr, "Usage: %s <service> <statname>\n", argv[0]);
     return 1;
