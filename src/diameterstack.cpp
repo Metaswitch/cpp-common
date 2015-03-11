@@ -267,12 +267,14 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
     DiamId_t realm = peer->info.runtime.pir_realm;
     pthread_mutex_lock(&_peers_lock);
     std::vector<Peer*>::iterator ii;
+    bool peer_found = false;
     for (ii = _peers.begin();
          ii != _peers.end();
          ii++)
     {
       if ((*ii)->host().compare(host) == 0)
       {
+        peer_found = true;
         if ((*ii)->listener())
         {
           if (type == HOOK_PEER_CONNECT_SUCCESS)
@@ -304,9 +306,8 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
       }
     }
 
-    if (ii == _peers.end())
+    if (!peer_found)
     {
-      // Peer not found.
       LOG_ERROR("Unexpected host on callback (type %d) from freeDiameter: %s", type, host);
     }
     pthread_mutex_unlock(&_peers_lock);
