@@ -270,3 +270,55 @@ void Utils::hashToHex(unsigned char *hash_char, unsigned char *hex_char)
 // LCOV_EXCL_STOP
 
 bool Utils::StopWatch::_already_logged = false;
+
+bool Utils::split_host_port(const std::string& host_port,
+                            std::string& host,
+                            int& port)
+{
+  // The address is specified as either <hostname>:<port>, <IPv4 address>:<port>
+  // or [<IPv6 address>]:<port>.  Look for square brackets to determine whether
+  // this is an IPv6 address.
+  std::vector<std::string> host_port_parts;
+  size_t close_bracket = host_port.find(']');
+
+  if (close_bracket == host_port.npos)
+  {
+    // IPv4 connection.  Split the string on the colon.
+    Utils::split_string(host_port, ':', host_port_parts);
+    if (host_port_parts.size() != 2)
+    {
+      LOG_DEBUG("Malformed host/port %s", host_port.c_str());
+      return false;
+    }
+  }
+  else
+  {
+    // IPv6 connection.  Split the string on ']', which removes any white
+    // space from the start and the end, then remove the '[' from the
+    // start of the IP addreess string and the start of the ':' from the start
+    // of the port string.
+    Utils::split_string(host_port, ']', host_port_parts);
+    if ((host_port_parts.size() != 2) ||
+        (host_port_parts[0][0] != '[') ||
+        (host_port_parts[1][0] != ':'))
+    {
+      LOG_DEBUG("Malformed host/port %s", host_port.c_str());
+      return false;
+    }
+
+    host_port_parts[0].erase(host_port_parts[0].begin());
+    host_port_parts[1].erase(host_port_parts[1].begin());
+  }
+
+  port = atoi(host_port_parts[1].c_str());
+  host = host_port_parts[0];
+
+  // Check the port was parsed correctly.
+  if (std::to_string(port) != host_port_parts[1])
+  {
+    LOG_DEBUG("Malformed port %s", host_port_parts[1].c_str());
+    return false;
+  }
+
+  return true;
+}

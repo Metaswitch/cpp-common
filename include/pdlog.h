@@ -89,7 +89,8 @@ public:
     CL_CHRONOS_ID = 3000,
     CL_HOMESTEAD_ID = 4000,
     CL_RALF_ID = 5000,
-    CL_SCRIPT_ID = 6000
+    CL_SCRIPT_ID = 6000,
+    CL_ASTAIRE_ID = 7000,
   };
 
   PDLogBase(int log_id, int severity, const std::string& msg, 

@@ -57,24 +57,14 @@
 #include "memcachedstore.h"
 
 
-/// The default lifetime (in seconds) of tombstones written to memcached.
-static const int DEFAULT_TOMBSTONE_LIFETIME = 0;
-
 /// The data used in memcached to represent a tombstone.
 static const std::string TOMBSTONE = "";
 
-
-/// MemcachedStore constructor
-///
-/// @param binary       Set to true to use binary memcached protocol, false to
-///                     use ASCII protocol.
-/// @param config_file  File name (including directory path) of the configuration
-///                     file.
-MemcachedStore::MemcachedStore(bool binary,
-                               const std::string& config_file,
-                               CommunicationMonitor* comm_monitor,
-                               Alarm* vbucket_alarm) :
-  _config_file(config_file),
+BaseMemcachedStore::BaseMemcachedStore(bool binary,
+                                       MemcachedConfigReader* config_reader,
+                                       CommunicationMonitor* comm_monitor,
+                                       Alarm* vbucket_alarm) :
+  _binary(binary),
   _updater(NULL),
   _replicas(2),
   _vbuckets(128),
@@ -88,10 +78,11 @@ MemcachedStore::MemcachedStore(bool binary,
   _vbucket_comm_state(_vbuckets),
   _vbucket_comm_fail_count(0),
   _vbucket_alarm(vbucket_alarm),
-  _tombstone_lifetime(DEFAULT_TOMBSTONE_LIFETIME)
+  _tombstone_lifetime(0),
+  _config_reader(config_reader)
 {
   // Create the thread local key for the per thread data.
-  pthread_key_create(&_thread_local, MemcachedStore::cleanup_connection);
+  pthread_key_create(&_thread_local, BaseMemcachedStore::cleanup_connection);
 
   // Create the lock for protecting the current view.
   pthread_rwlock_init(&_view_lock, NULL);
@@ -104,10 +95,10 @@ MemcachedStore::MemcachedStore(bool binary,
   // during start-up, and if any are not up we don't want to wait for any
   // significant length of time.
   _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS --POLL-TIMEOUT=250";
-  _options += (binary) ? " --BINARY_PROTOCOL" : "";
+  _options += (_binary) ? " --BINARY-PROTOCOL" : "";
 
   // Create an updater to keep the store configured appropriately.
-  _updater = new Updater<void, MemcachedStore>(this, std::mem_fun(&MemcachedStore::update_config));
+  _updater = new Updater<void, BaseMemcachedStore>(this, std::mem_fun(&BaseMemcachedStore::update_config));
 
   // Initialize vbucket comm state
   for (int ii = 0; ii < _vbuckets; ++ii)
@@ -117,10 +108,11 @@ MemcachedStore::MemcachedStore(bool binary,
 }
 
 
-MemcachedStore::~MemcachedStore()
+BaseMemcachedStore::~BaseMemcachedStore()
 {
-  // Destroy the updater (if it was created).
-  delete _updater;
+  // Destroy the updater (if it was created) and the config reader.
+  delete _updater; _updater = NULL;
+  delete _config_reader; _config_reader = NULL;
 
   // Clean up this thread's connection now, rather than waiting for
   // pthread_exit.  This is to support use by single-threaded code
@@ -139,21 +131,20 @@ MemcachedStore::~MemcachedStore()
 
 
 // LCOV_EXCL_START - need real memcached to test
-void MemcachedStore::set_max_connect_latency(unsigned int ms)
+void BaseMemcachedStore::set_max_connect_latency(unsigned int ms)
 {
   _max_connect_latency_ms = ms;
 }
 
 /// Set up a new view of the memcached cluster(s).  The view determines
 /// how data is distributed around the cluster.
-void MemcachedStore::new_view(const std::vector<std::string>& servers,
-                              const std::vector<std::string>& new_servers)
+void BaseMemcachedStore::new_view(const MemcachedConfig& config)
 {
   LOG_STATUS("Updating memcached store configuration");
 
   // Create a new view with the new server lists.
   MemcachedStoreView view(_vbuckets, _replicas);
-  view.update(servers, new_servers);
+  view.update(config);
 
   // Now copy the view so it can be accessed by the worker threads.
   pthread_rwlock_wrlock(&_view_lock);
@@ -177,91 +168,24 @@ void MemcachedStore::new_view(const std::vector<std::string>& servers,
 }
 
 
-void MemcachedStore::update_config()
+void BaseMemcachedStore::update_config()
 {
-  // Read the memstore file.
-  std::ifstream f(_config_file);
-  std::vector<std::string> servers;
-  std::vector<std::string> new_servers;
-  int tombstone_lifetime = DEFAULT_TOMBSTONE_LIFETIME;
+  MemcachedConfig cfg;
 
-  if (f.is_open())
+  if (_config_reader->read_config(cfg))
   {
-    LOG_STATUS("Reloading memcached configuration from %s file", _config_file.c_str());
-    while (f.good())
-    {
-      std::string line;
-      getline(f, line);
-
-      if (line.length() > 0)
-      {
-        // Read a non-blank line.
-        std::vector<std::string> tokens;
-        Utils::split_string(line, '=', tokens, 0, true);
-        if (tokens.size() != 2)
-        {
-          LOG_ERROR("Malformed %s file (got bad line: '%s')",
-                    _config_file.c_str(),
-                    line.c_str());
-          break;
-        }
-
-        LOG_STATUS(" %s=%s", tokens[0].c_str(), tokens[1].c_str());
-
-        if (tokens[0] == "servers")
-        {
-          // Found line defining servers.
-          Utils::split_string(tokens[1], ',', servers, 0, true);
-        }
-        else if (tokens[0] == "new_servers")
-        {
-          // Found line defining new servers.
-          Utils::split_string(tokens[1], ',', new_servers, 0, true);
-        }
-        else if (tokens[0] == "tombstone_lifetime")
-        {
-          // Read the tombstone lifetime from the config file. Check it is
-          // actually a valid integer before committing to the member variable
-          // (atoi stops when it reaches non-numeric characters).
-          tombstone_lifetime = atoi(tokens[1].c_str());
-
-          if (std::to_string(tombstone_lifetime) != tokens[1])
-          {
-            LOG_ERROR("'%s' contained an invalid tombstone_lifetime line which will be ignored:\n%s",
-                      _config_file.c_str(),
-                      line.c_str());
-
-            // Set the lifetime back to the default.
-            tombstone_lifetime = DEFAULT_TOMBSTONE_LIFETIME;
-          }
-        }
-      }
-    }
-    f.close();
-
-    if (servers.size() > 0)
-    {
-      LOG_DEBUG("Update memcached store");
-      new_view(servers, new_servers);
-    }
-    else
-    {
-      LOG_ERROR("'%s' does not contain a valid set of servers - keeping previous settings",
-                _config_file.c_str());
-    }
-
-    LOG_DEBUG("Setting tombstone lifetime to %ds", tombstone_lifetime);
-    _tombstone_lifetime = tombstone_lifetime;
+    new_view(cfg);
+    _tombstone_lifetime = cfg.tombstone_lifetime;
   }
   else
   {
-    LOG_ERROR("Failed to open %s file", _config_file.c_str());
+    LOG_ERROR("Failed to read config, keeping previous settings");
   }
 }
 
 
 /// Returns the vbucket for a specified key
-int MemcachedStore::vbucket_for_key(const std::string& key)
+int BaseMemcachedStore::vbucket_for_key(const std::string& key)
 {
   // Hash the key and convert the hash to a vbucket.
   int hash = memcached_generate_hash_value(key.data(), key.length(), MEMCACHED_HASH_MD5);
@@ -273,8 +197,8 @@ int MemcachedStore::vbucket_for_key(const std::string& key)
 
 /// Gets the set of replicas to use for a read or write operation for the
 /// specified key.
-const std::vector<memcached_st*>& MemcachedStore::get_replicas(const std::string& key,
-                                                               Op operation)
+const std::vector<memcached_st*>&
+BaseMemcachedStore::get_replicas(const std::string& key, Op operation)
 {
   return get_replicas(vbucket_for_key(key), operation);
 }
@@ -282,14 +206,14 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(const std::string
 
 /// Gets the set of replicas to use for a read or write operation for the
 /// specified vbucket.
-const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
-                                                               Op operation)
+const std::vector<memcached_st*>& BaseMemcachedStore::get_replicas(int vbucket,
+                                                                   Op operation)
 {
-  MemcachedStore::connection* conn = (connection*)pthread_getspecific(_thread_local);
+  BaseMemcachedStore::connection* conn = (connection*)pthread_getspecific(_thread_local);
   if (conn == NULL)
   {
     // Create a new connection structure for this thread.
-    conn = new MemcachedStore::connection;
+    conn = new BaseMemcachedStore::connection;
     pthread_setspecific(_thread_local, conn);
     conn->view_number = 0;
   }
@@ -321,46 +245,19 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
       // Switch to a longer connect timeout from here on.
       memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, _max_connect_latency_ms);
 
-      // Connect to the server.  The address is specified as either <IPv4 address>:<port>
-      // or [<IPv6 address>]:<port>.  Look for square brackets to determine whether
-      // this is an IPv6 address.
-      std::vector<std::string> contact_details;
-      size_t close_bracket = _servers[ii].find(']');
-
-      if (close_bracket == _servers[ii].npos)
+      std::string server;
+      int port;
+      if (Utils::split_host_port(_servers[ii], server, port))
       {
-        // IPv4 connection.  Split the string on the colon.
-        Utils::split_string(_servers[ii], ':', contact_details);
-        if (contact_details.size() != 2)
-        {
-          LOG_ERROR("Malformed contact details %s", _servers[ii].c_str());
-          break;
-        }
+        LOG_DEBUG("Setting server to IP address %s port %d",
+                  server.c_str(),
+                  port);
+        memcached_server_add(conn->st[_servers[ii]], server.c_str(), port);
       }
       else
       {
-        // IPv6 connection.  Split the string on ']', which removes any white
-        // space from the start and the end, then remove the '[' from the
-        // start of the IP addreess string and the start of the ';' from the start
-        // of the port string.
-        Utils::split_string(_servers[ii], ']', contact_details);
-        if ((contact_details.size() != 2) ||
-            (contact_details[0][0] != '[') ||
-            (contact_details[1][0] != ':'))
-        {
-          LOG_ERROR("Malformed contact details %s", _servers[ii].c_str());
-          break;
-        }
-
-        contact_details[0].erase(contact_details[0].begin());
-        contact_details[1].erase(contact_details[1].begin());
+        LOG_ERROR("Malformed host/port %s, skipping server", _servers[ii].c_str());
       }
-
-      LOG_DEBUG("Setting server to IP address %s port %s",
-                contact_details[0].c_str(),
-                contact_details[1].c_str());
-      int port = atoi(contact_details[1].c_str());
-      memcached_server_add(conn->st[_servers[ii]], contact_details[0].c_str(), port);
     }
 
     conn->read_replicas.resize(_vbuckets);
@@ -394,7 +291,7 @@ const std::vector<memcached_st*>& MemcachedStore::get_replicas(int vbucket,
 /// Update state of vbucket replica communication. If alarms are configured, a set
 /// alarm is issued if a vbucket becomes inaccessible, a clear alarm is issued once
 /// all vbuckets become accessible again.
-void MemcachedStore::update_vbucket_comm_state(int vbucket, CommState state)
+void BaseMemcachedStore::update_vbucket_comm_state(int vbucket, CommState state)
 {
   if (_vbucket_alarm)
   {
@@ -423,10 +320,11 @@ void MemcachedStore::update_vbucket_comm_state(int vbucket, CommState state)
 }
 
 
-/// Called to clean up the thread local data for a thread using the MemcachedStore class.
-void MemcachedStore::cleanup_connection(void* p)
+/// Called to clean up the thread local data for a thread using the
+/// BaseMemcachedStore class.
+void BaseMemcachedStore::cleanup_connection(void* p)
 {
-  MemcachedStore::connection* conn = (MemcachedStore::connection*)p;
+  BaseMemcachedStore::connection* conn = (BaseMemcachedStore::connection*)p;
 
   for (std::map<std::string, memcached_st*>::iterator it = conn->st.begin();
        it != conn->st.end();
@@ -441,11 +339,11 @@ void MemcachedStore::cleanup_connection(void* p)
 
 
 /// Retrieve the data for a given namespace and key.
-Store::Status MemcachedStore::get_data(const std::string& table,
-                                       const std::string& key,
-                                       std::string& data,
-                                       uint64_t& cas,
-                                       SAS::TrailId trail)
+Store::Status BaseMemcachedStore::get_data(const std::string& table,
+                                           const std::string& key,
+                                           std::string& data,
+                                           uint64_t& cas,
+                                           SAS::TrailId trail)
 {
   Store::Status status;
 
@@ -629,12 +527,12 @@ Store::Status MemcachedStore::get_data(const std::string& table,
 /// Update the data for the specified namespace and key.  Writes the data
 /// atomically, so if the underlying data has changed since it was last
 /// read, the update is rejected and this returns Store::Status::CONTENTION.
-Store::Status MemcachedStore::set_data(const std::string& table,
-                                       const std::string& key,
-                                       const std::string& data,
-                                       uint64_t cas,
-                                       int expiry,
-                                       SAS::TrailId trail)
+Store::Status BaseMemcachedStore::set_data(const std::string& table,
+                                           const std::string& key,
+                                           const std::string& data,
+                                           uint64_t cas,
+                                           int expiry,
+                                           SAS::TrailId trail)
 {
   Store::Status status = Store::Status::OK;
 
@@ -706,7 +604,8 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       replica_idx = ii;
     }
 
-    LOG_DEBUG("Attempt conditional write to replica %d (connection %p), CAS = %ld, expiry = %d",
+    LOG_DEBUG("Attempt conditional write to vbucket %d on replica %d (connection %p), CAS = %ld, expiry = %d",
+              vbucket,
               replica_idx,
               replicas[replica_idx],
               cas,
@@ -720,6 +619,7 @@ Store::Status MemcachedStore::set_data(const std::string& table,
       rc = add_overwriting_tombstone(replicas[replica_idx],
                                      key_ptr,
                                      key_len,
+                                     vbucket,
                                      data,
                                      memcached_expiration,
                                      exptime,
@@ -729,14 +629,15 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     {
       // This is an update to an existing record, so use memcached_cas
       // to make sure it is atomic.
-      rc = memcached_cas(replicas[replica_idx],
-                         key_ptr,
-                         key_len,
-                         data.data(),
-                         data.length(),
-                         memcached_expiration,
-                         exptime,
-                         cas);
+      rc = memcached_cas_vb(replicas[replica_idx],
+                            key_ptr,
+                            key_len,
+                            _binary ? vbucket : 0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            exptime,
+                            cas);
 
       if (!memcached_success(rc))
       {
@@ -780,13 +681,14 @@ Store::Status MemcachedStore::set_data(const std::string& table,
     {
       LOG_DEBUG("Attempt unconditional write to replica %d", jj);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 1);
-      memcached_set(replicas[jj],
-                    key_ptr,
-                    key_len,
-                    data.data(),
-                    data.length(),
-                    memcached_expiration,
-                    exptime);
+      memcached_set_vb(replicas[jj],
+                      key_ptr,
+                      key_len,
+                      _binary ? vbucket : 0,
+                      data.data(),
+                      data.length(),
+                      memcached_expiration,
+                      exptime);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 0);
     }
   }
@@ -829,9 +731,9 @@ Store::Status MemcachedStore::set_data(const std::string& table,
 
 /// Delete the data for the specified namespace and key.  Writes the data
 /// unconditionally, so CAS is not needed.
-Store::Status MemcachedStore::delete_data(const std::string& table,
-                                          const std::string& key,
-                                          SAS::TrailId trail)
+Store::Status BaseMemcachedStore::delete_data(const std::string& table,
+                                              const std::string& key,
+                                              SAS::TrailId trail)
 {
   LOG_DEBUG("Deleting key %s from table %s", key.c_str(), table.c_str());
 
@@ -855,11 +757,11 @@ Store::Status MemcachedStore::delete_data(const std::string& table,
 }
 
 
-memcached_return_t MemcachedStore::get_from_replica(memcached_st* replica,
-                                                    const char* key_ptr,
-                                                    const size_t key_len,
-                                                    std::string& data,
-                                                    uint64_t& cas)
+memcached_return_t BaseMemcachedStore::get_from_replica(memcached_st* replica,
+                                                        const char* key_ptr,
+                                                        const size_t key_len,
+                                                        std::string& data,
+                                                        uint64_t& cas)
 {
   memcached_return_t rc = MEMCACHED_ERROR;
   cas = 0;
@@ -895,14 +797,14 @@ memcached_return_t MemcachedStore::get_from_replica(memcached_st* replica,
   return rc;
 }
 
-
-memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* replica,
-                                                             const char* key_ptr,
-                                                             const size_t key_len,
-                                                             const std::string& data,
-                                                             time_t memcached_expiration,
-                                                             uint32_t flags,
-                                                             SAS::TrailId trail)
+memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* replica,
+                                                                 const char* key_ptr,
+                                                                 const size_t key_len,
+                                                                 const uint32_t vbucket,
+                                                                 const std::string& data,
+                                                                 time_t memcached_expiration,
+                                                                 uint32_t flags,
+                                                                 SAS::TrailId trail)
 {
   memcached_return_t rc;
   uint64_t cas = 0;
@@ -918,25 +820,27 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
     if (cas == 0)
     {
       LOG_DEBUG("Attempting memcached ADD command");
-      rc = memcached_add(replica,
-                         key_ptr,
-                         key_len,
-                         data.data(),
-                         data.length(),
-                         memcached_expiration,
-                         flags);
+      rc = memcached_add_vb(replica,
+                            key_ptr,
+                            key_len,
+                            _binary ? vbucket : 0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            flags);
     }
     else
     {
       LOG_DEBUG("Attempting memcached CAS command (cas = %d)", cas);
-      rc = memcached_cas(replica,
-                         key_ptr,
-                         key_len,
-                         data.data(),
-                         data.length(),
-                         memcached_expiration,
-                         flags,
-                         cas);
+      rc = memcached_cas_vb(replica,
+                            key_ptr,
+                            key_len,
+                            _binary ? vbucket : 0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            flags,
+                            cas);
     }
 
     if ((rc == MEMCACHED_DATA_EXISTS) ||
@@ -1014,9 +918,9 @@ memcached_return_t MemcachedStore::add_overwriting_tombstone(memcached_st* repli
 }
 
 
-void MemcachedStore::delete_without_tombstone(const std::string& fqkey,
-                                              const std::vector<memcached_st*>& replicas,
-                                              SAS::TrailId trail)
+void BaseMemcachedStore::delete_without_tombstone(const std::string& fqkey,
+                                                  const std::vector<memcached_st*>& replicas,
+                                                  SAS::TrailId trail)
 {
   if (trail != 0)
   {
@@ -1047,9 +951,9 @@ void MemcachedStore::delete_without_tombstone(const std::string& fqkey,
 }
 
 
-void MemcachedStore::delete_with_tombstone(const std::string& fqkey,
-                                           const std::vector<memcached_st*>& replicas,
-                                           SAS::TrailId trail)
+void BaseMemcachedStore::delete_with_tombstone(const std::string& fqkey,
+                                               const std::vector<memcached_st*>& replicas,
+                                               SAS::TrailId trail)
 {
   if (trail != 0)
   {
@@ -1067,19 +971,23 @@ void MemcachedStore::delete_with_tombstone(const std::string& fqkey,
   uint32_t now = time(NULL);
   uint32_t exptime = now + _tombstone_lifetime;
 
+  // Calculate the vbucket for this key.
+  int vbucket = vbucket_for_key(fqkey);
+
   for (size_t ii = 0; ii < replicas.size(); ++ii)
   {
     LOG_DEBUG("Attempt write tombstone to replica %d (connection %p)",
               ii,
               replicas[ii]);
 
-    memcached_return_t rc = memcached_set(replicas[ii],
-                                          key_ptr,
-                                          key_len,
-                                          TOMBSTONE.data(),
-                                          TOMBSTONE.length(),
-                                          _tombstone_lifetime,
-                                          exptime);
+    memcached_return_t rc = memcached_set_vb(replicas[ii],
+                                             key_ptr,
+                                             key_len,
+                                             _binary ? vbucket : 0,
+                                             TOMBSTONE.data(),
+                                             TOMBSTONE.length(),
+                                             _tombstone_lifetime,
+                                             exptime);
 
     if (!memcached_success(rc))
     {
@@ -1088,11 +996,11 @@ void MemcachedStore::delete_with_tombstone(const std::string& fqkey,
   }
 }
 
-void MemcachedStore::log_delete_failure(const std::string& fqkey,
-                                        int replica_ix,
-                                        int replica_count,
-                                        SAS::TrailId trail,
-                                        uint32_t instance)
+void BaseMemcachedStore::log_delete_failure(const std::string& fqkey,
+                                            int replica_ix,
+                                            int replica_count,
+                                            SAS::TrailId trail,
+                                            uint32_t instance)
 {
   LOG_ERROR("Delete failed to replica %d", replica_ix);
 
@@ -1105,5 +1013,26 @@ void MemcachedStore::log_delete_failure(const std::string& fqkey,
     SAS::report_event(event);
   }
 }
+
+
+MemcachedStore::MemcachedStore(bool binary,
+                               const std::string& config_file,
+                               CommunicationMonitor* comm_monitor,
+                               Alarm* vbucket_alarm) :
+  BaseMemcachedStore(binary,
+                     new MemcachedConfigFileReader(config_file),
+                     comm_monitor,
+                     vbucket_alarm)
+{}
+
+MemcachedStore::MemcachedStore(bool binary,
+                               MemcachedConfigReader* config_reader,
+                               CommunicationMonitor* comm_monitor,
+                               Alarm* vbucket_alarm) :
+  BaseMemcachedStore(binary,
+                     config_reader,
+                     comm_monitor,
+                     vbucket_alarm)
+{}
 
 // LCOV_EXCL_STOP
