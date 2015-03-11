@@ -247,12 +247,17 @@ const std::vector<memcached_st*>& BaseMemcachedStore::get_replicas(int vbucket,
 
       std::string server;
       int port;
-      Utils::split_host_port(_servers[ii], server, port);
-
-      LOG_DEBUG("Setting server to IP address %s port %d",
-                server.c_str(),
-                port);
-      memcached_server_add(conn->st[_servers[ii]], server.c_str(), port);
+      if (Utils::split_host_port(_servers[ii], server, port))
+      {
+        LOG_DEBUG("Setting server to IP address %s port %d",
+                  server.c_str(),
+                  port);
+        memcached_server_add(conn->st[_servers[ii]], server.c_str(), port);
+      }
+      else
+      {
+        LOG_ERROR("Malformed host/port %s, skipping server", _servers[ii].c_str());
+      }
     }
 
     conn->read_replicas.resize(_vbuckets);

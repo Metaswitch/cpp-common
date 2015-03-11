@@ -275,7 +275,7 @@ bool Utils::split_host_port(const std::string& host_port,
                             std::string& host,
                             int& port)
 {
-  // The address is specified as either <IPv4 address>:<port>
+  // The address is specified as either <hostname>:<port>, <IPv4 address>:<port>
   // or [<IPv6 address>]:<port>.  Look for square brackets to determine whether
   // this is an IPv6 address.
   std::vector<std::string> host_port_parts;
@@ -287,7 +287,7 @@ bool Utils::split_host_port(const std::string& host_port,
     Utils::split_string(host_port, ':', host_port_parts);
     if (host_port_parts.size() != 2)
     {
-      LOG_ERROR("Malformed host/port %s", host_port.c_str());
+      LOG_DEBUG("Malformed host/port %s", host_port.c_str());
       return false;
     }
   }
@@ -295,14 +295,14 @@ bool Utils::split_host_port(const std::string& host_port,
   {
     // IPv6 connection.  Split the string on ']', which removes any white
     // space from the start and the end, then remove the '[' from the
-    // start of the IP addreess string and the start of the ';' from the start
+    // start of the IP addreess string and the start of the ':' from the start
     // of the port string.
     Utils::split_string(host_port, ']', host_port_parts);
     if ((host_port_parts.size() != 2) ||
         (host_port_parts[0][0] != '[') ||
         (host_port_parts[1][0] != ':'))
     {
-      LOG_ERROR("Malformed host/port %s", host_port.c_str());
+      LOG_DEBUG("Malformed host/port %s", host_port.c_str());
       return false;
     }
 
@@ -316,7 +316,7 @@ bool Utils::split_host_port(const std::string& host_port,
   // Check the port was parsed correctly.
   if (std::to_string(port) != host_port_parts[1])
   {
-    LOG_ERROR("Malformed port %s", host_port_parts[1].c_str());
+    LOG_DEBUG("Malformed port %s", host_port_parts[1].c_str());
     return false;
   }
 
