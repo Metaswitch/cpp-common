@@ -237,7 +237,7 @@ void render_astaire_connections(std::vector<std::string>& msgs)
       }
       else
       {
-        fprintf(stderr, "Too short Astaire bucket list - %d < 7", (int)msgs.size(), end_buckets);
+        fprintf(stderr, "Too short Astaire bucket list - %d < %d", (int)msgs.size(), end_buckets);
         break;
       }
     }
