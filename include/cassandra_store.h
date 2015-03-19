@@ -172,33 +172,70 @@ public:
   /// Virtual destructor
   virtual ~Store();
 
-  /// Initialize the store.
-  virtual void initialize();
+  /// Generate a timestamp suitable for supplying on cache modification
+  /// requests.
+  ///
+  /// @return                - The current time (in micro-seconds).
+  static int64_t generate_timestamp();
 
-  /// Configure the store.
+  /// Configure the connection to Cassandra.
   ///
   /// @param cass_hostname     - The hostname for the cassandra database.
   /// @param cass_port         - The port to connect to cassandra on.
+  /// @param comm_monitor      - A monitor to track communication with the local
+  ///                            Cassandra instance, and set/clear alarms based
+  ///                            on recent activity.
+  virtual void configure_connection(std::string cass_hostname,
+                                    uint16_t cass_port,
+                                    CommunicationMonitor* comm_monitor = NULL);
+
+  /// Tests the store.
+  ///
+  /// Checks that the store can connect to Cassandra.  This method can be called
+  /// before or after starting the store.
+  ///
+  /// @return                - The status of the store connection.
+  virtual ResultCode connection_test();
+
+  /// Perform an operation synchronously.  This blocks the current thread
+  /// until the operation is complete.  The result of the operation is stored
+  /// on the operation object.
+  ///
+  /// This method runs the perform() method on the underlying operation. It
+  /// also provides two additional features:
+  ///
+  /// -  If the store cannot connect to cassandra, it will try to
+  ///    re-establish it's connection and retry the operation (by calling
+  ///    perform() for a second time).
+  ///
+  /// -  It catches all possible thrift exceptions and converts them to
+  ///    appropriate error codes. This means that the operation does not need
+  ///    to catch them itself.
+  ///
+  /// @param op     - The operation to run.
+  /// @param trail  - SAS trail ID.
+  ///
+  /// @return       - Whether the operation succeeded.
+  virtual bool do_sync(Operation* op, SAS::TrailId);
+
+  ///
+  /// Asynchronous interface to the store.
+  ///
+
+  /// Configure the worker pool.
+  ///
   /// @param exception_handler - The exception handler
   /// @param num_threads       - The number of worker threads to use for
   ///                            processing cassandra requests asynchronously.
-  ///                            Can be 0, in which case the store may only be
-  ///                            used synchronously.
-  /// @param max_queue         - The maximum number of requests that can be 
-  ///                            queued waiting for a worker thread when running 
+  /// @param max_queue         - The maximum number of requests that can be
+  ///                            queued waiting for a worker thread when running
   ///                            requests asynchronously.  If more requests are
-  ///                            added the call to do_async() will block until 
-  ///                            some existing requests have been processed. 
+  ///                            added the call to do_async() will block until
+  ///                            some existing requests have been processed.
   ///                            0 => no limit.
-  /// @param comm_monitor      - A monitor to track communication with the local
-  ///                            Cassandra instance, and set/clear alarms based 
-  ///                            on recent activity.
-  virtual void configure(std::string cass_hostname,
-                         uint16_t cass_port,
-                         ExceptionHandler* exception_handler,
-                         unsigned int num_threads = 0,
-                         unsigned int max_queue = 0,
-                         CommunicationMonitor* comm_monitor = NULL);
+  virtual void configure_workers(ExceptionHandler* exception_handler,
+                                 unsigned int num_threads,
+                                 unsigned int max_queue = 0);
 
   /// Start the store.
   ///
@@ -213,26 +250,8 @@ public:
   /// their current request has completed.
   virtual void stop();
 
-  /// Tests the store.
-  ///
-  /// Checks that the store can connect to Cassandra.  This method can be called
-  /// before or after starting the store.
-  ///
-  /// @return                - The status of the store connection.
-  virtual ResultCode connection_test();
-
   /// Wait until the store has completely stopped.  This method may block.
   virtual void wait_stopped();
-
-  /// Perform an operation synchronously.  This blocks the current thread
-  /// until the operation is complete.  The result of the operation is stored
-  /// on the operation object.
-  ///
-  /// @param op              - The operation to perform.
-  /// @param trail           - SAS trail ID.
-  ///
-  /// @return                - Whether the operation completed successfully.
-  virtual bool do_sync(Operation* op, SAS::TrailId trail);
 
   /// Perform an operation asynchronously.  The calling thread does not block.
   /// Instead the operation is performed on a worker thread owned by the store.
@@ -254,28 +273,15 @@ public:
   ///                          executed, and deletes it once it is complete.
   virtual void do_async(Operation*& op, Transaction*& trx);
 
-  /// Generate a timestamp suitable for supplying on cache modification
-  /// requests.
-  ///
-  /// @return                - The current time (in micro-seconds).
-  static int64_t generate_timestamp();
-
-  static void exception_callback(std::pair<Operation*, Transaction*> work)
-  {
-    // No recovery behaviour as this is asynchronos, so we can't sensibly
-    // respond
-  }
-
 private:
   /// The thread pool used by the store.  This is a simple subclass of
   /// ThreadPool that also stores a pointer back to the store.
   class Pool : public ThreadPool<std::pair<Operation*, Transaction*> >
   {
   public:
-    Pool(Store* store, 
-         unsigned int num_threads, 
+    Pool(Store* store,
+         unsigned int num_threads,
          ExceptionHandler* exception_handler,
-         void (*callback)(std::pair<Operation*, Transaction*>), 
          unsigned int max_queue = 0);
     virtual ~Pool();
 
@@ -283,8 +289,13 @@ private:
     Store* _store;
 
     void process_work(std::pair<Operation*, Transaction*>& params);
+
+    static void exception_callback(std::pair<Operation*, Transaction*> work)
+    {
+      // No recovery behaviour as this is asynchronos, so we can't sensibly
+      // respond
+    }
   };
-  friend class StoreThreadPool;
 
   // The keyspace that the store connects to.
   const std::string _keyspace;
@@ -307,25 +318,6 @@ private:
   // Helper used to track local communication state, and issue/clear alarms
   // based upon recent activity.
   CommunicationMonitor* _comm_monitor;
-
-  /// Execute an operation.
-  ///
-  /// This method runs the perform() method on the underlying operation. It
-  /// also provides two additional features:
-  ///
-  /// -  If the store cannot connect to cassandra, it will try to
-  ///    re-establish it's connection and retry the operation (by calling
-  ///    perform() for a second time).
-  ///
-  /// -  It catches all possible thrift exceptions and converts them to
-  ///    appropriate error codes. This means that the operation does not need
-  ///    to catch them itself.
-  ///
-  /// @param op     - The operation to run.
-  /// @param trail  - SAS trail ID.
-  ///
-  /// @return       - Whether the operation succeeded.
-  virtual bool run(Operation* op, SAS::TrailId);
 
   // Cassandra connection management.
   //

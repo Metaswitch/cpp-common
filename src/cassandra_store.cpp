@@ -114,6 +114,22 @@ void Client::remove(const std::string& key,
 // Store methods
 //
 
+int64_t Store::generate_timestamp()
+{
+  // Return the current time in microseconds.
+  timespec clock_time;
+  int64_t timestamp;
+
+  clock_gettime(CLOCK_REALTIME, &clock_time);
+  timestamp = clock_time.tv_sec;
+  timestamp *= 1000000;
+  timestamp += (clock_time.tv_nsec / 1000);
+
+  LOG_DEBUG("Generated Cassandra timestamp %llu", timestamp);
+  return timestamp;
+}
+
+
 Store::Store(const std::string& keyspace) :
   _keyspace(keyspace),
   _cass_hostname(""),
@@ -130,70 +146,18 @@ Store::Store(const std::string& keyspace) :
 }
 
 
-void Store::initialize()
+void Store::configure_connection(std::string cass_hostname,
+                                 uint16_t cass_port,
+                                 CommunicationMonitor* comm_monitor)
 {
-  // There is nothing to initialize - this is intentionally a no-op.
-}
-
-
-void Store::configure(std::string cass_hostname,
-                      uint16_t cass_port,
-                      ExceptionHandler* exception_handler,
-                      unsigned int num_threads,
-                      unsigned int max_queue,
-                      CommunicationMonitor* comm_monitor)
-{
-  LOG_STATUS("Configuring store");
+  LOG_STATUS("Configuring store connection");
   LOG_STATUS("  Hostname:  %s", cass_hostname.c_str());
   LOG_STATUS("  Port:      %u", cass_port);
-  LOG_STATUS("  Threads:   %u", num_threads);
-  LOG_STATUS("  Max Queue: %u", max_queue);
   _cass_hostname = cass_hostname;
   _cass_port = cass_port;
-  _exception_handler = exception_handler;
-  _num_threads = num_threads;
-  _max_queue = max_queue;
   _comm_monitor = comm_monitor;
 }
 
-
-ResultCode Store::start()
-{
-  ResultCode rc = OK;
-
-  // Start the store.  We don't check for connectivity to Cassandra at this
-  // point as some store users want the store to load even when Cassandra has
-  // failed (it will recover later).  If a store user cares about the status
-  // of Cassandra it should use the test() method.
-  LOG_STATUS("Starting store");
-
-  // Start the thread pool.
-  if (_num_threads > 0)
-  {
-    _thread_pool = new Pool(this, 
-                            _num_threads, 
-                            _exception_handler, 
-                            &exception_callback, 
-                            _max_queue);
-
-    if (!_thread_pool->start())
-    {
-      rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
-    }
-  }
-
-  return rc;
-}
-
-
-void Store::stop()
-{
-  LOG_STATUS("Stopping cache");
-  if (_thread_pool != NULL)
-  {
-    _thread_pool->stop();
-  }
-}
 
 ResultCode Store::connection_test()
 {
@@ -227,6 +191,58 @@ ResultCode Store::connection_test()
   return rc;
 }
 
+
+void Store::configure_workers(ExceptionHandler* exception_handler,
+                              unsigned int num_threads,
+                              unsigned int max_queue)
+{
+  LOG_STATUS("Configuring store worker pool");
+  LOG_STATUS("  Threads:   %u", num_threads);
+  LOG_STATUS("  Max Queue: %u", max_queue);
+  _exception_handler = exception_handler;
+  _num_threads = num_threads;
+  _max_queue = max_queue;
+}
+
+
+ResultCode Store::start()
+{
+  ResultCode rc = OK;
+
+  // Start the store.  We don't check for connectivity to Cassandra at this
+  // point as some store users want the store to load even when Cassandra has
+  // failed (it will recover later).  If a store user cares about the status
+  // of Cassandra it should use the test() method.
+  LOG_STATUS("Starting store");
+
+  // Start the thread pool.
+  if (_num_threads > 0)
+  {
+    _thread_pool = new Pool(this,
+                            _num_threads,
+                            _exception_handler,
+                            _max_queue);
+
+    if (!_thread_pool->start())
+    {
+      rc = RESOURCE_ERROR; // LCOV_EXCL_LINE
+    }
+  }
+
+  return rc;
+}
+
+
+void Store::stop()
+{
+  LOG_STATUS("Stopping cache");
+  if (_thread_pool != NULL)
+  {
+    _thread_pool->stop();
+  }
+}
+
+
 void Store::wait_stopped()
 {
   LOG_STATUS("Waiting for cache to stop");
@@ -236,22 +252,6 @@ void Store::wait_stopped()
 
     delete _thread_pool; _thread_pool = NULL;
   }
-}
-
-
-int64_t Store::generate_timestamp()
-{
-  // Return the current time in microseconds.
-  timespec clock_time;
-  int64_t timestamp;
-
-  clock_gettime(CLOCK_REALTIME, &clock_time);
-  timestamp = clock_time.tv_sec;
-  timestamp *= 1000000;
-  timestamp += (clock_time.tv_nsec / 1000);
-
-  LOG_DEBUG("Generated Cassandra timestamp %llu", timestamp);
-  return timestamp;
 }
 
 
@@ -315,29 +315,6 @@ void Store::delete_client(void* client)
 
 
 bool Store::do_sync(Operation* op, SAS::TrailId trail)
-{
-  return run(op, trail);
-}
-
-
-void Store::do_async(Operation*& op, Transaction*& trx)
-{
-  if (_thread_pool == NULL)
-  {
-    LOG_ERROR("Can't process async operation as no thread pool has been configured");
-    assert(!"Can't process async operation as no thread pool has been configured");
-  }
-
-  std::pair<Operation*, Transaction*> params(op, trx);
-  _thread_pool->add_work(params);
-
-  // The caller no longer owns the operation or transaction, so null them out.
-  op = NULL;
-  trx = NULL;
-}
-
-
-bool Store::run(Operation* op, SAS::TrailId trail)
 {
   bool success = false;
   ClientInterface* client = NULL;
@@ -455,18 +432,34 @@ bool Store::run(Operation* op, SAS::TrailId trail)
 }
 
 
+void Store::do_async(Operation*& op, Transaction*& trx)
+{
+  if (_thread_pool == NULL)
+  {
+    LOG_ERROR("Can't process async operation as no thread pool has been configured");
+    assert(!"Can't process async operation as no thread pool has been configured");
+  }
+
+  std::pair<Operation*, Transaction*> params(op, trx);
+  _thread_pool->add_work(params);
+
+  // The caller no longer owns the operation or transaction, so null them out.
+  op = NULL;
+  trx = NULL;
+}
+
+
 //
 // Pool methods
 //
 
-Store::Pool::Pool(Store* store, 
-                  unsigned int num_threads, 
-                  ExceptionHandler* exception_handler, 
-                  void (*callback)(std::pair<Operation*, Transaction*>), 
+Store::Pool::Pool(Store* store,
+                  unsigned int num_threads,
+                  ExceptionHandler* exception_handler,
                   unsigned int max_queue) :
-  ThreadPool<std::pair<Operation*, Transaction*> >(num_threads, 
-                                                   exception_handler, 
-                                                   callback, 
+  ThreadPool<std::pair<Operation*, Transaction*> >(num_threads,
+                                                   exception_handler,
+                                                   exception_callback,
                                                    max_queue),
   _store(store)
 {}
@@ -488,7 +481,7 @@ void Store::Pool::process_work(std::pair<Operation*, Transaction*>& params)
   try
   {
     trx->start_timer();
-    success = _store->run(op, trx->trail);
+    success = _store->do_sync(op, trx->trail);
   }
   // LCOV_EXCL_START Transaction catches all exceptions so the thread pool
   // fallback code is never triggered.
