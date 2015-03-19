@@ -117,8 +117,9 @@ HttpConnection::HttpConnection(const std::string& server,
   _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                load_monitor->get_target_latency_us() :
                                DEFAULT_LATENCY_US);
-  LOG_STATUS("HttpConnection for server %s", _server.c_str());
-  LOG_STATUS("Response timeout: %ld", _timeout_ms);
+  LOG_STATUS("Configuring HTTP Connection");
+  LOG_STATUS("  Connection created for server %s", _server.c_str());
+  LOG_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
 
 /// Create an HTTP connection object.
@@ -147,8 +148,9 @@ HttpConnection::HttpConnection(const std::string& server,
   _statistic = NULL;
   _load_monitor = NULL;
   _timeout_ms = calc_req_timeout_from_latency(DEFAULT_LATENCY_US);
-  LOG_STATUS("HttpConnection for server %s", _server.c_str());
-  LOG_STATUS("Response timeout: %ld", _timeout_ms);
+  LOG_STATUS("Configuring HTTP Connection");
+  LOG_STATUS("  Connection created for server %s", _server.c_str());
+  LOG_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
 
 HttpConnection::~HttpConnection()
