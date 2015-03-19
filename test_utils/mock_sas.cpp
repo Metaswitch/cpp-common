@@ -153,6 +153,11 @@ void SAS::report_marker(const SAS::Marker& marker,
   record_message(true, marker._id, marker._static_params, marker._var_params);
 }
 
+void SAS::associate_trails(SAS::TrailId a, SAS::TrailId b, Marker::Scope scope)
+{
+  // no-op in UT
+}
+
 SAS::Timestamp SAS::get_current_timestamp()
 {
   // Return a fake timestamp.
