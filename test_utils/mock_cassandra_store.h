@@ -68,40 +68,17 @@ public:
 };
 
 
-template <class StoreClass>
-class MockCassandraStore : public StoreClass
-{
-public:
-  MockCassandraStore() {};
-  virtual ~MockCassandraStore() {};
-
-  //
-  // Initialization / termination methods
-  //
-  MOCK_METHOD0(initialize, void());
-
-  MOCK_METHOD4(configure, void(std::string cass_hostname,
-                               uint16_t cass_port,
-                               unsigned int num_threads,
-                               unsigned int max_queue));
-  MOCK_METHOD0(start, CassandraStore::ResultCode());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD1(do_sync, bool(CassandraStore::Operation* op));
-  MOCK_METHOD2(do_async, void(CassandraStore::Operation*& op,
-                              CassandraStore::Transaction*& trx));
-
-  void EXPECT_DO_ASYNC(MockOperationMixin& mock_op)
-  {
-    CassandraStore::Operation* op_ptr = NULL;
-    CassandraStore::Transaction* trx_ptr = NULL;
-
-    EXPECT_CALL(*this, do_async(PointerRefTo(dynamic_cast<CassandraStore::Operation*>(&mock_op)), _))
-      .WillOnce(DoAll(WithArgs<1>(Invoke(&mock_op, &MockOperationMixin::set_trx)),
-                      SetArgReferee<0>(op_ptr),
-                      SetArgReferee<1>(trx_ptr)));
+#define EXPECT_DO_ASYNC(STORE, MOCK_OP)                                        \
+  {                                                                            \
+    CassandraStore::Operation* op_ptr = NULL;                                  \
+    CassandraStore::Transaction* trx_ptr = NULL;                               \
+                                                                               \
+    EXPECT_CALL((STORE), do_async(PointerRefTo(dynamic_cast<CassandraStore::Operation*>(&(MOCK_OP))), _))\
+      .WillOnce(DoAll(WithArgs<1>(Invoke(&(MOCK_OP), &MockOperationMixin::set_trx)), \
+                      SetArgReferee<0>(op_ptr),                                \
+                      SetArgReferee<1>(trx_ptr)));                             \
   }
-};
+
 
 // Mock cassandra client that emulates the interface tot he C++ thrift bindings.
 class MockCassandraClient : public CassandraStore::ClientInterface
