@@ -423,6 +423,9 @@ private:
 class Operation
 {
 public:
+  /// Default constructor
+  Operation();
+
   /// Virtual destructor.
   virtual ~Operation() {};
 

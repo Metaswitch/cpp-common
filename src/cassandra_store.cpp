@@ -512,6 +512,8 @@ void Store::Pool::process_work(std::pair<Operation*, Transaction*>& params)
 // Operation methods.
 //
 
+Operation::Operation() : _cass_status(OK), _cass_error_text() {}
+
 ResultCode Operation::get_result_code()
 {
   return _cass_status;
