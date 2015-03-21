@@ -973,4 +973,22 @@ delete_slice(ClientInterface* client,
   client->batch_mutate(mutmap, ConsistencyLevel::ONE);
 }
 
+
+bool Operation::find_column_value(std::vector<cass::ColumnOrSuperColumn> cols,
+                                  const std::string& name,
+                                  std::string& value)
+{
+  for (std::vector<ColumnOrSuperColumn>::const_iterator it = cols.begin();
+       it != cols.end();
+       ++it)
+  {
+    if ((it->__isset.column) && (it->column.name == name))
+    {
+      value = it->column.value;
+      return true;
+    }
+  }
+  return false;
+}
+
 } // namespace CassandraStore

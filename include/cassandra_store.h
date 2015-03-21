@@ -705,6 +705,16 @@ protected:
                     const std::string& start,
                     const std::string& finish,
                     const int64_t timestamp);
+
+  /// @param cols  - The slice to search.
+  /// @param name  - The name of the column to look for.
+  /// @param value - (out) The column's value. Only valid if this function
+  ///                returns true.
+  ///
+  /// @return      - Whether the column was found.
+  bool find_column_value(std::vector<cass::ColumnOrSuperColumn> cols,
+                         const std::string& name,
+                         std::string& value);
 };
 
 /// Cassandra does not treat a non-existent row as a special case. If the user
