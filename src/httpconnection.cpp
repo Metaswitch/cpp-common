@@ -179,6 +179,9 @@ HttpConnection::~HttpConnection()
     delete _statistic;
     _statistic = NULL;
   }
+
+  pthread_key_delete(_curl_thread_local);
+  pthread_key_delete(_uuid_thread_local);
 }
 
 /// Get the thread-local curl handle if it exists, and create it if not.
