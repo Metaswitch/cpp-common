@@ -187,6 +187,7 @@ DnsCachedResolver::~DnsCachedResolver()
     pthread_setspecific(_thread_local, NULL);
     destroy_dns_channel(channel);
   }
+  pthread_key_delete(_thread_local);
 
   // Clear the cache.
   clear();

@@ -261,6 +261,8 @@ Store::~Store()
   // (as the pool stores a pointer to the store). Make sure this is the case.
   stop();
   wait_stopped();
+  
+  pthread_key_delete(_thread_local);
 }
 
 

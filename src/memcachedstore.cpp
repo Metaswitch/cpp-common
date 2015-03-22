@@ -127,6 +127,8 @@ BaseMemcachedStore::~BaseMemcachedStore()
   pthread_mutex_destroy(&_vbucket_comm_lock);
 
   pthread_rwlock_destroy(&_view_lock);
+  
+  pthread_key_delete(_thread_local);
 }
 
 
