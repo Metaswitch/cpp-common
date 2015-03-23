@@ -174,17 +174,17 @@ ResultCode Store::connection_test()
   }
   catch(TTransportException te)
   {
-    LOG_ERROR("Cache caught TTransportException: %s", te.what());
+    LOG_ERROR("Store caught TTransportException: %s", te.what());
     rc = CONNECTION_ERROR;
   }
   catch(NotFoundException nfe)
   {
-    LOG_ERROR("Cache caught NotFoundException: %s", nfe.what());
+    LOG_ERROR("Store caught NotFoundException: %s", nfe.what());
     rc = NOT_FOUND;
   }
   catch(...)
   {
-    LOG_ERROR("Cache caught unknown exception!");
+    LOG_ERROR("Store caught unknown exception!");
     rc = UNKNOWN_ERROR;
   }
 
@@ -235,7 +235,7 @@ ResultCode Store::start()
 
 void Store::stop()
 {
-  LOG_STATUS("Stopping cache");
+  LOG_STATUS("Stopping store");
   if (_thread_pool != NULL)
   {
     _thread_pool->stop();
@@ -245,7 +245,7 @@ void Store::stop()
 
 void Store::wait_stopped()
 {
-  LOG_STATUS("Waiting for cache to stop");
+  LOG_STATUS("Waiting for store to stop");
   if (_thread_pool != NULL)
   {
     _thread_pool->join();
@@ -487,7 +487,7 @@ void Store::Pool::process_work(std::pair<Operation*, Transaction*>& params)
   // fallback code is never triggered.
   catch(...)
   {
-    LOG_ERROR("Unhandled exception when processing cache request");
+    LOG_ERROR("Unhandled exception when processing cassandra request");
   }
   trx->stop_timer();
   // LCOV_EXCL_STOP
@@ -550,7 +550,7 @@ put_columns(const std::string& column_family,
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
-  LOG_DEBUG("Constructing cache put request with timestamp %lld and per-column TTLs", timestamp);
+  LOG_DEBUG("Constructing cassandra put request with timestamp %lld and per-column TTLs", timestamp);
   for (std::map<std::string, std::string>::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
@@ -600,7 +600,7 @@ put_columns(const std::vector<RowColumns>& to_put,
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
-  LOG_DEBUG("Constructing cache put request with timestamp %lld and per-column TTLs", timestamp);
+  LOG_DEBUG("Constructing cassandra put request with timestamp %lld and per-column TTLs", timestamp);
   for (std::vector<RowColumns>::const_iterator it = to_put.begin();
        it != to_put.end();
        ++it)
@@ -882,7 +882,7 @@ delete_columns(const std::vector<RowColumns>& to_rm,
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
-  LOG_DEBUG("Constructing cache delete request with timestamp %lld", timestamp);
+  LOG_DEBUG("Constructing cassandra delete request with timestamp %lld", timestamp);
   for (std::vector<RowColumns>::const_iterator it = to_rm.begin();
        it != to_rm.end();
        ++it)
