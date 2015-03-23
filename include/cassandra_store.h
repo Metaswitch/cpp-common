@@ -328,7 +328,7 @@ public:
                    const std::map<std::string, std::string>& columns,
                    int64_t timestamp,
                    int32_t ttl,
-                   cass::ConsistencyLevel::type consistency_level);
+                   cass::ConsistencyLevel::type consistency_level = cass::ConsistencyLevel::ONE);
 
   /// Write columns to the database.  This allows for complex writing of
   /// different columns to different column families and/or keys.
