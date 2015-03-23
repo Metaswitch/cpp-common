@@ -81,7 +81,7 @@ public:
 
 
 // Mock cassandra client that emulates the interface tot he C++ thrift bindings.
-class MockCassandraClient : public CassandraStore::ClientInterface
+class MockCassandraClient : public CassandraStore::Client
 {
 public:
   MOCK_METHOD1(set_keyspace, void(const std::string& keyspace));
