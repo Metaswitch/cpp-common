@@ -257,10 +257,13 @@ void Store::wait_stopped()
 
 Store::~Store()
 {
-  // It is only safe to destroy the store once the thread pool has been deleted
-  // (as the pool stores a pointer to the store). Make sure this is the case.
-  stop();
-  wait_stopped();
+  if (_thread_pool != NULL)
+  {
+    // It is only safe to destroy the store once the thread pool has been deleted
+    // (as the pool stores a pointer to the store). Make sure this is the case.
+    stop();
+    wait_stopped();
+  }
 }
 
 
