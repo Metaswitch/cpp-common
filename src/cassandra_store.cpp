@@ -58,52 +58,52 @@ const int32_t GET_SLICE_MAX_COLUMNS = 1000000;
 //
 
 // LCOV_EXCL_START real clients are not tested in UT.
-Client::Client(boost::shared_ptr<TProtocol> prot,
-               boost::shared_ptr<TFramedTransport> transport) :
+RealThriftClient::RealThriftClient(boost::shared_ptr<TProtocol> prot,
+                                   boost::shared_ptr<TFramedTransport> transport) :
   _cass_client(prot),
   _transport(transport)
 {
   _transport->open();
 }
 
-Client::~Client()
+RealThriftClient::~RealThriftClient()
 {
   _transport->close();
 }
 
-void Client::set_keyspace(const std::string& keyspace)
+void RealThriftClient::set_keyspace(const std::string& keyspace)
 {
   _cass_client.set_keyspace(keyspace);
 }
 
-void Client::batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
-                          const cass::ConsistencyLevel::type consistency_level)
+void RealThriftClient::batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
+                                    const cass::ConsistencyLevel::type consistency_level)
 {
   _cass_client.batch_mutate(mutation_map, consistency_level);
 }
 
-void Client::get_slice(std::vector<cass::ColumnOrSuperColumn>& _return,
-                       const std::string& key,
-                       const cass::ColumnParent& column_parent,
-                       const cass::SlicePredicate& predicate,
-                       const cass::ConsistencyLevel::type consistency_level)
+void RealThriftClient::get_slice(std::vector<cass::ColumnOrSuperColumn>& _return,
+                                 const std::string& key,
+                                 const cass::ColumnParent& column_parent,
+                                 const cass::SlicePredicate& predicate,
+                                 const cass::ConsistencyLevel::type consistency_level)
 {
   _cass_client.get_slice(_return, key, column_parent, predicate, consistency_level);
 }
 
-void Client::multiget_slice(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& _return,
-                            const std::vector<std::string>& keys,
-                            const cass::ColumnParent& column_parent,
-                            const cass::SlicePredicate& predicate,
-                            const cass::ConsistencyLevel::type consistency_level)
+void RealThriftClient::multiget_slice(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& _return,
+                                      const std::vector<std::string>& keys,
+                                      const cass::ColumnParent& column_parent,
+                                      const cass::SlicePredicate& predicate,
+                                      const cass::ConsistencyLevel::type consistency_level)
 {
   _cass_client.multiget_slice(_return, keys, column_parent, predicate, consistency_level);
 }
 
-void Client::remove(const std::string& key,
-                    const cass::ColumnPath& column_path,
-                    const int64_t timestamp,
-                    const cass::ConsistencyLevel::type consistency_level)
+void RealThriftClient::remove(const std::string& key,
+                              const cass::ColumnPath& column_path,
+                              const int64_t timestamp,
+                              const cass::ConsistencyLevel::type consistency_level)
 {
   _cass_client.remove(key, column_path, timestamp, consistency_level);
 }
@@ -265,23 +265,23 @@ Store::~Store()
 
 
 // LCOV_EXCL_START - UTs do not cover relationship of clients to threads.
-ClientInterface* Store::get_client()
+Client* Store::get_client()
 {
   // See if we've already got a client for this thread.  If not allocate a new
   // one and write it back into thread-local storage.
-  LOG_DEBUG("Getting thread-local CacheClientInterface");
-  ClientInterface* client = (ClientInterface*)pthread_getspecific(_thread_local);
+  LOG_DEBUG("Getting thread-local Client");
+  Client* client = (Client*)pthread_getspecific(_thread_local);
 
   if (client == NULL)
   {
-    LOG_DEBUG("No thread-local CacheClientInterface - creating one");
+    LOG_DEBUG("No thread-local Client - creating one");
     boost::shared_ptr<TTransport> socket =
       boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
     boost::shared_ptr<TFramedTransport> transport =
       boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
     boost::shared_ptr<TProtocol> protocol =
       boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
-    client = new Client(protocol, transport);
+    client = new RealThriftClient(protocol, transport);
     client->set_keyspace(_keyspace);
     pthread_setspecific(_thread_local, client);
   }
@@ -295,7 +295,7 @@ void Store::release_client()
   // If this thread already has a client delete it and remove it from
   // thread-local storage.
   LOG_DEBUG("Looking to release thread-local client");
-  ClientInterface* client = (ClientInterface*)pthread_getspecific(_thread_local);
+  Client* client = (Client*)pthread_getspecific(_thread_local);
 
   if (client != NULL)
   {
@@ -309,7 +309,7 @@ void Store::release_client()
 
 void Store::delete_client(void* client)
 {
-  delete (ClientInterface*)client; client = NULL;
+  delete (Client*)client; client = NULL;
 }
 // LCOV_EXCL_STOP
 
@@ -317,7 +317,7 @@ void Store::delete_client(void* client)
 bool Store::do_sync(Operation* op, SAS::TrailId trail)
 {
   bool success = false;
-  ClientInterface* client = NULL;
+  Client* client = NULL;
   ResultCode cass_result = OK;
   std::string cass_error_text = "";
 
@@ -535,13 +535,13 @@ void Operation::unhandled_exception(ResultCode rc,
 }
 
 
-void Operation::
-put_columns(ClientInterface* client,
-            const std::string& column_family,
+void Client::
+put_columns(const std::string& column_family,
             const std::vector<std::string>& keys,
             const std::map<std::string, std::string>& columns,
             int64_t timestamp,
-            int32_t ttl)
+            int32_t ttl,
+            cass::ConsistencyLevel::type consistency_level)
 {
   // Vector of mutations (one per column being modified).
   std::vector<Mutation> mutations;
@@ -587,13 +587,12 @@ put_columns(ClientInterface* client,
 
   // Execute the database operation.
   LOG_DEBUG("Executing put request operation");
-  client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+  batch_mutate(mutmap, consistency_level);
 }
 
 
-void Operation::
-put_columns(ClientInterface* client,
-            const std::vector<RowColumns>& to_put,
+void Client::
+put_columns(const std::vector<RowColumns>& to_put,
             int64_t timestamp,
             int32_t ttl)
 {
@@ -640,7 +639,7 @@ put_columns(ClientInterface* client,
 
   // Execute the database operation.
   LOG_DEBUG("Executing put request operation");
-  client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+  batch_mutate(mutmap, ConsistencyLevel::ONE);
 }
 
 
@@ -681,51 +680,46 @@ put_columns(ClientInterface* client,
         }
 
 
-void Operation::
-ha_get_columns(ClientInterface* client,
-               const std::string& column_family,
+void Client::
+ha_get_columns(const std::string& column_family,
                const std::string& key,
                const std::vector<std::string>& names,
                std::vector<ColumnOrSuperColumn>& columns)
 {
-  HA(get_columns, client, column_family, key, names, columns);
+  HA(get_columns, column_family, key, names, columns);
 }
 
 
-void Operation::
-ha_get_columns_with_prefix(ClientInterface* client,
-                           const std::string& column_family,
+void Client::
+ha_get_columns_with_prefix(const std::string& column_family,
                            const std::string& key,
                            const std::string& prefix,
                            std::vector<ColumnOrSuperColumn>& columns)
 {
-  HA(get_columns_with_prefix, client, column_family, key, prefix, columns);
+  HA(get_columns_with_prefix, column_family, key, prefix, columns);
 }
 
 
-void Operation::
-ha_multiget_columns_with_prefix(ClientInterface* client,
-                                const std::string& column_family,
+void Client::
+ha_multiget_columns_with_prefix(const std::string& column_family,
                                 const std::vector<std::string>& keys,
                                 const std::string& prefix,
                                 std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns)
 {
-  HA(multiget_columns_with_prefix, client, column_family, keys, prefix, columns);
+  HA(multiget_columns_with_prefix, column_family, keys, prefix, columns);
 }
 
-void Operation::
-ha_get_all_columns(ClientInterface* client,
-                   const std::string& column_family,
+void Client::
+ha_get_all_columns(const std::string& column_family,
                    const std::string& key,
                    std::vector<ColumnOrSuperColumn>& columns)
 {
-  HA(get_row, client, column_family, key, columns);
+  HA(get_row, column_family, key, columns);
 }
 
 
-void Operation::
-get_columns(ClientInterface* client,
-            const std::string& column_family,
+void Client::
+get_columns(const std::string& column_family,
             const std::string& key,
             const std::vector<std::string>& names,
             std::vector<ColumnOrSuperColumn>& columns,
@@ -736,13 +730,12 @@ get_columns(ClientInterface* client,
   sp.column_names = names;
   sp.__isset.column_names = true;
 
-  issue_get_for_key(client, column_family, key, sp, columns, consistency_level);
+  issue_get_for_key(column_family, key, sp, columns, consistency_level);
 }
 
 
-void Operation::
-get_columns_with_prefix(ClientInterface* client,
-                        const std::string& column_family,
+void Client::
+get_columns_with_prefix(const std::string& column_family,
                         const std::string& key,
                         const std::string& prefix,
                         std::vector<ColumnOrSuperColumn>& columns,
@@ -760,7 +753,7 @@ get_columns_with_prefix(ClientInterface* client,
   sp.slice_range = sr;
   sp.__isset.slice_range = true;
 
-  issue_get_for_key(client, column_family, key, sp, columns, consistency_level);
+  issue_get_for_key(column_family, key, sp, columns, consistency_level);
 
   // Remove the prefix from the returned column names.
   for (std::vector<ColumnOrSuperColumn>::iterator it = columns.begin();
@@ -772,9 +765,8 @@ get_columns_with_prefix(ClientInterface* client,
 }
 
 
-void Operation::
-multiget_columns_with_prefix(ClientInterface* client,
-                             const std::string& column_family,
+void Client::
+multiget_columns_with_prefix(const std::string& column_family,
                              const std::vector<std::string>& keys,
                              const std::string& prefix,
                              std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
@@ -792,7 +784,7 @@ multiget_columns_with_prefix(ClientInterface* client,
   sp.slice_range = sr;
   sp.__isset.slice_range = true;
 
-  issue_multiget_for_key(client, column_family, keys, sp, columns, consistency_level);
+  issue_multiget_for_key(column_family, keys, sp, columns, consistency_level);
 
   // Remove the prefix from the returned column names.
   for (std::map<std::string, std::vector<ColumnOrSuperColumn> >::iterator it = columns.begin();
@@ -809,9 +801,8 @@ multiget_columns_with_prefix(ClientInterface* client,
 }
 
 
-void Operation::
-get_row(ClientInterface* client,
-        const std::string& column_family,
+void Client::
+get_row(const std::string& column_family,
         const std::string& key,
         std::vector<ColumnOrSuperColumn>& columns,
         ConsistencyLevel::type consistency_level)
@@ -826,13 +817,12 @@ get_row(ClientInterface* client,
   sp.slice_range = sr;
   sp.__isset.slice_range = true;
 
-  issue_get_for_key(client, column_family, key, sp, columns, consistency_level);
+  issue_get_for_key(column_family, key, sp, columns, consistency_level);
 }
 
 
-void Operation::
-issue_get_for_key(ClientInterface* client,
-                  const std::string& column_family,
+void Client::
+issue_get_for_key(const std::string& column_family,
                   const std::string& key,
                   const SlicePredicate& predicate,
                   std::vector<ColumnOrSuperColumn>& columns,
@@ -841,7 +831,7 @@ issue_get_for_key(ClientInterface* client,
   ColumnParent cparent;
   cparent.column_family = column_family;
 
-  client->get_slice(columns, key, cparent, predicate, consistency_level);
+  get_slice(columns, key, cparent, predicate, consistency_level);
 
   if (columns.size() == 0)
   {
@@ -851,9 +841,8 @@ issue_get_for_key(ClientInterface* client,
 }
 
 
-void Operation::
-issue_multiget_for_key(ClientInterface* client,
-                       const std::string& column_family,
+void Client::
+issue_multiget_for_key(const std::string& column_family,
                        const std::vector<std::string>& keys,
                        const SlicePredicate& predicate,
                        std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
@@ -862,7 +851,7 @@ issue_multiget_for_key(ClientInterface* client,
   ColumnParent cparent;
   cparent.column_family = column_family;
 
-  client->multiget_slice(columns, keys, cparent, predicate, consistency_level);
+  multiget_slice(columns, keys, cparent, predicate, consistency_level);
 
   if (columns.size() == 0)
   {
@@ -872,9 +861,8 @@ issue_multiget_for_key(ClientInterface* client,
 }
 
 
-void Operation::
-delete_row(ClientInterface* client,
-           const std::string& column_family,
+void Client::
+delete_row(const std::string& column_family,
            const std::string& key,
            int64_t timestamp)
 {
@@ -882,13 +870,12 @@ delete_row(ClientInterface* client,
   cp.column_family = column_family;
 
   LOG_DEBUG("Deleting row with key %s (timestamp %lld", key.c_str(), timestamp);
-  client->remove(key, cp, timestamp, ConsistencyLevel::ONE);
+  remove(key, cp, timestamp, ConsistencyLevel::ONE);
 }
 
 
-void Operation::
-delete_columns(ClientInterface* client,
-               const std::vector<RowColumns>& to_rm,
+void Client::
+delete_columns(const std::vector<RowColumns>& to_rm,
                int64_t timestamp)
 {
   // The mutation map is of the form {"key": {"column_family": [mutations] } }
@@ -906,7 +893,7 @@ delete_columns(ClientInterface* client,
       ColumnPath cp;
       cp.column_family = it->cf;
 
-      client->remove(it->key, cp, timestamp, ConsistencyLevel::ONE);
+      remove(it->key, cp, timestamp, ConsistencyLevel::ONE);
     }
     else
     {
@@ -940,13 +927,12 @@ delete_columns(ClientInterface* client,
   // Execute the batch delete operation if we've constructed one.
   if (!mutmap.empty()) {
     LOG_DEBUG("Executing delete request operation");
-    client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+    batch_mutate(mutmap, ConsistencyLevel::ONE);
   }
 }
 
-void Operation::
-delete_slice(ClientInterface* client,
-             const std::string& column_family,
+void Client::
+delete_slice(const std::string& column_family,
              const std::string& key,
              const std::string& start,
              const std::string& finish,
@@ -972,11 +958,11 @@ delete_slice(ClientInterface* client,
   // Add the mutation to the mutation map with the correct key and column
   // family and call into thrift.
   mutmap[key][column_family].push_back(mutation);
-  client->batch_mutate(mutmap, ConsistencyLevel::ONE);
+  batch_mutate(mutmap, ConsistencyLevel::ONE);
 }
 
 
-bool Operation::find_column_value(std::vector<cass::ColumnOrSuperColumn> cols,
+bool find_column_value(std::vector<cass::ColumnOrSuperColumn> cols,
                                   const std::string& name,
                                   std::string& value)
 {
