@@ -166,6 +166,17 @@ private:
 // { row: { table : [ Mutation ] } }.
 typedef std::map<std::string, std::map<std::string, std::vector<cass::Mutation>>> mutmap_t;
 
+// A mutation map in a more usable form. Structured as
+//
+// {
+//   table: {
+//     key: {
+//       column_name: find_column_value
+//     }
+//   }
+// }
+typedef std::map<std::string, std::map<std::string, std::map<std::string, std::string>>> nice_mutmap_t;
+
 // A slice as returned by get_slice().
 typedef std::vector<cass::ColumnOrSuperColumn> slice_t;
 
@@ -945,7 +956,39 @@ MATCHER_P(ColumnsWithPrefix,
   return true;
 }
 
+ACTION_P(SaveMutmap, ptr)
+{
+  *ptr = arg0;
+}
+
+ACTION_P(SaveMutmapAsMap, ptr)
+{
+  ptr->clear();
+  const mutmap_t& mutations = arg0;
+
+  for (mutmap_t::const_iterator row_it = mutations.begin();
+       row_it != mutations.end();
+       ++row_it)
+  {
+    for (std::map<std::string, std::vector<cass::Mutation>>::const_iterator cf_it = row_it->second.begin();
+         cf_it != row_it->second.end();
+         ++cf_it)
+    {
+      for (std::vector<cass::Mutation>::const_iterator mut_it = cf_it->second.begin();
+           mut_it != cf_it->second.end();
+           ++mut_it)
+      {
+        ASSERT_TRUE(mut_it->__isset.column_or_supercolumn);
+        ASSERT_TRUE(mut_it->column_or_supercolumn.__isset.column);
+        const cass::Column& col = mut_it->column_or_supercolumn.column;
+        (*ptr)[cf_it->first][row_it->first][col.name] = col.value;
+      }
+    }
+  }
+}
+
 } // namespace CassTestUtils
+
 
 #endif
 
