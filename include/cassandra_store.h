@@ -419,7 +419,8 @@ enum ResultCode
   NOT_FOUND = 2,
   CONNECTION_ERROR = 3,
   RESOURCE_ERROR = 4,
-  UNKNOWN_ERROR = 5
+  UNKNOWN_ERROR = 5,
+  UNAVAILABLE = 6
 };
 
 /// The byte sequences that represent True and False in cassandra.

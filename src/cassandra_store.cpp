@@ -385,6 +385,12 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
       cass_error_text = (boost::format("Row %s not present in column_family %s")
                          % nre.key % nre.column_family).str();
     }
+    catch(UnavailableException& ue)
+    {
+      cass_result = UNAVAILABLE;
+      cass_error_text = (boost::format("Exception: %s")
+                         % ue.what()).str();
+    }
     catch(...)
     {
       cass_result = UNKNOWN_ERROR;
