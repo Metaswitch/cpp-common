@@ -38,7 +38,6 @@
 #define CHRONOSCONNECTION_H__
 
 #include <curl/curl.h>
-#include <json/value.h>
 #include "sas.h"
 
 #include "httpconnection.h"

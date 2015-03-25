@@ -247,7 +247,7 @@ HTTPCode HttpConnection::curl_code_to_http_code(CURL* curl, CURLcode code)
   }
   case CURLE_URL_MALFORMAT:
   case CURLE_NOT_BUILT_IN:
-    return HTTP_BAD_RESULT;
+    return HTTP_BAD_REQUEST;
   // LCOV_EXCL_STOP
   case CURLE_REMOTE_FILE_NOT_FOUND:
     return HTTP_NOT_FOUND;

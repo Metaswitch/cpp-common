@@ -108,7 +108,7 @@ HTTPCode ChronosConnection::send_put(std::string& put_identity,
     }
     else
     {
-      return HTTP_BAD_RESULT;
+      return HTTP_BAD_REQUEST;
     }
   }
 
@@ -139,7 +139,7 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
     }
     else
     {
-      return HTTP_BAD_RESULT;
+      return HTTP_BAD_REQUEST;
     }
   }
 
