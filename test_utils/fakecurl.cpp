@@ -156,27 +156,27 @@ CURLcode FakeCurl::easy_perform(FakeCurl* curl)
   {
     // Call the debug callback with some dummy HTTP messages (to exercise SAS
     // logging code).
-    char* text;
+    std::string text;
 
     text = "GET / HTTP/1.1\r\n\r\n";
     _debug_callback((CURL*)this,
                     CURLINFO_HEADER_OUT,
-                    text,
-                    strlen(text),
+                    (char*)text.c_str(),
+                    strlen(text.c_str()),
                     _debug_data);
 
     text = "Done request, starting response\n";
     _debug_callback((CURL*)this,
                     CURLINFO_TEXT,
-                    text,
-                    strlen(text),
+                    (char*)text.c_str(),
+                    strlen(text.c_str()),
                     _debug_data);
 
     text = "HTTP/1.1 200 OK\r\n\r\n";
     _debug_callback((CURL*)this,
                     CURLINFO_HEADER_IN,
-                    text,
-                    strlen(text),
+                    (char*)text.c_str(),
+                    strlen(text.c_str()),
                     _debug_data);
   }
 
