@@ -836,7 +836,14 @@ private:
 public:
   static void exception_callback(RequestParams* work)
   {
-    // TODO figure out what to do here.
+    // Build and send a rejection response to the peer.
+    struct msg* request = *work->request;
+    fd_msg_new_answer_from_req(fd_g_config->cnf_dict,
+                               &request,
+                               MSGFL_ANSW_ERROR);
+    fd_msg_rescode_set(request, "DIAMETER_UNABLE_TO_COMPLY", NULL, NULL, 0);
+    Diameter::Stack::get_instance()->send(request, work->trail);
+
     delete work; work = NULL;
   }
 
