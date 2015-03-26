@@ -45,9 +45,9 @@ Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 struct fd_hook_data_hdl* Stack::_sas_cb_data_hdl = NULL;
 
-Stack::Stack() : _initialized(false), 
-                 _callback_handler(NULL), 
-                 _callback_fallback_handler(NULL), 
+Stack::Stack() : _initialized(false),
+                 _callback_handler(NULL),
+                 _callback_fallback_handler(NULL),
                  _exception_handler(NULL),
                  _comm_monitor(NULL)
 {
@@ -1262,4 +1262,81 @@ void Message::send(Transaction* tsx, unsigned int timeout_ms)
   revoke_ownership();
 
   _stack->send(_fd_msg, tsx, timeout_ms);
+}
+
+//
+// HandlerThreadPool methods.
+//
+
+HandlerThreadPool::HandlerThreadPool(unsigned int num_threads,
+                                     ExceptionHandler* exception_handler,
+                                     unsigned int max_queue) :
+  _pool(num_threads,
+        exception_handler,
+        &exception_callback,
+        max_queue),
+  _wrappers()
+{
+  _pool.start();
+}
+
+Stack::HandlerInterface*
+  HandlerThreadPool::wrap(Stack::HandlerInterface* handler)
+{
+  // Create a new wrapper around the specific handler and record it in
+  // the wrappers vector.
+  Wrapper* wrapper = new Wrapper(&_pool, handler);
+  _wrappers.push_back(wrapper);
+  return wrapper;
+}
+
+HandlerThreadPool::~HandlerThreadPool()
+{
+  // The thread pool owns all the wrappers it creates.  Delete them.
+  for(std::vector<Wrapper*>::iterator it = _wrappers.begin();
+      it != _wrappers.end();
+      ++it)
+  {
+    delete *it;
+  }
+
+  _wrappers.clear();
+
+  // Terminate the thread pool.
+  _pool.stop();
+  _pool.join();
+}
+
+HandlerThreadPool::Pool::Pool(unsigned int num_threads,
+                              ExceptionHandler* exception_handler,
+                              void (*callback)(HandlerThreadPool::RequestParams*),
+                              unsigned int max_queue) :
+  ThreadPool<RequestParams*>(num_threads, exception_handler, callback, max_queue)
+{}
+
+// This function defines how the worker threads process received requests.
+// This is simply to invoke the process_request() method on the underlying
+// handler.
+void HandlerThreadPool::Pool::
+  process_work(HandlerThreadPool::RequestParams*& params)
+{
+  params->handler->process_request(params->request, params->trail);
+  delete params; params = NULL;
+}
+
+HandlerThreadPool::Wrapper::Wrapper(Pool* pool,
+                                    HandlerInterface* handler) :
+  _pool(pool), _handler(handler)
+{}
+
+// Implementation of HandlerInterface::process_request().  This builds a
+// RequestParams object (containing the parameters the function was called
+// with, and a pointer to the underlying handler) and sends it to the
+// thread pool.
+void HandlerThreadPool::Wrapper::process_request(struct msg** request,
+                                                 SAS::TrailId trail)
+{
+  HandlerThreadPool::RequestParams* params =
+    new HandlerThreadPool::RequestParams(_handler, request, trail);
+  _pool->add_work(params);
 }

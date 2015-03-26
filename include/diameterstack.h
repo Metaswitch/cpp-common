@@ -50,6 +50,7 @@
 #include "baseresolver.h"
 #include "communicationmonitor.h"
 #include "exception_handler.h"
+#include "threadpool.h"
 
 namespace Diameter
 {
@@ -616,18 +617,11 @@ public:
     ///   answer.
     /// @param trail the SAS trail ID associated with the reqeust.
     virtual void process_request(struct msg** req, SAS::TrailId trail) = 0;
-
-    /// Get the diameter dictionary this handler uses (this is required for
-    /// SAS logging).
-    ///
-    /// @return a pointer to a Diameter::Dictionary object.
-    virtual const Dictionary* get_dict() = 0;
   };
-
 
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
-  virtual void configure(std::string filename, 
+  virtual void configure(std::string filename,
                          ExceptionHandler* exception_handler,
                          CommunicationMonitor* comm_monitor = NULL);
   virtual void advertize_application(const Dictionary::Application::Type type,
@@ -793,6 +787,111 @@ AVP::iterator AVP::end() const {return AVP::iterator(NULL);}
 AVP::iterator Message::begin() const {return AVP::iterator(*this);}
 AVP::iterator Message::begin(const Dictionary::AVP& type) const {return AVP::iterator(*this, type);}
 AVP::iterator Message::end() const {return AVP::iterator(NULL);}
+
+/// @class HandlerThreadPool
+///
+/// The DiameterStack has one message handling thread per peer to so handlers
+/// must take care not to block it while doing external work.  This class is a
+/// thread pool that allows the application to execute certain handlers in a
+/// worker thread (which is allowed to block).
+///
+/// Example code:
+///   stack = Diameter::Stack::get_instance();
+///   ExampleHandler handler1;
+///
+///   Diameter::HandlerThreadPool pool(50);
+///   stack->register_handler(APP_DICT, REQUEST_DICT, pool.wrap(handler1))
+class HandlerThreadPool
+{
+public:
+  HandlerThreadPool(unsigned int num_threads,
+                    ExceptionHandler* exception_handler,
+                    unsigned int max_queue = 0);
+  ~HandlerThreadPool();
+
+  /// Wrap a handler in a 'wrapper' object.  Requests passed to this
+  /// wrapper will be processed on a worker thread.
+  Stack::HandlerInterface* wrap(Stack::HandlerInterface* handler);
+
+private:
+  /// @struct RequestParams
+  ///
+  /// Structure that is used for passing requests from the freeDiameter message
+  /// handling thread to the thread pool.
+  struct RequestParams
+  {
+    RequestParams(Stack::HandlerInterface* handler_param,
+                  struct msg** request_param,
+                  SAS::TrailId trail_param) :
+      handler(handler_param),
+      request(request_param),
+      trail(trail_param)
+    {}
+
+    Stack::HandlerInterface* handler;
+    struct msg** request;
+    SAS::TrailId trail;
+  };
+
+public:
+  static void exception_callback(RequestParams* work)
+  {
+    // TODO figure out what to do here.
+    delete work; work = NULL;
+  }
+
+private:
+  /// @class Pool
+  ///
+  /// The thread pool that manages the worker threads and defines how a work
+  /// item is processed.
+  class Pool : public ThreadPool<RequestParams*>
+  {
+  public:
+    Pool(unsigned int num_threads,
+         ExceptionHandler* exception_handler,
+         void (*callback)(RequestParams*),
+         unsigned int max_queue = 0);
+
+    void process_work(RequestParams*& params);
+  };
+
+  /// @class Wrapper
+  ///
+  /// The wrapper class that is returned to the application on calling
+  /// HandlerThreadPool::wrap().
+  ///
+  /// This implements Diameter::Stack::HandlerInterface so can be used in place
+  /// of the real handler when registering with the stack. Its process_request()
+  /// method takes a diameter request object and passes it to the actual thread
+  /// pool for processing in a worker thread.
+  class Wrapper : public Stack::HandlerInterface
+  {
+  public:
+    Wrapper(Pool* pool, HandlerInterface* handler);
+    virtual ~Wrapper(){};
+
+    /// Implementation of HandlerInterface::process_request(). This passes
+    /// the request to a thread pool for processing.
+    void process_request(struct msg** request, SAS::TrailId trail);
+
+  private:
+    // The pool that new requests are passed to.
+    Pool* _pool;
+
+    // The wrapped handler.
+    HandlerInterface* _handler;
+  };
+
+  // The threadpool containing the worker threads.
+  Pool _pool;
+
+  // Vector of all the wrapper objects that have been allocated.  These are
+  // owned by the HandlerThreadPool (which is responsible for freeing
+  // them) and we use this vector to keep track of them.
+  std::vector<Wrapper*> _wrappers;
+};
+
 };
 
 /// Per-message data structure for SAS logging in free-diameter hooks.  This
