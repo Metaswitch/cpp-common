@@ -273,6 +273,7 @@ private:
   static std::string host_from_server(const std::string& server);
   static int port_from_server(const std::string& server);
   static long calc_req_timeout_from_latency(int latency_us);
+  void change_server(std::string override_server);
 
   boost::uuids::uuid get_random_uuid();
 

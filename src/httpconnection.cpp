@@ -292,9 +292,7 @@ HTTPCode HttpConnection::send_delete(const std::string& path,
 {
   std::string unused_response;
   std::map<std::string, std::string> unused_headers;
-  _server = override_server;
-  _host = host_from_server(override_server);
-  _port = port_from_server(override_server);
+  change_server(override_server);
 
   return send_delete(path, unused_headers, unused_response, trail, body);
 }
@@ -437,9 +435,7 @@ HTTPCode HttpConnection::send_get(const std::string& path,
                                   const std::string& override_server,
                                   SAS::TrailId trail)
 {
-  _server = override_server;
-  _host = host_from_server(override_server);
-  _port = port_from_server(override_server);
+  change_server(override_server);
 
   std::map<std::string, std::string> unused_rsp_headers;
   return HttpConnection::send_get(path, unused_rsp_headers, response, "", headers, trail);
@@ -465,10 +461,7 @@ HTTPCode HttpConnection::send_get(const std::string& path,                     /
                                   SAS::TrailId trail)                          //< SAS trail
 {
   CURL *curl = get_curl_handle();
-
   curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
-
-  std::vector<std::string> unused_req_headers;
 
   return send_request(path, "", response, username, trail, "GET", headers_to_add, curl);
 }
@@ -1073,6 +1066,13 @@ int HttpConnection::port_from_server(const std::string& server)
   int port;
   host_port_from_server(server, host, port);
   return port;
+}
+
+void HttpConnection::change_server(std::string override_server)
+{
+  _server = override_server;
+  _host = host_from_server(override_server);
+  _port = port_from_server(override_server);
 }
 
 // This function determines an appropriate absolute HTTP request timeout

@@ -66,6 +66,9 @@ public:
     void add_header_to_incoming_req(const std::string& name, 
                                     const std::string& value)
     {
+      // This takes the name and value for the new header. These
+      // are copied to avoid memory scribblers (controlled by the 1, 1
+      // parameters)
       evhtp_header_t* new_header = evhtp_header_new(name.c_str(),
                                                     value.c_str(),
                                                     1, 1);

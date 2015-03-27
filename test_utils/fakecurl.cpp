@@ -162,21 +162,21 @@ CURLcode FakeCurl::easy_perform(FakeCurl* curl)
     _debug_callback((CURL*)this,
                     CURLINFO_HEADER_OUT,
                     (char*)text.c_str(),
-                    strlen(text.c_str()),
+                    text.size(),
                     _debug_data);
 
     text = "Done request, starting response\n";
     _debug_callback((CURL*)this,
                     CURLINFO_TEXT,
                     (char*)text.c_str(),
-                    strlen(text.c_str()),
+                    text.size(),
                     _debug_data);
 
     text = "HTTP/1.1 200 OK\r\n\r\n";
     _debug_callback((CURL*)this,
                     CURLINFO_HEADER_IN,
                     (char*)text.c_str(),
-                    strlen(text.c_str()),
+                    text.size(),
                     _debug_data);
   }
 
