@@ -1068,6 +1068,9 @@ int HttpConnection::port_from_server(const std::string& server)
   return port;
 }
 
+// Changes the underlying server used by this connection. Use this when 
+// the HTTPConnection was created without a server (e.g. 
+// ChronosInternalConnection)
 void HttpConnection::change_server(std::string override_server)
 {
   _server = override_server;
