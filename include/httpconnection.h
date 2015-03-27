@@ -56,7 +56,8 @@ typedef long HTTPCode;
 static const long HTTP_OK = 200;
 static const long HTTP_CREATED = 201;
 static const long HTTP_ACCEPTED = 202;
-static const long HTTP_BAD_RESULT = 400;
+static const long HTTP_PARTIAL_CONTENT = 206;
+static const long HTTP_BAD_REQUEST = 400;
 static const long HTTP_UNAUTHORIZED = 401;
 static const long HTTP_FORBIDDEN = 403;
 static const long HTTP_NOT_FOUND = 404;
@@ -90,14 +91,29 @@ public:
 
   virtual long send_get(const std::string& path,
                         std::string& response,
+                        std::vector<std::string> headers,
+                        const std::string& override_server,
+                        SAS::TrailId trail);
+  virtual long send_get(const std::string& path,
+                        std::string& response,
                         const std::string& username,
                         SAS::TrailId trail);
+  virtual long send_get(const std::string& path,                     
+                        std::map<std::string, std::string>& headers, 
+                        std::string& response,                       
+                        const std::string& username,                 
+                        SAS::TrailId trail);                         
   virtual long send_get(const std::string& path,                     //< Absolute path to request from server - must start with "/"
                         std::map<std::string, std::string>& headers, //< Map of headers from the response
                         std::string& response,                       //< Retrieved document
                         const std::string& username,                 //< Username to assert (if assertUser was true, else ignored)
+                        std::vector<std::string> headers_to_add,     //< Extra headers to add to the request
                         SAS::TrailId trail);                         //< SAS trail
 
+  virtual long send_delete(const std::string& path,
+                           SAS::TrailId trail,
+                           const std::string& body,
+                           const std::string& override_server);
   virtual long send_delete(const std::string& path,
                            SAS::TrailId trail,
                            const std::string& body = "");
@@ -151,6 +167,7 @@ public:
                             const std::string& username,
                             SAS::TrailId trail,
                             const std::string& method_str,
+                            std::vector<std::string> headers,
                             CURL* curl);
 
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
@@ -256,12 +273,13 @@ private:
   static std::string host_from_server(const std::string& server);
   static int port_from_server(const std::string& server);
   static long calc_req_timeout_from_latency(int latency_us);
+  void change_server(std::string override_server);
 
   boost::uuids::uuid get_random_uuid();
 
-  const std::string _server;
-  const std::string _host;
-  const int _port;
+  std::string _server;
+  std::string _host;
+  int _port;
   const bool _assert_user;
   pthread_key_t _curl_thread_local;
   pthread_key_t _uuid_thread_local;
