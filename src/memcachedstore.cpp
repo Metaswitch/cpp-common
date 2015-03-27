@@ -559,10 +559,12 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
 
   LOG_DEBUG("%d write replicas for key %s", replicas.size(), fqkey.c_str());
 
-  // Calculate the rough expected expiry time.  We store this in the flags
-  // as it may be useful in future for read repair function.
-  uint32_t now = time(NULL);
-  uint32_t exptime = now + expiry;
+  // Calculate a timestamp (least-significant 32 bits of milliseconds since the
+  // epoch) for the current time.  We store this in the flags field to allow us
+  // to resolve conflicts when resynchronizing between memcached servers.
+  struct timespec ts;
+  (void)clock_gettime(CLOCK_REALTIME, &ts);
+  uint32_t flags = (uint32_t)((ts.tv_sec * 1000) + (ts.tv_nsec / 1000000));
 
   // Memcached uses a flexible mechanism for specifying expiration.
   // - 0 indicates never expire.
@@ -622,7 +624,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
                                      vbucket,
                                      data,
                                      memcached_expiration,
-                                     exptime,
+                                     flags,
                                      trail);
     }
     else
@@ -636,7 +638,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
                             data.data(),
                             data.length(),
                             memcached_expiration,
-                            exptime,
+                            flags,
                             cas);
 
       if (!memcached_success(rc))
@@ -688,7 +690,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
                       data.data(),
                       data.length(),
                       memcached_expiration,
-                      exptime);
+                      flags);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 0);
     }
   }
@@ -966,10 +968,12 @@ void BaseMemcachedStore::delete_with_tombstone(const std::string& fqkey,
   const char* key_ptr = fqkey.data();
   const size_t key_len = fqkey.length();
 
-  // Calculate the rough expected expiry time.  We store this in the flags
-  // as it may be useful in future for read repair function.
-  uint32_t now = time(NULL);
-  uint32_t exptime = now + _tombstone_lifetime;
+  // Calculate a timestamp (least-significant 32 bits of milliseconds since the
+  // epoch) for the current time.  We store this in the flags field to allow us
+  // to resolve conflicts when resynchronizing between memcached servers.
+  struct timespec ts;
+  (void)clock_gettime(CLOCK_REALTIME, &ts);
+  uint32_t flags = (uint32_t)((ts.tv_sec * 1000) + (ts.tv_nsec / 1000000));
 
   // Calculate the vbucket for this key.
   int vbucket = vbucket_for_key(fqkey);
@@ -987,7 +991,7 @@ void BaseMemcachedStore::delete_with_tombstone(const std::string& fqkey,
                                              TOMBSTONE.data(),
                                              TOMBSTONE.length(),
                                              _tombstone_lifetime,
-                                             exptime);
+                                             flags);
 
     if (!memcached_success(rc))
     {
