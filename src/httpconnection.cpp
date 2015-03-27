@@ -288,6 +288,18 @@ HTTPCode HttpConnection::send_delete(const std::string& path,
 HTTPCode HttpConnection::send_delete(const std::string& path,
                                      SAS::TrailId trail,
                                      const std::string& body,
+                                     const std::string& override_server)
+{
+  std::string unused_response;
+  std::map<std::string, std::string> unused_headers;
+  change_server(override_server);
+
+  return send_delete(path, unused_headers, unused_response, trail, body);
+}
+
+HTTPCode HttpConnection::send_delete(const std::string& path,
+                                     SAS::TrailId trail,
+                                     const std::string& body,
                                      std::string& response)
 {
   std::map<std::string, std::string> unused_headers;
@@ -309,7 +321,8 @@ HTTPCode HttpConnection::send_delete(const std::string& path,
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
 
-  HTTPCode status = send_request(path, body, response, username, trail, "DELETE", curl);
+  std::vector<std::string> unused_extra_headers;
+  HTTPCode status = send_request(path, body, response, username, trail, "DELETE", unused_extra_headers, curl);
 
   curl_slist_free_all(slist);
 
@@ -362,7 +375,8 @@ HTTPCode HttpConnection::send_put(const std::string& path,                     /
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
-  HTTPCode status = send_request(path, body, response, "", trail, "PUT", curl);
+  std::vector<std::string> unused_extra_headers;
+  HTTPCode status = send_request(path, body, response, "", trail, "PUT", unused_extra_headers, curl);
 
   curl_slist_free_all(slist);
 
@@ -395,7 +409,8 @@ HTTPCode HttpConnection::send_post(const std::string& path,                     
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
-  HTTPCode status = send_request(path, body, response, username, trail, "POST", curl);
+  std::vector<std::string> unused_extra_headers;
+  HTTPCode status = send_request(path, body, response, username, trail, "POST", unused_extra_headers, curl);
 
   curl_slist_free_all(slist);
 
@@ -408,8 +423,33 @@ HTTPCode HttpConnection::send_get(const std::string& path,
                                   const std::string& username,
                                   SAS::TrailId trail)
 {
-  std::map<std::string, std::string> unused_headers;
-  return HttpConnection::send_get(path, unused_headers, response, username, trail);
+  std::map<std::string, std::string> unused_rsp_headers;
+  std::vector<std::string> unused_req_headers;
+  return HttpConnection::send_get(path, unused_rsp_headers, response, username, unused_req_headers, trail);
+}
+
+/// Get data; return a HTTP return code
+HTTPCode HttpConnection::send_get(const std::string& path,
+                                  std::string& response,
+                                  std::vector<std::string> headers,
+                                  const std::string& override_server,
+                                  SAS::TrailId trail)
+{
+  change_server(override_server);
+
+  std::map<std::string, std::string> unused_rsp_headers;
+  return HttpConnection::send_get(path, unused_rsp_headers, response, "", headers, trail);
+}
+
+/// Get data; return a HTTP return code
+HTTPCode HttpConnection::send_get(const std::string& path,                     
+                                  std::map<std::string, std::string>& headers, 
+                                  std::string& response,                       
+                                  const std::string& username,                 
+                                  SAS::TrailId trail)                          
+{
+  std::vector<std::string> unused_req_headers;
+  return HttpConnection::send_get(path, headers, response, username, unused_req_headers, trail);
 }
 
 /// Get data; return a HTTP return code
@@ -417,22 +457,23 @@ HTTPCode HttpConnection::send_get(const std::string& path,                     /
                                   std::map<std::string, std::string>& headers, //< Map of headers from the response
                                   std::string& response,                       //< Retrieved document
                                   const std::string& username,                 //< Username to assert (if assertUser was true, else ignored)
+                                  std::vector<std::string> headers_to_add,     //< Extra headers to add to the request
                                   SAS::TrailId trail)                          //< SAS trail
 {
   CURL *curl = get_curl_handle();
-
   curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
 
-  return send_request(path, "", response, username, trail, "GET", curl);
+  return send_request(path, "", response, username, trail, "GET", headers_to_add, curl);
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolute path to request from server - must start with "/"
-                                      std::string body,              //< Body to send on the request
-                                      std::string& doc,              //< OUT: Retrieved document
-                                      const std::string& username,   //< Username to assert (if assertUser was true, else ignored).
-                                      SAS::TrailId trail,            //< SAS trail to use
-                                      const std::string& method_str, // The method, used for logging.
+HTTPCode HttpConnection::send_request(const std::string& path,                 //< Absolute path to request from server - must start with "/"
+                                      std::string body,                        //< Body to send on the request
+                                      std::string& doc,                        //< OUT: Retrieved document
+                                      const std::string& username,             //< Username to assert (if assertUser was true, else ignored).
+                                      SAS::TrailId trail,                      //< SAS trail to use
+                                      const std::string& method_str,           // The method, used for logging.
+                                      std::vector<std::string> headers_to_add, //< Extra headers to add to the request
                                       CURL* curl)
 {
   std::string url = "http://" + _server + path;
@@ -460,6 +501,14 @@ HTTPCode HttpConnection::send_request(const std::string& path,       //< Absolut
   SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
+
+  // Add in any extra headers
+  for (std::vector<std::string>::const_iterator i = headers_to_add.begin();
+                                                i != headers_to_add.end();
+                                                ++i)
+  {
+    extra_headers = curl_slist_append(extra_headers, (*i).c_str());
+  }
 
   // Add the user's identity (if required).
   if (_assert_user)
@@ -1017,6 +1066,16 @@ int HttpConnection::port_from_server(const std::string& server)
   int port;
   host_port_from_server(server, host, port);
   return port;
+}
+
+// Changes the underlying server used by this connection. Use this when 
+// the HTTPConnection was created without a server (e.g. 
+// ChronosInternalConnection)
+void HttpConnection::change_server(std::string override_server)
+{
+  _server = override_server;
+  _host = host_from_server(override_server);
+  _port = port_from_server(override_server);
 }
 
 // This function determines an appropriate absolute HTTP request timeout
