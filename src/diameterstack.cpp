@@ -1320,7 +1320,7 @@ HandlerThreadPool::Pool::Pool(unsigned int num_threads,
 void HandlerThreadPool::Pool::
   process_work(HandlerThreadPool::RequestParams*& params)
 {
-  params->handler->process_request(params->request, params->trail);
+  params->handler->process_request(&params->request, params->trail);
   delete params; params = NULL;
 }
 
@@ -1337,6 +1337,6 @@ void HandlerThreadPool::Wrapper::process_request(struct msg** request,
                                                  SAS::TrailId trail)
 {
   HandlerThreadPool::RequestParams* params =
-    new HandlerThreadPool::RequestParams(_handler, request, trail);
+    new HandlerThreadPool::RequestParams(_handler, *request, trail);
   _pool->add_work(params);
 }

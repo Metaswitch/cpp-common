@@ -821,7 +821,7 @@ private:
   struct RequestParams
   {
     RequestParams(Stack::HandlerInterface* handler_param,
-                  struct msg** request_param,
+                  struct msg* request_param,
                   SAS::TrailId trail_param) :
       handler(handler_param),
       request(request_param),
