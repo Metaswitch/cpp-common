@@ -234,6 +234,13 @@ public:
     len = hdr->avp_value->os.len;
     return hdr->avp_value->os.data;
   }
+  inline time_t val_time() const
+  {
+    time_t time;
+    struct avp_hdr* hdr = avp_hdr();
+    fd_dictfct_Time_interpret(hdr->avp_value, &time);
+    return time;
+  }
   inline int32_t val_i32() const {return avp_hdr()->avp_value->i32;}
   inline int32_t val_i64() const {return avp_hdr()->avp_value->i64;}
   inline int32_t val_u32() const {return avp_hdr()->avp_value->u32;}
