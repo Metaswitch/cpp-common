@@ -191,22 +191,16 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
         _changes[ii] = change_entry;
       }
 
-      // Set the first read and write replica to the first node in the
-      // current replica set.  This ensures most reads will complete
-      // successfully on the first server.
-      std::string initial_server = current_nodes[0];
-      _read_set[ii].push_back(initial_server);
-      _write_set[ii].push_back(initial_server);
-      in_set[initial_server] = true;
-
-      // Set the second and subsequent read and write replicas to the
-      // first _replicas nodes in the new replica set, but only if the
-      // node is not already in the replica set.  This ensures that
-      // immediately after the subsequent switch to a stable configuration
-      // all nodes in the new replica set will have the full set of data.
+      // The read and write replicas both consist of all the old replicas,
+      // followed by all the new replicas (though we don't insert a replica
+      // twice).
+      //
+      // This means that we do up to twice as many writes when scaling up/down.
+      // This isn't really an issue because scaling is fast now that we have
+      // Astaire.
       for (int jj = 0; jj < _replicas; ++jj)
       {
-        std::string server = new_nodes[jj];
+        std::string server = current_nodes[jj];
         if (!in_set[server])
         {
           _read_set[ii].push_back(server);
@@ -215,16 +209,13 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
         }
       }
 
-      // Finally, add extra read replicas from the current replica set, to
-      // maintain redundancy on reads while we are waiting for data to
-      // propagate to the new replicas.  Again, only add replicas that are
-      // not already in the set.
-      for (int jj = 1; jj < _replicas; ++jj)
+      for (int jj = 0; jj < _replicas; ++jj)
       {
-        std::string server = current_nodes[jj];
+        std::string server = new_nodes[jj];
         if (!in_set[server])
         {
           _read_set[ii].push_back(server);
+          _write_set[ii].push_back(server);
           in_set[server] = true;
         }
       }
