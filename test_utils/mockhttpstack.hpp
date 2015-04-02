@@ -63,6 +63,17 @@ public:
       size_t len = evbuffer_get_length(_req->buffer_out);
       return std::string((char*)evbuffer_pullup(_req->buffer_out, len), len);
     }
+    void add_header_to_incoming_req(const std::string& name, 
+                                    const std::string& value)
+    {
+      // This takes the name and value for the new header. These
+      // are copied to avoid memory scribblers (controlled by the 1, 1
+      // parameters)
+      evhtp_header_t* new_header = evhtp_header_new(name.c_str(),
+                                                    value.c_str(),
+                                                    1, 1);
+      evhtp_headers_add_header(_req->headers_in, new_header);
+    }
 
   private:
     static evhtp_request_t* evhtp_request(std::string path, std::string file, std::string query = "")
