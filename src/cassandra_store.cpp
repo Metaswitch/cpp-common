@@ -264,6 +264,8 @@ Store::~Store()
     stop();
     wait_stopped();
   }
+
+  pthread_key_delete(_thread_local);
 }
 
 
