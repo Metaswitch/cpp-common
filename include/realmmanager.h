@@ -47,6 +47,7 @@ class RealmManager : public Diameter::PeerListener
 public:
   RealmManager(Diameter::Stack* stack,
                std::string realm,
+               std::string host,
                int max_peers,
                DiameterResolver* resolver);
   virtual ~RealmManager();
@@ -67,6 +68,7 @@ private:
 
   Diameter::Stack* _stack;
   std::string _realm;
+  std::string _host;
   int _max_peers;
   pthread_t _thread;
   pthread_mutex_t _lock;
