@@ -179,5 +179,6 @@ template<int SIGNUM> sem_t SignalHandler<SIGNUM>::_sema;
 
 // Concrete instances of signal handers
 extern SignalHandler<SIGHUP> _sighup_handler;
+extern SignalHandler<SIGUSR1> _sigusr1_handler;
 
 #endif

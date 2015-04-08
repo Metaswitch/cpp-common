@@ -190,7 +190,7 @@ private:
                                                SAS::TrailId trail);
 
   // Stores a pointer to an updater object
-  Updater<void, BaseMemcachedStore>* _updater;
+  Updater<void, BaseMemcachedStore, SignalHandler<SIGHUP>>* _updater;
 
   // Used to store a connection structure for each worker thread.
   pthread_key_t _thread_local;

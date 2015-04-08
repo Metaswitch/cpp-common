@@ -98,7 +98,10 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   _options += (_binary) ? " --BINARY-PROTOCOL" : "";
 
   // Create an updater to keep the store configured appropriately.
-  _updater = new Updater<void, BaseMemcachedStore>(this, std::mem_fun(&BaseMemcachedStore::update_config));
+  _updater = new Updater<void, BaseMemcachedStore, SignalHandler<SIGHUP>>
+                   (this, 
+                    std::mem_fun(&BaseMemcachedStore::update_config), 
+                    &_sighup_handler);
 
   // Initialize vbucket comm state
   for (int ii = 0; ii < _vbuckets; ++ii)

@@ -41,18 +41,25 @@
 #include <pthread.h>
 #include <functional>
 
-template<class ReturnType, class ClassType> class Updater
+template<class ReturnType, class ClassType, class SignalType> class Updater
 {
 public:
-  Updater(ClassType* pointer, std::mem_fun_t<ReturnType, ClassType> myFunctor) :
+  Updater(ClassType* pointer, 
+          std::mem_fun_t<ReturnType, ClassType> myFunctor,
+          SignalType* signal_handler,
+          bool run_on_start = true) :
     _terminate(false),
     _func(myFunctor),
-    _pointer(pointer)
+    _pointer(pointer),
+    _signal_handler(signal_handler)
   {
     LOG_DEBUG("Created updater");
 
     // Do initial configuration.
-    myFunctor(pointer);
+    if (run_on_start)
+    {
+      myFunctor(pointer);
+    }
 
     // Create the thread to handle further changes of view.
     int rc = pthread_create(&_updater, NULL, &updater_thread, this);
@@ -86,7 +93,7 @@ private:
     while (!_terminate)
     {
       // Wait for the SIGHUP signal.
-      bool rc = _sighup_handler.wait_for_signal();
+      bool rc = _signal_handler->wait_for_signal();
 
       // If the signal handler didn't timeout, then call the
       // update function
@@ -103,6 +110,7 @@ private:
   std::mem_fun_t<ReturnType, ClassType> _func;
   pthread_t _updater;
   ClassType* _pointer;
+  SignalType* _signal_handler;
 };
 
 #endif
