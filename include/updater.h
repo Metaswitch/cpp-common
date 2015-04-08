@@ -41,17 +41,17 @@
 #include <pthread.h>
 #include <functional>
 
-template<class ReturnType, class ClassType, class SignalType> class Updater
+template<class ReturnType, class ClassType> class Updater
 {
 public:
-  Updater(ClassType* pointer, 
+  Updater(ClassType* pointer,
           std::mem_fun_t<ReturnType, ClassType> myFunctor,
-          SignalType* signal_handler,
+          SignalWaiter* signal_waiter = &_sighup_handler,
           bool run_on_start = true) :
     _terminate(false),
     _func(myFunctor),
     _pointer(pointer),
-    _signal_handler(signal_handler)
+    _signal_waiter(signal_waiter)
   {
     LOG_DEBUG("Created updater");
 
@@ -71,7 +71,7 @@ public:
       // LCOV_EXCL_STOP
     }
   }
- 
+
   ~Updater()
   {
     // Destroy the updater thread.
@@ -85,7 +85,7 @@ private:
     ((Updater*)p)->updater();
     return NULL;
   }
- 
+
   void updater()
   {
     LOG_DEBUG("Started updater thread");
@@ -93,7 +93,7 @@ private:
     while (!_terminate)
     {
       // Wait for the SIGHUP signal.
-      bool rc = _signal_handler->wait_for_signal();
+      bool rc = _signal_waiter->wait_for_signal();
 
       // If the signal handler didn't timeout, then call the
       // update function
@@ -110,7 +110,7 @@ private:
   std::mem_fun_t<ReturnType, ClassType> _func;
   pthread_t _updater;
   ClassType* _pointer;
-  SignalType* _signal_handler;
+  SignalWaiter* _signal_waiter;
 };
 
 #endif

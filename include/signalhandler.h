@@ -46,14 +46,26 @@
 #include <time.h>
 #include <sys/time.h>
 
+// Interface that should be implemented by any object that can be used to wait
+// on a signal. This is to allow code to wait on different signals at
+// runtime (which would otherwise not be possible since SignalHandler is
+// templated).
+class SignalWaiter
+{
+public:
+  /// Waits for the signal to be raised, or for the wait to timeout.
+  /// This returns true if the signal was raised, and false for timeout.
+  virtual bool wait_for_signal() = 0;
+};
+
 /// Singleton class template for handling UNIX signals.  Only a single
 /// instance of this class should be created for each UNIX signal type.
 /// This has to be templated because there has to be a unique static signal
-/// handler function and semphore for each signal being hooked, so creating
+/// handler function and semaphore for each signal being hooked, so creating
 /// multiple instances of a non-templated class doesn't work
 
 template <int SIGNUM>
-class SignalHandler
+class SignalHandler : public SignalWaiter
 {
 public:
   SignalHandler()
@@ -102,13 +114,11 @@ public:
     pthread_cond_destroy(&_cond);
   }
 
-  /// Waits for the signal to be raised, or for the wait to timeout.
-  /// This returns true if the signal was raised, and false for timeout.
   bool wait_for_signal()
   {
     // Grab the mutex.  On its own this isn't enough to guarantee we won't
     // miss a signal, but to do that we would have to hold the mutex while
-    // calling back to user code, which is not desireable.  If we really
+    // calling back to user code, which is not desirable.  If we really
     // cannot miss signals then we will probably need to add sequence numbers
     // to this API.
     pthread_mutex_lock(&_mutex);
