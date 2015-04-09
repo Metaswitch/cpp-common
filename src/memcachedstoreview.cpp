@@ -191,23 +191,22 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
         _changes[ii] = change_entry;
       }
 
-      // The read and write replicas both consist of all the old replicas,
-      // followed by all the new replicas (though we don't insert a replica
-      // twice).
+      // The read and write replicas both consist of all the current primary,
+      // then all the new replicas, then the rest of the current replicas
+      // (though we don't insert a replica twice).
+      //
+      // (It would be simpler to just use [current replicas] + [new replicas]
+      // but this is not backwards compatible. We used to use a write set of
+      // just [current primary] + [new replicas], so we can't put the current
+      // backups before the new replicas).
       //
       // This means that we do up to twice as many writes when scaling up/down.
       // This isn't really an issue because scaling is fast now that we have
       // Astaire.
-      for (int jj = 0; jj < _replicas; ++jj)
-      {
-        std::string server = current_nodes[jj];
-        if (!in_set[server])
-        {
-          _read_set[ii].push_back(server);
-          _write_set[ii].push_back(server);
-          in_set[server] = true;
-        }
-      }
+      std::string server = current_nodes[0];
+      _read_set[ii].push_back(server);
+      _write_set[ii].push_back(server);
+      in_set[server] = true;
 
       for (int jj = 0; jj < _replicas; ++jj)
       {
@@ -219,6 +218,18 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
           in_set[server] = true;
         }
       }
+
+      for (int jj = 1; jj < _replicas; ++jj)
+      {
+        std::string server = current_nodes[jj];
+        if (!in_set[server])
+        {
+          _read_set[ii].push_back(server);
+          _write_set[ii].push_back(server);
+          in_set[server] = true;
+        }
+      }
+
     }
   }
 
