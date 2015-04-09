@@ -57,6 +57,7 @@ ExceptionHandler::ExceptionHandler(int ttl,
 
 ExceptionHandler::~ExceptionHandler()
 {
+  pthread_key_delete(_jmp_buf);
 }
 
 void ExceptionHandler::handle_exception()

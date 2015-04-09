@@ -279,15 +279,17 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
         {
           if (type == HOOK_PEER_CONNECT_SUCCESS)
           {
-            if ((*ii)->realm().compare(realm) == 0)
+            if ((*ii)->realm().empty() || ((*ii)->realm().compare(realm) == 0))
             {
-              LOG_DEBUG("Successfully connected to %s", host);
+              LOG_DEBUG("Successfully connected to %s in realm %s", host, realm);
               (*ii)->listener()->connection_succeeded(*ii);
               (*ii)->set_connected();
             }
             else
             {
-              LOG_WARNING("Connected to %s in wrong realm, disconnect", host);
+              LOG_WARNING("Connected to %s in wrong realm (expected %s, got %s), disconnect", host,
+                                                                                              (*ii)->realm().c_str(),
+                                                                                              realm);
               Diameter::Peer* stack_peer = *ii;
               remove_int(stack_peer);
               stack_peer->listener()->connection_failed(stack_peer);
