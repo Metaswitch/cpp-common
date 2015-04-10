@@ -39,3 +39,5 @@
 #include "signalhandler.h"
 
 SignalHandler<SIGHUP> _sighup_handler;
+SignalHandler<SIGUSR1> _sigusr1_handler;
+
