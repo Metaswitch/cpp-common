@@ -282,7 +282,7 @@ void LastValueCache::replay_cache(void *entry)
     return;
   }
 
-  LOG_DEBUG("Replaying cache for entry %p (length: %d)", cache_record, entry, cache_record->size());
+  LOG_DEBUG("Replaying cache for entry %p (length: %d)", entry, cache_record->size());
   std::vector<zmq_msg_t *>::iterator it;
   for (std::vector<zmq_msg_t *>::iterator it = cache_record->begin();
        it != cache_record->end();
