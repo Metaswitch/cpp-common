@@ -128,7 +128,9 @@ namespace Utils
   {
     return ltrim(rtrim(s));
   }
-  
+
+  // Strip all whitespace from the string (using the same pattern as the trim
+  // functions above - note that this modifies the passed in string)
   inline std::string& strip_whitespace(std::string& s)
   {
     s.erase(std::remove_if(s.begin(), s.end(), ::isspace), s.end());
