@@ -75,6 +75,20 @@ public:
     return _changes;
   }
 
+  /// Calculates the replicas that currently own each vbucket.
+  const std::map<int, ReplicaList> current_replicas()
+  {
+    return _current_replicas;
+  }
+
+  /// Calculates the replicas that will own each vbucket after the current
+  /// resize is complete. If there is no resize in progress, this returns an
+  /// empty map.
+  const std::map<int, ReplicaList> new_replicas()
+  {
+    return _new_replicas;
+  }
+
 private:
   /// Converts the view into a string suitable for logging.
   std::string view_to_string();
@@ -82,8 +96,23 @@ private:
   /// Converts a set of replicas into an ordered string suitable for logging.
   std::string replicas_to_string(const std::vector<std::string>& replicas);
 
+  /// Merge two server lists together, removing duplicates.  This does not
+  /// preserve ordering.
   std::vector<std::string> merge_servers(const std::vector<std::string>& list1,
                                          const std::vector<std::string>& list2);
+
+  /// Converts a vector of server indexes into a vector of server names.
+  ///
+  /// For example given an ids vector of [1, 3] and a name table of ["kermit",
+  /// "gonzo", "misspiggy"], this function returns ["kermit", "misspiggy"].
+  ///
+  /// @param ids          - A vector of replica indexes.
+  /// @param lookup_table - Table in which to look up the names.
+  ///
+  /// @return             - A vector of replica names.
+  static std::vector<std::string>
+    server_ids_to_names(const std::vector<int>& ids,
+                        const std::vector<std::string>& lookup_table);
 
   /// Calculates the ring used to generate the vbucket configurations.  The
   /// ring essentially maps each vbucket slot to a particular node which is
@@ -147,6 +176,12 @@ private:
   // vBucket allocation changes currently ongoing in the cluster (may be
   // empty).
   std::map<int, ReplicaChange> _changes;
+
+  // A map storing the current replicas for each vbucket.
+  std::map<int, ReplicaList> _current_replicas;
+
+  // A map storing the new replicas for each vbucket.
+  std::map<int, ReplicaList> _new_replicas;
 };
 
 #endif
