@@ -49,7 +49,9 @@ Stack::Stack() : _initialized(false),
                  _callback_handler(NULL), 
                  _callback_fallback_handler(NULL), 
                  _exception_handler(NULL),
-                 _comm_monitor(NULL)
+                 _comm_monitor(NULL),
+                 _realm_counter(NULL),
+                 _host_counter(NULL)
 {
   pthread_mutex_init(&_peers_lock, NULL);
 }
@@ -221,19 +223,25 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     dest_realm = "unknown";
   };
 
-  CL_DIAMETER_ROUTE_ERR.log((char*)other,
-                            msg2.command_code(),
-                            dest_host.c_str(),
-                            dest_realm.c_str());
+  LOG_INFO("Routing error: '%s' for message with "
+           "Command-Code %d, Destination-Host %s and Destination-Realm %s",
+           (char *)other,
+           msg2.command_code(),
+           dest_host.c_str(),
+           dest_realm.c_str());
 
-  LOG_ERROR("Routing error: '%s' for message with "
-            "Command-Code %d, Destination-Host %s and Destination-Realm %s",
-            (char *)other,
-            msg2.command_code(),
-            dest_host.c_str(),
-            dest_realm.c_str());
+  // Increment routing error stats if they're supported
+  if ((_realm_counter != NULL) && 
+      (strcmp((char*)other, "Message for another realm") == 0))
+  {
+    _realm_counter->increment();
+  }
+  else if ((_host_counter != NULL) &&
+           (strcmp((char*)other, "Message for another host") == 0))
+  {
+    _host_counter->increment();
+  }
 }
-
 
 void Stack::fd_peer_hook_cb(enum fd_hook_type type,
                             struct msg * msg,
@@ -319,7 +327,9 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
 
 void Stack::configure(std::string filename,
                       ExceptionHandler* exception_handler,
-                      CommunicationMonitor* comm_monitor)
+                      CommunicationMonitor* comm_monitor,
+                      StatisticCounter* realm_counter,
+                      StatisticCounter* host_counter)
 {
   initialize();
   LOG_STATUS("Configuring Diameter stack from file %s", filename.c_str());
@@ -333,6 +343,8 @@ void Stack::configure(std::string filename,
   populate_avp_map();
   _exception_handler = exception_handler;
   _comm_monitor = comm_monitor;
+  _realm_counter = realm_counter;
+  _host_counter = host_counter;
 }
 
 void Stack::advertize_application(const Dictionary::Application::Type type,
@@ -442,7 +454,8 @@ int Stack::request_callback_fn(struct msg** req,
   }
   CW_END
 
-  // The handler will turn the message associated with the task into an answer which we wish to send to the HSS.
+  // The handler will turn the message associated with the task into an 
+  // answer.
   // Return 0 to indicate no errors with the callback.
   *req = NULL;
   *act = DISP_ACT_CONT;
@@ -733,7 +746,7 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
   SAS::TrailId trail;
   Stack* stack = (Stack*)stack_ptr;
 
-  // Don't log the message if we don;t have a peer (this must be an initial
+  // Don't log the message if we don't have a peer (this must be an initial
   // CER/CEA exchange which is not logged).
   if (peer == NULL)
   {
