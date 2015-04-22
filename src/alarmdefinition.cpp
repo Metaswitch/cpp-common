@@ -335,8 +335,9 @@ namespace AlarmDef {
       {
         {CLEARED,
           "Chronos: Chronos timers are synchronized",
-          "The local Chronos process is synchronized with the rest of the cluster. If a scale-up or "
-          "scale-down operation is in progress, it can now be completed."
+          "The local Chronos process is synchronized with the rest of the cluster. Chronos resynchronization "
+          "is no longer blocking a scale-up or scale-down operation (a different type of resynchronization "
+          "operation may still be in progress though."
         },
         {MINOR,
           "Chronos: Chrono database resynchronization in progress",
@@ -548,8 +549,9 @@ namespace AlarmDef {
       {
         {CLEARED,
           "Astaire: Memcached database synchronized",
-          "The local Memcached process is synchronized with the rest of the cluster. If a scale-up or "
-          "scale-down operation is in progress, it can now be completed."
+          "The local Memcached process is synchronized with the rest of the cluster. Memcached resynchronization "
+          "is no longer blocking a scale-up or scale-down operation (a different type of resynchronization "
+          "operation may still be in progress though."
         },
         {MINOR,
           "Astaire: Memcached database resynchronization in progress",
