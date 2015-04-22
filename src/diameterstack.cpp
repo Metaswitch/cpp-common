@@ -232,12 +232,12 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
 
   // Increment routing error stats if they're supported
   if ((_realm_counter != NULL) && 
-      (strcmp((char*)other, "Message for another realm") == 0))
+      (strcmp(fd_g_config->cnf_diamrlm, dest_realm.c_str()) != 0))
   {
     _realm_counter->increment();
   }
   else if ((_host_counter != NULL) &&
-           (strcmp((char*)other, "Message for another host") == 0))
+           (strcmp(fd_g_config->cnf_diamid, dest_host.c_str()) != 0))
   {
     _host_counter->increment();
   }
