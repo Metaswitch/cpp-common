@@ -534,7 +534,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
   _resolver->resolve(_host, _port, MAX_TARGETS, targets, trail);
 
   // If we're not recycling the connection, try to get the current connection
-  // IP address and add it to the front of the target list.
+  // IP address and add it to the front of the target list (if it was there)
   if (!recycle_conn)
   {
     char* primary_ip;
@@ -545,8 +545,12 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
       ai.port = (_port != 0) ? _port : 80;
       ai.transport = IPPROTO_TCP;
 
+      int initialSize = targets.size();
       targets.erase(std::remove(targets.begin(), targets.end(), ai), targets.end());
-      targets.insert(targets.begin(), ai);
+      if ((int)targets.size() < initialSize)
+      {
+        targets.insert(targets.begin(), ai);
+      }
     }
   }
 
