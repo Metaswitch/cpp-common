@@ -205,7 +205,7 @@ void LoadMonitor::request_complete(int latency)
         }
         bucket.update_rate(new_rate);
         LOG_STATUS("Maximum incoming request rate/second is now %f "
-                   "(based on a smoothed mean latency of %f and %d upstream overload responses)",
+                   "(based on a smoothed mean latency of %d and %d upstream overload responses)",
                    bucket.rate,
                    smoothed_latency,
                    penalties);
@@ -215,7 +215,7 @@ void LoadMonitor::request_complete(int latency)
         float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
         bucket.update_rate(new_rate);
         LOG_STATUS("Maximum incoming request rate/second is now %f "
-                   "(based on a smoothed mean latency of %f and %d upstream overload responses)",
+                   "(based on a smoothed mean latency of %d and %d upstream overload responses)",
                    bucket.rate,
                    smoothed_latency,
                    penalties);
