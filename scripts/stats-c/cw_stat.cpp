@@ -276,15 +276,16 @@ int main(int argc, char** argv)
       (msgs[1] == "OK"))
   {
     // Determine which statistic we have and output it.
-    if ((msgs[0] == "client_count")                 ||
-        (msgs[0] == "incoming_requests")            ||
-        (msgs[0] == "rejected_overload")            ||
-        (msgs[0] == "H_incoming_requests")          ||
-        (msgs[0] == "H_rejected_overload")          ||
-        (msgs[0] == "P_incoming_requests_0")        ||
-        (msgs[0] == "P_rejected_overload_0")        ||
-        (msgs[0] == "chronos_scale_nodes_to_query") ||
-        (msgs[0] == "chronos_scale_timers_processed")) 
+    if ((msgs[0] == "client_count")                   ||
+        (msgs[0] == "incoming_requests")              ||
+        (msgs[0] == "rejected_overload")              ||
+        (msgs[0] == "H_incoming_requests")            ||
+        (msgs[0] == "H_rejected_overload")            ||
+        (msgs[0] == "P_incoming_requests_0")          ||
+        (msgs[0] == "P_rejected_overload_0")          ||
+        (msgs[0] == "chronos_scale_nodes_to_query")   ||
+        (msgs[0] == "chronos_scale_timers_processed") ||
+        (msgs[0] == "chronos_scale_invalid_timers_processed"))
     {
       render_simple_stat(msgs);
     }
