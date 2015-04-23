@@ -276,18 +276,21 @@ int main(int argc, char** argv)
       (msgs[1] == "OK"))
   {
     // Determine which statistic we have and output it.
-    if ((msgs[0] == "client_count")          ||
-        (msgs[0] == "incoming_requests")     ||
-        (msgs[0] == "rejected_overload")     ||
-        (msgs[0] == "H_incoming_requests")   ||
-        (msgs[0] == "H_rejected_overload")   ||
-        (msgs[0] == "P_incoming_requests_0") ||
-        (msgs[0] == "P_rejected_overload_0"))
+    if ((msgs[0] == "client_count")                   ||
+        (msgs[0] == "incoming_requests")              ||
+        (msgs[0] == "rejected_overload")              ||
+        (msgs[0] == "H_incoming_requests")            ||
+        (msgs[0] == "H_rejected_overload")            ||
+        (msgs[0] == "P_incoming_requests_0")          ||
+        (msgs[0] == "P_rejected_overload_0")          ||
+        (msgs[0] == "chronos_scale_nodes_to_query")   ||
+        (msgs[0] == "chronos_scale_timers_processed") ||
+        (msgs[0] == "chronos_scale_invalid_timers_processed"))
     {
       render_simple_stat(msgs);
     }
     else if ((msgs[0] == "connected_homesteads") ||
-             (msgs[0] == "connected_homers") ||
+             (msgs[0] == "connected_homers")     ||
              (msgs[0] == "connected_sprouts"))
     {
       render_connected_ips(msgs);
@@ -296,20 +299,20 @@ int main(int argc, char** argv)
     {
       render_call_stats(msgs);
     }
-    else if ((msgs[0] == "latency_us") ||
-             (msgs[0] == "hss_latency_us") ||
-             (msgs[0] == "hss_digest_latency_us") ||
-             (msgs[0] == "hss_subscription_latency_us") ||
-             (msgs[0] == "hss_user_auth_latency_us") ||
-             (msgs[0] == "hss_location_latency_us") ||
-             (msgs[0] == "xdm_latency_us") ||
-             (msgs[0] == "queue_size") ||
-             (msgs[0] == "H_latency_us") ||
-             (msgs[0] == "H_cache_latency_us") ||
-             (msgs[0] == "H_hss_latency_us") ||
-             (msgs[0] == "H_hss_digest_latency_us") ||
+    else if ((msgs[0] == "latency_us")                    ||
+             (msgs[0] == "hss_latency_us")                ||
+             (msgs[0] == "hss_digest_latency_us")         ||
+             (msgs[0] == "hss_subscription_latency_us")   ||
+             (msgs[0] == "hss_user_auth_latency_us")      ||
+             (msgs[0] == "hss_location_latency_us")       ||
+             (msgs[0] == "xdm_latency_us")                ||
+             (msgs[0] == "queue_size")                    ||
+             (msgs[0] == "H_latency_us")                  ||
+             (msgs[0] == "H_cache_latency_us")            ||
+             (msgs[0] == "H_hss_latency_us")              ||
+             (msgs[0] == "H_hss_digest_latency_us")       ||
              (msgs[0] == "H_hss_subscription_latency_us") ||
-             (msgs[0] == "P_queue_size_0") ||
+             (msgs[0] == "P_queue_size_0")                ||
              (msgs[0] == "P_latency_us_0"))
     {
       render_count_latency_us(msgs);

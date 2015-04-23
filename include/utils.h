@@ -108,7 +108,7 @@ namespace Utils
   void create_random_token(size_t length, std::string& token);
 
   // trim from start
-  inline std::string& ltrim(std::string &s)
+  inline std::string& ltrim(std::string& s)
   {
     s.erase(s.begin(), std::find_if(s.begin(), s.end(),
                                     std::not1(std::ptr_fun<int, int>(std::isspace))));
@@ -116,7 +116,7 @@ namespace Utils
   }
 
   // trim from end
-  inline std::string& rtrim(std::string &s)
+  inline std::string& rtrim(std::string& s)
   {
     s.erase(std::find_if(s.rbegin(), s.rend(),
                          std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
@@ -124,9 +124,17 @@ namespace Utils
   }
 
   // trim from both ends
-  inline std::string& trim(std::string &s)
+  inline std::string& trim(std::string& s)
   {
     return ltrim(rtrim(s));
+  }
+
+  // Strip all whitespace from the string (using the same pattern as the trim
+  // functions above - note that this modifies the passed in string)
+  inline std::string& strip_whitespace(std::string& s)
+  {
+    s.erase(std::remove_if(s.begin(), s.end(), ::isspace), s.end());
+    return s;
   }
 
   // Helper function to prevent split_string from splitting on the

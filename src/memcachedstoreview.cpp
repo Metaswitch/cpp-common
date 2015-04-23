@@ -74,9 +74,36 @@ std::vector<std::string> MemcachedStoreView::merge_servers(const std::vector<std
   return ret;
 }
 
+std::vector<std::string> MemcachedStoreView::
+  server_ids_to_names(const std::vector<int>& ids,
+                      const std::vector<std::string>& lookup_table)
+{
+  std::vector<std::string> names;
+
+  for (std::vector<int>::const_iterator it = ids.begin();
+       it != ids.end();
+       ++it)
+  {
+    names.push_back(lookup_table[*it]);
+  }
+
+  return names;
+}
+
 /// Updates the view for new current and target server lists.
 void MemcachedStoreView::update(const MemcachedConfig& config)
 {
+  // Clear out any state from the old view.
+  _changes.clear();
+  _current_replicas.clear();
+  _new_replicas.clear();
+
+  for (int ii = 0; ii < _vbuckets; ++ii)
+  {
+    _read_set[ii].clear();
+    _write_set[ii].clear();
+  }
+
   // Generate the appropriate rings and the resulting vbuckets arrays.
   if (config.new_servers.empty())
   {
@@ -99,17 +126,17 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
     for (int ii = 0; ii < _vbuckets; ++ii)
     {
       std::vector<int> server_indexes = ring.get_nodes(ii, replicas);
-      _read_set[ii].clear();
       for (size_t jj = 0; jj < server_indexes.size(); jj++)
       {
         int idx = server_indexes[jj];
         _read_set[ii].push_back(config.servers[idx]);
       }
       _write_set[ii] = _read_set[ii];
-    }
 
-    // No changes ongoing.
-    _changes.clear();
+      // There is no resize in progress, so the current replicas is the same as
+      // the read set.
+      _current_replicas[ii] = _read_set[ii];
+    }
   }
   else
   {
@@ -127,9 +154,6 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
     Ring new_ring(_vbuckets);
     new_ring.update(config.new_servers.size());
 
-    // We'll rebuild _changes as we iterate over the list.
-    _changes.clear();
-
     for (int ii = 0; ii < _vbuckets; ++ii)
     {
       // Keep track of which nodes are in the replica sets to avoid duplicates.
@@ -137,15 +161,24 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
 
       // Calculate the read and write replica sets for this bucket for both
       // current and target node sets.
-      std::vector<int> current_nodes = current_ring.get_nodes(ii, _replicas);
-      std::vector<int> new_nodes = new_ring.get_nodes(ii, _replicas);
+      std::vector<std::string> current_nodes =
+        server_ids_to_names(current_ring.get_nodes(ii, _replicas),
+                            config.servers);
+      std::vector<std::string> new_nodes =
+        server_ids_to_names(new_ring.get_nodes(ii, _replicas),
+                            config.new_servers);
+
+      // Firstly, store off the replicas for this vbucket.
+      _current_replicas[ii] = current_nodes;
+      _new_replicas[ii] = new_nodes;
 
       // Determine if the set of nodes has changed by sorting the above two
       // vectors and comparing.
-      std::vector<int> current_nodes_sorted = current_nodes;
-      std::vector<int> new_nodes_sorted = new_nodes;
+      std::vector<std::string> current_nodes_sorted = current_nodes;
+      std::vector<std::string> new_nodes_sorted = new_nodes;
       std::sort(current_nodes_sorted.begin(), current_nodes_sorted.end());
       std::sort(new_nodes_sorted.begin(), new_nodes_sorted.end());
+
       if (current_nodes_sorted != new_nodes_sorted)
       {
         // Lists are different, add an entry to _changes to indicate this.
@@ -153,43 +186,31 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
         // Build the structure from the inside out (build both replica lists,
         // create a pair from them then add to the _changes map under the
         // vbucket index.
-        std::vector<std::string> current_replicas;
-        std::vector<std::string> new_replicas;
-        for (std::vector<int>::const_iterator it = current_nodes.begin();
-             it != current_nodes.end();
-             ++it)
-        {
-          current_replicas.push_back(config.servers[*it]);
-        }
-        for (std::vector<int>::const_iterator it = new_nodes.begin();
-             it != new_nodes.end();
-             ++it)
-        {
-          new_replicas.push_back(config.new_servers[*it]);
-        }
-        std::pair<std::vector<std::string>, std::vector<std::string>> change_entry(current_replicas, new_replicas);
+        std::pair<std::vector<std::string>, std::vector<std::string>>
+          change_entry(current_nodes, new_nodes);
         _changes[ii] = change_entry;
       }
 
-      // Set the first read and write replica to the first node in the
-      // current replica set.  This ensures most reads will complete
-      // successfully on the first server.
-      _read_set[ii].clear();
-      _write_set[ii].clear();
+      // The read and write replicas both consist of all the current primary,
+      // then all the new replicas, then the rest of the current replicas
+      // (though we don't insert a replica twice).
+      //
+      // (It would be simpler to just use [current replicas] + [new replicas]
+      // but this is not backwards compatible. We used to use a write set of
+      // just [current primary] + [new replicas], so we can't put the current
+      // backups before the new replicas).
+      //
+      // This means that we do up to twice as many writes when scaling up/down.
+      // This isn't really an issue because scaling is fast now that we have
+      // Astaire.
+      std::string server = current_nodes[0];
+      _read_set[ii].push_back(server);
+      _write_set[ii].push_back(server);
+      in_set[server] = true;
 
-      std::string initial_server = config.servers[current_nodes[0]];
-      _read_set[ii].push_back(initial_server);
-      _write_set[ii].push_back(initial_server);
-      in_set[initial_server] = true;
-
-      // Set the second and subsequent read and write replicas to the
-      // first _replicas nodes in the new replica set, but only if the
-      // node is not already in the replica set.  This ensures that
-      // immediately after the subsequent switch to a stable configuration
-      // all nodes in the new replica set will have the full set of data.
       for (int jj = 0; jj < _replicas; ++jj)
       {
-        std::string server = config.new_servers[new_nodes[jj]];
+        std::string server = new_nodes[jj];
         if (!in_set[server])
         {
           _read_set[ii].push_back(server);
@@ -198,19 +219,17 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
         }
       }
 
-      // Finally, add extra read replicas from the current replica set, to
-      // maintain redundancy on reads while we are waiting for data to
-      // propagate to the new replicas.  Again, only add replicas that are
-      // not already in the set.
       for (int jj = 1; jj < _replicas; ++jj)
       {
-        std::string server = config.servers[current_nodes[jj]];
+        std::string server = current_nodes[jj];
         if (!in_set[server])
         {
           _read_set[ii].push_back(server);
+          _write_set[ii].push_back(server);
           in_set[server] = true;
         }
       }
+
     }
   }
 
