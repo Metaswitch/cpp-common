@@ -153,6 +153,13 @@ struct JsonFormatError
     (TARGET) = (NODE)[(ATTR_NAME)].GetInt();                                   \
 }
 
+#define JSON_GET_INT_64_MEMBER(NODE, ATTR_NAME, TARGET)                        \
+{                                                                              \
+    JSON_ASSERT_CONTAINS((NODE), (ATTR_NAME));                                 \
+    JSON_ASSERT_INT_64((NODE)[(ATTR_NAME)]);                                   \
+    (TARGET) = (NODE)[(ATTR_NAME)].GetInt();                                   \
+}
+
 #define JSON_GET_BOOL_MEMBER(NODE, ATTR_NAME, TARGET)                          \
 {                                                                              \
     JSON_ASSERT_CONTAINS((NODE), (ATTR_NAME));                                 \
