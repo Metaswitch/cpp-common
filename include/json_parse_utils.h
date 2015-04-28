@@ -94,6 +94,14 @@ struct JsonFormatError
   }                                                                            \
 }
 
+#define JSON_ASSERT_INT_64(NODE)                                               \
+{                                                                              \
+  if (!(NODE).IsInt64())                                                       \
+  {                                                                            \
+    JSON_FORMAT_ERROR();                                                       \
+  }                                                                            \
+}
+
 #define JSON_ASSERT_STRING(NODE)                                               \
 {                                                                              \
   if (!(NODE).IsString())                                                      \
