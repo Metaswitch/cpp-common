@@ -94,6 +94,14 @@ struct JsonFormatError
   }                                                                            \
 }
 
+#define JSON_ASSERT_INT_64(NODE)                                               \
+{                                                                              \
+  if (!(NODE).IsInt64())                                                       \
+  {                                                                            \
+    JSON_FORMAT_ERROR();                                                       \
+  }                                                                            \
+}
+
 #define JSON_ASSERT_STRING(NODE)                                               \
 {                                                                              \
   if (!(NODE).IsString())                                                      \
@@ -142,6 +150,13 @@ struct JsonFormatError
 {                                                                              \
     JSON_ASSERT_CONTAINS((NODE), (ATTR_NAME));                                 \
     JSON_ASSERT_INT((NODE)[(ATTR_NAME)]);                                      \
+    (TARGET) = (NODE)[(ATTR_NAME)].GetInt();                                   \
+}
+
+#define JSON_GET_INT_64_MEMBER(NODE, ATTR_NAME, TARGET)                        \
+{                                                                              \
+    JSON_ASSERT_CONTAINS((NODE), (ATTR_NAME));                                 \
+    JSON_ASSERT_INT_64((NODE)[(ATTR_NAME)]);                                   \
     (TARGET) = (NODE)[(ATTR_NAME)].GetInt();                                   \
 }
 
