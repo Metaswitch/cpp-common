@@ -45,9 +45,9 @@ Stack* Stack::INSTANCE = &DEFAULT_INSTANCE;
 Stack Stack::DEFAULT_INSTANCE;
 struct fd_hook_data_hdl* Stack::_sas_cb_data_hdl = NULL;
 
-Stack::Stack() : _initialized(false), 
-                 _callback_handler(NULL), 
-                 _callback_fallback_handler(NULL), 
+Stack::Stack() : _initialized(false),
+                 _callback_handler(NULL),
+                 _callback_fallback_handler(NULL),
                  _exception_handler(NULL),
                  _comm_monitor(NULL),
                  _realm_counter(NULL),
@@ -231,7 +231,7 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
            dest_realm.c_str());
 
   // Increment routing error stats if they're supported
-  if ((_realm_counter != NULL) && 
+  if ((_realm_counter != NULL) &&
       (strcmp(fd_g_config->cnf_diamrlm, dest_realm.c_str()) != 0))
   {
     _realm_counter->increment();
@@ -454,7 +454,7 @@ int Stack::request_callback_fn(struct msg** req,
   }
   CW_END
 
-  // The handler will turn the message associated with the task into an 
+  // The handler will turn the message associated with the task into an
   // answer.
   // Return 0 to indicate no errors with the callback.
   *req = NULL;
@@ -841,7 +841,11 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
                 session_id_len, session_id);
       SAS::Marker corr(trail, MARKED_ID_GENERIC_CORRELATOR, 0);
       corr.add_var_param(session_id_len, session_id);
-      SAS::report_marker(corr);
+
+      // The marker should be trace-scoped, and should not reactivate any trail
+      // groups (this means that diameter flows occurring after the end of the
+      // call will not delay it from appearing in SAS).
+      SAS::report_marker(corr, SAS::Marker::Scope::Trace, false);
     }
   }
 }
