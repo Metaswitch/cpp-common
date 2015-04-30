@@ -84,6 +84,7 @@ namespace SASEvent {
   const int GEMINI_BASE = 0x850000;
   const int MMTEL_BASE = 0x860000;
   const int MANGELWURZEL_BASE = 0x870000;
+  const int CEDAR_BASE = 0x880000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
