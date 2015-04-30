@@ -43,7 +43,9 @@
 class HttpResolver : public BaseResolver
 {
 public:
-  HttpResolver(DnsCachedResolver* dns_client, int address_family);
+  HttpResolver(DnsCachedResolver* dns_client,
+               int address_family,
+               int blacklist_duration = DEFAULT_BLACKLIST_DURATION);
   ~HttpResolver();
 
   virtual void resolve(const std::string& host,
@@ -51,6 +53,9 @@ public:
                        int max_targets,
                        std::vector<AddrInfo>& targets,
                        SAS::TrailId trail);
+
+  /// Default duration to blacklist hosts after we fail to connect to them.
+  static const int DEFAULT_BLACKLIST_DURATION = 30;
 
   static const int DEFAULT_PORT = 80;
   static const int TRANSPORT = IPPROTO_TCP;

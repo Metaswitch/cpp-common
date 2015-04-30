@@ -39,8 +39,6 @@
 
 #include <boost/algorithm/string/replace.hpp>
 
-const int RealmManager::DEFAULT_BLACKLIST_DURATION = 30;
-
 RealmManager::RealmManager(Diameter::Stack* stack,
                            std::string realm,
                            std::string host,
@@ -95,7 +93,7 @@ void RealmManager::connection_failed(Diameter::Peer* peer)
   {
     _peers.erase(ii);
   }
-  _resolver->blacklist(peer->addr_info(), DEFAULT_BLACKLIST_DURATION);
+  _resolver->blacklist(peer->addr_info());
   delete peer;
 
   pthread_cond_signal(&_cond);
