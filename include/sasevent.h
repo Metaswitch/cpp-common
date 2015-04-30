@@ -42,7 +42,10 @@
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE = "org.projectclearwater.20150401";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20150401";
+  const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
+  const std::string CURRENT_RESOURCE_BUNDLE =
+                 RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
 
   // Name of the HTTP header we use to correlate the client and server in SAS.
   const std::string HTTP_BRANCH_HEADER_NAME = "X-SAS-HTTP-Branch-ID";
