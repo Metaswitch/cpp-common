@@ -75,9 +75,6 @@ static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
 /// Poisson-distributed with this mean inter-arrival time.
 static const double CONNECTION_AGE_MS = 60 * 1000.0;
 
-/// Duration to blacklist hosts after we fail to connect to them.
-static const int BLACKLIST_DURATION = 30;
-
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
@@ -653,7 +650,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
-        _resolver->blacklist(*i, BLACKLIST_DURATION);
+        _resolver->blacklist(*i);
       }
 
       // Determine the failure mode and update the correct counter.

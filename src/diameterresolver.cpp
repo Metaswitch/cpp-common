@@ -38,7 +38,8 @@
 #include "diameterresolver.h"
 
 DiameterResolver::DiameterResolver(DnsCachedResolver* dns_client,
-                                   int address_family) :
+                                   int address_family,
+                                   int blacklist_duration) :
   BaseResolver(dns_client),
   _address_family(address_family)
 {
@@ -56,7 +57,7 @@ DiameterResolver::DiameterResolver(DnsCachedResolver* dns_client,
   create_srv_cache();
 
   // Create the blacklist.
-  create_blacklist();
+  create_blacklist(blacklist_duration);
 
   LOG_STATUS("Created Diameter resolver");
 }

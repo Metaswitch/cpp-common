@@ -79,11 +79,12 @@ void BaseResolver::create_srv_cache()
 }
 
 /// Creates the blacklist of address/port/transport triplets.
-void BaseResolver::create_blacklist()
+void BaseResolver::create_blacklist(int blacklist_duration)
 {
   // Create the blacklist (no factory required).
   LOG_DEBUG("Create black list");
   pthread_mutex_init(&_blacklist_lock, NULL);
+  _default_blacklist_duration = blacklist_duration;
 }
 
 void BaseResolver::destroy_naptr_cache()
@@ -103,6 +104,7 @@ void BaseResolver::destroy_srv_cache()
 void BaseResolver::destroy_blacklist()
 {
   LOG_DEBUG("Destroy blacklist");
+  _default_blacklist_duration = 0;
   pthread_mutex_destroy(&_blacklist_lock);
 }
 
