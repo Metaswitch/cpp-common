@@ -340,10 +340,25 @@ namespace AlarmDef {
           "operation may still be in progress though."
         },
         {MINOR,
-          "Chronos: Chrono database resynchronization in progress",
+          "Chronos: Chronos database resynchronization in progress",
           "The local Chronos process is resynchronizing with the rest of the cluster. Service should "
           "be unaffected. If a scale-up or scale-down operation is in progress, wait for resynchronization to "
           "finish before completing the operation."
+        }
+      }
+    },
+
+    {CHRONOS_NOT_YET_CLUSTERED, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Chronos: The local Chronos is part of the Chronos cluster",
+          "The local Chronos process is synchronized with the rest of the cluster. Timer requests sent to "
+          "this node will be correctly replicated across the Chronos cluster."
+        },
+        {MAJOR,
+          "Chronos: The local Chronos is not yet part of a cluster",
+          "The local Chronos process is not yet part of a Chronos cluster. Timer requests sent to this node "
+          "will not be replicated correctly."
         }
       }
     },
