@@ -547,12 +547,12 @@ namespace AlarmDef {
     {CLEARWATER_LIVE_TEST_SERVICE_FAILED, SOFTWARE_ERROR,
       {
         {CLEARED,
-          "Service Status: Ok",
+          "Service Status: OK",
           "The deployment under test has passed live verification, the deployment is healthy."
         },
         {INDETERMINATE,
           "Service Status: Unknown",
-          "The deployment has not completed vefirication yet, the health of the deployment is unknown."
+          "The deployment has not completed verification yet, the health of the deployment is unknown."
         },
         {CRITICAL,
           "Service Status: Failed",
@@ -582,18 +582,18 @@ namespace AlarmDef {
       {
         {CLEARED,
           "etcd: Cluster is healthy",
-          "All etcd cluster memenbers are reporting normal operation."
+          "All etcd cluster members are reporting normal operation."
         },
         {MAJOR,
           "etcd: Cluster node is unhealthy",
-          "etcd is unable to confirm the health of one of its ring nodes. It "
+          "etcd is unable to confirm the health of one of its cluster nodes. It "
             "will periodically attempt to reconnect. If this alarm does not "
             "clear, ensure that all etcd instances are operational and verify "
             "network connectivity to reporting nodes."
         },
         {CRITICAL,
           "etcd: Cluster is unhealthy",
-          "etcd is unable to contact a quorum of its ring nodes and no leader "
+          "etcd is unable to contact a quorum of its cluster nodes and no leader "
             "can be elected. It will periodically attempt to reconnect. If this "
             "alarm does not clear, ensure that all etcd instances are "
             "operational and verify network connectivity to reporting nodes."
