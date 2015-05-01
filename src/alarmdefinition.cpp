@@ -543,6 +543,63 @@ namespace AlarmDef {
         }
       }
     },
+
+    {CLEARWATER_LIVE_TEST_SERVICE_FAILED, SOFTWARE_ERROR,
+      {
+        {CLEARED,
+          "Service Status: Ok",
+          "The deployment under test has passed live verification, the deployment is healthy."
+        },
+        {INDETERMINATE,
+          "Service Status: Unknown",
+          "The deployment has not completed vefirication yet, the health of the deployment is unknown."
+        },
+        {CRITICAL,
+          "Service Status: Failed",
+          "The deployment under test has failed live verification, the deployment is not providing "
+          "service."
+        }
+      }
+    },
+
+    {ETCD_PROCESS_FAIL, SOFTWARE_ERROR,
+      {
+        {CLEARED,
+          "etcd: Process failure cleared",
+          "The etcd process has been restored to normal operation."
+        },
+        {CRITICAL,
+          "etcd: Process failure",
+          "Monit has detected that the local etcd process has failed. A restart "
+            "will automatically be attempted. If this alarm does not clear, the "
+            "etcd process may have been stopped or an unrecoverable failure may "
+            "have occurred."
+        }
+      }
+    },
+
+    {ETCD_CLUSTER_HEALTH, UNDERLYING_RESOURCE_UNAVAILABLE,
+      {
+        {CLEARED,
+          "etcd: Cluster is healthy",
+          "All etcd cluster memenbers are reporting normal operation."
+        },
+        {MAJOR,
+          "etcd: Cluster node is unhealthy",
+          "etcd is unable to confirm the health of one of its ring nodes. It "
+            "will periodically attempt to reconnect. If this alarm does not "
+            "clear, ensure that all etcd instances are operational and verify "
+            "network connectivity to reporting nodes."
+        },
+        {CRITICAL,
+          "etcd: Cluster is unhealthy",
+          "etcd is unable to contact a quorum of its ring nodes and no leader "
+            "can be elected. It will periodically attempt to reconnect. If this "
+            "alarm does not clear, ensure that all Cassandra instances are "
+            "operational and verify network connectivity to reporting nodes."
+        }
+      }
+    },
   };
 }
 
