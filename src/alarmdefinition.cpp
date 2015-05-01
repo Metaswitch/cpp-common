@@ -595,7 +595,7 @@ namespace AlarmDef {
           "etcd: Cluster is unhealthy",
           "etcd is unable to contact a quorum of its ring nodes and no leader "
             "can be elected. It will periodically attempt to reconnect. If this "
-            "alarm does not clear, ensure that all Cassandra instances are "
+            "alarm does not clear, ensure that all etcd instances are "
             "operational and verify network connectivity to reporting nodes."
         }
       }
