@@ -84,7 +84,8 @@ void HealthChecker::health_check_passed()
 // has not been called since this was last run.
 void HealthChecker::do_check()
 {
-  if (_hit_exception.load() && (_recent_passes.load() == 0))
+  int num_recent_passes = _recent_passes.exchange(0);
+  if (_hit_exception.load() && (num_recent_passes == 0))
   {
     // LCOV_EXCL_START - only covered in "death tests"
 
@@ -96,7 +97,6 @@ void HealthChecker::do_check()
   {
     // TRC_DEBUG("Check for overall system health passed - not exiting");
   }
-  _recent_passes = 0;
 }
 
 // LCOV_EXCL_START
@@ -138,11 +138,20 @@ void HealthChecker::main_thread_function()
   pthread_mutex_unlock(&_condvar_lock);
 }
 
+void HealthChecker::start_thread()
+{
+  pthread_create(&_health_check_thread,
+                 NULL,
+                 &HealthChecker::static_main_thread_function,
+                 (void*)this);
+ 
+}
 void HealthChecker::terminate()
 {
   pthread_mutex_lock(&_condvar_lock);
   _terminate = true;
   pthread_cond_signal(&_condvar);
   pthread_mutex_unlock(&_condvar_lock);
+  pthread_join(_health_check_thread, NULL);
 }
 // LCOV_EXCL_STOP

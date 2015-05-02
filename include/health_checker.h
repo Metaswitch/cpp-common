@@ -56,6 +56,7 @@ public:
   virtual void health_check_passed();
   void hit_exception();
   void do_check();
+  void start_thread();
   void terminate();
 
   static void* static_main_thread_function(void* health_checker);
@@ -67,6 +68,7 @@ private:
   std::atomic_bool _terminate;
   pthread_cond_t _condvar;
   pthread_mutex_t _condvar_lock;
+  pthread_t _health_check_thread;
 };
 
 #endif
