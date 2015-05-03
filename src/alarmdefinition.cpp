@@ -378,6 +378,24 @@ namespace AlarmDef {
       }
     },
 
+    {MEMCACHED_NOT_YET_CLUSTERED, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Memcached: The local Memcached is part of the Chronos cluster",
+          "The local Memcached process is synchronized with the rest of the cluster. Changes made by"
+          " this node (e.g. to subscriber registrations) will be correctly replicated."
+        },
+        {MAJOR,
+          "Memcached: The local Memcached is not yet part of a cluster",
+          "The local Memcached process is not yet part of a Memcached cluster. This node will not"
+          " see any changes made by other nodes, and other nodes will not see any changes made by"
+          " this one (e.g. subscriber registrations). You should not direct service traffic to"
+          " this node until this alarm is cleared."
+        }
+      }
+    },
+
+
     {CASSANDRA_PROCESS_FAIL, SOFTWARE_ERROR,
       {
         {CLEARED,
@@ -576,6 +594,24 @@ namespace AlarmDef {
         }
       }
     },
+
+    {ETCD_CLUSTERING_TAKING_TOO_LONG, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "etcd:Scaling process has finished",
+          "An automatic scale-up or scale-down process has completed after running for more than 15 minutes."
+          " Further nodes can now be added to or removed from the cluster."
+        },
+        {MINOR,
+          "etcd:Scaling process has been running for more than 15 minutes",
+          "An automatic scale-up or scale-down process has been running for more than 15 minutes. Service"
+          " is not impacted, but the scaling has not completed, and no further nodes can be added to or"
+          " removed from the cluster until it completes. This may indicate that the process is running"
+          " slowly (e.g. due to high load) but will complete normally, or that one or more nodes have failed."
+        }
+      }
+    },
+ 
   };
 }
 
