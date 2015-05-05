@@ -382,6 +382,36 @@ namespace AlarmDef {
       }
     },
 
+    {CASSANDRA_NOT_YET_CLUSTERED, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Cassandra: The local Cassandra is part of the Cassandra cluster",
+          "The local Cassandra process is synchronized with the rest of the cluster."
+        },
+        {MAJOR,
+          "Cassandra: The local Cassandra is not yet part of a Cassandra cluster. This node will not "
+          "see any changes made by other nodes, and other nodes will not see any changes made by this "
+          "one. You should not direct service traffic to this node until this alarm is cleared.",
+          "The Cassandra node is joining the cluster."
+        }
+      }
+    },
+
+    {CASSANDRA_NOT_YET_DECOMMISSIONED, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Cassandra: The local Cassandra has been removed from the Cassandra cluster",
+          "The local Cassandra process has been decommissioned and can now be terminated without risk "
+          "of loss of data."
+        },
+        {MAJOR,
+          "Cassandra: The local Cassandra is being decommissioned",
+          "The local Cassandra process is being decommissioned. This node should not be terminated "
+          "until decommissioning is complete. Doing so could result in loss of data."
+        }
+      }
+    },
+
     {MONIT_PROCESS_FAIL, SOFTWARE_ERROR,
       {
         {CLEARED,
