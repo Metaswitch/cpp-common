@@ -358,7 +358,8 @@ namespace AlarmDef {
         {MAJOR,
           "Chronos: The local Chronos is not yet part of a cluster",
           "The local Chronos process is not yet part of a Chronos cluster. Timer requests sent to this node "
-          "will not be replicated correctly."
+          "will not be replicated correctly. You should not direct service traffic to this node until this "
+          "alarm is cleared."
         }
       }
     },
