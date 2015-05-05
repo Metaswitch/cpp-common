@@ -39,14 +39,14 @@
 
 #include <boost/algorithm/string/replace.hpp>
 
-const int RealmManager::DEFAULT_BLACKLIST_DURATION = 30;
-
 RealmManager::RealmManager(Diameter::Stack* stack,
                            std::string realm,
+                           std::string host,
                            int max_peers,
                            DiameterResolver* resolver) :
                            _stack(stack),
                            _realm(realm),
+                           _host(host),
                            _max_peers(max_peers),
                            _resolver(resolver),
                            _terminating(false)
@@ -93,7 +93,7 @@ void RealmManager::connection_failed(Diameter::Peer* peer)
   {
     _peers.erase(ii);
   }
-  _resolver->blacklist(peer->addr_info(), DEFAULT_BLACKLIST_DURATION);
+  _resolver->blacklist(peer->addr_info());
   delete peer;
 
   pthread_cond_signal(&_cond);
@@ -185,7 +185,7 @@ void RealmManager::manage_connections(int& ttl)
   bool ret;
 
   // 1.
-  _resolver->resolve(_realm, "", _max_peers, targets, ttl);
+  _resolver->resolve(_realm, _host, _max_peers, targets, ttl);
 
   // We impose sensible max and min values for the TTL.
   ttl = std::max(5, ttl);

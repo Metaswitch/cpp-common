@@ -331,6 +331,23 @@ namespace AlarmDef {
       }
     },
 
+    {CHRONOS_SCALE_IN_PROGRESS, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Chronos: Chronos timers are synchronized",
+          "The local Chronos process is synchronized with the rest of the cluster. Chronos resynchronization "
+          "is no longer blocking a scale-up or scale-down operation (a different type of resynchronization "
+          "operation may still be in progress though."
+        },
+        {MINOR,
+          "Chronos: Chrono database resynchronization in progress",
+          "The local Chronos process is resynchronizing with the rest of the cluster. Service should "
+          "be unaffected. If a scale-up or scale-down operation is in progress, wait for resynchronization to "
+          "finish before completing the operation."
+        }
+      }
+    },
+
     {MEMCACHED_PROCESS_FAIL, SOFTWARE_ERROR,
       {
         {CLEARED,
@@ -562,8 +579,9 @@ namespace AlarmDef {
       {
         {CLEARED,
           "Astaire: Memcached database synchronized",
-          "The local Memcached process is synchronized with the rest of the cluster. If a scale-up or "
-          "scale-down operation is in progress, it can now be completed."
+          "The local Memcached process is synchronized with the rest of the cluster. Memcached resynchronization "
+          "is no longer blocking a scale-up or scale-down operation (a different type of resynchronization "
+          "operation may still be in progress though."
         },
         {MINOR,
           "Astaire: Memcached database resynchronization in progress",

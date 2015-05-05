@@ -38,14 +38,15 @@
 #include "httpresolver.h"
 
 HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
-                           int address_family) :
+                           int address_family,
+                           int blacklist_duration) :
   BaseResolver(dns_client),
   _address_family(address_family)
 {
   LOG_DEBUG("Creating HTTP resolver");
 
   // Create the blacklist.
-  create_blacklist();
+  create_blacklist(blacklist_duration);
 
   LOG_STATUS("Created HTTP resolver");
 }

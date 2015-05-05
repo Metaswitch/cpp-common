@@ -75,9 +75,6 @@ static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
 /// Poisson-distributed with this mean inter-arrival time.
 static const double CONNECTION_AGE_MS = 60 * 1000.0;
 
-/// Duration to blacklist hosts after we fail to connect to them.
-static const int BLACKLIST_DURATION = 30;
-
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
@@ -179,6 +176,9 @@ HttpConnection::~HttpConnection()
     delete _statistic;
     _statistic = NULL;
   }
+
+  pthread_key_delete(_curl_thread_local);
+  pthread_key_delete(_uuid_thread_local);
 }
 
 /// Get the thread-local curl handle if it exists, and create it if not.
@@ -531,7 +531,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
   _resolver->resolve(_host, _port, MAX_TARGETS, targets, trail);
 
   // If we're not recycling the connection, try to get the current connection
-  // IP address and add it to the front of the target list.
+  // IP address and add it to the front of the target list (if it was there)
   if (!recycle_conn)
   {
     char* primary_ip;
@@ -542,8 +542,12 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
       ai.port = (_port != 0) ? _port : 80;
       ai.transport = IPPROTO_TCP;
 
+      int initialSize = targets.size();
       targets.erase(std::remove(targets.begin(), targets.end(), ai), targets.end());
-      targets.insert(targets.begin(), ai);
+      if ((int)targets.size() < initialSize)
+      {
+        targets.insert(targets.begin(), ai);
+      }
     }
   }
 
@@ -646,7 +650,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
-        _resolver->blacklist(*i, BLACKLIST_DURATION);
+        _resolver->blacklist(*i);
       }
 
       // Determine the failure mode and update the correct counter.

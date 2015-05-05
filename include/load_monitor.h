@@ -73,8 +73,10 @@ class LoadMonitor
     // This must be held when accessing any of this object's member variables.
      pthread_mutex_t _lock;
 
-    // Number of requests processed before each adjustment of token bucket rate
-    int ADJUST_PERIOD;
+     // Number of requests processed before each adjustment of token bucket rate
+     int REQUESTS_BEFORE_ADJUSTMENT;
+     // Number of seconds that must pass before each adjustment of token bucket rate
+     int SECONDS_BEFORE_ADJUSTMENT;
 
     // Adjustment parameters for token bucket
     float DECREASE_THRESHOLD;
@@ -90,6 +92,7 @@ class LoadMonitor
     int target_latency;
     int smoothed_latency;
     int adjust_count;
+    timespec last_adjustment_time;
     float min_token_rate;
     TokenBucket bucket;
 };

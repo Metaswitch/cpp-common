@@ -43,7 +43,9 @@
 class DiameterResolver : public BaseResolver
 {
 public:
-  DiameterResolver(DnsCachedResolver* dns_client, int af);
+  DiameterResolver(DnsCachedResolver* dns_client,
+                   int af,
+                   int blacklist_duration = DEFAULT_BLACKLIST_DURATION);
   ~DiameterResolver();
 
   virtual void resolve(const std::string& realm,
@@ -51,6 +53,9 @@ public:
                        int max_targets,
                        std::vector<AddrInfo>& targets,
                        int& ttl);
+
+  /// Default duration to blacklist hosts after we fail to connect to them.
+  static const int DEFAULT_BLACKLIST_DURATION = 30;
 
   static const int DEFAULT_PORT = 3868;
   static const int DEFAULT_TRANSPORT = IPPROTO_SCTP;

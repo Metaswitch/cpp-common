@@ -92,6 +92,7 @@ public:
   BaseResolver(DnsCachedResolver* dns_client);
   virtual ~BaseResolver();
 
+  void blacklist(const AddrInfo& ai) { blacklist(ai, _default_blacklist_duration); }
   void blacklist(const AddrInfo& ai, int ttl);
   bool blacklisted(const AddrInfo& ai);
 
@@ -101,7 +102,7 @@ public:
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
   void create_srv_cache();
-  void create_blacklist();
+  void create_blacklist(int blacklist_duration);
   void destroy_naptr_cache();
   void destroy_srv_cache();
   void destroy_blacklist();
@@ -236,6 +237,7 @@ protected:
   pthread_mutex_t _blacklist_lock;
   typedef std::map<AddrInfo, time_t> Blacklist;
   Blacklist _blacklist;
+  int _default_blacklist_duration;
 
   /// Stores a pointer to the DNS client this resolver should use.
   DnsCachedResolver* _dns_client;
