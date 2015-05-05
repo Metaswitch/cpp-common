@@ -828,9 +828,9 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
 
   // Now construct a correlating marker based on the diameter session ID.
   struct session* sess;
-  int is_new;
+  int dummy_is_new;
 
-  if (fd_msg_sess_get(fd_g_config->cnf_dict, msg, &sess, &is_new) == 0)
+  if (fd_msg_sess_get(fd_g_config->cnf_dict, msg, &sess, &dummy_is_new) == 0)
   {
     os0_t session_id;
     size_t session_id_len;
