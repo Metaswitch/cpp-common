@@ -340,10 +340,26 @@ namespace AlarmDef {
           "operation may still be in progress though."
         },
         {MINOR,
-          "Chronos: Chrono database resynchronization in progress",
+          "Chronos: Chronos database resynchronization in progress",
           "The local Chronos process is resynchronizing with the rest of the cluster. Service should "
           "be unaffected. If a scale-up or scale-down operation is in progress, wait for resynchronization to "
           "finish before completing the operation."
+        }
+      }
+    },
+
+    {CHRONOS_NOT_YET_CLUSTERED, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Chronos: The local Chronos is part of the Chronos cluster",
+          "The local Chronos process is synchronized with the rest of the cluster. Timer requests sent to "
+          "this node will be correctly replicated across the Chronos cluster."
+        },
+        {MAJOR,
+          "Chronos: The local Chronos is not yet part of a cluster",
+          "The local Chronos process is not yet part of a Chronos cluster. Timer requests sent to this node "
+          "will not be replicated correctly. You should not direct service traffic to this node until this "
+          "alarm is cleared."
         }
       }
     },
@@ -362,6 +378,24 @@ namespace AlarmDef {
         }
       }
     },
+
+    {MEMCACHED_NOT_YET_CLUSTERED, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Memcached: The local Memcached is part of the cluster",
+          "The local Memcached process is synchronized with the rest of the cluster. Changes made by "
+          "this node (e.g. to subscriber registrations) will be correctly replicated."
+        },
+        {MAJOR,
+          "Memcached: The local Memcached is not yet part of a cluster",
+          "The local Memcached process is not yet part of a Memcached cluster. This node will not "
+          "see any changes made by other nodes, and other nodes will not see any changes made by "
+          "this one (e.g. subscriber registrations). You should not direct service traffic to "
+          "this node until this alarm is cleared."
+        }
+      }
+    },
+
 
     {CASSANDRA_PROCESS_FAIL, SOFTWARE_ERROR,
       {
@@ -395,6 +429,36 @@ namespace AlarmDef {
           "Cassandra is unable to contact more than one of its ring nodes. It will periodically attempt to "
           "reconnect. If this alarm does not clear, ensure that all Cassandra instances are operational and "
           "verify network connectivity to reporting nodes."
+        }
+      }
+    },
+
+    {CASSANDRA_NOT_YET_CLUSTERED, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Cassandra: The local Cassandra is part of the Cassandra cluster",
+          "The local Cassandra process is synchronized with the rest of the cluster."
+        },
+        {MAJOR,
+          "Cassandra: The local Cassandra is not yet part of a Cassandra cluster. This node will not "
+          "see any changes made by other nodes, and other nodes will not see any changes made by this "
+          "one. You should not direct service traffic to this node until this alarm is cleared.",
+          "The Cassandra node is joining the cluster."
+        }
+      }
+    },
+
+    {CASSANDRA_NOT_YET_DECOMMISSIONED, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "Cassandra: The local Cassandra has been removed from the Cassandra cluster",
+          "The local Cassandra process has been decommissioned and can now be terminated without risk "
+          "of loss of data."
+        },
+        {MAJOR,
+          "Cassandra: The local Cassandra is being decommissioned",
+          "The local Cassandra process is being decommissioned. This node should not be terminated "
+          "until decommissioning is complete. Doing so could result in loss of data."
         }
       }
     },
@@ -561,6 +625,81 @@ namespace AlarmDef {
         }
       }
     },
+
+    {CLEARWATER_LIVE_TEST_SERVICE_FAILED, SOFTWARE_ERROR,
+      {
+        {CLEARED,
+          "Service Status: OK",
+          "The deployment under test has passed live verification, the deployment is healthy."
+        },
+        {INDETERMINATE,
+          "Service Status: Unknown",
+          "The deployment has not completed verification yet, the health of the deployment is unknown."
+        },
+        {CRITICAL,
+          "Service Status: Failed",
+          "The deployment under test has failed live verification, the deployment is not providing "
+          "service."
+        }
+      }
+    },
+
+    {ETCD_PROCESS_FAIL, SOFTWARE_ERROR,
+      {
+        {CLEARED,
+          "etcd: Process failure cleared",
+          "The etcd process has been restored to normal operation."
+        },
+        {CRITICAL,
+          "etcd: Process failure",
+          "Monit has detected that the local etcd process has failed. A restart "
+            "will automatically be attempted. If this alarm does not clear, the "
+            "etcd process may have been stopped or an unrecoverable failure may "
+            "have occurred."
+        }
+      }
+    },
+
+    {ETCD_CLUSTER_HEALTH, UNDERLYING_RESOURCE_UNAVAILABLE,
+      {
+        {CLEARED,
+          "etcd: Cluster is healthy",
+          "All etcd cluster members are reporting normal operation."
+        },
+        {MAJOR,
+          "etcd: Cluster node is unhealthy",
+          "etcd is unable to confirm the health of one of its cluster nodes. It "
+            "will periodically attempt to reconnect. If this alarm does not "
+            "clear, ensure that all etcd instances are operational and verify "
+            "network connectivity to reporting nodes."
+        },
+        {CRITICAL,
+          "etcd: Cluster is unhealthy",
+          "etcd is unable to contact a quorum of its cluster nodes and no leader "
+            "can be elected. It will periodically attempt to reconnect. If this "
+            "alarm does not clear, ensure that all etcd instances are "
+            "operational and verify network connectivity to reporting nodes."
+        }
+      }
+    },
+
+    {ETCD_CLUSTERING_TAKING_TOO_LONG, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "etcd: Scaling process has finished",
+          "An automatic scale-up or scale-down process has completed after running for more than 15 minutes. "
+          "Further nodes can now be added to or removed from the cluster."
+        },
+        {MINOR,
+          "etcd: Scaling process has been running for more than 15 minutes",
+          "An automatic scale-up or scale-down process has been running for more than 15 minutes. Service "
+          "is not impacted, but the scaling has not completed, and no further nodes can be added to or "
+          "removed from the cluster until it completes. This may indicate that the process is running "
+          "slowly (e.g. due to high load) but will complete normally, or that one or more nodes have failed."
+        }
+      }
+    },
+ 
   };
 }
 
