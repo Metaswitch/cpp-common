@@ -111,7 +111,7 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
   pending_count = 0;
   max_pending_count = 0;
   target_latency = init_target_latency;
-  smoothed_latency = 0;
+  smoothed_latency = init_target_latency;
   adjust_count = 0;
   clock_gettime(CLOCK_MONOTONIC_COARSE, &last_adjustment_time);
   min_token_rate = init_min_token_rate;
@@ -204,7 +204,7 @@ void LoadMonitor::request_complete(int latency)
           new_rate = min_token_rate;
         }
         bucket.update_rate(new_rate);
-        LOG_STATUS("Maximum incoming request rate/second is now %f "
+        LOG_STATUS("Maximum incoming request rate/second decreased to %f "
                    "(based on a smoothed mean latency of %d and %d upstream overload responses)",
                    bucket.rate,
                    smoothed_latency,
@@ -214,7 +214,7 @@ void LoadMonitor::request_complete(int latency)
       {
         float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
         bucket.update_rate(new_rate);
-        LOG_STATUS("Maximum incoming request rate/second is now %f "
+        LOG_STATUS("Maximum incoming request rate/second increased to %f "
                    "(based on a smoothed mean latency of %d and %d upstream overload responses)",
                    bucket.rate,
                    smoothed_latency,
