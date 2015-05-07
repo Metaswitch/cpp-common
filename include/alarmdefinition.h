@@ -108,6 +108,11 @@ namespace AlarmDef {
 
     ASTAIRE_PROCESS_FAIL = 5500,
     ASTAIRE_RESYNC_IN_PROGRESS = 5501,
+
+    CLEARWATER_LIVE_TEST_SERVICE_FAILED = 6000,
+
+    ETCD_PROCESS_FAIL = 6500,
+    ETCD_CLUSTER_HEALTH,
   };
 
   enum Severity {
@@ -135,7 +140,11 @@ namespace AlarmDef {
     CHRONOS,
     MEMCACHED,
     CASSANDRA,
-    MONIT
+    MONIT,
+    MEMENTO,
+    ASTAIRE,
+    CLEARWATER_LIVE_TEST,
+    ETCD,
   };
 
   struct SeverityDetails {
