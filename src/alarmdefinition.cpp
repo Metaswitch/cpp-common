@@ -388,9 +388,9 @@ namespace AlarmDef {
         },
         {MAJOR,
           "Memcached: The local Memcached is not yet part of a cluster",
-          "The local Memcached process is not yet part of a Memcached cluster. This node will not "
-          "see any changes made by other nodes, and other nodes will not see any changes made by "
-          "this one (e.g. subscriber registrations). You should not direct service traffic to "
+          "The local Memcached process is not yet part of a cluster. This node will not "
+          "see any changes made by other nodes, or vice versa."
+          "You should not direct service traffic to "
           "this node until this alarm is cleared."
         }
       }
@@ -440,10 +440,11 @@ namespace AlarmDef {
           "The local Cassandra process is synchronized with the rest of the cluster."
         },
         {MAJOR,
-          "Cassandra: The local Cassandra is not yet part of a Cassandra cluster. This node will not "
-          "see any changes made by other nodes, and other nodes will not see any changes made by this "
-          "one. You should not direct service traffic to this node until this alarm is cleared.",
-          "The Cassandra node is joining the cluster."
+          "Cassandra: The local Cassandra is not yet part of a cluster",
+          "The local Cassandra process is not yet part of a cluster. This node will not "
+          "see any changes made by other nodes, or vice versa."
+          "You should not direct service traffic to "
+          "this node until this alarm is cleared."
         }
       }
     },
@@ -675,8 +676,8 @@ namespace AlarmDef {
         },
         {CRITICAL,
           "etcd: Cluster is unhealthy",
-          "etcd is unable to contact a quorum of its cluster nodes and no leader "
-            "can be elected. It will periodically attempt to reconnect. If this "
+          "etcd is unable to contact a quorum of its cluster nodes."
+            "It will periodically attempt to reconnect. If this "
             "alarm does not clear, ensure that all etcd instances are "
             "operational and verify network connectivity to reporting nodes."
         }
@@ -694,8 +695,7 @@ namespace AlarmDef {
           "etcd: Scaling process has been running for more than 15 minutes",
           "An automatic scale-up or scale-down process has been running for more than 15 minutes. Service "
           "is not impacted, but the scaling has not completed, and no further nodes can be added to or "
-          "removed from the cluster until it completes. This may indicate that the process is running "
-          "slowly (e.g. due to high load) but will complete normally, or that one or more nodes have failed."
+          "removed from the cluster until it completes."
         }
       }
     },
