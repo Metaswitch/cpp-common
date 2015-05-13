@@ -84,6 +84,12 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
                             0, 
                             true);
 
+        if ((tokens[0] == "servers") && tokens.size() == 1)
+        {
+          LOG_DEBUG("Accepting empty servers= line");
+          return true;
+        }
+
         if (tokens.size() != 2)
         {
           LOG_ERROR("Malformed config file (got bad line: '%s')",
