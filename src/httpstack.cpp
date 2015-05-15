@@ -179,8 +179,24 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
   const int error_num = getaddrinfo(_bind_address.c_str(), NULL, &hints, &servinfo);
 
   if ((error_num == 0) &&
-      (servinfo->ai_family == AF_INET6))
+      (servinfo->ai_family == AF_INET))
   {
+    char dest_str[INET_ADDRSTRLEN];
+    inet_ntop(AF_INET,
+              &(((struct sockaddr_in*)servinfo->ai_addr)->sin_addr),
+              dest_str,
+              INET_ADDRSTRLEN);
+    full_bind_address = dest_str;
+  }
+  else if ((error_num == 0) &&
+           (servinfo->ai_family == AF_INET6))
+  {
+    char dest_str[INET6_ADDRSTRLEN];
+    inet_ntop(AF_INET6,
+              &(((struct sockaddr_in6*)servinfo->ai_addr)->sin6_addr),
+              dest_str,
+              INET6_ADDRSTRLEN);
+    full_bind_address = dest_str;
     full_bind_address = "ipv6:" + full_bind_address;
     local_bind_address = "ipv6:::1";
   }
