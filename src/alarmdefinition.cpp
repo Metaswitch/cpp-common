@@ -710,8 +710,8 @@ namespace AlarmDef {
         {CRITICAL,
           "etcd: Shared configuration has not been learned on the local node",
           "Some shared configuration has not been received at the local node yet.  If you have not uploaded "
-            "any yet, this is an expected alarm and will shortly clear.  If shared config has been uploaded, "
-            "this alarm will shortly clear.  You should not add the local node to DNS until this alarm clears."
+            "all the shared config yet, this alarm will clear once that is done.  You should not add the "
+            "local node to DNS until this alarm clears."
         }
       }
     },
