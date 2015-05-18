@@ -261,12 +261,14 @@ std::string MemcachedStoreView::view_to_string()
 std::string MemcachedStoreView::replicas_to_string(const std::vector<std::string>& replicas)
 {
   std::string s;
-  for (size_t ii = 0; ii < replicas.size()-1; ++ii)
+  if (!replicas.empty())
   {
-    s += replicas[ii] + "/";
+    for (size_t ii = 0; ii < replicas.size()-1; ++ii)
+    {
+      s += replicas[ii] + "/";
+    }
+    s += replicas[replicas.size()-1];
   }
-  s += replicas[replicas.size()-1];
-
   return s;
 }
 
@@ -302,7 +304,7 @@ void MemcachedStoreView::Ring::update(int nodes)
 
   _node_slots.resize(nodes);
 
-  if (_nodes == 0)
+  if ((_nodes == 0) && (nodes > 0))
   {
     // Set up the initial ring for the one node case.
     LOG_DEBUG("Set up ring for node 0");
