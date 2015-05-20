@@ -90,6 +90,37 @@ std::vector<std::string> MemcachedStoreView::
   return names;
 }
 
+void MemcachedStoreView::generate_ring_from_stable_servers()
+{
+    // Only need to generate a single ring.
+    Ring ring(_vbuckets);
+    ring.update(_servers.size());
+
+    int replicas = _replicas;
+    if (replicas > (int)_servers.size())
+    {
+      // Not enough servers for the required level of replication.
+      replicas = _servers.size();
+    }
+
+    // Generate the read and write replica sets from the rings.
+    for (int ii = 0; ii < _vbuckets; ++ii)
+    {
+      std::vector<int> server_indexes = ring.get_nodes(ii, replicas);
+      for (size_t jj = 0; jj < server_indexes.size(); jj++)
+      {
+        int idx = server_indexes[jj];
+        _read_set[ii].push_back(_servers[idx]);
+      }
+      _write_set[ii] = _read_set[ii];
+
+      // There is no resize in progress, so the current replicas is the same as
+      // the read set.
+      _current_replicas[ii] = _read_set[ii];
+    }
+
+}
+
 /// Updates the view for new current and target server lists.
 void MemcachedStoreView::update(const MemcachedConfig& config)
 {
@@ -110,33 +141,14 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
     // Stable configuration.
     LOG_DEBUG("View is stable with %d nodes", config.servers.size());
     _servers = config.servers;
-
-    // Only need to generate a single ring.
-    Ring ring(_vbuckets);
-    ring.update(_servers.size());
-
-    int replicas = _replicas;
-    if (replicas > (int)_servers.size())
-    {
-      // Not enough servers for the required level of replication.
-      replicas = _servers.size();
-    }
-
-    // Generate the read and write replica sets from the rings.
-    for (int ii = 0; ii < _vbuckets; ++ii)
-    {
-      std::vector<int> server_indexes = ring.get_nodes(ii, replicas);
-      for (size_t jj = 0; jj < server_indexes.size(); jj++)
-      {
-        int idx = server_indexes[jj];
-        _read_set[ii].push_back(config.servers[idx]);
-      }
-      _write_set[ii] = _read_set[ii];
-
-      // There is no resize in progress, so the current replicas is the same as
-      // the read set.
-      _current_replicas[ii] = _read_set[ii];
-    }
+    generate_ring_from_stable_servers();
+  }
+  else if (config.servers.empty())
+  {
+    // Stable configuration.
+    LOG_DEBUG("Cluster is moving from 0 nodes to %d nodes", config.new_servers.size());
+    _servers = config.new_servers;
+    generate_ring_from_stable_servers();
   }
   else
   {
