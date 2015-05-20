@@ -233,7 +233,10 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
     }
   }
 
-  LOG_DEBUG("New view -\n%s", view_to_string().c_str());
+  if (!(config.servers.empty() && config.new_servers.empty()))
+  {
+    LOG_DEBUG("New view -\n%s", view_to_string().c_str());
+  }
 }
 
 
