@@ -129,7 +129,7 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
             return false;
           }
         }
-         else
+        else
         {
           LOG_ERROR("Malformed config file (got bad line: '%s')",
                     line.c_str());
