@@ -62,6 +62,7 @@ RealmManager::RealmManager(Diameter::Stack* stack,
 void RealmManager::start()
 {
   pthread_create(&_thread, NULL, thread_function, this);
+  _stack->register_peer_hook_hdlr();
 }
 
 RealmManager::~RealmManager()
