@@ -699,7 +699,22 @@ namespace AlarmDef {
         }
       }
     },
- 
+
+    {ETCD_NO_SHARED_CONFIG, DATABASE_INCONSISTENCY,
+      {
+        {CLEARED,
+          "etcd: Shared configuration has been learned by the local node",
+          "All shared configuration has been synchronised to the local node.  Once the local node has joined any "
+            "backend clusters, it may be safely added to DNS to allow it to start providing service."
+        },
+        {CRITICAL,
+          "etcd: Shared configuration has not been learned on the local node",
+          "Some shared configuration has not been received at the local node yet.  If you have not uploaded "
+            "all the shared config yet, this alarm will clear once that is done.  You should not add the "
+            "local node to DNS until this alarm clears."
+        }
+      }
+    },
   };
 }
 
