@@ -57,6 +57,7 @@ MemcachedConfigFileReader::~MemcachedConfigFileReader() {}
 
 bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
 {
+  bool seen_servers = false;
   config.servers.clear();
   config.new_servers.clear();
   config.tombstone_lifetime = DEFAULT_TOMBSTONE_LIFETIME;
@@ -84,44 +85,57 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
                             0, 
                             true);
 
-        if ((tokens[0] == "servers") && tokens.size() == 1)
+        std::string key;
+        std::string value;
+        if (tokens.size() == 1)
         {
-          LOG_DEBUG("Accepting empty servers= line");
-          return true;
+          key = tokens[0];
+          value = "";
         }
-
-        if (tokens.size() != 2)
+        else if (tokens.size() == 2)
+        {
+          key = tokens[0];
+          value = tokens[1];
+        }
+        else
         {
           LOG_ERROR("Malformed config file (got bad line: '%s')",
                     line.c_str());
           return false;
         }
 
-        LOG_STATUS(" %s=%s", tokens[0].c_str(), tokens[1].c_str());
+        LOG_STATUS(" %s=%s", key.c_str(), value.c_str());
 
-        if (tokens[0] == "servers")
+        if (key == "servers")
         {
           // Found line defining servers.
-          Utils::split_string(tokens[1], ',', config.servers, 0, true);
+          Utils::split_string(value, ',', config.servers, 0, true);
+          seen_servers = true;
         }
-        else if (tokens[0] == "new_servers")
+        else if (key == "new_servers")
         {
           // Found line defining new servers.
-          Utils::split_string(tokens[1], ',', config.new_servers, 0, true);
+          Utils::split_string(value, ',', config.new_servers, 0, true);
         }
-        else if (tokens[0] == "tombstone_lifetime")
+        else if (key == "tombstone_lifetime")
         {
           // Read the tombstone lifetime from the config file. Check it is
           // actually a valid integer before committing to the member variable
           // (atoi stops when it reaches non-numeric characters).
-          config.tombstone_lifetime = atoi(tokens[1].c_str());
+          config.tombstone_lifetime = atoi(value.c_str());
 
-          if (std::to_string(config.tombstone_lifetime) != tokens[1])
+          if (std::to_string(config.tombstone_lifetime) != value)
           {
             LOG_ERROR("Config contained an invalid tombstone_lifetime line:\n%s",
                       line.c_str());
             return false;
           }
+        }
+        else
+        {
+          LOG_ERROR("Malformed config file (got bad line: '%s')",
+                    line.c_str());
+          return false;
         }
       }
     }
@@ -132,11 +146,5 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
     return false;
   }
 
-  if (config.servers.size() == 0)
-  {
-    LOG_ERROR("'%s' does not contain a valid set of servers", _filename.c_str());
-    return false;
-  }
-
-  return true;
+  return seen_servers;
 }

@@ -94,6 +94,8 @@ public:
   virtual Status delete_data(const std::string& table,
                              const std::string& key,
                              SAS::TrailId trail = 0) = 0;
+
+  virtual bool has_servers() { return true; }
 };
 
 #endif
