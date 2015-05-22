@@ -57,6 +57,7 @@ MemcachedConfigFileReader::~MemcachedConfigFileReader() {}
 
 bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
 {
+  bool seen_servers = false;
   config.servers.clear();
   config.new_servers.clear();
   config.tombstone_lifetime = DEFAULT_TOMBSTONE_LIFETIME;
@@ -109,6 +110,7 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
         {
           // Found line defining servers.
           Utils::split_string(value, ',', config.servers, 0, true);
+          seen_servers = true;
         }
         else if (key == "new_servers")
         {
@@ -144,5 +146,5 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
     return false;
   }
 
-  return true;
+  return seen_servers;
 }
