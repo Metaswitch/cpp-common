@@ -76,7 +76,7 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
 
       LOG_DEBUG("Got line: %s", line.c_str());
 
-      if (line.length() > 0 && line[0] != '#')
+      if ((line.length() > 0) && (line[0] != '#'))
       {
         // Read a non-blank line.
         std::vector<std::string> tokens;
