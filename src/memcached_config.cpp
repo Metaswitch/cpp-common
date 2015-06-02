@@ -72,14 +72,15 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
     {
       std::string line;
       getline(f, line);
+      line = Utils::strip_whitespace(line);
 
       LOG_DEBUG("Got line: %s", line.c_str());
 
-      if (line.length() > 0)
+      if ((line.length() > 0) && (line[0] != '#'))
       {
         // Read a non-blank line.
         std::vector<std::string> tokens;
-        Utils::split_string(Utils::strip_whitespace(line), 
+        Utils::split_string(line, 
                             '=', 
                             tokens, 
                             0, 
