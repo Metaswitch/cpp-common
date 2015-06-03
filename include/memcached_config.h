@@ -62,6 +62,9 @@ struct MemcachedConfig
   /// 0 means that tombstones are not used. Deleted data is simply removed.
   int tombstone_lifetime;
 
+  /// The configuration file used for this memcached cluster. Used for logging.
+  std::string filename;
+
   /// Default constructor.
   MemcachedConfig();
 };
