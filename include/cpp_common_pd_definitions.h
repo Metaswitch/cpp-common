@@ -119,9 +119,8 @@ static const PDLog2<const char*, int> CL_MEMCACHED_CLUSTER_UPDATE_STABLE
 (
   PDLogBase::CL_CPP_COMMON_ID + 6,
   PDLOG_NOTICE,
-  "The memcached cluster configuration has been updated.",
-  "A change has been detected to the %s configuration file that has changed the memcached cluster. "
-  "There are now %d nodes in the cluster.",
+  "The memcached cluster configuration has been updated. There are now %d nodes in the cluster.",
+  "A change has been detected to the %s configuration file that has changed the memcached cluster.";
   "Normal.",
   "None."
 );
@@ -130,9 +129,8 @@ static const PDLog3<const char*, int, int> CL_MEMCACHED_CLUSTER_UPDATE_RESIZE
 (
   PDLogBase::CL_CPP_COMMON_ID + 7,
   PDLOG_NOTICE,
-  "The memcached cluster configuration has been updated.",
-  "A change has been detected to the %s configuration file that has changed the memcached cluster. "
-  "The cluster is resizing from %d nodes to %d nodes.",
+  "The memcached cluster configuration has been updated. The cluster is resizing from %d nodes to %d nodes.",
+  "A change has been detected to the %s configuration file that has changed the memcached cluster.",
   "Normal.",
   "None."
 );
