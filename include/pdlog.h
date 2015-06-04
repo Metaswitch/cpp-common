@@ -93,18 +93,21 @@ public:
     CL_ASTAIRE_ID = 7000,
   };
 
-  PDLogBase(int log_id, int severity, const std::string& msg, 
-            const std::string& cause,
-            const std::string& effect, const std::string& action) 
-    : _log_id(log_id), _severity(severity), _msg(msg),
-    _cause(cause), _effect(effect), _action(action) {};
+  PDLogBase(int log_id,
+            int severity,
+            const std::string& desc,    // Description of the condition
+            const std::string& cause,   // The cause of the condition
+            const std::string& effect,  // The effect the condiiton has on the system
+            const std::string& action)  // A list of actions to be taken for the condition
+    : _log_id(log_id), _severity(severity)
+  {
+    _msg = ("Description: " + desc + " @@Cause: " + cause + " @@Effect: " + effect + " @@Action: " + action) ;
+  }
 
   // Writes the description. cause, effect, and actions to syslog
   virtual void dcealog(const char* buf) const
   {
-    syslog(_severity, "%d - Description: %s @@Cause: %s @@Effect: "
-	   "%s @@Action: %s", 
-	   _log_id, buf, _cause.c_str(), _effect.c_str(), _action.c_str());
+    syslog(_severity, "%d - %s", _log_id, buf);
   }
 protected:
   // Unique identity for a PDLog, e.g. CL_CPP_COMMON + 1
@@ -113,17 +116,7 @@ protected:
   // Log severity, usually PDLOG_ERR or PDLOG_NOTICE
   int         _severity;
 
-  // Description of the condition
   std::string _msg;
-
-  // The cause of the condition
-  std::string _cause;
-
-  // The effect the condiiton has on the system
-  std::string _effect;
-
-  // A list of actions to be taken for the condition
-  std::string _action;
 };
 
 // PDLog - For logs with no log() arguments
