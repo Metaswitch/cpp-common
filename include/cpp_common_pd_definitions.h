@@ -120,7 +120,7 @@ static const PDLog2<const char*, int> CL_MEMCACHED_CLUSTER_UPDATE_STABLE
   PDLogBase::CL_CPP_COMMON_ID + 6,
   PDLOG_NOTICE,
   "The memcached cluster configuration has been updated. There are now %d nodes in the cluster.",
-  "A change has been detected to the %s configuration file that has changed the memcached cluster.";
+  "A change has been detected to the %s configuration file that has changed the memcached cluster.",
   "Normal.",
   "None."
 );
