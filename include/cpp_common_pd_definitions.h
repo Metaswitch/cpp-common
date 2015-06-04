@@ -115,7 +115,7 @@ static const PDLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
   "and/or Wireshark."
 );
 
-static const PDLog2<const char*, int> CL_MEMCACHED_CLUSTER_UPDATE_STABLE
+static const PDLog2<int, const char*> CL_MEMCACHED_CLUSTER_UPDATE_STABLE
 (
   PDLogBase::CL_CPP_COMMON_ID + 6,
   PDLOG_NOTICE,
@@ -125,7 +125,7 @@ static const PDLog2<const char*, int> CL_MEMCACHED_CLUSTER_UPDATE_STABLE
   "None."
 );
 
-static const PDLog3<const char*, int, int> CL_MEMCACHED_CLUSTER_UPDATE_RESIZE
+static const PDLog3<int, int, const char*> CL_MEMCACHED_CLUSTER_UPDATE_RESIZE
 (
   PDLogBase::CL_CPP_COMMON_ID + 7,
   PDLOG_NOTICE,
