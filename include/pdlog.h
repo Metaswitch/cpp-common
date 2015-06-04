@@ -91,6 +91,8 @@ public:
     CL_RALF_ID = 5000,
     CL_SCRIPT_ID = 6000,
     CL_ASTAIRE_ID = 7000,
+    CL_CLUSTER_MGR_ID = 8000,
+    CL_CONFIG_MGR_ID = 9000
   };
 
   PDLogBase(int log_id,
