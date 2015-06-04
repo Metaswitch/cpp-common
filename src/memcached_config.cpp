@@ -61,6 +61,7 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
   config.servers.clear();
   config.new_servers.clear();
   config.tombstone_lifetime = DEFAULT_TOMBSTONE_LIFETIME;
+  config.filename = _filename;
 
   std::ifstream f(_filename);
 
