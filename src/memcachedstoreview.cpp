@@ -141,8 +141,8 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
   {
     // Stable configuration.
     LOG_DEBUG("View is stable with %d nodes", config.servers.size());
-    CL_MEMCACHED_CLUSTER_UPDATE_STABLE.log(config.filename.c_str(),
-                                           config.servers.size());
+    CL_MEMCACHED_CLUSTER_UPDATE_STABLE.log(config.servers.size(),
+                                           config.filename.c_str());
     _servers = config.servers;
     generate_ring_from_stable_servers();
   }
@@ -150,9 +150,9 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
   {
     // Stable configuration.
     LOG_DEBUG("Cluster is moving from 0 nodes to %d nodes", config.new_servers.size());
-    CL_MEMCACHED_CLUSTER_UPDATE_RESIZE.log(config.filename.c_str(),
-                                           0,
-                                           config.new_servers.size());
+    CL_MEMCACHED_CLUSTER_UPDATE_RESIZE.log(0,
+                                           config.new_servers.size(),
+                                           config.filename.c_str());
     _servers = config.new_servers;
     generate_ring_from_stable_servers();
   }
@@ -161,9 +161,9 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
     LOG_DEBUG("Cluster is moving from %d nodes to %d nodes",
               config.servers.size(),
               config.new_servers.size());
-    CL_MEMCACHED_CLUSTER_UPDATE_RESIZE.log(config.filename.c_str(),
-                                           config.servers.size(),
-                                           config.new_servers.size());
+    CL_MEMCACHED_CLUSTER_UPDATE_RESIZE.log(config.servers.size(),
+                                           config.new_servers.size(),
+                                           config.filename.c_str());
 
     // _servers should contain all the servers we might want to store
     // data on, so combine the old and new server lists, removing any overlap.
