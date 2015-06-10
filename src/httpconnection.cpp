@@ -442,11 +442,11 @@ HTTPCode HttpConnection::send_get(const std::string& path,
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_get(const std::string& path,                     
-                                  std::map<std::string, std::string>& headers, 
-                                  std::string& response,                       
-                                  const std::string& username,                 
-                                  SAS::TrailId trail)                          
+HTTPCode HttpConnection::send_get(const std::string& path,
+                                  std::map<std::string, std::string>& headers,
+                                  std::string& response,
+                                  const std::string& username,
+                                  SAS::TrailId trail)
 {
   std::vector<std::string> unused_req_headers;
   return HttpConnection::send_get(path, headers, response, username, unused_req_headers, trail);
@@ -501,6 +501,12 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
   SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
+
+  // By default cURL will add `Expect: 100-continue` to certain requests. This
+  // causes the HTTP stack to send 100 Continue responses, which messes up the
+  // SAS call flow. To prevent this add an empty Expect header, which stops
+  // cURL from adding its own.
+  extra_headers = curl_slist_append(extra_headers, "Expect:");
 
   // Add in any extra headers
   for (std::vector<std::string>::const_iterator i = headers_to_add.begin();
@@ -1072,8 +1078,8 @@ int HttpConnection::port_from_server(const std::string& server)
   return port;
 }
 
-// Changes the underlying server used by this connection. Use this when 
-// the HTTPConnection was created without a server (e.g. 
+// Changes the underlying server used by this connection. Use this when
+// the HTTPConnection was created without a server (e.g.
 // ChronosInternalConnection)
 void HttpConnection::change_server(std::string override_server)
 {
