@@ -609,8 +609,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     rc = curl_easy_perform(curl);
 
     // If a request was sent, log it to SAS.
-    if ((_sas_log_level != SASEvent::HttpLogLevel::NONE) &&
-        (recorder.request.length() > 0))
+    if (recorder.request.length() > 0)
     {
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
     }
@@ -620,20 +619,14 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     if (rc == CURLE_OK)
     {
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
-      if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
-      {
-        sas_log_http_rsp(trail, curl, http_rc, method_str, url, recorder.response, 0);
-      }
+      sas_log_http_rsp(trail, curl, http_rc, method_str, url, recorder.response, 0);
       LOG_DEBUG("Received HTTP response: status=%d, doc=%s", http_rc, doc.c_str());
     }
     else
     {
       LOG_ERROR("%s failed at server %s : %s (%d) : fatal",
                 url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
-      if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
-      {
-        sas_log_curl_error(trail, remote_ip, i->port, method_str, url, rc, 0);
-      }
+      sas_log_curl_error(trail, remote_ip, i->port, method_str, url, rc, 0);
     }
 
     // Update the connection recycling and retry algorithms.
@@ -988,17 +981,20 @@ void HttpConnection::sas_log_http_req(SAS::TrailId trail,
                                       SAS::Timestamp timestamp,
                                       uint32_t instance_id)
 {
-  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
-  SAS::Event event(trail, event_id, instance_id);
+    SAS::Event event(trail, event_id, instance_id);
 
-  sas_add_ip_addrs_and_ports(event, curl);
-  event.add_compressed_param(request_bytes);
-  event.add_var_param(method_str);
-  event.add_var_param(Utils::url_unescape(url));
+    sas_add_ip_addrs_and_ports(event, curl);
+    event.add_compressed_param(request_bytes);
+    event.add_var_param(method_str);
+    event.add_var_param(Utils::url_unescape(url));
 
-  event.set_timestamp(timestamp);
-  SAS::report_event(event);
+    event.set_timestamp(timestamp);
+    SAS::report_event(event);
+  }
 }
 
 void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
@@ -1009,17 +1005,20 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
                                       const std::string& response_bytes,
                                       uint32_t instance_id)
 {
-  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::RX_HTTP_RSP : SASEvent::RX_HTTP_RSP_DETAIL);
-  SAS::Event event(trail, event_id, instance_id);
+    SAS::Event event(trail, event_id, instance_id);
 
-  sas_add_ip_addrs_and_ports(event, curl);
-  event.add_static_param(http_rc);
-  event.add_compressed_param(response_bytes);
-  event.add_var_param(method_str);
-  event.add_var_param(Utils::url_unescape(url));
+    sas_add_ip_addrs_and_ports(event, curl);
+    event.add_static_param(http_rc);
+    event.add_compressed_param(response_bytes);
+    event.add_var_param(method_str);
+    event.add_var_param(Utils::url_unescape(url));
 
-  SAS::report_event(event);
+    SAS::report_event(event);
+  }
 }
 
 void HttpConnection::sas_log_curl_error(SAS::TrailId trail,
@@ -1030,18 +1029,21 @@ void HttpConnection::sas_log_curl_error(SAS::TrailId trail,
                                         CURLcode code,
                                         uint32_t instance_id)
 {
-  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::HTTP_REQ_ERROR : SASEvent::HTTP_REQ_ERROR_DETAIL);
-  SAS::Event event(trail, event_id, instance_id);
+    SAS::Event event(trail, event_id, instance_id);
 
-  event.add_static_param(remote_port);
-  event.add_static_param(code);
-  event.add_var_param(remote_ip_addr);
-  event.add_var_param(method_str);
-  event.add_var_param(Utils::url_unescape(url));
-  event.add_var_param(curl_easy_strerror(code));
+    event.add_static_param(remote_port);
+    event.add_static_param(code);
+    event.add_var_param(remote_ip_addr);
+    event.add_var_param(method_str);
+    event.add_var_param(Utils::url_unescape(url));
+    event.add_var_param(curl_easy_strerror(code));
 
-  SAS::report_event(event);
+    SAS::report_event(event);
+  }
 }
 
 void HttpConnection::host_port_from_server(const std::string& server, std::string& host, int& port)
