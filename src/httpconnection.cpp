@@ -86,7 +86,7 @@ static const int MAX_TARGETS = 5;
 /// @param stat_name Name of statistic to report connection info to.
 /// @param load_monitor Load Monitor.
 /// @param lvc Statistics last value cache.
-/// @param sas_log_level the level to log HTTP flows at (protocol/detail).
+/// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
 HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
                                HttpResolver* resolver,
@@ -124,7 +124,7 @@ HttpConnection::HttpConnection(const std::string& server,
 /// @param server Server to send HTTP requests to.
 /// @param assert_user Assert user in header?
 /// @param resolver HTTP resolver to use to resolve server's IP addresses
-/// @param sas_log_level the level to log HTTP flows at (protocol/detail).
+/// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
 HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
                                HttpResolver* resolver,
@@ -609,7 +609,8 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     rc = curl_easy_perform(curl);
 
     // If a request was sent, log it to SAS.
-    if (recorder.request.length() > 0)
+    if ((_sas_log_level != SASEvent::HttpLogLevel::NONE) &&
+        (recorder.request.length() > 0))
     {
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
     }
@@ -619,14 +620,20 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     if (rc == CURLE_OK)
     {
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
-      sas_log_http_rsp(trail, curl, http_rc, method_str, url, recorder.response, 0);
+      if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+      {
+        sas_log_http_rsp(trail, curl, http_rc, method_str, url, recorder.response, 0);
+      }
       LOG_DEBUG("Received HTTP response: status=%d, doc=%s", http_rc, doc.c_str());
     }
     else
     {
       LOG_ERROR("%s failed at server %s : %s (%d) : fatal",
                 url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
-      sas_log_curl_error(trail, remote_ip, i->port, method_str, url, rc, 0);
+      if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+      {
+        sas_log_curl_error(trail, remote_ip, i->port, method_str, url, rc, 0);
+      }
     }
 
     // Update the connection recycling and retry algorithms.

@@ -53,6 +53,7 @@ namespace SASEvent {
   // The levels at which clearwater nodes may log HTTP messages.
   enum struct HttpLogLevel
   {
+    NONE = 0,
     DETAIL = 40,
     PROTOCOL = 60
   };
