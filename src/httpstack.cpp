@@ -51,10 +51,10 @@ HttpStack::HttpStack() :
   _load_monitor(NULL)
 {}
 
-void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
+void HttpStack::Request::send_reply(int rc, SAS::TrailId trail, bool use_latency)
 {
   _stopwatch.stop();
-  _stack->send_reply(*this, rc, trail);
+  _stack->send_reply(*this, rc, use_latency, trail);
 }
 
 bool HttpStack::Request::get_latency(unsigned long& latency_us)
@@ -76,7 +76,10 @@ void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
 }
 
 
-void HttpStack::send_reply(Request& req, int rc, SAS::TrailId trail)
+void HttpStack::send_reply(Request& req, 
+                           int rc, 
+                           bool use_latency, 
+                           SAS::TrailId trail)
 {
   send_reply_internal(req, rc, trail);
   // Resume the request to actually send it.  This matches the function to pause the request in
@@ -85,7 +88,7 @@ void HttpStack::send_reply(Request& req, int rc, SAS::TrailId trail)
 
   // Update the latency stats and throttling algorithm.
   unsigned long latency_us = 0;
-  if (req.get_latency(latency_us))
+  if ((use_latency) && (req.get_latency(latency_us)))
   {
     if (_load_monitor != NULL)
     {

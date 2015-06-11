@@ -148,7 +148,7 @@ public:
       }
     }
 
-    void send_reply(int rc, SAS::TrailId trail);
+    void send_reply(int rc, SAS::TrailId trail, bool use_latency=true);
     inline evhtp_request_t* req() { return _req; }
 
     void record_penalty() { _stack->record_penalty(); }
@@ -409,7 +409,7 @@ public:
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
   virtual void wait_stopped();
-  virtual void send_reply(Request& req, int rc, SAS::TrailId trail);
+  virtual void send_reply(Request& req, int rc, bool use_latency, SAS::TrailId trail);
   virtual void record_penalty();
 
   void log(const std::string uri, std::string method, int rc, unsigned long latency_us)

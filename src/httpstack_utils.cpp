@@ -46,7 +46,7 @@ namespace HttpStackUtils
                                     SAS::TrailId trail)
   {
     req.add_content("OK");
-    req.send_reply(200, trail);
+    req.send_reply(200, trail, false);
   }
 
   //
