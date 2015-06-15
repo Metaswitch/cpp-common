@@ -268,6 +268,10 @@ private:
                           CURLcode code,
                           uint32_t instance_id);
 
+  void sas_log_http_abort(SAS::TrailId trail,
+                          const std::string& reason,
+                          uint32_t instance_id);
+
   CURL* get_curl_handle();
   void reset_curl_handle(CURL* curl);
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
