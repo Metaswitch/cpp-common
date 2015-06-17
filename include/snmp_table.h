@@ -49,27 +49,30 @@ int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
                              netsnmp_agent_request_info *reqinfo,
                              netsnmp_request_info *requests);
 
+namespace SNMP
+{
+
 // Wraps a typed SNMP value (raw bytes with a type and size) for ease-of-use.
-class SNMPValue
+class Value
 {
 public:
   // Utility constructor for ASN_UNSIGNEDs
-  static SNMPValue uint(uint32_t val)
+  static Value uint(uint32_t val)
   {
-    return SNMPValue(ASN_UNSIGNED, (u_char*)&val, sizeof(uint32_t));
+    return Value(ASN_UNSIGNED, (u_char*)&val, sizeof(uint32_t));
   };
 
   // Utility constructor for ASN_INTEGERS
-  static SNMPValue integer(int val)
+  static Value integer(int val)
   {
-    return SNMPValue(ASN_INTEGER, (u_char*)&val, sizeof(int32_t));
+    return Value(ASN_INTEGER, (u_char*)&val, sizeof(int32_t));
   };
 
 
-  SNMPValue(): type(0), size(0), value(NULL) {};
+  Value(): type(0), size(0), value(NULL) {};
 
   // Constructor - copy the raw bytes to avoid lifetime issues
-  SNMPValue(int type_p, const u_char* value_p, int size_p) :
+  Value(int type_p, const u_char* value_p, int size_p) :
     type(type_p),
     size(size_p),
     value(new u_char[size])
@@ -77,7 +80,7 @@ public:
     memcpy(value, value_p, size);
   };
 
-  ~SNMPValue()
+  ~Value()
   {
     delete[](value); value = NULL;
   }
@@ -87,7 +90,7 @@ public:
   u_char* value;
   
   // Move constructor
-  SNMPValue(SNMPValue&& old):
+  Value(Value&& old):
    type(old.type),
    size(old.size),
    value(old.value)
@@ -96,7 +99,7 @@ public:
   };
 
   // Copy constructor
-  SNMPValue(const SNMPValue& old):
+  Value(const Value& old):
    type(old.type),
    size(old.size),
    value(new u_char[size])
@@ -105,7 +108,7 @@ public:
   };
 
   // Assignment operator
-  SNMPValue& operator=(const SNMPValue& other)
+  Value& operator=(const Value& other)
   {
     if (this != &other)
     {
@@ -125,35 +128,33 @@ public:
 
 // A ColumnData is the information for a particular row, implemented as a map of column number to
 // its value.
-typedef std::map<int, SNMPValue> ColumnData;
+typedef std::map<int, Value> ColumnData;
 
 // Abstract SNMPRowGroup class.
-class SNMPRowGroup
+class Row
 {
 public:
-  SNMPRowGroup() {}
-  virtual ~SNMPRowGroup()
+  Row()
   {
-      for (std::vector<netsnmp_tdata_row*>::iterator ii = _rows.begin();
-         ii != _rows.end();
-         ii++)
-    {
-      netsnmp_tdata_delete_row(*ii);
-    }
- 
+    _row = netsnmp_tdata_create_row();
+    _row->data = this;
   }
-  virtual ColumnData get_columns(netsnmp_tdata_row* row) = 0;
+  virtual ~Row()
+  {
+    netsnmp_tdata_delete_row(_row);
+  }
+  virtual ColumnData get_columns() = 0;
 
-  std::vector<netsnmp_tdata_row*> get_raw_rows() { return _rows; };
-  std::vector<netsnmp_tdata_row*> _rows;
+  netsnmp_tdata_row* get_netsnmp_row() { return _row; };
+  netsnmp_tdata_row* _row;
 
 };
 
 // Generic SNMPTable class wrapping a netsnmp_tdata.
-template<class T> class SNMPTable
+template<class T> class Table
 {
 public:
-  SNMPTable(std::string name,
+  Table(std::string name,
             oid* tbl_oid,
             int oidlen):
     _name(name),
@@ -164,7 +165,7 @@ public:
     _table_info = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
   }
 
-  virtual ~SNMPTable()
+  virtual ~Table()
   {
     netsnmp_unregister_handler(_handler_reg);
     snmp_free_varbind(_table->indexes_template);
@@ -173,16 +174,28 @@ public:
     SNMP_FREE(_table_info);
   }
 
+  void add_index(int type)
+  {
+    netsnmp_tdata_add_index(_table, ASN_INTEGER);
+    netsnmp_table_helper_add_index(_table_info, ASN_INTEGER);
+  }
+
+  void set_visible_columns(int min, int max) 
+  {
+    _table_info->min_column = 2;
+    _table_info->max_column = 6;
+  }
+
   // Registers an SNMP handler for this table. Subclasses should call this in their constructor
   // after setting appropriate indexes.
   void register_tbl()
   {
-    CW_TRACEINFO("Registering SNMP table %s", _name.c_str());
+    TRC_INFO("Registering SNMP table %s", _name.c_str());
     _handler_reg = netsnmp_create_handler_registration(_name.c_str(),
                                                        netsnmp_table_handler_fn,
                                                        _tbl_oid,
                                                        _oidlen,
-                                                       HANDLER_CAN_RONLY);
+                                                       HANDLER_CAN_RONLY | HANDLER_CAN_GETBULK);
 
     netsnmp_tdata_register(_handler_reg,
                            _table,
@@ -191,27 +204,19 @@ public:
 
 
   // Add the rows represented by a SNMPRowGroup into the underlying table.
-  void add(T* row_group)
+  void add(T* row)
   {
-    std::vector<netsnmp_tdata_row*> rows = row_group->get_raw_rows();
-    for (std::vector<netsnmp_tdata_row*>::iterator ii = rows.begin();
-         ii != rows.end();
-         ii++)
+    if (_handler_reg == NULL)
     {
-      netsnmp_tdata_add_row(_table, *ii);
+      register_tbl();
     }
+    netsnmp_tdata_add_row(_table, row->get_netsnmp_row());
   };
 
   // Remove the rows represented by a SNMPRowGroup from the underlying table.
-  void remove(T* row_group)
+  void remove(T* row)
   {
-    std::vector<netsnmp_tdata_row*> rows = row_group->get_raw_rows();
-    for (std::vector<netsnmp_tdata_row*>::iterator ii = rows.begin();
-         ii != rows.end();
-         ii++)
-    {
-      netsnmp_tdata_remove_row(_table, *ii);
-    }
+    netsnmp_tdata_remove_row(_table, row->get_netsnmp_row());
   };
 
 
@@ -224,19 +229,19 @@ public:
 };
 
 // Generic ManagedSNMPTable, wrapping an SNMPTable and managing the ownership of rows.
-template<class T1, class T2, class T3> class ManagedSNMPTable
+template<class TRow, class TRowKey> class ManagedTable
 {
 public:
-  ManagedSNMPTable(std::string name,
+  ManagedTable(std::string name,
                    oid* tbl_oid,
                    int oidlen) :
-  tbl(name, tbl_oid, oidlen)
+  _tbl(name, tbl_oid, oidlen)
   {
   }
 
-  virtual ~ManagedSNMPTable()
+  virtual ~ManagedTable()
   {
-    for (auto ii = _map.begin();
+    for (typename std::map<TRowKey, TRow*>::iterator ii = _map.begin();
          ii != _map.end();
          ii++)
     {
@@ -245,31 +250,37 @@ public:
   }
 
   // Returns the row keyed off `key`, creating it if it does not already exist.
-  T2* get(T3 key)
+  void add_row(TRowKey key)
+  {
+    TRow* row = new TRow(key);
+    std::pair<TRowKey, TRow*> new_entry(key, row);
+    _map.insert(new_entry);
+
+    _tbl.add(row);
+  }
+
+  // Returns the row keyed off `key`, creating it if it does not already exist.
+  TRow* get(TRowKey key)
   {
     if (_map.find(key) == _map.end())
     {
-      T2* row = new T2(key);
-      std::pair<T3, T2*> new_entry(key, row);
-      _map.insert(new_entry);
-
-      tbl.add(row);
+      add_row(key);
     }
 
     return _map.at(key);
   }
 
   // Deletes the row keyed off `key`.
-  void remove(T3 key)
+  void remove(TRowKey key)
   {
-    T2* row = _map.at(key);
+    TRow* row = _map.at(key);
     _map.erase(key);
-    tbl.remove(row);
+    _tbl.remove(row);
     delete row;
   };
 
-  T1 tbl;
-  std::map<T3, T2*> _map;
+  Table<TRow> _tbl;
+  std::map<TRowKey, TRow*> _map;
 };
-
+}
 #endif

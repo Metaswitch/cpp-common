@@ -42,91 +42,47 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <atomic>
+#include <tuple>
 
-SNMPLatencyRowGroup::SNMPLatencyRowGroup(int ignored):
-  SNMPRowGroup(),
+namespace SNMP
 {
-  // Create the underlying netsnmp row objects
-  five_second_row = new Row(1, 5, static_cast<SNMPRowGroup*>(this));
-  five_minute_row = new Row(1, 300, static_cast<SNMPRowGroup*>(this));
-  _rows.push_back(five_second_row->netsnmp_row);
-  _rows.push_back(five_minute_row->netsnmp_row);
-}
 
-ColumnData SNMPLatencyRowGroup::get_columns(netsnmp_tdata_row* netsnmp_row)
+ColumnData AccumulatorRow::get_columns()
 {
-  Row* row = NULL;
-
-  // Read from the row that's not currently being updated.
-  if (netsnmp_row == five_second_row->netsnmp_row)
-  {
-    row = five_second_row;
-  }
-  else
-  {
-    row = five_minute_row;
-  }
-
-  LatencyValues* values = row->get_reading_ptr();
-  uint32_t sum = values->sum.load();
-  uint32_t sumsq = values->sqsum.load();
-  uint32_t count = values->count.load();
+  uint32_t sum = accumulated.sum;
+  uint32_t sumsq = accumulated.sqsum;
+  uint32_t count = accumulated.count;
   uint32_t avg = sum/std::max(count, 1u);
   uint32_t variance = (sumsq/std::max(count, 1u)) - avg;
   
   // Construct and return a ColumnData with the appropriate values
   ColumnData ret;
-  ret[1] = SNMPValue::integer(row->index);
-  ret[2] = SNMPValue::uint(count);
-  ret[3] = SNMPValue::uint(avg);
-  ret[4] = SNMPValue::uint(variance);
-  ret[5] = SNMPValue::uint(values->lwm.load());
-  ret[6] = SNMPValue::uint(values->hwm.load());
+  ret[1] = Value::integer(index);
+  ret[2] = Value::uint(count);
+  ret[3] = Value::uint(avg);
+  ret[4] = Value::uint(variance);
+  ret[5] = Value::uint(accumulated.lwm);
+  ret[6] = Value::uint(accumulated.hwm);
   return ret;
 }
-void SNMPLatencyRowGroup::accumulate(uint32_t latency)
+
+void AccumulatorRow::accumulate(uint32_t latency)
 {
-  update_internal(five_seconds_row->get_writing_ptr(), latency);
-  update_internal(five_minutes_row->get_writing_ptr(), latency);
-}
-
-void SNMPLatencyRowGroup::update_internal(LatencyValues* val, uint32_t latency)
-{
-  val->count++;
-  val->sum.fetch_add(latency);
-  val->sqsum.fetch_add(latency*latency);
-  uint32_t hwm_seen, lwm_seen;
-  do
+  accumulated.count++;
+  accumulated.sum += latency;
+  accumulated.sqsum += (latency * latency);
+  if (latency > accumulated.hwm)
   {
-    hwm_seen = val->hwm.load();
-    if (latency <= hwm_seen)
-    {
-      break;
-    }
-  } while (!val->hwm.compare_exchange_weak(hwm_seen, latency));
+    accumulated.hwm = latency;
+  }
 
-  do
+  if ((latency < accumulated.lwm) || (accumulated.lwm == 0))
   {
-    lwm_seen = val->lwm.load();
-    if ((lwm_seen > 0) && (latency >= lwm_seen))
-    {
-      break;
-    }
-  } while (!val->lwm.compare_exchange_weak(lwm_seen, latency));
-
+    accumulated.lwm = latency;
+  }
 };
 
-void SNMPLatencyRowGroup::Row::zero_struct(LatencyValues& s)
-{
-  s.count.store(0);
-  s.sum.store(0);
-  s.sqsum.store(0);
-  s.hwm.store(0);
-  s.lwm.store(0);
-}
-
-void SNMPLatencyRowGroup::Row::update_time()
+void AccumulatorRow::update_time()
 {
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
@@ -139,18 +95,12 @@ void SNMPLatencyRowGroup::Row::update_time()
   {
     if ((new_tick % 2) == 0)
     {
-      reading = &even;
-      writing = &odd;
     }
     else
     {
-      reading = &odd;
-      writing = &even;
     }
-    zero_struct(*writing);
   }
-
   tick = new_tick;
 }
 
-
+}

@@ -50,11 +50,11 @@ int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
                              netsnmp_agent_request_info *reqinfo,
                              netsnmp_request_info *requests)
 {
-  std::map<netsnmp_tdata_row*, ColumnData> cache;
-  CW_TRACEINFO("Starting handling batch of SNMP requests");
+  std::map<netsnmp_tdata_row*, SNMP::ColumnData> cache;
+  TRC_INFO("Starting handling batch of SNMP requests");
   for (; requests != NULL; requests = requests->next)
   {
-    CW_TRACEINFO("Handling SNMP request");
+    TRC_INFO("Handling SNMP request");
     if (requests->processed)
     {
       continue;
@@ -65,20 +65,20 @@ int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
 
     if (!row || !table_info || !row->data)
     {
-      CW_TRACEWARNING("Request for nonexistent row");
+      TRC_WARNING("Request for nonexistent row");
       return SNMP_ERR_NOSUCHNAME;
     }
 
-    SNMPRowGroup* data = static_cast<SNMPRowGroup*>(row->data);
+    SNMP::Row* data = static_cast<SNMP::Row*>(row->data);
 
     // We need to get information a row at a time, and remember it - this avoids us reading column
     // 1, and having the data change before we query column 2
     if (cache.find(row) == cache.end())
     {
-      ColumnData cd = data->get_columns(row);
+      SNMP::ColumnData cd = data->get_columns();
       cache[row] = cd;
     }
-    CW_TRACEDEBUG("Got %d columns for row %p\n", cache[row].size(), row);
+    TRC_DEBUG("Got %d columns for row %p\n", cache[row].size(), row);
 
     if (cache[row][table_info->colnum].size != 0)
     {
@@ -89,9 +89,9 @@ int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
     }
     else
     {
-      CW_TRACEWARNING("No value for row %p column %d", row, table_info->colnum);
+      TRC_WARNING("No value for row %p column %d", row, table_info->colnum);
     }
   }
-  CW_TRACEDEBUG("Finished handling batch of SNMP requests");
+  TRC_DEBUG("Finished handling batch of SNMP requests");
   return SNMP_ERR_NOERROR;
 }

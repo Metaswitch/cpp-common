@@ -41,28 +41,35 @@
 #ifndef SNMP_SCALAR_H
 #define SNMP_SCALAR_H
 
-class SNMPUnsigned32Scalar
+namespace SNMP
+{
+
+class U32Scalar
 {
 public:
-  SNMPUnsigned32Scalar(std::string name,
-                       oid* oid_param,
-                       int oidlen):
-    _name(name),
+  U32Scalar(std::string name,
+            oid* oid_param,
+            int oidlen):
     _oid(oid_param),
     _oidlen(oidlen),
     value(0)
   {
-    netsnmp_register_read_only_ulong_instance(_name.c_str(),
-                                             _oid,
-                                             _oidlen,
-                                             &value,
-                                             NULL);
+    netsnmp_register_read_only_ulong_instance(name.c_str(),
+                                              _oid,
+                                              oidlen,
+                                              &value,
+                                              NULL);
   }
 
-  std::string _name;
+  ~U32Scalar()
+  {
+    unregister_mib(_oid, _oidlen);
+  }
+
   oid* _oid;
   int _oidlen;
   unsigned long value;
 };
 
+}
 #endif

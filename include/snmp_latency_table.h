@@ -38,142 +38,95 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <atomic>
+#include <tuple>
 #include "snmp_includes.h"
 #include "logger.h"
 
 #ifndef SNMP_LATENCY_TABLE_H
 #define SNMP_LATENCY_TABLE_H
 
-
+namespace SNMP
+{
 // A group of rows for a latency or accumulator table, containing:
 // - a row for the previous five seconds, with count of samples, average size, variance,
 // low-water-mark and high-water-mark
 // - a row for the previous five minutes, with count of samples, average size, variance,
 // low-water-mark and high-water-mark
-class SNMPLatencyRowGroup : public SNMPRowGroup
+class AccumulatorRow : public Row
 {
 public:
-  SNMPLatencyRowGroup(int ignored);
-  ColumnData get_columns(netsnmp_tdata_row* row);
+  AccumulatorRow(std::tuple<int, int> args) :
+    Row(),
+    index(std::get<0>(args)),
+    interval(std::get<1>(args)),
+    tick(0)
+  {
+    accumulated = {0,};
+    netsnmp_tdata_row_add_index(_row,
+                                ASN_INTEGER,
+                                &index,
+                                sizeof(int));
+    
+  };
+  ~AccumulatorRow() {};
+  ColumnData get_columns();
 
   // Add a sample to the statistics
   void accumulate(uint32_t sample);
 
 private:
-  netsnmp_tdata_row* five_second_row;
-  netsnmp_tdata_row* five_minute_row;
-
   struct LatencyValues
   {
-    int idx;
-    std::atomic<uint32_t> count;
-    std::atomic<uint32_t> sum;
-    std::atomic<uint32_t> sqsum;
-    std::atomic<uint32_t> hwm;
-    std::atomic<uint32_t> lwm;
+    uint64_t count;
+    uint64_t sum;
+    uint64_t sqsum;
+    uint64_t hwm;
+    uint64_t lwm;
   };
 
+  uint32_t index;
+  uint32_t interval;
   uint32_t tick;
-
-  // Double-buffering - keep two sets of LatencyValues, one which we're currently updating, and one
-  // which represents the previous period which we just read from. Switch the reading/writing
-  // pointers between the two every five seconds.
-  LatencyValues* fiveseconds_writing;
-  LatencyValues* fiveseconds_reading;
-  LatencyValues fiveseconds_even;
-  LatencyValues fiveseconds_odd;
-
-  LatencyValues* fiveminutes_writing;
-  LatencyValues* fiveminutes_reading;
-  
-  void update_internal(LatencyValues* val, uint32_t latency);
+  LatencyValues accumulated;
 
   // Make copy/move constructors private to avoid unexpected behaviour
-  SNMPLatencyRowGroup(const SNMPLatencyRowGroup&);
-  SNMPLatencyRowGroup(const SNMPLatencyRowGroup&&);
+  AccumulatorRow(const AccumulatorRow&);
+  AccumulatorRow(const AccumulatorRow&&);
 
-  class Row
-  {
-  public:
-    Row(int index_p,
-        int interval_p
-        void* row_data):
-      index(index_p),
-      interval(interval_p),
-      tick(0)
-    {
-      zero_struct(even);
-      zero_struct(odd);
-      netsnmp_row = netsnmp_tdata_create_row();
-      netsnmp_tdata_row_add_index(netsnmp_row,
-                                  ASN_INTEGER,
-                                  &index,
-                                  sizeof(int));
-      netsnmp_row->data = row_data;
- 
-    }
-
-    LatencyValues* get_writing_ptr() { update_time(); return writing; } 
-    LatencyValues* get_reading_ptr() { update_time(); return reading; } 
-    netsnmp_tdata_row* netsnmp_row;
-
-    int index;
-  private:
-    int interval;
-    uint32_t tick;
-
-    // Double-buffering - keep two sets of LatencyValues, one which we're currently updating, and one
-    // which represents the previous period which we just read from. Switch the reading/writing
-    // pointers between the two every five seconds.
-    LatencyValues* writing;
-    LatencyValues* reading;
-    void zero_struct(LatencyValues& s);
-    void update_time();
-    LatencyValues even;
-    LatencyValues odd;
-  }
+  void update_time();
 
 
 };
 
-class SNMPLatencyTable: public SNMPTable<SNMPLatencyRowGroup>
+class AccumulatorTable: public ManagedTable<AccumulatorRow, std::tuple<int, int>>
 {
 public:
-  SNMPLatencyTable(std::string name,
-            oid* tbl_oid,
-            int oidlen) : SNMPTable(name, tbl_oid, oidlen)
+  AccumulatorTable(std::string name,
+                   oid* tbl_oid,
+                   int oidlen) :
+    ManagedTable<AccumulatorRow, std::tuple<int, int>>(name, tbl_oid, oidlen)
   {
-    // Index off an integer (1 for 5s, 2 for 5m)
-    netsnmp_tdata_add_index(_table, ASN_INTEGER);
-    netsnmp_table_helper_add_index(_table_info, ASN_INTEGER);
+    _tbl.add_index(ASN_INTEGER);
+    _tbl.set_visible_columns(2, 6);
+    _tbl.register_tbl();
 
-    _table_info->min_column = 2;
-    _table_info->max_column = 6;
-    register_tbl();
-  }
-};
-
-class ManagedSNMPLatencyTable: public ManagedSNMPTable<SNMPLatencyTable, SNMPLatencyRowGroup, int>
-{
-public:
-  ManagedSNMPLatencyTable(std::string name,
-                          oid* tbl_oid,
-                          int oidlen) :
-    ManagedSNMPTable<SNMPLatencyTable, SNMPLatencyRowGroup, int>(name, tbl_oid, oidlen)
-  {
-    // There's only one row group in this table, so force it to be added.
-    get(0);
+    add_row(std::make_tuple(0, 5));
+    add_row(std::make_tuple(1, 300));
   }
   
   void accumulate(uint32_t sample)
   {
     // Pass samples through to the underlying row group
-    SNMPLatencyRowGroup* group = get(0);
-    group->accumulate(sample);
+    for (std::map<std::tuple<int, int>, AccumulatorRow*>::iterator ii = _map.begin();
+         ii != _map.end();
+         ii++)
+    {
+      ii->second->accumulate(sample);
+    }
   }
+
 };
 
-typedef ManagedSNMPLatencyTable ManagedSNMPAccumulatorTable;
+}
 
 #endif
