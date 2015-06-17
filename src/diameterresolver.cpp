@@ -43,7 +43,7 @@ DiameterResolver::DiameterResolver(DnsCachedResolver* dns_client,
   BaseResolver(dns_client),
   _address_family(address_family)
 {
-  LOG_DEBUG("Creating Diameter resolver");
+  TRC_DEBUG("Creating Diameter resolver");
 
   // Create the NAPTR cache.
   std::map<std::string, int> naptr_services;
@@ -59,7 +59,7 @@ DiameterResolver::DiameterResolver(DnsCachedResolver* dns_client,
   // Create the blacklist.
   create_blacklist(blacklist_duration);
 
-  LOG_STATUS("Created Diameter resolver");
+  TRC_STATUS("Created Diameter resolver");
 }
 
 DiameterResolver::~DiameterResolver()
@@ -87,20 +87,20 @@ void DiameterResolver::resolve(const std::string& realm,
   std::string srv_name;
   std::string a_name;
 
-  LOG_DEBUG("DiameterResolver::resolve for realm %s, host %s, family %d",
+  TRC_DEBUG("DiameterResolver::resolve for realm %s, host %s, family %d",
             realm.c_str(), host.c_str(), _address_family);
 
   if (realm != "")
   {
     // Realm is specified, so do a NAPTR lookup for the target.
-    LOG_DEBUG("Do NAPTR look-up for %s", realm.c_str());
+    TRC_DEBUG("Do NAPTR look-up for %s", realm.c_str());
 
     NAPTRReplacement* naptr = _naptr_cache->get(realm, ttl);
 
     if (naptr != NULL)
     {
       // NAPTR resolved to a supported service
-      LOG_DEBUG("NAPTR resolved to transport %d", naptr->transport);
+      TRC_DEBUG("NAPTR resolved to transport %d", naptr->transport);
       transport = naptr->transport;
       if (strcasecmp(naptr->flags.c_str(), "S") == 0)
       {
@@ -117,7 +117,7 @@ void DiameterResolver::resolve(const std::string& realm,
     {
       // NAPTR resolution failed, so do SRV lookups for both TCP and SCTP to
       // see which transports are supported.
-      LOG_DEBUG("NAPTR lookup failed, so do SRV lookups for TCP and SCTP");
+      TRC_DEBUG("NAPTR lookup failed, so do SRV lookups for TCP and SCTP");
 
       std::vector<std::string> domains;
       domains.push_back("_diameter._tcp." + realm);
@@ -125,16 +125,16 @@ void DiameterResolver::resolve(const std::string& realm,
       std::vector<DnsResult> results;
       _dns_client->dns_query(domains, ns_t_srv, results);
       DnsResult& tcp_result = results[0];
-      LOG_DEBUG("TCP SRV record %s returned %d records",
+      TRC_DEBUG("TCP SRV record %s returned %d records",
                 tcp_result.domain().c_str(), tcp_result.records().size());
       DnsResult& sctp_result = results[1];
-      LOG_DEBUG("SCTP SRV record %s returned %d records",
+      TRC_DEBUG("SCTP SRV record %s returned %d records",
                 sctp_result.domain().c_str(), sctp_result.records().size());
 
       if (!tcp_result.records().empty())
       {
         // TCP SRV lookup returned some records, so use TCP transport.
-        LOG_DEBUG("TCP SRV lookup successful, select TCP transport");
+        TRC_DEBUG("TCP SRV lookup successful, select TCP transport");
         transport = IPPROTO_TCP;
         srv_name = tcp_result.domain();
         ttl = std::min(ttl, tcp_result.ttl());
@@ -142,7 +142,7 @@ void DiameterResolver::resolve(const std::string& realm,
       else if (!sctp_result.records().empty())
       {
         // SCTP SRV lookup returned some records, so use SCTP transport.
-        LOG_DEBUG("SCTP SRV lookup successful, select SCTP transport");
+        TRC_DEBUG("SCTP SRV lookup successful, select SCTP transport");
         transport = IPPROTO_SCTP;
         srv_name = sctp_result.domain();
         ttl = std::min(ttl, sctp_result.ttl());
@@ -154,13 +154,13 @@ void DiameterResolver::resolve(const std::string& realm,
     // We might now have got SRV or A domain names, so do lookups for them if so.
     if (srv_name != "")
     {
-      LOG_DEBUG("Do SRV lookup for %s", srv_name.c_str());
+      TRC_DEBUG("Do SRV lookup for %s", srv_name.c_str());
       srv_resolve(srv_name, _address_family, transport, max_targets, targets, new_ttl, 0);
       ttl = std::min(ttl, new_ttl);
     }
     else if (a_name != "")
     {
-      LOG_DEBUG("Do A/AAAA lookup for %s", a_name.c_str());
+      TRC_DEBUG("Do A/AAAA lookup for %s", a_name.c_str());
       a_resolve(a_name, _address_family, DEFAULT_PORT, transport, max_targets, targets, new_ttl, 0);
       ttl = std::min(ttl, new_ttl);
     }
@@ -172,7 +172,7 @@ void DiameterResolver::resolve(const std::string& realm,
     {
       // The name is already an IP address, so no DNS resolution is possible.
       // Use specified transport and port or defaults if not specified.
-      LOG_DEBUG("Target is an IP address - default port/transport");
+      TRC_DEBUG("Target is an IP address - default port/transport");
       ai.transport = DEFAULT_TRANSPORT;
       ai.port = DEFAULT_PORT;
       targets.push_back(ai);

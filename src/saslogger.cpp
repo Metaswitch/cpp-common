@@ -67,7 +67,7 @@ void sas_write(SAS::log_level_t sas_level, const char *module, int line_number, 
       level = Log::ERROR_LEVEL;
       break;
     default:
-      LOG_ERROR("Unknown SAS log level %d, treating as error level", sas_level);
+      TRC_ERROR("Unknown SAS log level %d, treating as error level", sas_level);
       level = Log::ERROR_LEVEL;
     }
 

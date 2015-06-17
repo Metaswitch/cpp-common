@@ -68,7 +68,7 @@ void Stack::initialize()
   if (!_initialized)
   {
     CL_DIAMETER_START.log();
-    LOG_STATUS("Initializing Diameter stack");
+    TRC_STATUS("Initializing Diameter stack");
     int rc = fd_core_initialize();
     if (rc != 0)
     {
@@ -223,7 +223,7 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     dest_realm = "unknown";
   };
 
-  LOG_INFO("Routing error: '%s' for message with "
+  TRC_INFO("Routing error: '%s' for message with "
            "Command-Code %d, Destination-Host %s and Destination-Realm %s",
            (char *)other,
            msg2.command_code(),
@@ -263,11 +263,11 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
   if ((type != HOOK_PEER_CONNECT_SUCCESS) &&
       (type != HOOK_PEER_CONNECT_FAILED))
   {
-    LOG_WARNING("Unexpected hook type on callback from freeDiameter: %d", type);
+    TRC_WARNING("Unexpected hook type on callback from freeDiameter: %d", type);
   }
   else if (peer == NULL)
   {
-    LOG_ERROR("No peer supplied on callback of type %d", type);
+    TRC_ERROR("No peer supplied on callback of type %d", type);
   }
   else
   {
@@ -289,13 +289,13 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
           {
             if ((*ii)->realm().empty() || ((*ii)->realm().compare(realm) == 0))
             {
-              LOG_DEBUG("Successfully connected to %s in realm %s", host, realm);
+              TRC_DEBUG("Successfully connected to %s in realm %s", host, realm);
               (*ii)->listener()->connection_succeeded(*ii);
               (*ii)->set_connected();
             }
             else
             {
-              LOG_WARNING("Connected to %s in wrong realm (expected %s, got %s), disconnect", host,
+              TRC_WARNING("Connected to %s in wrong realm (expected %s, got %s), disconnect", host,
                                                                                               (*ii)->realm().c_str(),
                                                                                               realm);
               Diameter::Peer* stack_peer = *ii;
@@ -306,7 +306,7 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
           else if (type == HOOK_PEER_CONNECT_FAILED)
           {
             CL_DIAMETER_CONN_ERR.log(host);
-            LOG_WARNING("Failed to connect to %s", host);
+            TRC_WARNING("Failed to connect to %s", host);
             Diameter::Peer* stack_peer = *ii;
             _peers.erase(ii);
             stack_peer->listener()->connection_failed(stack_peer);
@@ -318,7 +318,7 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
 
     if (!peer_found)
     {
-      LOG_ERROR("Unexpected host on callback (type %d) from freeDiameter: %s", type, host);
+      TRC_ERROR("Unexpected host on callback (type %d) from freeDiameter: %s", type, host);
     }
     pthread_mutex_unlock(&_peers_lock);
   }
@@ -332,7 +332,7 @@ void Stack::configure(std::string filename,
                       StatisticCounter* host_counter)
 {
   initialize();
-  LOG_STATUS("Configuring Diameter stack from file %s", filename.c_str());
+  TRC_STATUS("Configuring Diameter stack from file %s", filename.c_str());
   int rc = fd_core_parseconf(filename.c_str());
 
   if (rc != 0)
@@ -440,7 +440,7 @@ int Stack::request_callback_fn(struct msg** req,
   // A SAS trail has already been allocated in fd_sas_log_diameter_message. Get
   // it.
   SAS::TrailId trail = fd_hook_get_pmd(_sas_cb_data_hdl, *req)->trail;
-  LOG_DEBUG("Invoke diameter request handler on trail %lu", trail);
+  TRC_DEBUG("Invoke diameter request handler on trail %lu", trail);
 
   // Pass the request to the registered handler.
   CW_TRY
@@ -465,14 +465,14 @@ int Stack::request_callback_fn(struct msg** req,
 int Stack::fallback_request_callback_fn(struct msg** msg, struct avp* avp, struct session* sess, void* opaque, enum disp_action* act)
 {
   // This means we have received a message of an unexpected type.
-  LOG_WARNING("Message of unexpected type received");
+  TRC_WARNING("Message of unexpected type received");
   return ENOTSUP;
 }
 
 void Stack::start()
 {
   initialize();
-  LOG_STATUS("Starting Diameter stack");
+  TRC_STATUS("Starting Diameter stack");
   int rc = fd_core_start();
   if (rc != 0)
   {
@@ -484,7 +484,7 @@ void Stack::stop()
 {
   if (_initialized)
   {
-    LOG_STATUS("Stopping Diameter stack");
+    TRC_STATUS("Stopping Diameter stack");
     if (_callback_handler)
     {
       (void)fd_disp_unregister(&_callback_handler, NULL);
@@ -531,7 +531,7 @@ void Stack::wait_stopped()
 {
   if (_initialized)
   {
-    LOG_STATUS("Waiting for Diameter stack to stop");
+    TRC_STATUS("Waiting for Diameter stack to stop");
     int rc = fd_core_wait_shutdown_complete();
     if (rc != 0)
     {
@@ -685,7 +685,7 @@ bool Stack::add(Peer* peer)
     }
     else
     {
-      LOG_ERROR("Unrecognized address family %d - omitting endpoint", peer->addr_info().address.af);
+      TRC_ERROR("Unrecognized address family %d - omitting endpoint", peer->addr_info().address.af);
     }
   }
 
@@ -703,7 +703,7 @@ bool Stack::add(Peer* peer)
 
   if (rc != 0)
   {
-    LOG_INFO("Peer already exists");
+    TRC_INFO("Peer already exists");
     return false;
   }
   else
@@ -758,33 +758,33 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
   // Get the trail ID we should be logging on.
   if (type == HOOK_MESSAGE_RECEIVED)
   {
-    LOG_DEBUG("Processing a received diameter message");
+    TRC_DEBUG("Processing a received diameter message");
 
     if (hdr->msg_flags & CMD_FLAG_REQUEST)
     {
       // Received request. Allocate a new trail and store it in PMD.
       trail = SAS::new_trail(0);
-      LOG_DEBUG("Allocated new trail ID: %lu", trail);
+      TRC_DEBUG("Allocated new trail ID: %lu", trail);
       pmd->trail = trail;
     }
     else
     {
       // Received answer. Get the trail from the request.
       trail = fd_hook_get_request_pmd(stack->_sas_cb_data_hdl, msg)->trail;
-      LOG_DEBUG("Got existing trail ID: %lu", trail);
+      TRC_DEBUG("Got existing trail ID: %lu", trail);
     }
   }
   else if (type == HOOK_MESSAGE_SENT)
   {
     // Sent request / answer. Use the trail ID that the diameter stack set on
     // the message.
-    LOG_DEBUG("Processing a sent diameter message");
+    TRC_DEBUG("Processing a sent diameter message");
     trail = pmd->trail;
-    LOG_DEBUG("Got existing trail ID: %lu", trail);
+    TRC_DEBUG("Got existing trail ID: %lu", trail);
   }
   else
   {
-    LOG_ERROR("Unexpected freeDiameter hook type: %d", type);
+    TRC_ERROR("Unexpected freeDiameter hook type: %d", type);
     return;
   }
 
@@ -837,7 +837,7 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
 
     if (fd_sess_getsid(sess, &session_id, &session_id_len) == 0)
     {
-      LOG_DEBUG("Raising correlating marker with diameter session ID = %.*s",
+      TRC_DEBUG("Raising correlating marker with diameter session ID = %.*s",
                 session_id_len, session_id);
       SAS::Marker corr(trail, MARKED_ID_GENERIC_CORRELATOR, 0);
       corr.add_var_param(session_id_len, session_id);
@@ -1069,14 +1069,14 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
   {
     case rapidjson::kFalseType:
     case rapidjson::kTrueType:
-      LOG_ERROR("Invalid format (true/false) in JSON block (%d), ignoring",
+      TRC_ERROR("Invalid format (true/false) in JSON block (%d), ignoring",
                 avp_hdr()->avp_code);
       break;
     case rapidjson::kNullType:
-      LOG_ERROR("Invalid NULL in JSON block, ignoring");
+      TRC_ERROR("Invalid NULL in JSON block, ignoring");
       break;
     case rapidjson::kArrayType:
-      LOG_ERROR("Cannot store multiple values in one ACR, ignoring");
+      TRC_ERROR("Cannot store multiple values in one ACR, ignoring");
       break;
     case rapidjson::kStringType:
       val_str(value.GetString());
@@ -1087,7 +1087,7 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
       switch (dict.base_type())
       {
       case AVP_TYPE_GROUPED:
-        LOG_ERROR("Cannot store integer in grouped AVP, ignoring");
+        TRC_ERROR("Cannot store integer in grouped AVP, ignoring");
         break;
       case AVP_TYPE_OCTETSTRING:
         // The only time this occurs is for types that have custom
@@ -1109,10 +1109,10 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
         break;
       case AVP_TYPE_FLOAT32:
       case AVP_TYPE_FLOAT64:
-        LOG_ERROR("Floating point AVPs are not supportedi, ignoring");
+        TRC_ERROR("Floating point AVPs are not supportedi, ignoring");
         break;
       default:
-        LOG_ERROR("Unexpected AVP type, ignoring"); // LCOV_EXCL_LINE
+        TRC_ERROR("Unexpected AVP type, ignoring"); // LCOV_EXCL_LINE
         break;
       }
       break;
@@ -1127,10 +1127,10 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
           {
           case rapidjson::kFalseType:
           case rapidjson::kTrueType:
-            LOG_ERROR("Invalid format (true/false) in JSON block, ignoring");
+            TRC_ERROR("Invalid format (true/false) in JSON block, ignoring");
             continue;
           case rapidjson::kNullType:
-            LOG_ERROR("Invalid NULL in JSON block, ignoring");
+            TRC_ERROR("Invalid NULL in JSON block, ignoring");
             break;
           case rapidjson::kArrayType:
             for (rapidjson::Value::ConstValueIterator ary_it = it->value.Begin();
@@ -1153,7 +1153,7 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
         }
         catch (Diameter::Stack::Exception e)
         {
-          LOG_WARNING("AVP %s not recognised, ignoring", it->name.GetString());
+          TRC_WARNING("AVP %s not recognised, ignoring", it->name.GetString());
         }
       }
       break;
@@ -1243,7 +1243,7 @@ int32_t Message::experimental_result_code() const
     if (avps2 != avps->end())
     {
       experimental_result_code = avps2->val_i32();
-      LOG_DEBUG("Got Experimental-Result-Code %d", experimental_result_code);
+      TRC_DEBUG("Got Experimental-Result-Code %d", experimental_result_code);
     }
   }
   return experimental_result_code;
@@ -1261,7 +1261,7 @@ int32_t Message::vendor_id() const
     if (avps2 != avps->end())
     {
       vendor_id = avps2->val_i32();
-      LOG_DEBUG("Got Vendor-Id %d", vendor_id);
+      TRC_DEBUG("Got Vendor-Id %d", vendor_id);
     }
   }
   return vendor_id;

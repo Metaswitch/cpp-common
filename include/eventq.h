@@ -155,10 +155,10 @@ public:
         if ((now_time > service_time) &&
             ((now_time - service_time) > _deadlock_threshold))
         {
-          LOG_ERROR("Queue is deadlocked - service delay %ld > threshold %ld",
+          TRC_ERROR("Queue is deadlocked - service delay %ld > threshold %ld",
                     service_time - now_time, _deadlock_threshold);
-          LOG_DEBUG("  Last service time = %d.%ld", _service_time.tv_sec, _service_time.tv_nsec);
-          LOG_DEBUG("  Now = %d.%ld", now.tv_sec, now.tv_nsec);
+          TRC_DEBUG("  Last service time = %d.%ld", _service_time.tv_sec, _service_time.tv_nsec);
+          TRC_DEBUG("  Now = %d.%ld", now.tv_sec, now.tv_nsec);
           deadlocked = true;
         }
       }

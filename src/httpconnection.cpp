@@ -114,9 +114,9 @@ HttpConnection::HttpConnection(const std::string& server,
   _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                load_monitor->get_target_latency_us() :
                                DEFAULT_LATENCY_US);
-  LOG_STATUS("Configuring HTTP Connection");
-  LOG_STATUS("  Connection created for server %s", _server.c_str());
-  LOG_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
+  TRC_STATUS("Configuring HTTP Connection");
+  TRC_STATUS("  Connection created for server %s", _server.c_str());
+  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
 
 /// Create an HTTP connection object.
@@ -145,9 +145,9 @@ HttpConnection::HttpConnection(const std::string& server,
   _statistic = NULL;
   _load_monitor = NULL;
   _timeout_ms = calc_req_timeout_from_latency(DEFAULT_LATENCY_US);
-  LOG_STATUS("Configuring HTTP Connection");
-  LOG_STATUS("  Connection created for server %s", _server.c_str());
-  LOG_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
+  TRC_STATUS("Configuring HTTP Connection");
+  TRC_STATUS("  Connection created for server %s", _server.c_str());
+  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
 
 HttpConnection::~HttpConnection()
@@ -188,7 +188,7 @@ CURL* HttpConnection::get_curl_handle()
   if (curl == NULL)
   {
     curl = curl_easy_init();
-    LOG_DEBUG("Allocated CURL handle %p", curl);
+    TRC_DEBUG("Allocated CURL handle %p", curl);
     pthread_setspecific(_curl_thread_local, curl);
 
     // Create our private data
@@ -611,7 +611,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
 
     // Send the request.
     doc.clear();
-    LOG_DEBUG("Sending HTTP request : %s (trying %s) %s", url.c_str(), remote_ip, (recycle_conn) ? "on new connection" : "");
+    TRC_DEBUG("Sending HTTP request : %s (trying %s) %s", url.c_str(), remote_ip, (recycle_conn) ? "on new connection" : "");
     rc = curl_easy_perform(curl);
 
     // If a request was sent, log it to SAS.
@@ -626,11 +626,11 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     {
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
       sas_log_http_rsp(trail, curl, http_rc, method_str, url, recorder.response, 0);
-      LOG_DEBUG("Received HTTP response: status=%d, doc=%s", http_rc, doc.c_str());
+      TRC_DEBUG("Received HTTP response: status=%d, doc=%s", http_rc, doc.c_str());
     }
     else
     {
-      LOG_ERROR("%s failed at server %s : %s (%d) : fatal",
+      TRC_ERROR("%s failed at server %s : %s (%d) : fatal",
                 url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
       sas_log_curl_error(trail, remote_ip, i->port, method_str, url, rc, 0);
     }
@@ -745,7 +745,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
 
   if (((rc != CURLE_OK) && (rc != CURLE_REMOTE_FILE_NOT_FOUND)) || (http_code >= 400))
   {
-    LOG_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
+    TRC_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
   }
 
   reset_curl_handle(curl);
@@ -911,7 +911,7 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
   key.erase(std::remove_if(key.begin(), key.end(), ::isspace), key.end());
   val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
 
-  LOG_DEBUG("Received header %s with value %s", key.c_str(), val.c_str());
+  TRC_DEBUG("Received header %s with value %s", key.c_str(), val.c_str());
   (*headers)[key] = val;
 
   return size * nmemb;

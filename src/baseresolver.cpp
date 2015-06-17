@@ -64,7 +64,7 @@ BaseResolver::~BaseResolver()
 void BaseResolver::create_naptr_cache(const std::map<std::string, int> naptr_services)
 {
   // Create the NAPTR cache factory and the cache itself.
-  LOG_DEBUG("Create NAPTR cache");
+  TRC_DEBUG("Create NAPTR cache");
   _naptr_factory = new NAPTRCacheFactory(naptr_services, DEFAULT_TTL, _dns_client);
   _naptr_cache = new NAPTRCache(_naptr_factory);
 }
@@ -73,7 +73,7 @@ void BaseResolver::create_naptr_cache(const std::map<std::string, int> naptr_ser
 void BaseResolver::create_srv_cache()
 {
   // Create the factory and cache for SRV.
-  LOG_DEBUG("Create SRV cache");
+  TRC_DEBUG("Create SRV cache");
   _srv_factory = new SRVCacheFactory(DEFAULT_TTL, _dns_client);
   _srv_cache = new SRVCache(_srv_factory);
 }
@@ -82,28 +82,28 @@ void BaseResolver::create_srv_cache()
 void BaseResolver::create_blacklist(int blacklist_duration)
 {
   // Create the blacklist (no factory required).
-  LOG_DEBUG("Create black list");
+  TRC_DEBUG("Create black list");
   pthread_mutex_init(&_blacklist_lock, NULL);
   _default_blacklist_duration = blacklist_duration;
 }
 
 void BaseResolver::destroy_naptr_cache()
 {
-  LOG_DEBUG("Destroy NAPTR cache");
+  TRC_DEBUG("Destroy NAPTR cache");
   delete _naptr_cache;
   delete _naptr_factory;
 }
 
 void BaseResolver::destroy_srv_cache()
 {
-  LOG_DEBUG("Destroy SRV cache");
+  TRC_DEBUG("Destroy SRV cache");
   delete _srv_cache;
   delete _srv_factory;
 }
 
 void BaseResolver::destroy_blacklist()
 {
-  LOG_DEBUG("Destroy blacklist");
+  TRC_DEBUG("Destroy blacklist");
   _default_blacklist_duration = 0;
   pthread_mutex_destroy(&_blacklist_lock);
 }
@@ -167,7 +167,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       while (selector.total_weight() > 0)
       {
         int ii = selector.select();
-        LOG_DEBUG("Selected SRV %s:%d, weight = %d",
+        TRC_DEBUG("Selected SRV %s:%d, weight = %d",
                   i->second[ii].target.c_str(),
                   i->second[ii].port,
                   i->second[ii].weight);
@@ -195,7 +195,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       for (size_t ii = 0; ii < srvs.size(); ++ii)
       {
         DnsResult& a_result = a_results[ii];
-        LOG_DEBUG("SRV %s:%d returned %ld IP addresses",
+        TRC_DEBUG("SRV %s:%d returned %ld IP addresses",
                   srvs[ii]->target.c_str(),
                   srvs[ii]->port,
                   a_result.records().size());
@@ -348,7 +348,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
   ttl = result.ttl();
 
   // Randomize the records in the result.
-  LOG_DEBUG("Found %ld A/AAAA records, randomizing", result.records().size());
+  TRC_DEBUG("Found %ld A/AAAA records, randomizing", result.records().size());
   std::random_shuffle(result.records().begin(), result.records().end());
 
   // Loop through the records in the result picking non-blacklisted targets.
@@ -369,7 +369,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
       // Address isn't blacklisted, so copy across to the target list.
       targets.push_back(ai);
       targetlist_str = targetlist_str + (*i)->to_string() + ";";
-      LOG_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
+      TRC_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
     }
     else
     {
@@ -381,7 +381,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
     if (targets.size() >= (size_t)retries)
     {
       // We have enough targets so stop looking at records.
-      LOG_DEBUG("Have enough targets");
+      TRC_DEBUG("Have enough targets");
 
       if (trail != 0)
       {
@@ -407,7 +407,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
       to_copy = blacklisted_targets.size();
     }
 
-    LOG_DEBUG("Adding %ld servers from blacklist", to_copy);
+    TRC_DEBUG("Adding %ld servers from blacklist", to_copy);
 
     for (size_t ii = 0; ii < to_copy; ++ii)
     {
@@ -458,7 +458,7 @@ IP46Address BaseResolver::to_ip46(const DnsRRecord* rr)
 void BaseResolver::blacklist(const AddrInfo& ai, int ttl)
 {
   char buf[100];
-  LOG_DEBUG("Add %s:%d transport %d to blacklist for %d seconds",
+  TRC_DEBUG("Add %s:%d transport %d to blacklist for %d seconds",
             inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
             ai.port, ai.transport, ttl);
   pthread_mutex_lock(&_blacklist_lock);
@@ -488,7 +488,7 @@ bool BaseResolver::blacklisted(const AddrInfo& ai)
   }
   pthread_mutex_unlock(&_blacklist_lock);
   char buf[100];
-  LOG_DEBUG("%s:%d transport %d is %sblacklisted",
+  TRC_DEBUG("%s:%d transport %d is %sblacklisted",
             inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
             ai.port, ai.transport, rc ? "" : "not ");
 
@@ -500,7 +500,7 @@ bool BaseResolver::blacklisted(const AddrInfo& ai)
 bool BaseResolver::parse_ip_target(const std::string& target, IP46Address& address)
 {
   // Assume the parse fails.
-  LOG_DEBUG("Attempt to parse %s as IP address", target.c_str());
+  TRC_DEBUG("Attempt to parse %s as IP address", target.c_str());
   bool rc = false;
 
   // Strip start and end white-space.
@@ -540,7 +540,7 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
 {
   // Iterate NAPTR lookups starting with querying the target domain until
   // we get a terminal result.
-  LOG_DEBUG("NAPTR cache factory called for %s", key.c_str());
+  TRC_DEBUG("NAPTR cache factory called for %s", key.c_str());
   NAPTRReplacement* repl = NULL;
   std::string query_key = key;
   int expires = 0;
@@ -552,7 +552,7 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
     loop_again = false;
 
     // Issue the NAPTR query.
-    LOG_DEBUG("Sending DNS NAPTR query for %s", query_key.c_str());
+    TRC_DEBUG("Sending DNS NAPTR query for %s", query_key.c_str());
     DnsResult result = _dns_client->dns_query(query_key, ns_t_naptr);
 
     if (!result.records().empty())
@@ -655,7 +655,7 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
 
 void BaseResolver::NAPTRCacheFactory::evict(std::string key, NAPTRReplacement* value)
 {
-  LOG_DEBUG("Evict NAPTR cache %s", key.c_str());
+  TRC_DEBUG("Evict NAPTR cache %s", key.c_str());
   delete value;
 }
 
@@ -674,7 +674,7 @@ bool BaseResolver::NAPTRCacheFactory::parse_regex_replace(const std::string& reg
 
   if (match_replace.size() == 2)
   {
-    LOG_DEBUG("Split regex into match=%s, replace=%s", match_replace[0].c_str(), match_replace[1].c_str());
+    TRC_DEBUG("Split regex into match=%s, replace=%s", match_replace[0].c_str(), match_replace[1].c_str());
     try
     {
       regex.assign(match_replace[0]);
@@ -717,7 +717,7 @@ BaseResolver::SRVCacheFactory::~SRVCacheFactory()
 
 BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string key, int& ttl)
 {
-  LOG_DEBUG("SRV cache factory called for %s", key.c_str());
+  TRC_DEBUG("SRV cache factory called for %s", key.c_str());
   SRVPriorityList* srv_list = NULL;
 
   DnsResult result = _dns_client->dns_query(key, ns_t_srv);
@@ -725,7 +725,7 @@ BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string ke
   if (!result.records().empty())
   {
     // We have a result.
-    LOG_DEBUG("SRV query returned %d records", result.records().size());
+    TRC_DEBUG("SRV query returned %d records", result.records().size());
     srv_list = new SRVPriorityList;
     ttl = result.ttl();
 
@@ -771,7 +771,7 @@ BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string ke
 
 void BaseResolver::SRVCacheFactory::evict(std::string key, SRVPriorityList* value)
 {
-  LOG_DEBUG("Evict SRV cache %s", key.c_str());
+  TRC_DEBUG("Evict SRV cache %s", key.c_str());
   delete value;
 }
 

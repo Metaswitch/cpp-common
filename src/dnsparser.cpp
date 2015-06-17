@@ -87,20 +87,20 @@ bool DnsParser::parse()
   bool rc = true;
   unsigned char* rptr = _data;
 
-  LOG_DEBUG("Parsing DNS message\n%s", display_message().c_str());
+  TRC_DEBUG("Parsing DNS message\n%s", display_message().c_str());
 
   try
   {
     // Parse the header.
-    LOG_DEBUG("Parsing header at offset 0x%x", rptr - _data);
+    TRC_DEBUG("Parsing header at offset 0x%x", rptr - _data);
     rptr += parse_header(rptr);
-    LOG_DEBUG("%d questions, %d answers, %d authorities, %d additional records",
+    TRC_DEBUG("%d questions, %d answers, %d authorities, %d additional records",
               _qd_count, _an_count, _ns_count, _ar_count);
 
     // Parse the question(s).
     for (int ii = 0; ii < _qd_count; ++ii)
     {
-      LOG_DEBUG("Parsing question %d at offset 0x%x", ii+1, rptr - _data);
+      TRC_DEBUG("Parsing question %d at offset 0x%x", ii+1, rptr - _data);
       DnsQuestion* question;
       rptr += parse_question(rptr, question);
       _questions.push_back(question);
@@ -109,7 +109,7 @@ bool DnsParser::parse()
     // Parse the answer(s)
     for (int ii = 0; ii < _an_count; ++ii)
     {
-      LOG_DEBUG("Parsing answer %d at offset 0x%x", ii+1, rptr - _data);
+      TRC_DEBUG("Parsing answer %d at offset 0x%x", ii+1, rptr - _data);
       DnsRRecord* rr;
       rptr += parse_rr(rptr, rr);
       _answers.push_back(rr);
@@ -118,7 +118,7 @@ bool DnsParser::parse()
     // Parse the NS records.
     for (int ii = 0; ii < _ns_count; ++ii)
     {
-      LOG_DEBUG("Parsing NS record %d at offset 0x%x", ii+1, rptr - _data);
+      TRC_DEBUG("Parsing NS record %d at offset 0x%x", ii+1, rptr - _data);
       DnsRRecord* rr;
       rptr += parse_rr(rptr, rr);
       _authorities.push_back(rr);
@@ -127,7 +127,7 @@ bool DnsParser::parse()
     // Parse the additional records.
     for (int ii = 0; ii < _ar_count; ++ii)
     {
-      LOG_DEBUG("Parsing additional record %d at offset 0x%x", ii+1, rptr - _data);
+      TRC_DEBUG("Parsing additional record %d at offset 0x%x", ii+1, rptr - _data);
       DnsRRecord* rr;
       rptr += parse_rr(rptr, rr);
       _additional.push_back(rr);
@@ -135,13 +135,13 @@ bool DnsParser::parse()
   }
   catch (std::exception e)
   {
-    LOG_ERROR("Failed to parse DNS message - %s", e.what());
+    TRC_ERROR("Failed to parse DNS message - %s", e.what());
     rc = false;
   }
 
-  LOG_DEBUG("Answer records\n%s", display_records(_answers).c_str());
-  LOG_DEBUG("Authority records\n%s", display_records(_authorities).c_str());
-  LOG_DEBUG("Additional records\n%s", display_records(_additional).c_str());
+  TRC_DEBUG("Answer records\n%s", display_records(_answers).c_str());
+  TRC_DEBUG("Authority records\n%s", display_records(_authorities).c_str());
+  TRC_DEBUG("Additional records\n%s", display_records(_additional).c_str());
 
   return rc;
 }
@@ -214,7 +214,7 @@ int DnsParser::parse_domain_name(unsigned char *nptr, std::string& name)
     }
     else
     {
-      LOG_DEBUG("Unexpected label length/offset field %x at offset %x", *lptr, lptr - _data);
+      TRC_DEBUG("Unexpected label length/offset field %x at offset %x", *lptr, lptr - _data);
       throw std::exception();
     }
   }
@@ -226,7 +226,7 @@ int DnsParser::parse_domain_name(unsigned char *nptr, std::string& name)
     compressed_length = lptr - nptr + 1;
   }
 
-  LOG_DEBUG("Parsed domain name = %s, encoded length = %d", name.c_str(), compressed_length);
+  TRC_DEBUG("Parsed domain name = %s, encoded length = %d", name.c_str(), compressed_length);
 
   return compressed_length;
 }
@@ -275,7 +275,7 @@ int DnsParser::parse_rr(unsigned char* rptr, DnsRRecord*& rr)
     throw std::exception();
   }
 
-  LOG_DEBUG("Resource Record NAME=%s TYPE=%s CLASS=%s TTL=%d RDLENGTH=%d",
+  TRC_DEBUG("Resource Record NAME=%s TYPE=%s CLASS=%s TTL=%d RDLENGTH=%d",
             rrname.c_str(),
             DnsRRecord::rrtype_to_string(rrtype).c_str(),
             DnsRRecord::rrclass_to_string(rrclass).c_str(),
@@ -284,7 +284,7 @@ int DnsParser::parse_rr(unsigned char* rptr, DnsRRecord*& rr)
   // Process the variant parts of the record.
   if ((rrclass == ns_c_in) && (rrtype == ns_t_a))
   {
-    LOG_DEBUG("Parse A record RDATA");
+    TRC_DEBUG("Parse A record RDATA");
     if (rdlength < (int)sizeof(struct in_addr))
     {
       throw std::exception();
@@ -295,7 +295,7 @@ int DnsParser::parse_rr(unsigned char* rptr, DnsRRecord*& rr)
   }
   else if ((rrclass == ns_c_in) && (rrtype == ns_t_aaaa))
   {
-    LOG_DEBUG("Parse AAAA record RDATA");
+    TRC_DEBUG("Parse AAAA record RDATA");
     if (rdlength < (int)sizeof(struct in6_addr))
     {
       throw std::exception();
@@ -306,7 +306,7 @@ int DnsParser::parse_rr(unsigned char* rptr, DnsRRecord*& rr)
   }
   else if ((rrclass == ns_c_in) && (rrtype == ns_t_srv))
   {
-    LOG_DEBUG("Parse SRV record RDATA");
+    TRC_DEBUG("Parse SRV record RDATA");
     if (rdlength < SRV_FIXED_SIZE)
     {
       throw std::exception();
@@ -324,7 +324,7 @@ int DnsParser::parse_rr(unsigned char* rptr, DnsRRecord*& rr)
   }
   else if ((rrclass == ns_c_in) && (rrtype == ns_t_naptr))
   {
-    LOG_DEBUG("Parse NAPTR record RDATA");
+    TRC_DEBUG("Parse NAPTR record RDATA");
     if (rdlength < NAPTR_FIXED_SIZE)
     {
       throw std::exception();
@@ -348,7 +348,7 @@ int DnsParser::parse_rr(unsigned char* rptr, DnsRRecord*& rr)
   }
   else if ((rrclass == ns_c_in) && (rrtype == ns_t_cname))
   {
-    LOG_DEBUG("Parse CNAME record RDATA");
+    TRC_DEBUG("Parse CNAME record RDATA");
     std::string target;
     parse_domain_name(rdata, target);
     rr = new DnsCNAMERecord(rrname, ttl, target);

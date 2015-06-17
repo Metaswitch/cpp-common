@@ -76,7 +76,7 @@ void HealthChecker::hit_exception()
 void HealthChecker::health_check_passed()
 {
   _recent_passes++;
-  // LOG_DEBUG("Health check passed, %d passes in last 60s", _recent_passes.load());
+  // TRC_DEBUG("Health check passed, %d passes in last 60s", _recent_passes.load());
 }
 
 // Checking function which should be run every 60s on a thread. Aborts
@@ -88,13 +88,13 @@ void HealthChecker::do_check()
   {
     // LCOV_EXCL_START - only covered in "death tests"
 
-    // LOG_ERROR("Check for overall system health failed - exiting");
+    // TRC_ERROR("Check for overall system health failed - exiting");
     exit(1);
     // LCOV_EXCL_STOP
   }
   else
   {
-    // LOG_DEBUG("Check for overall system health passed - not exiting");
+    // TRC_DEBUG("Check for overall system health passed - not exiting");
   }
   _recent_passes = 0;
 }
