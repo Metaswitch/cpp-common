@@ -55,10 +55,10 @@ namespace SNMP
 class AccumulatorRow : public Row
 {
 public:
-  AccumulatorRow(std::tuple<int, int> args) :
+  AccumulatorRow(int index_param, int interval_param) :
     Row(),
-    index(std::get<0>(args)),
-    interval(std::get<1>(args)),
+    index(index_param),
+    interval(interval_param),
     tick(0)
   {
     accumulated = {0,};
@@ -98,26 +98,40 @@ private:
 
 };
 
-class AccumulatorTable: public ManagedTable<AccumulatorRow, std::tuple<int, int>>
+class AccumulatorTable: public ManagedTable<AccumulatorRow, int>
 {
 public:
   AccumulatorTable(std::string name,
                    oid* tbl_oid,
                    int oidlen) :
-    ManagedTable<AccumulatorRow, std::tuple<int, int>>(name, tbl_oid, oidlen)
+    ManagedTable<AccumulatorRow, int>(name, tbl_oid, oidlen)
   {
     _tbl.add_index(ASN_INTEGER);
     _tbl.set_visible_columns(2, 6);
-    _tbl.register_tbl();
 
-    add_row(std::make_tuple(0, 5));
-    add_row(std::make_tuple(1, 300));
+    add_row(0);
+    add_row(1);
   }
   
+  AccumulatorRow* new_row(int index)
+  {
+    switch (index)
+    {
+      case 0:
+        // Five-second row
+        return new AccumulatorRow(index, 5);
+      case 1:
+        // Five-minute row
+        return new AccumulatorRow(index, 300);
+      default:
+        return NULL;
+    }
+  }
+
   void accumulate(uint32_t sample)
   {
     // Pass samples through to the underlying row group
-    for (std::map<std::tuple<int, int>, AccumulatorRow*>::iterator ii = _map.begin();
+    for (std::map<int, AccumulatorRow*>::iterator ii = _map.begin();
          ii != _map.end();
          ii++)
     {

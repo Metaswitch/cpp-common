@@ -159,7 +159,8 @@ public:
             int oidlen):
     _name(name),
     _tbl_oid(tbl_oid),
-    _oidlen(oidlen)
+    _oidlen(oidlen),
+    _handler_reg(NULL)
   {
     _table = netsnmp_tdata_create_table(_name.c_str(), 0);
     _table_info = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
@@ -249,10 +250,12 @@ public:
     }
   }
 
+  virtual TRow* new_row(TRowKey key) = 0;
+
   // Returns the row keyed off `key`, creating it if it does not already exist.
   void add_row(TRowKey key)
   {
-    TRow* row = new TRow(key);
+    TRow* row = new_row(key);
     std::pair<TRowKey, TRow*> new_entry(key, row);
     _map.insert(new_entry);
 
