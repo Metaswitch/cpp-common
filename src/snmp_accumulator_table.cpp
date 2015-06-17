@@ -41,6 +41,7 @@ namespace SNMP
 
 ColumnData AccumulatorRow::get_columns()
 {
+  AccumulatedData::Data accumulated = *(_view->get_data());
   uint32_t sum = accumulated.sum;
   uint32_t sumsq = accumulated.sqsum;
   uint32_t count = accumulated.count;
@@ -58,41 +59,47 @@ ColumnData AccumulatorRow::get_columns()
   return ret;
 }
 
-void AccumulatorRow::accumulate(uint32_t latency)
+void AccumulatedData::accumulate(uint32_t latency)
 {
-  accumulated.count++;
-  accumulated.sum += latency;
-  accumulated.sqsum += (latency * latency);
-  if (latency > accumulated.hwm)
+  update_time();
+  current->count++;
+  current->sum += latency;
+  current->sqsum += (latency * latency);
+  if (latency > current->hwm)
   {
-    accumulated.hwm = latency;
+    current->hwm = latency;
   }
 
-  if ((latency < accumulated.lwm) || (accumulated.lwm == 0))
+  if ((latency < current->lwm) || (current->lwm == 0))
   {
-    accumulated.lwm = latency;
+    current->lwm = latency;
   }
 };
 
-void AccumulatorRow::update_time()
+void AccumulatedData::update_time()
 {
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
 
   // The 'tick' signifies how many five-second windows have passed - if it's odd, we should read
   // from fiveseconds_odd and fiveseconds_even. If it's even, vice-versa.
-  uint32_t new_tick = (now.tv_sec / interval);
+  uint32_t new_tick = (now.tv_sec / _interval);
 
-  if (new_tick > tick)
+  if (new_tick > _tick)
   {
     if ((new_tick % 2) == 0)
     {
+      current = &a;
+      previous = &b;
     }
     else
     {
+      current = &b;
+      previous = &a;
     }
+    (*current) = {0,};
   }
-  tick = new_tick;
+  _tick = new_tick;
 }
 
 }

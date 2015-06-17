@@ -28,7 +28,7 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
+ * software and licensed und er the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
@@ -47,35 +47,11 @@
 
 namespace SNMP
 {
-// A group of rows for a latency or accumulator table, containing:
-// - a row for the previous five seconds, with count of samples, average size, variance,
-// low-water-mark and high-water-mark
-// - a row for the previous five minutes, with count of samples, average size, variance,
-// low-water-mark and high-water-mark
-class AccumulatorRow : public Row
+
+class AccumulatedData
 {
-public:
-  AccumulatorRow(int index_param, int interval_param) :
-    Row(),
-    index(index_param),
-    interval(interval_param),
-    tick(0)
-  {
-    accumulated = {0,};
-    netsnmp_tdata_row_add_index(_row,
-                                ASN_INTEGER,
-                                &index,
-                                sizeof(int));
-    
-  };
-  ~AccumulatorRow() {};
-  ColumnData get_columns();
-
-  // Add a sample to the statistics
-  void accumulate(uint32_t sample);
-
-private:
-  struct LatencyValues
+  AccumulatedData(int interval): _interval(interval), _tick(0), a(), b() {}
+  struct Data
   {
     uint64_t count;
     uint64_t sum;
@@ -84,16 +60,82 @@ private:
     uint64_t lwm;
   };
 
+  // Add a sample to the statistics
+  void accumulate(uint32_t sample);
+  uint32_t _interval;
+  uint32_t _tick;
+  Data a;
+  Data b;
+  Data* current;
+  Data* previous;
+  void update_time();
+};
+
+class AccumulatedDataView
+{
+  AccumulatedDataView(AccumulatedData* data): _data(data) {};
+  virtual ~AccumulatedDataView() {};
+  virtual AccumulatedData::Data* get_data() = 0;
+  AccumulatedData* _data;
+};
+
+class CurrentAccumulatedDataView : public AccumulatedDataView
+{
+  CurrentAccumulatedDataView(AccumulatedData* data):
+    AccumulatedDataView(data) {};
+  AccumulatedData::Data* get_data()
+  {
+    _data->update_time();
+    return _data->current;
+  };
+};
+
+class PreviousAccumulatedDataView : public AccumulatedDataView
+{
+  PreviousAccumulatedDataView(AccumulatedData* data):
+    AccumulatedDataView(data) {};
+  AccumulatedData::Data* get_data()
+  {
+    _data->update_time();
+    return _data->previous;
+  };
+};
+
+
+// A group of rows for a latency or accumulator table, containing:
+// - a row for the previous five seconds, with count of samples, average size, variance,
+// low-water-mark and high-water-mark
+// - a row for the previous five minutes, with count of samples, average size, variance,
+// low-water-mark and high-water-mark
+class AccumulatorRow : public Row
+{
+public:
+  AccumulatorRow(int index_param, AccumulatedDataView* view_param) :
+    Row(),
+    index(index_param),
+    _view(view_param)
+  {
+    netsnmp_tdata_row_add_index(_row,
+                                ASN_INTEGER,
+                                &index,
+                                sizeof(int));
+    
+  };
+  ~AccumulatorRow()
+  {
+    delete(_view);
+  };
+  ColumnData get_columns();
+
+
+private:
   uint32_t index;
-  uint32_t interval;
-  uint32_t tick;
-  LatencyValues accumulated;
+  AccumulatedDataView* _view;
 
   // Make copy/move constructors private to avoid unexpected behaviour
   AccumulatorRow(const AccumulatorRow&);
   AccumulatorRow(const AccumulatorRow&&);
 
-  void update_time();
 
 
 };
@@ -104,13 +146,16 @@ public:
   AccumulatorTable(std::string name,
                    oid* tbl_oid,
                    int oidlen) :
-    ManagedTable<AccumulatorRow, int>(name, tbl_oid, oidlen)
+    ManagedTable<AccumulatorRow, int>(name, tbl_oid, oidlen),
+    five_second(5),
+    five_minute(300)
   {
     _tbl.add_index(ASN_INTEGER);
     _tbl.set_visible_columns(2, 6);
 
     add_row(0);
     add_row(1);
+//    add_row(2);
   }
   
   AccumulatorRow* new_row(int index)
@@ -119,10 +164,13 @@ public:
     {
       case 0:
         // Five-second row
-        return new AccumulatorRow(index, 5);
+        return new AccumulatorRow(index, new PreviousAccumulatedDataView(&five_second));
       case 1:
         // Five-minute row
-        return new AccumulatorRow(index, 300);
+        return new AccumulatorRow(index, new CurrentAccumulatedDataView(&five_minute));
+      case 2:
+        // Five-minute row
+        return new AccumulatorRow(index, new PreviousAccumulatedDataView(&five_minute));
       default:
         return NULL;
     }
@@ -131,14 +179,12 @@ public:
   void accumulate(uint32_t sample)
   {
     // Pass samples through to the underlying row group
-    for (std::map<int, AccumulatorRow*>::iterator ii = _map.begin();
-         ii != _map.end();
-         ii++)
-    {
-      ii->second->accumulate(sample);
-    }
+    five_second.accumulate(sample);
+    five_minute.accumulate(sample);
   }
 
+  AccumulatedData five_second;
+  AccumulatedData five_minute;
 };
 
 }
