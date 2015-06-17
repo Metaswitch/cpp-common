@@ -34,15 +34,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <net-snmp/net-snmp-config.h>
-#include <net-snmp/net-snmp-includes.h>
-#include <net-snmp/agent/net-snmp-agent-includes.h>
-
-#include "snmp_latency_table.h"
-#include <vector>
-#include <map>
-#include <string>
-#include <tuple>
+#include "snmp_accumulator_table.h"
 
 namespace SNMP
 {
