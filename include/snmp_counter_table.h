@@ -40,106 +40,88 @@
 #include <string>
 #include <tuple>
 #include "snmp_includes.h"
+#include "snmp_time_period_table.h"
 #include "logger.h"
 
-#ifndef SNMP_TIME_PERIOD_TABLE_H
-#define SNMP_TIME_PERIOD_TABLE_H
+#ifndef SNMP_COUNTER_TABLE_H
+#define SNMP_COUNTER_TABLE_H
 
 namespace SNMP
 {
-template <class T> class TimeBasedRow : public Row
+struct SingleCount
 {
-public:
-class CurrentAndPrevious
+  uint64_t count;
+};
+
+class CounterData: public TimeBasedRow<SingleCount>::CurrentAndPrevious
 {
-public:
-  CurrentAndPrevious(int interval): _interval(interval), _tick(0) {}
-  void update_time()
+  CounterData(int interval):
+    TimeBasedRow<SingleCount>::CurrentAndPrevious(interval)
   {
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
-
-    // The 'tick' signifies how many five-second windows have passed - if it's odd, we should read
-    // from fiveseconds_odd and fiveseconds_even. If it's even, vice-versa.
-    uint32_t new_tick = (now.tv_sec / _interval);
-
-    if (new_tick > _tick)
-    {
-      if ((new_tick % 2) == 0)
-      {
-        current = &a;
-        previous = &b;
-      }
-      else
-      {
-        current = &b;
-        previous = &a;
-      }
-      (*current) = {0,};
-    }
-    _tick = new_tick;
-  }
-
-protected:
-  uint32_t _interval;
-  uint32_t _tick;
-  T a;
-  T b;
-  T* current;
-  T* previous;
+    a = {0};
+    b = {0};
+  };
   
+  // Add a sample to the statistics
+  void increment() { this->current->count++; };
 };
 
-class View
+class CounterRow: public TimeBasedRow<SingleCount>
 {
 public:
-  View(CurrentAndPrevious* data): _data(data) {};
-  virtual ~View() {};
-  virtual T* get_data()
+  CounterRow(int index, View* view):
+    TimeBasedRow<SingleCount>(index, view) {};
+  ColumnData get_columns();
+};
+
+class CounterTable: public ManagedTable<CounterRow, int>
+{
+public:
+  CounterTable(std::string name,
+                   oid* tbl_oid,
+                   int oidlen) :
+    ManagedTable<CounterRow, int>(name, tbl_oid, oidlen),
+    five_second(5),
+    five_minute(300)
   {
-    _data->update_time();
-    return get_ptr();
+    _tbl.add_index(ASN_INTEGER);
+    _tbl.set_visible_columns(2, 3);
+
+    add_row(0);
+    add_row(1);
+    add_row(2);
   }
-  virtual T* get_ptr() = 0;
-  CurrentAndPrevious* _data;
-};
-
-class CurrentView : public View
-{
-public:
-  CurrentView(CurrentAndPrevious* data): View(data) {};
-
-  T* get_ptr() { return this->_data->current; };
-};
-
-class PreviousView : public View
-{
-public:
-  PreviousView(CurrentAndPrevious* data): View(data) {};
-  T* get_ptr() { return this->_data->previous; };
-};
-
-
-  TimeBasedRow(int index, View* view) :
-    Row(),
-    _index(index),
-    _view(view)
+  
+  CounterRow* new_row(int index)
   {
-    netsnmp_tdata_row_add_index(_row,
-                                ASN_INTEGER,
-                                &_index,
-                                sizeof(int));
-    
-  };
-  virtual ~TimeBasedRow()
-  {
-    delete(_view);
-  };
-  virtual ColumnData get_columns() = 0;
+    CounterRow::View* view = NULL;
+    switch (index)
+    {
+      case 0:
+        // Five-second row
+        view = new CounterRow::PreviousView(&five_second);
+        break;
+      case 1:
+        // Five-minute row
+        view = new CounterRow::CurrentView(&five_minute);
+        break;
+      case 2:
+        // Five-minute row
+        view = new CounterRow::PreviousView(&five_minute);
+        break;
+    }
+    return new CounterRow(index, view);
+  }
 
-protected:
-  uint32_t _index;
-  View* _view;
+  void increment()
+  {
+    // Pass samples through to the underlying row group
+    five_second.increment();
+    five_minute.increment();
+  }
+
+  CounterData five_second;
+  CounterData five_minute;
 };
 
 }

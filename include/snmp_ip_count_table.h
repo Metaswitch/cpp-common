@@ -38,108 +38,71 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <tuple>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+
 #include "snmp_includes.h"
 #include "logger.h"
 
-#ifndef SNMP_TIME_PERIOD_TABLE_H
-#define SNMP_TIME_PERIOD_TABLE_H
+#ifndef SNMP_IP_COUNT_TABLE_H
+#define SNMP_IP_COUNT_TABLE_H
 
 namespace SNMP
 {
-template <class T> class TimeBasedRow : public Row
+
+
+// Row of counters indexed by RFC 2851 IP addresses
+class IPCountRow : public Row
 {
 public:
-class CurrentAndPrevious
-{
-public:
-  CurrentAndPrevious(int interval): _interval(interval), _tick(0) {}
-  void update_time()
-  {
-    struct timespec now;
-    clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
-
-    // The 'tick' signifies how many five-second windows have passed - if it's odd, we should read
-    // from fiveseconds_odd and fiveseconds_even. If it's even, vice-versa.
-    uint32_t new_tick = (now.tv_sec / _interval);
-
-    if (new_tick > _tick)
-    {
-      if ((new_tick % 2) == 0)
-      {
-        current = &a;
-        previous = &b;
-      }
-      else
-      {
-        current = &b;
-        previous = &a;
-      }
-      (*current) = {0,};
-    }
-    _tick = new_tick;
-  }
-
-protected:
-  uint32_t _interval;
-  uint32_t _tick;
-  T a;
-  T b;
-  T* current;
-  T* previous;
-  
-};
-
-class View
-{
-public:
-  View(CurrentAndPrevious* data): _data(data) {};
-  virtual ~View() {};
-  virtual T* get_data()
-  {
-    _data->update_time();
-    return get_ptr();
-  }
-  virtual T* get_ptr() = 0;
-  CurrentAndPrevious* _data;
-};
-
-class CurrentView : public View
-{
-public:
-  CurrentView(CurrentAndPrevious* data): View(data) {};
-
-  T* get_ptr() { return this->_data->current; };
-};
-
-class PreviousView : public View
-{
-public:
-  PreviousView(CurrentAndPrevious* data): View(data) {};
-  T* get_ptr() { return this->_data->previous; };
-};
-
-
-  TimeBasedRow(int index, View* view) :
+  IPCountRow(std::string addrStr) :
     Row(),
-    _index(index),
-    _view(view)
+    _count(0)
   {
+    if (inet_pton(AF_INET, addrStr.c_str(), &_addr) == 1) {
+      addr_type = 1; // IPv4
+      addr_len = sizeof(struct in_addr);
+    } else if (inet_pton(AF_INET6, addrStr.c_str(), &_addr) == 1) {
+      addr_type = 2; // IPv6
+      addr_len = sizeof(struct in6_addr);
+    } else {
+      addr_type = 0; // unknown
+      addr_len = 0;
+    }
+
     netsnmp_tdata_row_add_index(_row,
                                 ASN_INTEGER,
-                                &_index,
+                                &addr_type,
                                 sizeof(int));
+ 
+    netsnmp_tdata_row_add_index(_row,
+                                ASN_OCTET_STR,
+                                (unsigned char*)&_addr,
+                                addr_len);
     
   };
-  virtual ~TimeBasedRow()
+
+  ColumnData get_columns()
   {
-    delete(_view);
-  };
-  virtual ColumnData get_columns() = 0;
+    // Construct and return a ColumnData with the appropriate values
+    ColumnData ret;
+    ret[1] = Value::integer(addr_type);
+    ret[2] = Value(ASN_OCTET_STR, (unsigned char*)&_addr, addr_len);
+    ret[3] = Value::uint(_count);
+    return ret;
+  }
+
+  void increment() { _count++; };
+  void decrement() { _count--; };
 
 protected:
-  uint32_t _index;
-  View* _view;
+  int addr_len;
+  int addr_type;
+  union {
+    struct in_addr  v4;
+    struct in6_addr v6;
+  } _addr;
+  uint32_t _count;
 };
 
 }

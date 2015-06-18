@@ -85,8 +85,17 @@ public:
   HttpConnection(const std::string& server,
                  bool assert_user,
                  HttpResolver* resolver,
+                 SNMP::IPCountTable* stat_table,
+                 LoadMonitor* load_monitor,
                  SASEvent::HttpLogLevel,
                  CommunicationMonitor* comm_monitor);
+
+  HttpConnection(const std::string& server,
+                 bool assert_user,
+                 HttpResolver* resolver,
+                 SASEvent::HttpLogLevel,
+                 CommunicationMonitor* comm_monitor);
+
   virtual ~HttpConnection();
 
   virtual long send_get(const std::string& path,
@@ -184,12 +193,16 @@ private:
     ~PoolEntry();
 
     void set_remote_ip(const std::string& value);
+    void update_zmq_ip_counts(const std::string& value);
     const std::string& get_remote_ip() const { return _remote_ip; };
 
     bool is_connection_expired(unsigned long now_ms);
     void update_deadline(unsigned long now_ms);
 
   private:
+    void update_zmq_ip_counts(const std::string& value);
+    void update_snmp_ip_counts(const std::string& value);
+
     /// Parent HttpConnection object.
     HttpConnection* _parent;
 
@@ -292,6 +305,7 @@ private:
   std::map<std::string, int> _server_count;  // must access under _lock
   SASEvent::HttpLogLevel _sas_log_level;
   CommunicationMonitor* _comm_monitor;
+  IPCountTable* _stat_table;
 
   friend class PoolEntry; // so it can update stats
 };

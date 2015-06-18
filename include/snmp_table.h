@@ -183,8 +183,8 @@ public:
 
   void set_visible_columns(int min, int max) 
   {
-    _table_info->min_column = 2;
-    _table_info->max_column = 6;
+    _table_info->min_column = min;
+    _table_info->max_column = max;
   }
 
   // Registers an SNMP handler for this table. Subclasses should call this in their constructor
@@ -246,9 +246,14 @@ public:
          ii != _map.end();
          ii++)
     {
-      delete ii->second;
+      TRow* row = ii->second;
+      _tbl.remove(row);
+      delete row;
     }
   }
+
+  void add_index(int type) { _tbl.add_index(type); };
+  void set_visible_columns(int min, int max) { _tbl.set_visible_columns(min, max); }
 
   virtual TRow* new_row(TRowKey key) = 0;
 
@@ -285,5 +290,23 @@ public:
   Table<TRow> _tbl;
   std::map<TRowKey, TRow*> _map;
 };
+
+// Generic ManagedSNMPTable, wrapping an SNMPTable and managing the ownership of rows.
+template<class TRow, class TRowKey> class SimpleManagedTable : public ManagedTable<TRow, TRowKey>
+{
+public:
+  SimpleManagedTable(std::string name,
+                   oid* tbl_oid,
+                   int oidlen) :
+  ManagedTable<TRow, TRowKey>(name, tbl_oid, oidlen) {};
+
+  TRow* new_row(TRowKey key)
+  {
+    return new TRow(key);
+  }
+
+};
+
+
 }
 #endif
