@@ -47,10 +47,10 @@
 
 namespace SNMP
 {
-namespace TimeData
+template <class T> class TimeBasedRow : public Row
 {
-
-template <class T> class CurrentAndPrevious
+public:
+class CurrentAndPrevious
 {
 public:
   CurrentAndPrevious(int interval): _interval(interval), _tick(0) {}
@@ -90,10 +90,10 @@ private:
   
 };
 
-template <class T> class View
+class View
 {
 public:
-  View(CurrentAndPrevious<T>* data): _data(data) {};
+  View(CurrentAndPrevious* data): _data(data) {};
   virtual ~View() {};
   virtual T* get_data()
   {
@@ -101,28 +101,26 @@ public:
     return get_ptr();
   }
   virtual T* get_ptr() = 0;
-  CurrentAndPrevious<T>* _data;
+  CurrentAndPrevious* _data;
 };
 
-template <class T> class CurrentView : public View<T>
+class CurrentView : public View
 {
 public:
-  CurrentView(CurrentAndPrevious<T>* data): View<T>(data) {};
+  CurrentView(CurrentAndPrevious* data): View(data) {};
 
   T* get_ptr() { return this->_data->current; };
 };
 
-template <class T> class PreviousView : public View<T>
+class PreviousView : public View
 {
 public:
-  PreviousView(CurrentAndPrevious<T>* data): View<T>(data) {};
+  PreviousView(CurrentAndPrevious* data): View(data) {};
   T* get_ptr() { return this->_data->previous; };
 };
 
-template <class T> class TimeBasedRow : public Row
-{
-public:
-  TimeBasedRow(int index, TimeData::View<T>* view) :
+
+  TimeBasedRow(int index, View* view) :
     Row(),
     _index(index),
     _view(view)
@@ -141,10 +139,9 @@ public:
 
 protected:
   uint32_t _index;
-  View<T>* _view;
+  View* _view;
 };
 
-}
 }
 
 #endif

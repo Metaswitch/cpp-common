@@ -57,10 +57,10 @@ struct Statistics
   uint64_t lwm;
 };
 
-class AccumulatedData: public TimeData::CurrentAndPrevious<Statistics>
+class AccumulatedData: public TimeBasedRow<Statistics>::CurrentAndPrevious
 {
   AccumulatedData(int interval):
-    TimeData::CurrentAndPrevious<Statistics>(interval)
+    TimeBasedRow<Statistics>::CurrentAndPrevious(interval)
   {
     a = {0};
     b = {0};
@@ -69,10 +69,10 @@ class AccumulatedData: public TimeData::CurrentAndPrevious<Statistics>
   void accumulate(uint32_t sample);
 };
 
-class AccumulatorRow: public TimeData::TimeBasedRow<Statistics>
+class AccumulatorRow: public TimeBasedRow<Statistics>
 {
 public:
-  AccumulatorRow(int index, TimeData::View<Statistics>* view):
+  AccumulatorRow(int index, View* view):
     TimeBasedRow<Statistics>(index, view) {};
   virtual ColumnData get_columns();
 };
@@ -97,20 +97,20 @@ public:
   
   AccumulatorRow* new_row(int index)
   {
-    TimeData::View<Statistics>* view = NULL;
+    AccumulatorRow::View* view = NULL;
     switch (index)
     {
       case 0:
         // Five-second row
-        view = new TimeData::PreviousView<Statistics>(&five_second);
+        view = new AccumulatorRow::PreviousView(&five_second);
         break;
       case 1:
         // Five-minute row
-        view = new TimeData::CurrentView<Statistics>(&five_minute);
+        view = new AccumulatorRow::CurrentView(&five_minute);
         break;
       case 2:
         // Five-minute row
-        view = new TimeData::PreviousView<Statistics>(&five_minute);
+        view = new AccumulatorRow::PreviousView(&five_minute);
         break;
     }
     return new AccumulatorRow(index, view);
