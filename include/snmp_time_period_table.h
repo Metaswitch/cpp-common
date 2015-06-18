@@ -40,93 +40,111 @@
 #include <string>
 #include <tuple>
 #include "snmp_includes.h"
-#include "snmp_time_period_table.h"
 #include "logger.h"
 
-#ifndef SNMP_LATENCY_TABLE_H
-#define SNMP_LATENCY_TABLE_H
+#ifndef SNMP_TIME_PERIOD_TABLE_H
+#define SNMP_TIME_PERIOD_TABLE_H
 
 namespace SNMP
 {
-struct Statistics
+namespace TimeData
 {
-  uint64_t count;
-  uint64_t sum;
-  uint64_t sqsum;
-  uint64_t hwm;
-  uint64_t lwm;
-};
 
-class AccumulatedData: public TimeData::CurrentAndPrevious<Statistics>
-{
-  AccumulatedData(int interval):
-    TimeData::CurrentAndPrevious<Statistics>(interval)
-  {
-    a = {0};
-    b = {0};
-  };
-  // Add a sample to the statistics
-  void accumulate(uint32_t sample);
-};
-
-class AccumulatorRow: public TimeData::TimeBasedRow<Statistics>
+template <class T> class CurrentAndPrevious
 {
 public:
-  AccumulatorRow(int index, TimeData::View<Statistics>* view):
-    TimeBasedRow<Statistics>(index, view) {};
-  virtual ColumnData get_columns();
-};
-
-class AccumulatorTable: public ManagedTable<AccumulatorRow, int>
-{
-public:
-  AccumulatorTable(std::string name,
-                   oid* tbl_oid,
-                   int oidlen) :
-    ManagedTable<AccumulatorRow, int>(name, tbl_oid, oidlen),
-    five_second(5),
-    five_minute(300)
+  CurrentAndPrevious(int interval): _interval(interval), _tick(0) {}
+  void update_time()
   {
-    _tbl.add_index(ASN_INTEGER);
-    _tbl.set_visible_columns(2, 6);
+    struct timespec now;
+    clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
 
-    add_row(0);
-    add_row(1);
-//    add_row(2);
-  }
-  
-  AccumulatorRow* new_row(int index)
-  {
-    TimeData::View<Statistics>* view = NULL;
-    switch (index)
+    // The 'tick' signifies how many five-second windows have passed - if it's odd, we should read
+    // from fiveseconds_odd and fiveseconds_even. If it's even, vice-versa.
+    uint32_t new_tick = (now.tv_sec / _interval);
+
+    if (new_tick > _tick)
     {
-      case 0:
-        // Five-second row
-        view = new TimeData::PreviousView<Statistics>(&five_second);
-        break;
-      case 1:
-        // Five-minute row
-        view = new TimeData::CurrentView<Statistics>(&five_minute);
-        break;
-      case 2:
-        // Five-minute row
-        view = new TimeData::PreviousView<Statistics>(&five_minute);
-        break;
+      if ((new_tick % 2) == 0)
+      {
+        current = &a;
+        previous = &b;
+      }
+      else
+      {
+        current = &b;
+        previous = &a;
+      }
+      (*current) = {0,};
     }
-    return new AccumulatorRow(index, view);
+    _tick = new_tick;
   }
 
-  void accumulate(uint32_t sample)
-  {
-    // Pass samples through to the underlying row group
-    five_second.accumulate(sample);
-    five_minute.accumulate(sample);
-  }
-
-  AccumulatedData five_second;
-  AccumulatedData five_minute;
+private:
+  uint32_t _interval;
+  uint32_t _tick;
+  T a;
+  T b;
+  T* current;
+  T* previous;
+  
 };
 
+template <class T> class View
+{
+public:
+  View(CurrentAndPrevious<T>* data): _data(data) {};
+  virtual ~View() {};
+  virtual T* get_data()
+  {
+    _data->update_time();
+    return get_ptr();
+  }
+  virtual T* get_ptr() = 0;
+  CurrentAndPrevious<T>* _data;
+};
+
+template <class T> class CurrentView : public View<T>
+{
+public:
+  CurrentView(CurrentAndPrevious<T>* data): View<T>(data) {};
+
+  T* get_ptr() { return this->_data->current; };
+};
+
+template <class T> class PreviousView : public View<T>
+{
+public:
+  PreviousView(CurrentAndPrevious<T>* data): View<T>(data) {};
+  T* get_ptr() { return this->_data->previous; };
+};
+
+template <class T> class TimeBasedRow : public Row
+{
+public:
+  TimeBasedRow(int index, TimeData::View<T>* view) :
+    Row(),
+    _index(index),
+    _view(view)
+  {
+    netsnmp_tdata_row_add_index(_row,
+                                ASN_INTEGER,
+                                &_index,
+                                sizeof(int));
+    
+  };
+  virtual ~TimeBasedRow()
+  {
+    delete(_view);
+  };
+  virtual ColumnData get_columns() = 0;
+
+protected:
+  uint32_t _index;
+  View<T>* _view;
+};
+
+}
 }
 
 #endif

@@ -41,7 +41,7 @@ namespace SNMP
 
 ColumnData AccumulatorRow::get_columns()
 {
-  AccumulatedData::Data accumulated = *(_view->get_data());
+  Statistics accumulated = *(_view->get_data());
   uint32_t sum = accumulated.sum;
   uint32_t sumsq = accumulated.sqsum;
   uint32_t count = accumulated.count;
@@ -50,7 +50,7 @@ ColumnData AccumulatorRow::get_columns()
   
   // Construct and return a ColumnData with the appropriate values
   ColumnData ret;
-  ret[1] = Value::integer(index);
+  ret[1] = Value::integer(_index);
   ret[2] = Value::uint(count);
   ret[3] = Value::uint(avg);
   ret[4] = Value::uint(variance);
@@ -75,31 +75,5 @@ void AccumulatedData::accumulate(uint32_t latency)
     current->lwm = latency;
   }
 };
-
-void AccumulatedData::update_time()
-{
-  struct timespec now;
-  clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
-
-  // The 'tick' signifies how many five-second windows have passed - if it's odd, we should read
-  // from fiveseconds_odd and fiveseconds_even. If it's even, vice-versa.
-  uint32_t new_tick = (now.tv_sec / _interval);
-
-  if (new_tick > _tick)
-  {
-    if ((new_tick % 2) == 0)
-    {
-      current = &a;
-      previous = &b;
-    }
-    else
-    {
-      current = &b;
-      previous = &a;
-    }
-    (*current) = {0,};
-  }
-  _tick = new_tick;
-}
 
 }
