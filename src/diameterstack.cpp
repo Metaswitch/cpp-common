@@ -964,7 +964,7 @@ void Transaction::on_response(void* data, struct msg** rsp)
   Stack* stack = Stack::get_instance();
   Message msg(tsx->_dict, *rsp, stack);
 
-  LOG_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
+  TRC_VERBOSE("Got Diameter response of type %u - calling callback on transaction %p",
               msg.command_code(), tsx);
 
   int32_t rc;
@@ -984,7 +984,7 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   Stack* stack = Stack::get_instance();
   Message msg(tsx->_dict, *req, stack);
 
-  LOG_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
+  TRC_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
 
   // log the timeout to SAS.
@@ -1277,7 +1277,7 @@ Message& Message::add_session_id(const std::string& session_id)
 
 void Message::send(SAS::TrailId trail)
 {
-  LOG_VERBOSE("Sending Diameter message of type %u", command_code());
+  TRC_VERBOSE("Sending Diameter message of type %u", command_code());
   revoke_ownership();
 
   _stack->send(_fd_msg, trail);
@@ -1285,7 +1285,7 @@ void Message::send(SAS::TrailId trail)
 
 void Message::send(Transaction* tsx)
 {
-  LOG_VERBOSE("Sending Diameter message of type %u on transaction %p", command_code(), tsx);
+  TRC_VERBOSE("Sending Diameter message of type %u on transaction %p", command_code(), tsx);
   tsx->start_timer();
   revoke_ownership();
 
@@ -1294,7 +1294,7 @@ void Message::send(Transaction* tsx)
 
 void Message::send(Transaction* tsx, unsigned int timeout_ms)
 {
-  LOG_VERBOSE("Sending Diameter message of type %u on transaction %p with timeout %u",
+  TRC_VERBOSE("Sending Diameter message of type %u on transaction %p with timeout %u",
               command_code(), tsx, timeout_ms);
   tsx->start_timer();
   revoke_ownership();
