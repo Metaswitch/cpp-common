@@ -66,7 +66,7 @@ bool HttpStack::Request::get_latency(unsigned long& latency_us)
 // logged to the access log and SAS.
 void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
 {
-  LOG_VERBOSE("Sending response %d to request for URL %s, args %s", rc, req.req()->uri->path->full, req.req()->uri->query_raw);
+  TRC_VERBOSE("Sending response %d to request for URL %s, args %s", rc, req.req()->uri->path->full, req.req()->uri->query_raw);
   unsigned long latency_us = 0;
   req.get_latency(latency_us);
   log(std::string(req.req()->uri->path->full), req.method_as_str(), rc, latency_us);
@@ -273,7 +273,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     evhtp_request_pause(req);
 
     // Pass the request to the handler.
-    LOG_VERBOSE("Process request for URL %s, args %s",
+    TRC_VERBOSE("Process request for URL %s, args %s",
                 req->uri->path->full,
                 req->uri->query_raw);
 

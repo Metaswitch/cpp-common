@@ -223,7 +223,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
        domain != domains.end();
        ++domain)
   {
-    LOG_VERBOSE("Check cache for %s type %d", domain->c_str(), dnstype);
+    TRC_VERBOSE("Check cache for %s type %d", domain->c_str(), dnstype);
     DnsCacheEntryPtr ce = get_cache_entry(*domain, dnstype);
     time_t now = time(NULL);
     bool do_query = false;

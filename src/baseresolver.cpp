@@ -148,14 +148,14 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
 
   if (srv_list != NULL)
   {
-    LOG_VERBOSE("SRV list found, %d priority levels", srv_list->size());
+    TRC_VERBOSE("SRV list found, %d priority levels", srv_list->size());
 
     // Select the SRV records in priority/weighted order.
     for (SRVPriorityList::const_iterator i = srv_list->begin();
          i != srv_list->end();
          ++i)
     {
-      LOG_VERBOSE("Processing %d SRVs with priority %d", i->second.size(), i->first);
+      TRC_VERBOSE("Processing %d SRVs with priority %d", i->second.size(), i->first);
 
       std::vector<const SRV*> srvs;
       srvs.reserve(i->second.size());
@@ -182,7 +182,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       {
         a_targets.push_back(srvs[ii]->target);
       }
-      LOG_VERBOSE("Do A record look-ups for %ld SRVs", a_targets.size());
+      TRC_VERBOSE("Do A record look-ups for %ld SRVs", a_targets.size());
       _dns_client->dns_query(a_targets,
                              (af == AF_INET) ? ns_t_a : ns_t_aaaa,
                              a_results);
@@ -260,7 +260,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             std::string tg = "[" + target + ":" + std::to_string(ai.port) + "] ";
             targetlist_str = targetlist_str + tg;
 
-            LOG_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
+            TRC_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
           }
 
           if (!blacklist_addr[ii].empty())
@@ -299,7 +299,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
         to_copy = blacklisted_targets.size();
       }
 
-      LOG_VERBOSE("Adding %ld servers from blacklist", to_copy);
+      TRC_VERBOSE("Adding %ld servers from blacklist", to_copy);
 
       for (size_t ii = 0; ii < to_copy; ++ii)
       {
