@@ -66,7 +66,12 @@ public:
   {
   public:
     Request(HttpStack* stack, evhtp_request_t* req) :
-    _method(htp_method_UNKNOWN), _rx_body_set(false), _stack(stack), _req(req), _stopwatch()
+      _method(htp_method_UNKNOWN), 
+      _rx_body_set(false), 
+      _stack(stack), 
+      _req(req), 
+      _stopwatch(),
+      _track_latency(true)
     {
       _stopwatch.start();
     }
@@ -111,6 +116,11 @@ public:
                                                     value.c_str(),
                                                     1, 1);
       evhtp_headers_add_header(_req->headers_out, new_header);
+    }
+
+    inline void set_track_latency(bool track_latency)
+    {
+      _track_latency = track_latency;
     }
 
     htp_method method()
@@ -213,6 +223,7 @@ public:
     evhtp_request_t* _req;
     Utils::StopWatch _stopwatch;
     SasLogger* _sas_logger;
+    bool _track_latency;
 
     std::string url_unescape(const std::string& s)
     {

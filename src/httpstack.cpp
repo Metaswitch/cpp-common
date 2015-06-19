@@ -59,7 +59,7 @@ void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
 
 bool HttpStack::Request::get_latency(unsigned long& latency_us)
 {
-  return _stopwatch.read(latency_us);
+  return ((_track_latency) && (_stopwatch.read(latency_us)));
 }
 
 // Wrapper around evhtp_send_reply to ensure that all responses are
@@ -76,14 +76,17 @@ void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
 }
 
 
-void HttpStack::send_reply(Request& req, int rc, SAS::TrailId trail)
+void HttpStack::send_reply(Request& req, 
+                           int rc, 
+                           SAS::TrailId trail)
 {
   send_reply_internal(req, rc, trail);
   // Resume the request to actually send it.  This matches the function to pause the request in
   // HttpStack::handler_callback_fn.
   evhtp_request_resume(req.req());
 
-  // Update the latency stats and throttling algorithm.
+  // Update the latency stats and throttling algorithm if it's appropriate for
+  // the request
   unsigned long latency_us = 0;
   if (req.get_latency(latency_us))
   {
