@@ -66,7 +66,12 @@ public:
   {
   public:
     Request(HttpStack* stack, evhtp_request_t* req) :
-    _method(htp_method_UNKNOWN), _rx_body_set(false), _stack(stack), _req(req), _stopwatch()
+      _method(htp_method_UNKNOWN), 
+      _rx_body_set(false), 
+      _stack(stack), 
+      _req(req), 
+      _stopwatch(),
+      _track_latency(true)
     {
       _stopwatch.start();
     }
@@ -113,6 +118,11 @@ public:
       evhtp_headers_add_header(_req->headers_out, new_header);
     }
 
+    inline void set_track_latency(bool track_latency)
+    {
+      _track_latency = track_latency;
+    }
+
     htp_method method()
     {
       if (_method == htp_method_UNKNOWN)
@@ -148,7 +158,7 @@ public:
       }
     }
 
-    void send_reply(int rc, SAS::TrailId trail, bool use_latency=true);
+    void send_reply(int rc, SAS::TrailId trail);
     inline evhtp_request_t* req() { return _req; }
 
     void record_penalty() { _stack->record_penalty(); }
@@ -213,6 +223,7 @@ public:
     evhtp_request_t* _req;
     Utils::StopWatch _stopwatch;
     SasLogger* _sas_logger;
+    bool _track_latency;
 
     std::string url_unescape(const std::string& s)
     {
@@ -409,7 +420,7 @@ public:
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
   virtual void wait_stopped();
-  virtual void send_reply(Request& req, int rc, bool use_latency, SAS::TrailId trail);
+  virtual void send_reply(Request& req, int rc, SAS::TrailId trail);
   virtual void record_penalty();
 
   void log(const std::string uri, std::string method, int rc, unsigned long latency_us)

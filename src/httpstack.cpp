@@ -51,15 +51,15 @@ HttpStack::HttpStack() :
   _load_monitor(NULL)
 {}
 
-void HttpStack::Request::send_reply(int rc, SAS::TrailId trail, bool use_latency)
+void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
 {
   _stopwatch.stop();
-  _stack->send_reply(*this, rc, use_latency, trail);
+  _stack->send_reply(*this, rc, trail);
 }
 
 bool HttpStack::Request::get_latency(unsigned long& latency_us)
 {
-  return _stopwatch.read(latency_us);
+  return ((_track_latency) && (_stopwatch.read(latency_us)));
 }
 
 // Wrapper around evhtp_send_reply to ensure that all responses are
@@ -78,7 +78,6 @@ void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
 
 void HttpStack::send_reply(Request& req, 
                            int rc, 
-                           bool use_latency, 
                            SAS::TrailId trail)
 {
   send_reply_internal(req, rc, trail);
@@ -86,9 +85,10 @@ void HttpStack::send_reply(Request& req,
   // HttpStack::handler_callback_fn.
   evhtp_request_resume(req.req());
 
-  // Update the latency stats and throttling algorithm.
+  // Update the latency stats and throttling algorithm if it's appropriate for
+  // the request
   unsigned long latency_us = 0;
-  if ((use_latency) && (req.get_latency(latency_us)))
+  if (req.get_latency(latency_us))
   {
     if (_load_monitor != NULL)
     {
