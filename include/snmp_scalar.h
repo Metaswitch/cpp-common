@@ -44,19 +44,20 @@
 namespace SNMP
 {
 
+// Exposes a number as an SNMP Unsigned32.
 class U32Scalar
 {
 public:
   U32Scalar(std::string name,
             oid* oid_param,
             int oidlen):
+    value(0),
     _oid(oid_param),
-    _oidlen(oidlen),
-    value(0)
+    _oidlen(oidlen)
   {
     netsnmp_register_read_only_ulong_instance(name.c_str(),
                                               _oid,
-                                              oidlen,
+                                              _oidlen,
                                               &value,
                                               NULL);
   }
@@ -66,9 +67,11 @@ public:
     unregister_mib(_oid, _oidlen);
   }
 
+  unsigned long value;
+  
+private:
   oid* _oid;
   int _oidlen;
-  unsigned long value;
 };
 
 }

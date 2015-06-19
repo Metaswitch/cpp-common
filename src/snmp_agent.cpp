@@ -41,7 +41,7 @@
 #include "snmp_agent.h"
 #include "snmp_latency_table.h"
 #include "log.h"
-    
+
 static pthread_t snmp_thread_var;
 
 void* snmp_thread(void* data)
@@ -52,26 +52,31 @@ void* snmp_thread(void* data)
   return NULL;
 };
 
+// Set up the SNMP agent and handler thread. Returns 0 if and only if both succeed.
 int snmp_setup(const char* name)
 {
+  // Make sure we start as a subagent, not a master agent.
   netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_ROLE, 1);
+
   netsnmp_container_init_list();
   int rc = init_agent(name);
   if (rc != 0)
   {
-    CW_TRACEWARNING("SNMP AgentX initialization failed");
+    TRC_WARNING("SNMP AgentX initialization failed");
     return -1;
   }
   else
   {
-  CW_TRACESTATUS("AgentX agent initialised");
+    TRCSTATUS("AgentX agent initialised");
   }
+
   init_snmp(name);
+
   int ret = pthread_create(&snmp_thread_var, NULL, snmp_thread, NULL);
   return ret;
 }
 
-
+// Cancel the handler thread and shut down the SNMP agent.
 void snmp_terminate(const char* name)
 {
   pthread_cancel(snmp_thread_var);

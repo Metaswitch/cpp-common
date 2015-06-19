@@ -44,6 +44,8 @@
 #ifndef SNMP_TABLE_H
 #define SNMP_TABLE_H
 
+// netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
+// and maps the row and column to a value.
 int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
                              netsnmp_handler_registration *reginfo,
                              netsnmp_agent_request_info *reqinfo,
@@ -68,7 +70,7 @@ public:
     return Value(ASN_INTEGER, (u_char*)&val, sizeof(int32_t));
   };
 
-
+  // Empty constructor so this can be easily stored in a std::map.
   Value(): type(0), size(0), value(NULL) {};
 
   // Constructor - copy the raw bytes to avoid lifetime issues
@@ -88,22 +90,22 @@ public:
   int type;
   int size;
   u_char* value;
-  
+
   // Move constructor
   Value(Value&& old):
-   type(old.type),
-   size(old.size),
-   value(old.value)
-   {
-     old.value = NULL;
+    type(old.type),
+    size(old.size),
+    value(old.value)
+  {
+    old.value = NULL;
   };
 
   // Copy constructor
   Value(const Value& old):
-   type(old.type),
-   size(old.size),
-   value(new u_char[size])
-   {
+    type(old.type),
+    size(old.size),
+    value(new u_char[size])
+  {
     memcpy(value, old.value, size);
   };
 
@@ -121,16 +123,13 @@ public:
     }
     return *this;
   };
-
-
-
 };
 
 // A ColumnData is the information for a particular row, implemented as a map of column number to
 // its value.
 typedef std::map<int, Value> ColumnData;
 
-// Abstract SNMPRowGroup class.
+// Abstract Row class which wraps a netsnmp_tdata_row.
 class Row
 {
 public:
@@ -139,24 +138,28 @@ public:
     _row = netsnmp_tdata_create_row();
     _row->data = this;
   }
+
   virtual ~Row()
   {
     netsnmp_tdata_delete_row(_row);
   }
+
   virtual ColumnData get_columns() = 0;
 
   netsnmp_tdata_row* get_netsnmp_row() { return _row; };
+protected:
   netsnmp_tdata_row* _row;
-
 };
 
-// Generic SNMPTable class wrapping a netsnmp_tdata.
+// Generic SNMPTable class wrapping a netsnmp_tdata and netsnmp_table_registration_info and exposes
+// an API for manipulating them easily. Doesn't need subclassing, but should usually be wrapped in a
+// ManagedTable subclass for convenience.
 template<class T> class Table
 {
 public:
   Table(std::string name,
-            oid* tbl_oid,
-            int oidlen):
+        oid* tbl_oid,
+        int oidlen):
     _name(name),
     _tbl_oid(tbl_oid),
     _oidlen(oidlen),
@@ -168,27 +171,48 @@ public:
 
   virtual ~Table()
   {
-    netsnmp_unregister_handler(_handler_reg);
+    if (_handler_reg)
+    {
+      netsnmp_unregister_handler(_handler_reg);
+    }
     snmp_free_varbind(_table->indexes_template);
     snmp_free_varbind(_table_info->indexes);
     netsnmp_tdata_delete_table(_table);
     SNMP_FREE(_table_info);
   }
 
+  // Helper method to set a column index on both underlying objects.
   void add_index(int type)
   {
     netsnmp_tdata_add_index(_table, ASN_INTEGER);
     netsnmp_table_helper_add_index(_table_info, ASN_INTEGER);
   }
 
+  // Helper method to change the visibility of columns in this table.
   void set_visible_columns(int min, int max) 
   {
     _table_info->min_column = min;
     _table_info->max_column = max;
   }
 
-  // Registers an SNMP handler for this table. Subclasses should call this in their constructor
-  // after setting appropriate indexes.
+  // Add a Row into the underlying table.
+  void add(T* row)
+  {
+    if (_handler_reg == NULL)
+    {
+      register_tbl();
+    }
+    netsnmp_tdata_add_row(_table, row->get_netsnmp_row());
+  };
+
+  // Remove a Row from the underlying table.
+  void remove(T* row)
+  {
+    netsnmp_tdata_remove_row(_table, row->get_netsnmp_row());
+  };
+
+protected:
+  // Registers an SNMP handler for this table. Called when the first row is added.
   void register_tbl()
   {
     TRC_INFO("Registering SNMP table %s", _name.c_str());
@@ -204,23 +228,6 @@ public:
   }
 
 
-  // Add the rows represented by a SNMPRowGroup into the underlying table.
-  void add(T* row)
-  {
-    if (_handler_reg == NULL)
-    {
-      register_tbl();
-    }
-    netsnmp_tdata_add_row(_table, row->get_netsnmp_row());
-  };
-
-  // Remove the rows represented by a SNMPRowGroup from the underlying table.
-  void remove(T* row)
-  {
-    netsnmp_tdata_remove_row(_table, row->get_netsnmp_row());
-  };
-
-
   std::string _name;
   oid* _tbl_oid;
   int _oidlen;
@@ -229,35 +236,33 @@ public:
   netsnmp_tdata* _table;
 };
 
-// Generic ManagedSNMPTable, wrapping an SNMPTable and managing the ownership of rows.
+// Base ManagedTable, wrapping an SNMPTable and managing the ownership of rows.
 template<class TRow, class TRowKey> class ManagedTable
 {
 public:
   ManagedTable(std::string name,
-                   oid* tbl_oid,
-                   int oidlen) :
-  _tbl(name, tbl_oid, oidlen)
-  {
-  }
+               oid* tbl_oid,
+               int oidlen) :
+    _tbl(name, tbl_oid, oidlen) {}
 
+  // Upon destruction, release all the rows we're managing.
   virtual ~ManagedTable()
   {
     for (typename std::map<TRowKey, TRow*>::iterator ii = _map.begin();
          ii != _map.end();
          ii++)
     {
+      // Can't just call into remove() here because it would modify the map we're iterating over
       TRow* row = ii->second;
       _tbl.remove(row);
       delete row;
     }
   }
 
-  void add_index(int type) { _tbl.add_index(type); };
-  void set_visible_columns(int min, int max) { _tbl.set_visible_columns(min, max); }
-
+  // Subclasses need to specify how to create particular types of row.
   virtual TRow* new_row(TRowKey key) = 0;
 
-  // Returns the row keyed off `key`, creating it if it does not already exist.
+  // Creates the row keyed off `key`.
   void add_row(TRowKey key)
   {
     TRow* row = new_row(key);
@@ -287,26 +292,10 @@ public:
     delete row;
   };
 
+protected:
   Table<TRow> _tbl;
   std::map<TRowKey, TRow*> _map;
 };
 
-// Generic ManagedSNMPTable, wrapping an SNMPTable and managing the ownership of rows.
-template<class TRow, class TRowKey> class SimpleManagedTable : public ManagedTable<TRow, TRowKey>
-{
-public:
-  SimpleManagedTable(std::string name,
-                   oid* tbl_oid,
-                   int oidlen) :
-  ManagedTable<TRow, TRowKey>(name, tbl_oid, oidlen) {};
-
-  TRow* new_row(TRowKey key)
-  {
-    return new TRow(key);
-  }
-
-};
-
-
-}
+} // namespace SNMP
 #endif

@@ -1,5 +1,5 @@
 /**
- * @file snmp_latency_table.h
+ * @file snmp_ip_count_table.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -34,13 +34,13 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "snmp_table.h"
 #include <vector>
 #include <map>
 #include <string>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 
+#include "snmp_table.h"
 #include "snmp_includes.h"
 #include "logger.h"
 
@@ -59,26 +59,28 @@ public:
     Row(),
     _count(0)
   {
+    // Convert the string into a type (IPv4 or IPv6) and a sequence of bytes
     if (inet_pton(AF_INET, addrStr.c_str(), &_addr) == 1) {
-      addr_type = 1; // IPv4
-      addr_len = sizeof(struct in_addr);
+      _addr_type = 1; // IPv4
+      _addr_len = sizeof(struct in_addr);
     } else if (inet_pton(AF_INET6, addrStr.c_str(), &_addr) == 1) {
-      addr_type = 2; // IPv6
-      addr_len = sizeof(struct in6_addr);
+      _addr_type = 2; // IPv6
+      _addr_len = sizeof(struct in6_addr);
     } else {
-      addr_type = 0; // unknown
-      addr_len = 0;
+      _addr_type = 0; // unknown
+      _addr_len = 0;
     }
 
+    // Set the IPAddrType and IPAddr as indexes
     netsnmp_tdata_row_add_index(_row,
                                 ASN_INTEGER,
-                                &addr_type,
+                                &_addr_type,
                                 sizeof(int));
  
     netsnmp_tdata_row_add_index(_row,
                                 ASN_OCTET_STR,
                                 (unsigned char*)&_addr,
-                                addr_len);
+                                _addr_len);
     
   };
 
@@ -86,8 +88,8 @@ public:
   {
     // Construct and return a ColumnData with the appropriate values
     ColumnData ret;
-    ret[1] = Value::integer(addr_type);
-    ret[2] = Value(ASN_OCTET_STR, (unsigned char*)&_addr, addr_len);
+    ret[1] = Value::integer(_addr_type);
+    ret[2] = Value(ASN_OCTET_STR, (unsigned char*)&_addr, _addr_len);
     ret[3] = Value::uint(_count);
     return ret;
   }
@@ -96,13 +98,32 @@ public:
   void decrement() { _count--; };
 
 protected:
-  int addr_len;
-  int addr_type;
+  int _addr_type;
   union {
     struct in_addr  v4;
     struct in6_addr v6;
   } _addr;
+  int _addr_len;
   uint32_t _count;
+};
+
+class IPCountTable: public ManagedTable<IPCountRow, std::string>
+{
+public:
+  IPCountTable(std::string name,
+                   oid* tbl_oid,
+                   int oidlen) :
+    ManagedTable<IPCountRow, std::string>(name, tbl_oid, oidlen)
+  {
+    _tbl.add_index(ASN_INTEGER);
+    _tbl.add_index(ASN_OCTET_STR);
+    _tbl.set_visible_columns(3, 3);
+  }
+
+  IPCountRow* new_row(std::string ip)
+  {
+    return new IPCountRow(ip);
+  }
 };
 
 }

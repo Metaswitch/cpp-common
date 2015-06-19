@@ -34,12 +34,9 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <net-snmp/net-snmp-config.h>
-#include <net-snmp/net-snmp-includes.h>
-#include <net-snmp/agent/net-snmp-agent-includes.h>
-
 #include <map>
 
+#include "snmp_includes.h"
 #include "snmp_table.h"
 #include "log.h"
 
@@ -51,10 +48,16 @@ int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
                              netsnmp_request_info *requests)
 {
   std::map<netsnmp_tdata_row*, SNMP::ColumnData> cache;
+  char buf[64];
+
   TRC_INFO("Starting handling batch of SNMP requests");
+  
   for (; requests != NULL; requests = requests->next)
   {
-    TRC_INFO("Handling SNMP request");
+    snprint_objid(buf, sizeof(buf),
+                  requests->requestvb->name, requests->requestvb->name_length);
+    TRC_INFO("Handling SNMP request for OID %s", buf);
+  
     if (requests->processed)
     {
       continue;
@@ -65,10 +68,12 @@ int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
 
     if (!row || !table_info || !row->data)
     {
-      TRC_WARNING("Request for nonexistent row");
+      // This should not have been passed through to this handler
+      TRC_WARNING("Request for nonexistent row - OID %s", buf);
       return SNMP_ERR_NOSUCHNAME;
     }
 
+    // Map back to the original SNMP::Row object.
     SNMP::Row* data = static_cast<SNMP::Row*>(row->data);
 
     // We need to get information a row at a time, and remember it - this avoids us reading column
@@ -89,9 +94,11 @@ int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
     }
     else
     {
-      TRC_WARNING("No value for row %p column %d", row, table_info->colnum);
+      TRC_WARNING("No value for OID %s", buf);
+      return SNMP_ERR_NOSUCHNAME;
     }
   }
-  TRC_DEBUG("Finished handling batch of SNMP requests");
+
+  TRC_INFO("Finished handling batch of SNMP requests");
   return SNMP_ERR_NOERROR;
 }

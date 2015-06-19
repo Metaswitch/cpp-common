@@ -1,5 +1,5 @@
 /**
- * @file snmp_latency_table.cpp
+ * @file snmp_counter_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd

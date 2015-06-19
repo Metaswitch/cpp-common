@@ -1,5 +1,5 @@
 /**
- * @file snmp_latency_table.cpp
+ * @file snmp_accumulator_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -45,6 +45,8 @@ ColumnData AccumulatorRow::get_columns()
   uint32_t sum = accumulated.sum;
   uint32_t sumsq = accumulated.sqsum;
   uint32_t count = accumulated.count;
+
+  // Calculate the average and the variance from the stored sum and sum-of-squares.
   uint32_t avg = sum/std::max(count, 1u);
   uint32_t variance = (sumsq/std::max(count, 1u)) - avg;
   
@@ -59,20 +61,26 @@ ColumnData AccumulatorRow::get_columns()
   return ret;
 }
 
-void AccumulatedData::accumulate(uint32_t latency)
+void AccumulatorTable::accumulate_internal(AccumulatorRow::CurrentAndPrevious& data, uint32_t latency)
 {
-  update_time();
-  current->count++;
-  current->sum += latency;
-  current->sqsum += (latency * latency);
-  if (latency > current->hwm)
+  data.update_time();
+
+  data.current->count++;
+
+  // Just keep a running total as we go along, so we can calculate the average and variance on
+  // request
+  data.current->sum += latency;
+  data.current->sqsum += (latency * latency);
+
+  // Change the high-water-mark and low-water-mark if this data is the highest/lowest we've seen.
+  if (latency > data.current->hwm)
   {
-    current->hwm = latency;
+    data.current->hwm = latency;
   }
 
-  if ((latency < current->lwm) || (current->lwm == 0))
+  if ((latency < data.current->lwm) || (data.current->lwm == 0))
   {
-    current->lwm = latency;
+    data.current->lwm = latency;
   }
 };
 

@@ -1,5 +1,5 @@
 /**
- * @file snmp_latency_table.h
+ * @file snmp_counter_table.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -34,11 +34,10 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "snmp_table.h"
 #include <vector>
 #include <map>
 #include <string>
-#include <tuple>
+
 #include "snmp_includes.h"
 #include "snmp_time_period_table.h"
 #include "logger.h"
@@ -46,26 +45,22 @@
 #ifndef SNMP_COUNTER_TABLE_H
 #define SNMP_COUNTER_TABLE_H
 
+// This file contains infrastructure for tables which:
+//   - are indexed by time period
+//   - increment a single counter over time
+//   - report a single column for each time period with that count
+
 namespace SNMP
 {
+
+// Storage for the underlying data
 struct SingleCount
 {
   uint64_t count;
 };
 
-class CounterData: public TimeBasedRow<SingleCount>::CurrentAndPrevious
-{
-  CounterData(int interval):
-    TimeBasedRow<SingleCount>::CurrentAndPrevious(interval)
-  {
-    a = {0};
-    b = {0};
-  };
-  
-  // Add a sample to the statistics
-  void increment() { this->current->count++; };
-};
 
+// Just a TimeBasedRow that maps the data from SingleCount into the right column.
 class CounterRow: public TimeBasedRow<SingleCount>
 {
 public:
@@ -87,11 +82,13 @@ public:
     _tbl.add_index(ASN_INTEGER);
     _tbl.set_visible_columns(2, 3);
 
+    // Fixed number of rows, so set them up now.
     add_row(0);
     add_row(1);
     add_row(2);
   }
   
+  // Map row indexes to the view of the underlying data they should expose
   CounterRow* new_row(int index)
   {
     CounterRow::View* view = NULL;
@@ -102,11 +99,11 @@ public:
         view = new CounterRow::PreviousView(&five_second);
         break;
       case 1:
-        // Five-minute row
+        // Five-minute row, current stats
         view = new CounterRow::CurrentView(&five_minute);
         break;
       case 2:
-        // Five-minute row
+        // Five-minute row, previous stats
         view = new CounterRow::PreviousView(&five_minute);
         break;
     }
@@ -115,13 +112,15 @@ public:
 
   void increment()
   {
-    // Pass samples through to the underlying row group
-    five_second.increment();
-    five_minute.increment();
+    // Increment each underlying set of data.
+    five_second.update_time();
+    five_second.current->count++;
+    five_minute.update_time();
+    five_minute.current->count++;
   }
 
-  CounterData five_second;
-  CounterData five_minute;
+  CounterRow::CurrentAndPrevious five_second;
+  CounterRow::CurrentAndPrevious five_minute;
 };
 
 }
