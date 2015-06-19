@@ -125,7 +125,7 @@ public:
       if (_factory != NULL)
       {
         // The entry is not in the cache, so create a placeholder.
-        LOG_DEBUG("Entry not in cache, so create new entry");
+        TRC_DEBUG("Entry not in cache, so create new entry");
         Entry& entry = _cache[key];
         pthread_mutex_init(&entry.lock, NULL);
         entry.state = Entry::PENDING;
@@ -145,7 +145,7 @@ public:
         // Add the entry to the expiry list, and add one to the reference count
         // for this reference.
         ++entry.refs;
-        LOG_DEBUG("Adding entry to expiry list, TTL=%d, expiry time = %d", ttl, ttl + time(NULL));
+        TRC_DEBUG("Adding entry to expiry list, TTL=%d, expiry time = %d", ttl, ttl + time(NULL));
         entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
 
         // Unlock the entry, so other threads can read it.
@@ -168,7 +168,7 @@ public:
     }
     else
     {
-      LOG_DEBUG("Found the entry in the cache");
+      TRC_DEBUG("Found the entry in the cache");
       Entry& entry = i->second;
 
       // Add a reference to the entry so it doesn't get evicted and destroyed
@@ -182,9 +182,9 @@ public:
       {
         // This cache entry is still being populated, so release the global
         // lock and block on the entry's lock.
-        LOG_DEBUG("Cache entry is pending, so wait for the factory to complete");
+        TRC_DEBUG("Cache entry is pending, so wait for the factory to complete");
         pthread_mutex_lock(&entry.lock);
-        LOG_DEBUG("Entry is complete");
+        TRC_DEBUG("Entry is complete");
 
         // The entry should now be complete, so release the lock on the entry.
         pthread_mutex_unlock(&entry.lock);
@@ -320,7 +320,7 @@ private:
     time_t now = time(NULL);
     while ((!_expiry_list.empty()) && (_expiry_list.begin()->first <= now))
     {
-      LOG_DEBUG("Time now is %d, expiry time of entry at head of expiry list is %d",
+      TRC_DEBUG("Time now is %d, expiry time of entry at head of expiry list is %d",
                 now, _expiry_list.begin()->first);
 
       ExpiryIterator i = _expiry_list.begin();

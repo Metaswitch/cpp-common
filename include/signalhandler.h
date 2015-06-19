@@ -92,7 +92,7 @@ public:
 // LCOV_EXCL_START
       // Old handler is not the default handler, so someone else has previously
       // hooked the signal.
-      LOG_WARNING("SIGNAL already hooked");
+      TRC_WARNING("SIGNAL already hooked");
 // LCOV_EXCL_STOP
     }
   }
@@ -155,7 +155,7 @@ private:
     {
       // Wait for the signal handler to indicate the signal has been raised.
       sem_wait(&_sema);
-      LOG_DEBUG("Signal %d raised", SIGNUM);
+      TRC_DEBUG("Signal %d raised", SIGNUM);
 
       // Broadcast to all the waiting threads.
       pthread_cond_broadcast(&_cond);

@@ -45,7 +45,7 @@ Statistic::Statistic(std::string statname, LastValueCache* lvc) :
   _publisher(NULL),
   _stat_q(MAX_Q_DEPTH)
 {
-  LOG_DEBUG("Creating %s statistic reporter", _statname.c_str());
+  TRC_DEBUG("Creating %s statistic reporter", _statname.c_str());
 
   // Permit a NULL LVC as this is useful for fake objects in UTs.
   if (lvc != NULL)
@@ -59,7 +59,7 @@ Statistic::Statistic(std::string statname, LastValueCache* lvc) :
   if (rc < 0)
   {
     // LCOV_EXCL_START
-    LOG_ERROR("Error creating statistic thread for %s", _statname.c_str());
+    TRC_ERROR("Error creating statistic thread for %s", _statname.c_str());
     // LCOV_EXCL_STOP
   }
 }
@@ -82,7 +82,7 @@ void Statistic::report_change(std::vector<std::string> new_value)
   if (!_stat_q.push_noblock(new_value))
   {
     // LCOV_EXCL_START
-    LOG_DEBUG("Statistic %s queue overflowed", _statname.c_str());
+    TRC_DEBUG("Statistic %s queue overflowed", _statname.c_str());
     // LCOV_EXCL_STOP
   }
 }
@@ -90,7 +90,7 @@ void Statistic::report_change(std::vector<std::string> new_value)
 
 void Statistic::reporter()
 {
-  LOG_DEBUG("Initializing inproc://%s statistic reporter", _statname.c_str());
+  TRC_DEBUG("Initializing inproc://%s statistic reporter", _statname.c_str());
 
   std::vector<std::string> new_value;
 
@@ -98,7 +98,7 @@ void Statistic::reporter()
   {
     if (_publisher != NULL)
     {
-      LOG_DEBUG("Send new value for statistic %s, size %d",
+      TRC_DEBUG("Send new value for statistic %s, size %d",
                 _statname.c_str(),
                 new_value.size());
       std::string status = "OK";

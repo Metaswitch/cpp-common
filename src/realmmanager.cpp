@@ -81,12 +81,12 @@ void RealmManager::stop()
 
 void RealmManager::connection_succeeded(Diameter::Peer* peer)
 {
-  LOG_INFO("Connected to peer %s", peer->host().c_str());
+  TRC_INFO("Connected to peer %s", peer->host().c_str());
 }
 
 void RealmManager::connection_failed(Diameter::Peer* peer)
 {
-  LOG_ERROR("Failed to connect to peer %s", peer->host().c_str());
+  TRC_ERROR("Failed to connect to peer %s", peer->host().c_str());
   pthread_mutex_lock(&_lock);
   std::vector<Diameter::Peer*>::iterator ii = std::find(_peers.begin(), _peers.end(), peer);
   if (ii != _peers.end())
@@ -218,7 +218,7 @@ void RealmManager::manage_connections(int& ttl)
     if (std::find(new_peers.begin(), new_peers.end(), (*ii)->host()) == new_peers.end())
     {
       Diameter::Peer* peer = *ii;
-      LOG_DEBUG("Removing peer: %s", peer->host().c_str());
+      TRC_DEBUG("Removing peer: %s", peer->host().c_str());
       ii = connected_peers.erase(ii);
       std::vector<Diameter::Peer*>::iterator jj = std::find(_peers.begin(), _peers.end(), peer);
       if (jj != _peers.end())
@@ -258,7 +258,7 @@ void RealmManager::manage_connections(int& ttl)
     if (!found)
     {
       Diameter::Peer* peer = new Diameter::Peer(*ii, hostname, _realm, 0, this);
-      LOG_DEBUG("Adding peer: %s", peer->host().c_str());
+      TRC_DEBUG("Adding peer: %s", peer->host().c_str());
       ret = _stack->add(peer);
       if (ret)
       {
@@ -266,7 +266,7 @@ void RealmManager::manage_connections(int& ttl)
       }
       else
       {
-        LOG_DEBUG("Peer already exists: %s", peer->host().c_str());
+        TRC_DEBUG("Peer already exists: %s", peer->host().c_str());
         delete peer;
       }
     }

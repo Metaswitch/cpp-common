@@ -90,11 +90,11 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
   pthread_mutex_init(&_lock, &attrs);
   pthread_mutexattr_destroy(&attrs);
 
-  LOG_STATUS("Constructing LoadMonitor");
-  LOG_STATUS("   Target latency (usecs)   : %d", init_target_latency);
-  LOG_STATUS("   Max bucket size          : %d", max_bucket_size);
-  LOG_STATUS("   Initial token fill rate/s: %f", init_token_rate);
-  LOG_STATUS("   Min token fill rate/s    : %f", init_min_token_rate);
+  TRC_STATUS("Constructing LoadMonitor");
+  TRC_STATUS("   Target latency (usecs)   : %d", init_target_latency);
+  TRC_STATUS("   Max bucket size          : %d", max_bucket_size);
+  TRC_STATUS("   Initial token fill rate/s: %f", init_token_rate);
+  TRC_STATUS("   Min token fill rate/s    : %f", init_min_token_rate);
 
   REQUESTS_BEFORE_ADJUSTMENT = 20;
   SECONDS_BEFORE_ADJUSTMENT = 2;
@@ -190,7 +190,7 @@ void LoadMonitor::request_complete(int latency)
       // Work out the percentage of accepted requests (for logs)
       float accepted_percent = (accepted + rejected == 0) ? 100.0 : 100 * (((float) accepted) / (accepted + rejected));
 
-      LOG_INFO("Accepted %f%% of requests, latency error = %f, overload responses = %d",
+      TRC_INFO("Accepted %f%% of requests, latency error = %f, overload responses = %d",
           accepted_percent, err, penalties);
 
       // latency is above where we want it to be, or we are getting overload responses from
@@ -204,7 +204,7 @@ void LoadMonitor::request_complete(int latency)
           new_rate = min_token_rate;
         }
         bucket.update_rate(new_rate);
-        LOG_STATUS("Maximum incoming request rate/second decreased to %f "
+        TRC_STATUS("Maximum incoming request rate/second decreased to %f "
                    "(based on a smoothed mean latency of %d and %d upstream overload responses)",
                    bucket.rate,
                    smoothed_latency,
@@ -214,7 +214,7 @@ void LoadMonitor::request_complete(int latency)
       {
         float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
         bucket.update_rate(new_rate);
-        LOG_STATUS("Maximum incoming request rate/second increased to %f "
+        TRC_STATUS("Maximum incoming request rate/second increased to %f "
                    "(based on a smoothed mean latency of %d and %d upstream overload responses)",
                    bucket.rate,
                    smoothed_latency,
@@ -222,7 +222,7 @@ void LoadMonitor::request_complete(int latency)
       }
       else
       {
-        LOG_DEBUG("Maximum incoming request rate/second is unchanged at %f",
+        TRC_DEBUG("Maximum incoming request rate/second is unchanged at %f",
                   bucket.rate);
       }
 

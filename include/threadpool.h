@@ -99,7 +99,7 @@ public:
       }
       else
       {
-        LOG_ERROR("Failed to create thread in thread pool");
+        TRC_ERROR("Failed to create thread in thread pool");
 
         // Terminate the pool so that all existing threads will exit.
         _queue.terminate();

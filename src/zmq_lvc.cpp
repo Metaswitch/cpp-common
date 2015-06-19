@@ -65,7 +65,7 @@ LastValueCache::LastValueCache(int statcount,
   _poll_timeout_ms(poll_timeout_ms),
   _terminate(false)
 {
-  LOG_DEBUG("Initializing statistics aggregator");
+  TRC_DEBUG("Initializing statistics aggregator");
   _context = zmq_ctx_new();
   _subscriber = new void *[_statcount];
 
@@ -81,7 +81,7 @@ LastValueCache::LastValueCache(int statcount,
     void* publisher = zmq_socket(_context, ZMQ_PUB);
     zmq_bind(publisher, ("inproc://" + statname).c_str());
     _internal_publishers[statname] = publisher;
-    LOG_DEBUG("Opened statistics socket inproc://%s", statname.c_str());
+    TRC_DEBUG("Opened statistics socket inproc://%s", statname.c_str());
   }
 
   int rc = pthread_create(&_cache_thread,
@@ -91,7 +91,7 @@ LastValueCache::LastValueCache(int statcount,
 
   if (rc < 0)
   {
-    LOG_ERROR("Failed to start statistics aggregator, no statistics will be available");
+    TRC_ERROR("Failed to start statistics aggregator, no statistics will be available");
   }
 }
 
@@ -107,7 +107,7 @@ LastValueCache::~LastValueCache()
   for (int ii = 0; ii < _statcount; ii++)
   {
     std::string statname = _statnames[ii];
-    LOG_DEBUG("Unbinding and closing statistics socket inproc://%s", statname.c_str());
+    TRC_DEBUG("Unbinding and closing statistics socket inproc://%s", statname.c_str());
 
     zmq_unbind(_internal_publishers[statname], ("inproc://" + statname).c_str());
     zmq_close(_internal_publishers[statname]);
@@ -133,7 +133,7 @@ void LastValueCache::run()
   for (int ii = 0; ii < _statcount; ii++)
   {
     _subscriber[ii] = zmq_socket(_context, ZMQ_SUB);
-    LOG_DEBUG("Initializing inproc://%s statistic listener", _statnames[ii].c_str());
+    TRC_DEBUG("Initializing inproc://%s statistic listener", _statnames[ii].c_str());
     zmq_connect(_subscriber[ii], ("inproc://" + _statnames[ii]).c_str());
     zmq_setsockopt(_subscriber[ii], ZMQ_SUBSCRIBE, "", 0);
   }
@@ -141,7 +141,7 @@ void LastValueCache::run()
   _publisher = zmq_socket(_context, ZMQ_XPUB);
   int verbose = 1;
   zmq_setsockopt(_publisher, ZMQ_XPUB_VERBOSE, &verbose, sizeof(verbose));
-  LOG_DEBUG("Enabled XPUB_VERBOSE mode");
+  TRC_DEBUG("Enabled XPUB_VERBOSE mode");
   unlink((ZMQ_IPC_FOLDER_PATH + _process_name).c_str());
   zmq_bind(_publisher, ("ipc://" ZMQ_IPC_FOLDER_PATH + _process_name).c_str());
   chmod((ZMQ_IPC_FOLDER_PATH + _process_name).c_str(), 0x777);
@@ -169,7 +169,7 @@ void LastValueCache::run()
     {
       if (items[ii].revents & ZMQ_POLLIN)
       {
-        LOG_DEBUG("Update to %s statistic", _statnames[ii].c_str());
+        TRC_DEBUG("Update to %s statistic", _statnames[ii].c_str());
         clear_cache(_subscriber[ii]);
         while (1)
         {
@@ -203,14 +203,14 @@ void LastValueCache::run()
       {
         // This is a new subscription
         std::string topic = std::string(msg_body + 1, zmq_msg_size(&message) - 1);
-        LOG_DEBUG("New subscription for %s", topic.c_str());
+        TRC_DEBUG("New subscription for %s", topic.c_str());
         bool recognized = false;
 
         for (int ii = 0; ii < _statcount; ii++)
         {
           if (topic == _statnames[ii])
           {
-            LOG_DEBUG("Statistic found, check for cached value");
+            TRC_DEBUG("Statistic found, check for cached value");
             recognized = true;
 
             // Replay the cached message if one exists
@@ -220,7 +220,7 @@ void LastValueCache::run()
             }
             else
             {
-              LOG_DEBUG("No cached record found, reporting empty statistic");
+              TRC_DEBUG("No cached record found, reporting empty statistic");
               std::string status = "OK";
               zmq_send(_publisher, _statnames[ii].c_str(), _statnames[ii].length(), ZMQ_SNDMORE);
               zmq_send(_publisher, status.c_str(), status.length(), 0);
@@ -230,7 +230,7 @@ void LastValueCache::run()
 
         if (!recognized)
         {
-          LOG_DEBUG("Subscription for unknown stat %s", topic.c_str());
+          TRC_DEBUG("Subscription for unknown stat %s", topic.c_str());
           std::string status = "Unknown";
           zmq_send(_publisher, topic.c_str(), topic.length(), ZMQ_SNDMORE);
           zmq_send(_publisher, status.c_str(), status.length(), 0);
@@ -253,7 +253,7 @@ void LastValueCache::run()
 
 void LastValueCache::clear_cache(void *entry)
 {
-  LOG_DEBUG("Clearing message cache for %p", entry);
+  TRC_DEBUG("Clearing message cache for %p", entry);
   if (_cache.find(entry) == _cache.end())
   {
     // Entry not found, add a blank vector in as we're about to fill it.
@@ -278,11 +278,11 @@ void LastValueCache::replay_cache(void *entry)
   std::vector<zmq_msg_t *> *cache_record = &_cache[entry];
   if (cache_record->empty())
   {
-    LOG_DEBUG("No cached record");
+    TRC_DEBUG("No cached record");
     return;
   }
 
-  LOG_DEBUG("Replaying cache for entry %p (length: %d)", entry, cache_record->size());
+  TRC_DEBUG("Replaying cache for entry %p (length: %d)", entry, cache_record->size());
   std::vector<zmq_msg_t *>::iterator it;
   for (std::vector<zmq_msg_t *>::iterator it = cache_record->begin();
        it != cache_record->end();

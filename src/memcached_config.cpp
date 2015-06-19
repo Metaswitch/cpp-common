@@ -67,7 +67,7 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
 
   if (f.is_open() && f.good())
   {
-    LOG_STATUS("Reloading memcached configuration from '%s'", _filename.c_str());
+    TRC_STATUS("Reloading memcached configuration from '%s'", _filename.c_str());
 
     while (f.good())
     {
@@ -75,7 +75,7 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
       getline(f, line);
       line = Utils::strip_whitespace(line);
 
-      LOG_DEBUG("Got line: %s", line.c_str());
+      TRC_DEBUG("Got line: %s", line.c_str());
 
       if ((line.length() > 0) && (line[0] != '#'))
       {
@@ -101,12 +101,12 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
         }
         else
         {
-          LOG_ERROR("Malformed config file (got bad line: '%s')",
+          TRC_ERROR("Malformed config file (got bad line: '%s')",
                     line.c_str());
           return false;
         }
 
-        LOG_STATUS(" %s=%s", key.c_str(), value.c_str());
+        TRC_STATUS(" %s=%s", key.c_str(), value.c_str());
 
         if (key == "servers")
         {
@@ -128,14 +128,14 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
 
           if (std::to_string(config.tombstone_lifetime) != value)
           {
-            LOG_ERROR("Config contained an invalid tombstone_lifetime line:\n%s",
+            TRC_ERROR("Config contained an invalid tombstone_lifetime line:\n%s",
                       line.c_str());
             return false;
           }
         }
         else
         {
-          LOG_ERROR("Malformed config file (got bad line: '%s')",
+          TRC_ERROR("Malformed config file (got bad line: '%s')",
                     line.c_str());
           return false;
         }
@@ -144,7 +144,7 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
   }
   else
   {
-    LOG_ERROR("Failed to open '%s'", _filename.c_str());
+    TRC_ERROR("Failed to open '%s'", _filename.c_str());
     return false;
   }
 

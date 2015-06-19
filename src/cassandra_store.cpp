@@ -125,7 +125,7 @@ int64_t Store::generate_timestamp()
   timestamp *= 1000000;
   timestamp += (clock_time.tv_nsec / 1000);
 
-  LOG_DEBUG("Generated Cassandra timestamp %llu", timestamp);
+  TRC_DEBUG("Generated Cassandra timestamp %llu", timestamp);
   return timestamp;
 }
 
@@ -150,9 +150,9 @@ void Store::configure_connection(std::string cass_hostname,
                                  uint16_t cass_port,
                                  CommunicationMonitor* comm_monitor)
 {
-  LOG_STATUS("Configuring store connection");
-  LOG_STATUS("  Hostname:  %s", cass_hostname.c_str());
-  LOG_STATUS("  Port:      %u", cass_port);
+  TRC_STATUS("Configuring store connection");
+  TRC_STATUS("  Hostname:  %s", cass_hostname.c_str());
+  TRC_STATUS("  Port:      %u", cass_port);
   _cass_hostname = cass_hostname;
   _cass_port = cass_port;
   _comm_monitor = comm_monitor;
@@ -166,7 +166,7 @@ ResultCode Store::connection_test()
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the specified keyspace, so is a good test of whether
   // cassandra is working properly.
-  LOG_STATUS("Starting store");
+  TRC_STATUS("Starting store");
   try
   {
     get_client();
@@ -174,17 +174,17 @@ ResultCode Store::connection_test()
   }
   catch(TTransportException te)
   {
-    LOG_ERROR("Store caught TTransportException: %s", te.what());
+    TRC_ERROR("Store caught TTransportException: %s", te.what());
     rc = CONNECTION_ERROR;
   }
   catch(NotFoundException nfe)
   {
-    LOG_ERROR("Store caught NotFoundException: %s", nfe.what());
+    TRC_ERROR("Store caught NotFoundException: %s", nfe.what());
     rc = NOT_FOUND;
   }
   catch(...)
   {
-    LOG_ERROR("Store caught unknown exception!");
+    TRC_ERROR("Store caught unknown exception!");
     rc = UNKNOWN_ERROR;
   }
 
@@ -196,9 +196,9 @@ void Store::configure_workers(ExceptionHandler* exception_handler,
                               unsigned int num_threads,
                               unsigned int max_queue)
 {
-  LOG_STATUS("Configuring store worker pool");
-  LOG_STATUS("  Threads:   %u", num_threads);
-  LOG_STATUS("  Max Queue: %u", max_queue);
+  TRC_STATUS("Configuring store worker pool");
+  TRC_STATUS("  Threads:   %u", num_threads);
+  TRC_STATUS("  Max Queue: %u", max_queue);
   _exception_handler = exception_handler;
   _num_threads = num_threads;
   _max_queue = max_queue;
@@ -213,7 +213,7 @@ ResultCode Store::start()
   // point as some store users want the store to load even when Cassandra has
   // failed (it will recover later).  If a store user cares about the status
   // of Cassandra it should use the test() method.
-  LOG_STATUS("Starting store");
+  TRC_STATUS("Starting store");
 
   // Start the thread pool.
   if (_num_threads > 0)
@@ -235,7 +235,7 @@ ResultCode Store::start()
 
 void Store::stop()
 {
-  LOG_STATUS("Stopping store");
+  TRC_STATUS("Stopping store");
   if (_thread_pool != NULL)
   {
     _thread_pool->stop();
@@ -245,7 +245,7 @@ void Store::stop()
 
 void Store::wait_stopped()
 {
-  LOG_STATUS("Waiting for store to stop");
+  TRC_STATUS("Waiting for store to stop");
   if (_thread_pool != NULL)
   {
     _thread_pool->join();
@@ -274,12 +274,12 @@ Client* Store::get_client()
 {
   // See if we've already got a client for this thread.  If not allocate a new
   // one and write it back into thread-local storage.
-  LOG_DEBUG("Getting thread-local Client");
+  TRC_DEBUG("Getting thread-local Client");
   Client* client = (Client*)pthread_getspecific(_thread_local);
 
   if (client == NULL)
   {
-    LOG_DEBUG("No thread-local Client - creating one");
+    TRC_DEBUG("No thread-local Client - creating one");
     boost::shared_ptr<TTransport> socket =
       boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
     boost::shared_ptr<TFramedTransport> transport =
@@ -299,12 +299,12 @@ void Store::release_client()
 {
   // If this thread already has a client delete it and remove it from
   // thread-local storage.
-  LOG_DEBUG("Looking to release thread-local client");
+  TRC_DEBUG("Looking to release thread-local client");
   Client* client = (Client*)pthread_getspecific(_thread_local);
 
   if (client != NULL)
   {
-    LOG_DEBUG("Found thread-local client - destroying");
+    TRC_DEBUG("Found thread-local client - destroying");
     delete_client(client);
     client = NULL;
     pthread_setspecific(_thread_local, NULL);
@@ -364,7 +364,7 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
       {
         // Connection error, destroy and recreate the connection, and retry the
         //  request once
-        LOG_DEBUG("Connection error, retrying");
+        TRC_DEBUG("Connection error, retrying");
         retry = true;
         cass_result = OK;
       }
@@ -426,12 +426,12 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
     {
       // We expect to get "not found" errors during normal operation
       // (e.g. invalid usernames) so log it at a much lower level.
-      LOG_DEBUG("Cassandra request failed: rc=%d, %s",
+      TRC_DEBUG("Cassandra request failed: rc=%d, %s",
                 cass_result, cass_error_text.c_str());
     }
     else
     {
-      LOG_ERROR("Cassandra request failed: rc=%d, %s",
+      TRC_ERROR("Cassandra request failed: rc=%d, %s",
                 cass_result, cass_error_text.c_str());
 
     }
@@ -447,7 +447,7 @@ void Store::do_async(Operation*& op, Transaction*& trx)
 {
   if (_thread_pool == NULL)
   {
-    LOG_ERROR("Can't process async operation as no thread pool has been configured");
+    TRC_ERROR("Can't process async operation as no thread pool has been configured");
     assert(!"Can't process async operation as no thread pool has been configured");
   }
 
@@ -498,7 +498,7 @@ void Store::Pool::process_work(std::pair<Operation*, Transaction*>& params)
   // fallback code is never triggered.
   catch(...)
   {
-    LOG_ERROR("Unhandled exception when processing cassandra request");
+    TRC_ERROR("Unhandled exception when processing cassandra request");
   }
   trx->stop_timer();
   // LCOV_EXCL_STOP
@@ -561,7 +561,7 @@ put_columns(const std::string& column_family,
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
-  LOG_DEBUG("Constructing cassandra put request with timestamp %lld and per-column TTLs", timestamp);
+  TRC_DEBUG("Constructing cassandra put request with timestamp %lld and per-column TTLs", timestamp);
   for (std::map<std::string, std::string>::const_iterator it = columns.begin();
        it != columns.end();
        ++it)
@@ -571,7 +571,7 @@ put_columns(const std::string& column_family,
 
     column->name = it->first;
     column->value = it->second;
-    LOG_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
+    TRC_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
     column->__isset.value = true;
     column->timestamp = timestamp;
     column->__isset.timestamp = true;
@@ -597,7 +597,7 @@ put_columns(const std::string& column_family,
   }
 
   // Execute the database operation.
-  LOG_DEBUG("Executing put request operation");
+  TRC_DEBUG("Executing put request operation");
   batch_mutate(mutmap, consistency_level);
 }
 
@@ -611,7 +611,7 @@ put_columns(const std::vector<RowColumns>& to_put,
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
-  LOG_DEBUG("Constructing cassandra put request with timestamp %lld and per-column TTLs", timestamp);
+  TRC_DEBUG("Constructing cassandra put request with timestamp %lld and per-column TTLs", timestamp);
   for (std::vector<RowColumns>::const_iterator it = to_put.begin();
        it != to_put.end();
        ++it)
@@ -628,7 +628,7 @@ put_columns(const std::vector<RowColumns>& to_put,
 
       column->name = col->first;
       column->value = col->second;
-      LOG_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
+      TRC_DEBUG("  %s => %s (TTL %d)", column->name.c_str(), column->value.c_str(), ttl);
       column->__isset.value = true;
       column->timestamp = timestamp;
       column->__isset.timestamp = true;
@@ -649,7 +649,7 @@ put_columns(const std::vector<RowColumns>& to_put,
   }
 
   // Execute the database operation.
-  LOG_DEBUG("Executing put request operation");
+  TRC_DEBUG("Executing put request operation");
   batch_mutate(mutmap, ConsistencyLevel::ONE);
 }
 
@@ -674,7 +674,7 @@ put_columns(const std::vector<RowColumns>& to_put,
         }                                                                    \
         catch(NotFoundException& nfe)                                        \
         {                                                                    \
-          LOG_DEBUG("Failed ONE read for %s. Try QUORUM", #METHOD);          \
+          TRC_DEBUG("Failed ONE read for %s. Try QUORUM", #METHOD);          \
                                                                              \
           try                                                                \
           {                                                                  \
@@ -880,7 +880,7 @@ delete_row(const std::string& column_family,
   ColumnPath cp;
   cp.column_family = column_family;
 
-  LOG_DEBUG("Deleting row with key %s (timestamp %lld", key.c_str(), timestamp);
+  TRC_DEBUG("Deleting row with key %s (timestamp %lld", key.c_str(), timestamp);
   remove(key, cp, timestamp, ConsistencyLevel::ONE);
 }
 
@@ -893,14 +893,14 @@ delete_columns(const std::vector<RowColumns>& to_rm,
   std::map<std::string, std::map<std::string, std::vector<Mutation> > > mutmap;
 
   // Populate the mutations vector.
-  LOG_DEBUG("Constructing cassandra delete request with timestamp %lld", timestamp);
+  TRC_DEBUG("Constructing cassandra delete request with timestamp %lld", timestamp);
   for (std::vector<RowColumns>::const_iterator it = to_rm.begin();
        it != to_rm.end();
        ++it)
   {
     if (it->columns.empty())
     {
-      LOG_DEBUG("Deleting row %s:%s", it->cf.c_str(), it->key.c_str());
+      TRC_DEBUG("Deleting row %s:%s", it->cf.c_str(), it->key.c_str());
       ColumnPath cp;
       cp.column_family = it->cf;
 
@@ -924,7 +924,7 @@ delete_columns(const std::vector<RowColumns>& to_rm,
       }
 
       what.__set_column_names(column_names);
-      LOG_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->key.c_str());
+      TRC_DEBUG("Deleting %d columns from %s:%s", what.column_names.size(), it->cf.c_str(), it->key.c_str());
 
       deletion.__set_predicate(what);
       deletion.__set_timestamp(timestamp);
@@ -937,7 +937,7 @@ delete_columns(const std::vector<RowColumns>& to_rm,
 
   // Execute the batch delete operation if we've constructed one.
   if (!mutmap.empty()) {
-    LOG_DEBUG("Executing delete request operation");
+    TRC_DEBUG("Executing delete request operation");
     batch_mutate(mutmap, ConsistencyLevel::ONE);
   }
 }

@@ -142,7 +142,7 @@ void BaseMemcachedStore::set_max_connect_latency(unsigned int ms)
 /// how data is distributed around the cluster.
 void BaseMemcachedStore::new_view(const MemcachedConfig& config)
 {
-  LOG_STATUS("Updating memcached store configuration");
+  TRC_STATUS("Updating memcached store configuration");
 
   // Create a new view with the new server lists.
   MemcachedStoreView view(_vbuckets, _replicas);
@@ -163,7 +163,7 @@ void BaseMemcachedStore::new_view(const MemcachedConfig& config)
 
   // Update the view number as the last thing here, otherwise we could stall
   // other threads waiting for the lock.
-  LOG_STATUS("Finished preparing new view, so flag that workers should switch to it");
+  TRC_STATUS("Finished preparing new view, so flag that workers should switch to it");
   ++_view_number;
 
   pthread_rwlock_unlock(&_view_lock);
@@ -181,7 +181,7 @@ void BaseMemcachedStore::update_config()
   }
   else
   {
-    LOG_ERROR("Failed to read config, keeping previous settings");
+    TRC_ERROR("Failed to read config, keeping previous settings");
   }
 }
 
@@ -192,7 +192,7 @@ int BaseMemcachedStore::vbucket_for_key(const std::string& key)
   // Hash the key and convert the hash to a vbucket.
   int hash = memcached_generate_hash_value(key.data(), key.length(), MEMCACHED_HASH_MD5);
   int vbucket = hash & (_vbuckets - 1);
-  LOG_DEBUG("Key %s hashes to vbucket %d via hash 0x%x", key.c_str(), vbucket, hash);
+  TRC_DEBUG("Key %s hashes to vbucket %d via hash 0x%x", key.c_str(), vbucket, hash);
   return vbucket;
 }
 
@@ -233,16 +233,16 @@ const std::vector<memcached_st*>& BaseMemcachedStore::get_replicas(int vbucket,
     }
     pthread_rwlock_rdlock(&_view_lock);
 
-    LOG_DEBUG("Set up new view %d for thread", _view_number);
+    TRC_DEBUG("Set up new view %d for thread", _view_number);
 
     // Create a set of memcached_st's one per server.
     for (size_t ii = 0; ii < _servers.size(); ++ii)
     {
       // Create a new memcached_st for this server.  Do not specify the server
       // at this point as memcached() does not support IPv6 addresses.
-      LOG_DEBUG("Setting up server %d for connection %p (%s)", ii, conn, _options.c_str());
+      TRC_DEBUG("Setting up server %d for connection %p (%s)", ii, conn, _options.c_str());
       conn->st[_servers[ii]] = memcached(_options.c_str(), _options.length());
-      LOG_DEBUG("Set up connection %p to server %s", conn->st[_servers[ii]], _servers[ii].c_str());
+      TRC_DEBUG("Set up connection %p to server %s", conn->st[_servers[ii]], _servers[ii].c_str());
 
       // Switch to a longer connect timeout from here on.
       memcached_behavior_set(conn->st[_servers[ii]], MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT, _max_connect_latency_ms);
@@ -251,14 +251,14 @@ const std::vector<memcached_st*>& BaseMemcachedStore::get_replicas(int vbucket,
       int port;
       if (Utils::split_host_port(_servers[ii], server, port))
       {
-        LOG_DEBUG("Setting server to IP address %s port %d",
+        TRC_DEBUG("Setting server to IP address %s port %d",
                   server.c_str(),
                   port);
         memcached_server_add(conn->st[_servers[ii]], server.c_str(), port);
       }
       else
       {
-        LOG_ERROR("Malformed host/port %s, skipping server", _servers[ii].c_str());
+        TRC_ERROR("Malformed host/port %s, skipping server", _servers[ii].c_str());
       }
     }
 
@@ -364,7 +364,7 @@ Store::Status BaseMemcachedStore::get_data(const std::string& table,
     SAS::report_event(start);
   }
 
-  LOG_DEBUG("%d read replicas for key %s", replicas.size(), fqkey.c_str());
+  TRC_DEBUG("%d read replicas for key %s", replicas.size(), fqkey.c_str());
 
   // Read from all replicas until we get a positive result.
   memcached_return_t rc = MEMCACHED_ERROR;
@@ -390,14 +390,14 @@ Store::Status BaseMemcachedStore::get_data(const std::string& table,
         break;
       }
       replica_idx = 0;
-      LOG_WARNING("Failed to read from sole memcached replica: retrying once");
+      TRC_WARNING("Failed to read from sole memcached replica: retrying once");
     }
     else
     {
       replica_idx = ii;
     }
 
-    LOG_DEBUG("Attempt to read from replica %d (connection %p)",
+    TRC_DEBUG("Attempt to read from replica %d (connection %p)",
               replica_idx,
               replicas[replica_idx]);
     rc = get_from_replica(replicas[replica_idx], key_ptr, key_len, data, cas);
@@ -405,7 +405,7 @@ Store::Status BaseMemcachedStore::get_data(const std::string& table,
     if (memcached_success(rc))
     {
       // Got data back from this replica. Don't try any more.
-      LOG_DEBUG("Read for %s on replica %d returned SUCCESS",
+      TRC_DEBUG("Read for %s on replica %d returned SUCCESS",
                 fqkey.c_str(),
                 replica_idx);
       break;
@@ -415,13 +415,13 @@ Store::Status BaseMemcachedStore::get_data(const std::string& table,
       // Failed to find a record on an active replica.  Flag this so if we do
       // find data on a later replica we can reset the cas value returned to
       // zero to ensure a subsequent write will succeed.
-      LOG_DEBUG("Read for %s on replica %d returned NOTFOUND", fqkey.c_str(), replica_idx);
+      TRC_DEBUG("Read for %s on replica %d returned NOTFOUND", fqkey.c_str(), replica_idx);
       active_not_found = true;
     }
     else
     {
       // Error from this node, so consider it inactive.
-      LOG_DEBUG("Read for %s on replica %d returned error %d (%s)",
+      TRC_DEBUG("Read for %s on replica %d returned error %d (%s)",
                 fqkey.c_str(), replica_idx, rc, memcached_strerror(replicas[replica_idx], rc));
       ++failed_replicas;
     }
@@ -449,7 +449,7 @@ Store::Status BaseMemcachedStore::get_data(const std::string& table,
         cas = 0;
       }
 
-      LOG_DEBUG("Read %d bytes from table %s key %s, CAS = %ld",
+      TRC_DEBUG("Read %d bytes from table %s key %s, CAS = %ld",
                 data.length(), table.c_str(), key.c_str(), cas);
       status = Store::OK;
     }
@@ -465,7 +465,7 @@ Store::Status BaseMemcachedStore::get_data(const std::string& table,
 
       // We have read a tombstone. Return NOT_FOUND to the caller, and also
       // zero out the CAS (returning a zero CAS makes the interface cleaner).
-      LOG_DEBUG("Read tombstone from table %s key %s, CAS = %ld",
+      TRC_DEBUG("Read tombstone from table %s key %s, CAS = %ld",
                 table.c_str(), key.c_str(), cas);
       cas = 0;
       status = Store::NOT_FOUND;
@@ -489,7 +489,7 @@ Store::Status BaseMemcachedStore::get_data(const std::string& table,
       SAS::report_event(not_found);
     }
 
-    LOG_DEBUG("At least one replica returned not found, so return NOT_FOUND");
+    TRC_DEBUG("At least one replica returned not found, so return NOT_FOUND");
     status = Store::Status::NOT_FOUND;
 
     update_vbucket_comm_state(vbucket, OK);
@@ -510,7 +510,7 @@ Store::Status BaseMemcachedStore::get_data(const std::string& table,
       SAS::report_event(err);
     }
 
-    LOG_ERROR("Failed to read data for %s from %d replicas",
+    TRC_ERROR("Failed to read data for %s from %d replicas",
               fqkey.c_str(), replicas.size());
     status = Store::Status::ERROR;
 
@@ -538,7 +538,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
 {
   Store::Status status = Store::Status::OK;
 
-  LOG_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
+  TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
             data.length(), table.c_str(), key.c_str(), cas, expiry);
 
   // Construct the fully qualified key.
@@ -559,7 +559,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
     SAS::report_event(start);
   }
 
-  LOG_DEBUG("%d write replicas for key %s", replicas.size(), fqkey.c_str());
+  TRC_DEBUG("%d write replicas for key %s", replicas.size(), fqkey.c_str());
 
   // Calculate a timestamp (least-significant 32 bits of milliseconds since the
   // epoch) for the current time.  We store this in the flags field to allow us
@@ -601,14 +601,14 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
         break;
       }
       replica_idx = 0;
-      LOG_WARNING("Failed to write to sole memcached replica: retrying once");
+      TRC_WARNING("Failed to write to sole memcached replica: retrying once");
     }
     else
     {
       replica_idx = ii;
     }
 
-    LOG_DEBUG("Attempt conditional write to vbucket %d on replica %d (connection %p), CAS = %ld, expiry = %d",
+    TRC_DEBUG("Attempt conditional write to vbucket %d on replica %d (connection %p), CAS = %ld, expiry = %d",
               vbucket,
               replica_idx,
               replicas[replica_idx],
@@ -645,7 +645,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
 
       if (!memcached_success(rc))
       {
-        LOG_DEBUG("memcached_cas command failed, rc = %d (%s)\n%s",
+        TRC_DEBUG("memcached_cas command failed, rc = %d (%s)\n%s",
                   rc,
                   memcached_strerror(replicas[replica_idx], rc),
                   memcached_last_error_message(replicas[replica_idx]));
@@ -654,7 +654,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
 
     if (memcached_success(rc))
     {
-      LOG_DEBUG("Conditional write succeeded to replica %d", replica_idx);
+      TRC_DEBUG("Conditional write succeeded to replica %d", replica_idx);
       break;
     }
     else if ((rc == MEMCACHED_NOTSTORED) ||
@@ -670,7 +670,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
       // A NOT_STORED or EXISTS response indicates a concurrent write failure,
       // so return this to the application immediately - don't go on to
       // other replicas.
-      LOG_INFO("Contention writing data for %s to store", fqkey.c_str());
+      TRC_INFO("Contention writing data for %s to store", fqkey.c_str());
       status = Store::Status::DATA_CONTENTION;
       break;
     }
@@ -683,7 +683,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
     // to the replicas.
     for (size_t jj = replica_idx + 1; jj < replicas.size(); ++jj)
     {
-      LOG_DEBUG("Attempt unconditional write to replica %d", jj);
+      TRC_DEBUG("Attempt unconditional write to replica %d", jj);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 1);
       memcached_set_vb(replicas[jj],
                       key_ptr,
@@ -715,7 +715,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
       _comm_monitor->inform_failure();
     }
 
-    LOG_ERROR("Failed to write data for %s to %d replicas",
+    TRC_ERROR("Failed to write data for %s to %d replicas",
               fqkey.c_str(), replicas.size());
     status = Store::Status::ERROR;
   }
@@ -739,14 +739,14 @@ Store::Status BaseMemcachedStore::delete_data(const std::string& table,
                                               const std::string& key,
                                               SAS::TrailId trail)
 {
-  LOG_DEBUG("Deleting key %s from table %s", key.c_str(), table.c_str());
+  TRC_DEBUG("Deleting key %s from table %s", key.c_str(), table.c_str());
 
   // Construct the fully qualified key.
   std::string fqkey = table + "\\\\" + key;
 
   // Delete from the read replicas - read replicas are a superset of the write replicas
   const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::READ);
-  LOG_DEBUG("Deleting from the %d read replicas for key %s", replicas.size(), fqkey.c_str());
+  TRC_DEBUG("Deleting from the %d read replicas for key %s", replicas.size(), fqkey.c_str());
 
   if (_tombstone_lifetime == 0)
   {
@@ -777,7 +777,7 @@ memcached_return_t BaseMemcachedStore::get_from_replica(memcached_st* replica,
   if (memcached_success(rc))
   {
     // memcached_mget command was successful, so retrieve the result.
-    LOG_DEBUG("Fetch result");
+    TRC_DEBUG("Fetch result");
     memcached_result_st result;
     memcached_result_create(replica, &result);
     memcached_fetch_result(replica, &result, &rc);
@@ -785,7 +785,7 @@ memcached_return_t BaseMemcachedStore::get_from_replica(memcached_st* replica,
     if (memcached_success(rc))
     {
       // Found a record, so exit the read loop.
-      LOG_DEBUG("Found record on replica");
+      TRC_DEBUG("Found record on replica");
 
       // Copy the record into a string. std::string::assign copies its
       // arguments when used with a char*, so we can free the result
@@ -813,7 +813,7 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
   memcached_return_t rc;
   uint64_t cas = 0;
 
-  LOG_DEBUG("Attempting to add data for key %.*s", key_len, key_ptr);
+  TRC_DEBUG("Attempting to add data for key %.*s", key_len, key_ptr);
 
   // Convert the key into a std::string (sas-client does not like that
   // key_{ptr,len} are constant).
@@ -823,7 +823,7 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
   {
     if (cas == 0)
     {
-      LOG_DEBUG("Attempting memcached ADD command");
+      TRC_DEBUG("Attempting memcached ADD command");
       rc = memcached_add_vb(replica,
                             key_ptr,
                             key_len,
@@ -835,7 +835,7 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
     }
     else
     {
-      LOG_DEBUG("Attempting memcached CAS command (cas = %d)", cas);
+      TRC_DEBUG("Attempting memcached CAS command (cas = %d)", cas);
       rc = memcached_cas_vb(replica,
                             key_ptr,
                             key_len,
@@ -855,7 +855,7 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
       memcached_return_t get_rc;
       std::string existing_data;
 
-      LOG_DEBUG("Existing data prevented the ADD/CAS."
+      TRC_DEBUG("Existing data prevented the ADD/CAS."
                 "Issue GET to see if we need to overwrite a tombstone");
       get_rc = get_from_replica(replica, key_ptr, key_len, existing_data, cas);
 
@@ -866,14 +866,14 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
           // The existing record is not a tombstone.  We mustn't overwrite
           // this, so break out of the loop and return the original return code
           // from the ADD/CAS.
-          LOG_DEBUG("Found real data. Give up");
+          TRC_DEBUG("Found real data. Give up");
           break;
         }
         else
         {
           // The existing record IS a tombstone. Go round the loop again to
           // overwrite it. `cas` has been set to the cas of the tombstone.
-          LOG_DEBUG("Found a tombstone. Attempt to overwrite");
+          TRC_DEBUG("Found a tombstone. Attempt to overwrite");
 
           if (trail != 0)
           {
@@ -889,7 +889,7 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
         // The GET returned that there is no record for this key. This can
         // happen if the record has expired. We need to try again (it could
         // have been a tombstone which should not block adds).
-        LOG_DEBUG("GET failed with NOT_FOUND");
+        TRC_DEBUG("GET failed with NOT_FOUND");
 
         if (trail != 0)
         {
@@ -901,7 +901,7 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
       else
       {
         // The replica failed. Return the return code from the original ADD/CAS.
-        LOG_DEBUG("GET failed, rc = %d (%s)\n%s",
+        TRC_DEBUG("GET failed, rc = %d (%s)\n%s",
                   get_rc,
                   memcached_strerror(replica, get_rc),
                   memcached_last_error_message(replica));
@@ -910,7 +910,7 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
     }
     else
     {
-      LOG_DEBUG("ADD/CAS returned rc = %d (%s)\n%s",
+      TRC_DEBUG("ADD/CAS returned rc = %d (%s)\n%s",
                 rc,
                 memcached_strerror(replica, rc),
                 memcached_last_error_message(replica));
@@ -938,7 +938,7 @@ void BaseMemcachedStore::delete_without_tombstone(const std::string& fqkey,
 
   for (size_t ii = 0; ii < replicas.size(); ++ii)
   {
-    LOG_DEBUG("Attempt delete to replica %d (connection %p)",
+    TRC_DEBUG("Attempt delete to replica %d (connection %p)",
               ii,
               replicas[ii]);
 
@@ -982,7 +982,7 @@ void BaseMemcachedStore::delete_with_tombstone(const std::string& fqkey,
 
   for (size_t ii = 0; ii < replicas.size(); ++ii)
   {
-    LOG_DEBUG("Attempt write tombstone to replica %d (connection %p)",
+    TRC_DEBUG("Attempt write tombstone to replica %d (connection %p)",
               ii,
               replicas[ii]);
 
@@ -1008,7 +1008,7 @@ void BaseMemcachedStore::log_delete_failure(const std::string& fqkey,
                                             SAS::TrailId trail,
                                             uint32_t instance)
 {
-  LOG_ERROR("Delete failed to replica %d", replica_ix);
+  TRC_ERROR("Delete failed to replica %d", replica_ix);
 
   if (trail != 0)
   {

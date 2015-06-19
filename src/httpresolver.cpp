@@ -43,12 +43,12 @@ HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
   BaseResolver(dns_client),
   _address_family(address_family)
 {
-  LOG_DEBUG("Creating HTTP resolver");
+  TRC_DEBUG("Creating HTTP resolver");
 
   // Create the blacklist.
   create_blacklist(blacklist_duration);
 
-  LOG_STATUS("Created HTTP resolver");
+  TRC_STATUS("Created HTTP resolver");
 }
 
 HttpResolver::~HttpResolver()
@@ -67,7 +67,7 @@ void HttpResolver::resolve(const std::string& host,
   AddrInfo ai;
   int dummy_ttl = 0;
 
-  LOG_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
+  TRC_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
             host.c_str(), port, _address_family);
 
   port = (port != 0) ? port : DEFAULT_PORT;
@@ -76,7 +76,7 @@ void HttpResolver::resolve(const std::string& host,
   if (parse_ip_target(host, ai.address))
   {
     // The name is already an IP address, so no DNS resolution is possible.
-    LOG_DEBUG("Target is an IP address");
+    TRC_DEBUG("Target is an IP address");
     ai.port = port;
     ai.transport = TRANSPORT;
     targets.push_back(ai);
