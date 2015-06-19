@@ -58,12 +58,12 @@ template <class T> class TimeBasedRow : public Row
     {
     public:
       CurrentAndPrevious(int interval):
+        current(&a),
+        previous(&b),
         _interval(interval),
         _tick(0),
         a(),
-        b(),
-        current(&a),
-        previous(&b)
+        b()
       {}
 
       // Rolls the current period over into the previous period if necessary.
@@ -94,13 +94,13 @@ template <class T> class TimeBasedRow : public Row
         }
       }
 
+      T* current;
+      T* previous;
     protected:
       uint32_t _interval;
       uint32_t _tick;
       T a;
       T b;
-      T* current;
-      T* previous;
 
     };
 

@@ -94,8 +94,8 @@ public:
     return ret;
   }
 
-  void increment() { _count++; };
-  void decrement() { _count--; };
+  uint32_t increment() { return ++_count; };
+  uint32_t decrement() { return --_count; };
 
 protected:
   int _addr_type;

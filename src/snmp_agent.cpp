@@ -34,12 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <net-snmp/net-snmp-config.h>
-#include <net-snmp/net-snmp-includes.h>
-#include <net-snmp/agent/net-snmp-agent-includes.h>
-
+#include "snmp_includes.h"
 #include "snmp_agent.h"
-#include "snmp_latency_table.h"
 #include "log.h"
 
 static pthread_t snmp_thread_var;
@@ -67,7 +63,7 @@ int snmp_setup(const char* name)
   }
   else
   {
-    TRCSTATUS("AgentX agent initialised");
+    TRC_STATUS("AgentX agent initialised");
   }
 
   init_snmp(name);

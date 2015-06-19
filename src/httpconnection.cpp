@@ -149,8 +149,7 @@ HttpConnection::HttpConnection(const std::string& server,
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   std::vector<std::string> no_stats;
-  _statistic = new Statistic(stat_name, lvc);
-  _statistic->report_change(no_stats);
+  _statistic = NULL;
   _load_monitor = load_monitor;
   _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                load_monitor->get_target_latency_us() :
@@ -901,15 +900,15 @@ void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value) 
 {
   if (!_remote_ip.empty())
   {
-      if (_parent->_stat_table->get(remote_ip)->decrement() == 0)
+      if (_parent->_stat_table->get(_remote_ip)->decrement() == 0)
       {
-        _parent->_stat_table->remove(remote_ip);
+        _parent->_stat_table->remove(_remote_ip);
       }
   }
 
   if (!value.empty())
   {
-      _stat_table->get(remote_ip)->increment();
+      _parent->_stat_table->get(value)->increment();
   }
 }
 

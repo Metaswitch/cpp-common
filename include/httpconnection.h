@@ -51,6 +51,7 @@
 #include "load_monitor.h"
 #include "sasevent.h"
 #include "communicationmonitor.h"
+#include "snmp_ip_count_table.h"
 
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
@@ -193,7 +194,6 @@ private:
     ~PoolEntry();
 
     void set_remote_ip(const std::string& value);
-    void update_zmq_ip_counts(const std::string& value);
     const std::string& get_remote_ip() const { return _remote_ip; };
 
     bool is_connection_expired(unsigned long now_ms);
@@ -305,7 +305,7 @@ private:
   std::map<std::string, int> _server_count;  // must access under _lock
   SASEvent::HttpLogLevel _sas_log_level;
   CommunicationMonitor* _comm_monitor;
-  IPCountTable* _stat_table;
+  SNMP::IPCountTable* _stat_table;
 
   friend class PoolEntry; // so it can update stats
 };
