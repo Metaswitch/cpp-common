@@ -159,7 +159,10 @@ template<class T> class Table
 public:
   Table(std::string name,
         oid* tbl_oid,
-        int oidlen):
+        int oidlen,
+        int min_visible_column,
+        int max_visible_column,
+        std::vector<int> index_types):
     _name(name),
     _tbl_oid(tbl_oid),
     _oidlen(oidlen),
@@ -167,6 +170,29 @@ public:
   {
     _table = netsnmp_tdata_create_table(_name.c_str(), 0);
     _table_info = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
+    
+    _table_info->min_column = min_visible_column;
+    _table_info->max_column = max_visible_column;
+
+    // Set each column index on both underlying objects.
+    for (std::vector<int>::iterator ii = index_types.begin();
+         ii != index_types.end();
+         ii++)
+    {
+      netsnmp_tdata_add_index(_table, *ii);
+      netsnmp_table_helper_add_index(_table_info, *ii);
+    }
+ 
+    TRC_INFO("Registering SNMP table %s", _name.c_str());
+    _handler_reg = netsnmp_create_handler_registration(_name.c_str(),
+                                                       netsnmp_table_handler_fn,
+                                                       _tbl_oid,
+                                                       _oidlen,
+                                                       HANDLER_CAN_RONLY | HANDLER_CAN_GETBULK);
+
+    netsnmp_tdata_register(_handler_reg,
+                           _table,
+                           _table_info);
   }
 
   virtual ~Table()
@@ -181,27 +207,9 @@ public:
     SNMP_FREE(_table_info);
   }
 
-  // Helper method to set a column index on both underlying objects.
-  void add_index(int type)
-  {
-    netsnmp_tdata_add_index(_table, ASN_INTEGER);
-    netsnmp_table_helper_add_index(_table_info, ASN_INTEGER);
-  }
-
-  // Helper method to change the visibility of columns in this table.
-  void set_visible_columns(int min, int max) 
-  {
-    _table_info->min_column = min;
-    _table_info->max_column = max;
-  }
-
   // Add a Row into the underlying table.
   void add(T* row)
   {
-    if (_handler_reg == NULL)
-    {
-      register_tbl();
-    }
     netsnmp_tdata_add_row(_table, row->get_netsnmp_row());
   };
 
@@ -212,22 +220,6 @@ public:
   };
 
 protected:
-  // Registers an SNMP handler for this table. Called when the first row is added.
-  void register_tbl()
-  {
-    TRC_INFO("Registering SNMP table %s", _name.c_str());
-    _handler_reg = netsnmp_create_handler_registration(_name.c_str(),
-                                                       netsnmp_table_handler_fn,
-                                                       _tbl_oid,
-                                                       _oidlen,
-                                                       HANDLER_CAN_RONLY | HANDLER_CAN_GETBULK);
-
-    netsnmp_tdata_register(_handler_reg,
-                           _table,
-                           _table_info);
-  }
-
-
   std::string _name;
   oid* _tbl_oid;
   int _oidlen;
@@ -237,13 +229,16 @@ protected:
 };
 
 // Base ManagedTable, wrapping an SNMPTable and managing the ownership of rows.
-template<class TRow, class TRowKey> class ManagedTable
+template<class TRow, class TRowKey> class ManagedTable : public Table<TRow>
 {
 public:
   ManagedTable(std::string name,
                oid* tbl_oid,
-               int oidlen) :
-    _tbl(name, tbl_oid, oidlen) {}
+               int oidlen,
+               int min_visible_column,
+               int max_visible_column,
+               std::vector<int> index_types):
+    Table<TRow>(name, tbl_oid, oidlen, min_visible_column, max_visible_column, index_types) {}
 
   // Upon destruction, release all the rows we're managing.
   virtual ~ManagedTable()
@@ -254,7 +249,7 @@ public:
     {
       // Can't just call into remove() here because it would modify the map we're iterating over
       TRow* row = ii->second;
-      _tbl.remove(row);
+      Table<TRow>::remove(row);
       delete row;
     }
   }
@@ -263,13 +258,13 @@ public:
   virtual TRow* new_row(TRowKey key) = 0;
 
   // Creates the row keyed off `key`.
-  void add_row(TRowKey key)
+  void add(TRowKey key)
   {
     TRow* row = new_row(key);
     std::pair<TRowKey, TRow*> new_entry(key, row);
     _map.insert(new_entry);
 
-    _tbl.add(row);
+    Table<TRow>::add(row);
   }
 
   // Returns the row keyed off `key`, creating it if it does not already exist.
@@ -277,7 +272,7 @@ public:
   {
     if (_map.find(key) == _map.end())
     {
-      add_row(key);
+      add(key);
     }
 
     return _map.at(key);
@@ -288,12 +283,13 @@ public:
   {
     TRow* row = _map.at(key);
     _map.erase(key);
-    _tbl.remove(row);
+    Table<TRow>::remove(row);
     delete row;
   };
 
 protected:
-  Table<TRow> _tbl;
+  void add(TRow* row) { Table<TRow>::add(row); };
+  void remove(TRow* row) { Table<TRow>::remove(row); };
   std::map<TRowKey, TRow*> _map;
 };
 

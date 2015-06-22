@@ -75,17 +75,14 @@ public:
   CounterTable(std::string name,
                    oid* tbl_oid,
                    int oidlen) :
-    ManagedTable<CounterRow, int>(name, tbl_oid, oidlen),
+    ManagedTable<CounterRow, int>(name, tbl_oid, oidlen, 2, 2, { ASN_INTEGER }),
     five_second(5),
     five_minute(300)
   {
-    _tbl.add_index(ASN_INTEGER);
-    _tbl.set_visible_columns(2, 3);
-
     // Fixed number of rows, so set them up now.
-    add_row(0);
-    add_row(1);
-    add_row(2);
+    add(0);
+    add(1);
+    add(2);
   }
   
   // Map row indexes to the view of the underlying data they should expose

@@ -113,11 +113,8 @@ public:
   IPCountTable(std::string name,
                    oid* tbl_oid,
                    int oidlen) :
-    ManagedTable<IPCountRow, std::string>(name, tbl_oid, oidlen)
+    ManagedTable<IPCountRow, std::string>(name, tbl_oid, oidlen, 3, 3, { ASN_INTEGER, ASN_OCTET_STR })
   {
-    _tbl.add_index(ASN_INTEGER);
-    _tbl.add_index(ASN_OCTET_STR);
-    _tbl.set_visible_columns(3, 3);
   }
 
   IPCountRow* new_row(std::string ip)
