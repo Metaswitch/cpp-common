@@ -42,7 +42,8 @@ static pthread_t snmp_thread_var;
 
 void* snmp_thread(void* data)
 {
-  while (1) {
+  while (1)
+  {
     agent_check_and_process(1);
   }
   return NULL;

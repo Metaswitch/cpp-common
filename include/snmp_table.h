@@ -228,7 +228,8 @@ protected:
   netsnmp_tdata* _table;
 };
 
-// Base ManagedTable, wrapping an SNMPTable and managing the ownership of rows.
+// Base ManagedTable, which manages the ownership of rows (whereas ordinary Tables expect Row
+// objects to be owned by the user).
 template<class TRow, class TRowKey> class ManagedTable : public Table<TRow>
 {
 public:
@@ -254,17 +255,21 @@ public:
     }
   }
 
-  // Subclasses need to specify how to create particular types of row.
-  virtual TRow* new_row(TRowKey key) = 0;
-
   // Creates the row keyed off `key`.
   void add(TRowKey key)
   {
     TRow* row = new_row(key);
-    std::pair<TRowKey, TRow*> new_entry(key, row);
-    _map.insert(new_entry);
+    if (row != NULL)
+    {
+      std::pair<TRowKey, TRow*> new_entry(key, row);
+      _map.insert(new_entry);
 
-    Table<TRow>::add(row);
+      Table<TRow>::add(row);
+    }
+    else
+    {
+      TRC_ERROR("Failed to add row to table %s", _name.c_str());
+    }
   }
 
   // Returns the row keyed off `key`, creating it if it does not already exist.
@@ -288,6 +293,10 @@ public:
   };
 
 protected:
+  // Subclasses need to specify how to create particular types of row, so that add() nd get() can
+  // create them automatically.
+  virtual TRow* new_row(TRowKey key) = 0;
+
   void add(TRow* row) { Table<TRow>::add(row); };
   void remove(TRow* row) { Table<TRow>::remove(row); };
   std::map<TRowKey, TRow*> _map;

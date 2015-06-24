@@ -69,20 +69,29 @@ public:
   ColumnData get_columns();
 };
 
+static int FIRST_VISIBLE_COLUMN = 2;
+static int LAST_VISIBLE_COLUMN = 2;
+static std::vector<int> INDEX_TYPES = {ASN_INTEGER};
+
 class CounterTable: public ManagedTable<CounterRow, int>
 {
 public:
   CounterTable(std::string name,
                    oid* tbl_oid,
                    int oidlen) :
-    ManagedTable<CounterRow, int>(name, tbl_oid, oidlen, 2, 2, { ASN_INTEGER }),
+    ManagedTable<CounterRow, int>(name,
+                                  tbl_oid,
+                                  oidlen,
+                                  FIRST_VISIBLE_COLUMN,
+                                  LAST_VISIBLE_COLUMN,
+                                  INDEX_TYPES),
     five_second(5),
     five_minute(300)
   {
-    // Fixed number of rows, so set them up now.
-    add(0);
-    add(1);
-    add(2);
+    // We have a fixed number of rows, so create them in the constructor.
+    add(TimePeriodIndexes::scopePrevious5SecondPeriod);
+    add(TimePeriodIndexes::scopeCurrent5MinutePeriod);
+    add(TimePeriodIndexes::scopePrevious5MinutePeriod);
   }
   
   // Map row indexes to the view of the underlying data they should expose
@@ -91,16 +100,13 @@ public:
     CounterRow::View* view = NULL;
     switch (index)
     {
-      case 0:
-        // Five-second row
+      case TimePeriodIndexes::scopePrevious5SecondPeriod:
         view = new CounterRow::PreviousView(&five_second);
         break;
-      case 1:
-        // Five-minute row, current stats
+      case TimePeriodIndexes::scopeCurrent5MinutePeriod:
         view = new CounterRow::CurrentView(&five_minute);
         break;
-      case 2:
-        // Five-minute row, previous stats
+      case TimePeriodIndexes::scopePrevious5MinutePeriod:
         view = new CounterRow::PreviousView(&five_minute);
         break;
     }

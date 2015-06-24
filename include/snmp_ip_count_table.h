@@ -50,27 +50,24 @@
 namespace SNMP
 {
 
+enum AddrTypes
+{
+  Unknown = 0,
+  IPv4 = 1,
+  IPv6 = 2
+}
 
 // Row of counters indexed by RFC 2851 IP addresses
 class IPCountRow : public Row
 {
 public:
-  IPCountRow(std::string addrStr) :
+  IPCountRow(struct in_addr addr) :
     Row(),
+    _addr_type(AddrTypes::IPv4),
+    _addr(addr),
+    _addr_len(sizeof(struct in_addr)),
     _count(0)
   {
-    // Convert the string into a type (IPv4 or IPv6) and a sequence of bytes
-    if (inet_pton(AF_INET, addrStr.c_str(), &_addr) == 1) {
-      _addr_type = 1; // IPv4
-      _addr_len = sizeof(struct in_addr);
-    } else if (inet_pton(AF_INET6, addrStr.c_str(), &_addr) == 1) {
-      _addr_type = 2; // IPv6
-      _addr_len = sizeof(struct in6_addr);
-    } else {
-      _addr_type = 0; // unknown
-      _addr_len = 0;
-    }
-
     // Set the IPAddrType and IPAddr as indexes
     netsnmp_tdata_row_add_index(_row,
                                 ASN_INTEGER,
@@ -83,6 +80,27 @@ public:
                                 _addr_len);
     
   };
+
+  IPCountRow(struct in6_addr addr) :
+    Row(),
+    _addr_type(AddrTypes::IPv6),
+    _addr(addr),
+    _addr_len(sizeof(struct in6_addr)),
+    _count(0)
+  {
+    // Set the IPAddrType and IPAddr as indexes
+    netsnmp_tdata_row_add_index(_row,
+                                ASN_INTEGER,
+                                &_addr_type,
+                                sizeof(int));
+ 
+    netsnmp_tdata_row_add_index(_row,
+                                ASN_OCTET_STR,
+                                (unsigned char*)&_addr,
+                                _addr_len);
+    
+  };
+
 
   ColumnData get_columns()
   {
@@ -99,7 +117,8 @@ public:
 
 protected:
   int _addr_type;
-  union {
+  union
+  {
     struct in_addr  v4;
     struct in6_addr v6;
   } _addr;
@@ -107,19 +126,43 @@ protected:
   uint32_t _count;
 };
 
+static int FIRST_VISIBLE_COLUMN = 3;
+static int LAST_VISIBLE_COLUMN = 3;
+static std::vector<int> INDEX_TYPES = {ASN_INTEGER, ASN_OCTET_STR};
+
 class IPCountTable: public ManagedTable<IPCountRow, std::string>
 {
 public:
   IPCountTable(std::string name,
                    oid* tbl_oid,
                    int oidlen) :
-    ManagedTable<IPCountRow, std::string>(name, tbl_oid, oidlen, 3, 3, { ASN_INTEGER, ASN_OCTET_STR })
-  {
-  }
+    ManagedTable<IPCountRow, std::string>(name,
+                                          tbl_oid,
+                                          oidlen,
+                                          FIRST_VISIBLE_COLUMN,
+                                          LAST_VISIBLE_COLUMN,
+                                          INDEX_TYPES)
+  {}
 
   IPCountRow* new_row(std::string ip)
   {
-    return new IPCountRow(ip);
+    struct in_addr  v4;
+    struct in6_addr v6;
+
+    // Convert the string into a type (IPv4 or IPv6) and a sequence of bytes
+    if (inet_pton(AF_INET, ip.c_str(), &v4) == 1)
+    {
+      return new IPCountRow(v4);
+    }
+    else if (inet_pton(AF_INET6, ip.c_str(), &v6) == 1)
+    {
+      return new IPCountRow(v4);
+    }
+    else
+    {
+      TRC_ERROR("Could not parse %s as an IPv4 or IPv6 address", ip.c_str());
+      return NULL;
+    }
   }
 };
 

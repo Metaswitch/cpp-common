@@ -51,7 +51,7 @@
 //   - accumulate data samples over time
 //   - report a count of samples, mean sample value, variance, high-water-mark and low-water-mark
 //
-//   The thing sampled doesn't matter - it could be latency, size of a queue, etc.
+// The thing sampled doesn't matter - it could be latency, size of a queue, etc.
 
 namespace SNMP
 {
@@ -75,43 +75,29 @@ public:
 };
 
 
+static int FIRST_VISIBLE_COLUMN = 2;
+static int LAST_VISIBLE_COLUMN = 6;
+static std::vector<int> INDEX_TYPES = {ASN_INTEGER};
+
 class AccumulatorTable: public ManagedTable<AccumulatorRow, int>
 {
 public:
   AccumulatorTable(std::string name,
                    oid* tbl_oid,
                    int oidlen) :
-    ManagedTable<AccumulatorRow, int>(name, tbl_oid, oidlen, 2, 6, { ASN_INTEGER }),
+    ManagedTable<AccumulatorRow, int>(name,
+                                      tbl_oid,
+                                      oidlen,
+                                      FIRST_VISIBLE_COLUMN,
+                                      LAST_VISIBLE_COLUMN,
+                                      INDEX_TYPES),
     five_second(5),
     five_minute(300)
   {
     // We have a fixed number of rows, so create them in the constructor.
-    add(0);
-    add(1);
-    add(2);
-  }
-
-  AccumulatorRow* new_row(int index)
-  {
-    AccumulatorRow::View* view = NULL;
-
-    // Map row indexes to the view of the underlying data they should expose
-    switch (index)
-    {
-      case 0:
-        // Five-second row
-        view = new AccumulatorRow::PreviousView(&five_second);
-        break;
-      case 1:
-        // Five-minute row
-        view = new AccumulatorRow::CurrentView(&five_minute);
-        break;
-      case 2:
-        // Five-minute row
-        view = new AccumulatorRow::PreviousView(&five_minute);
-        break;
-    }
-    return new AccumulatorRow(index, view);
+    add(TimePeriodIndexes::scopePrevious5SecondPeriod);
+    add(TimePeriodIndexes::scopeCurrent5MinutePeriod);
+    add(TimePeriodIndexes::scopePrevious5MinutePeriod);
   }
 
   // Accumulate a sample into the underlying statistics.
@@ -120,6 +106,26 @@ public:
     // Pass samples through to the underlying data structures
     accumulate_internal(five_second, sample);
     accumulate_internal(five_minute, sample);
+  }
+
+private:
+  // Map row indexes to the view of the underlying data they should expose
+  AccumulatorRow* new_row(int index)
+  {
+    AccumulatorRow::View* view = NULL;
+    switch (index)
+    {
+      case TimePeriodIndexes::scopePrevious5SecondPeriod:
+        view = new AccumulatorRow::PreviousView(&five_second);
+        break;
+      case TimePeriodIndexes::scopeCurrent5MinutePeriod:
+        view = new AccumulatorRow::CurrentView(&five_minute);
+        break;
+      case TimePeriodIndexes::scopePrevious5MinutePeriod:
+        view = new AccumulatorRow::PreviousView(&five_minute);
+        break;
+    }
+    return new AccumulatorRow(index, view);
   }
 
   void accumulate_internal(AccumulatorRow::CurrentAndPrevious& data, uint32_t sample);

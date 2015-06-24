@@ -34,9 +34,6 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-///
-///
-
 #ifndef CW_SNMP_AGENT_H
 #define CW_SNMP_AGENT_H
 

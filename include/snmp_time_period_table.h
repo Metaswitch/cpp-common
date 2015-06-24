@@ -47,124 +47,132 @@
 
 namespace SNMP
 {
+
+enum TimePeriodIndexes
+{
+  scopePrevious5SecondPeriod = 1,
+  scopeCurrent5MinutePeriod = 2,
+  scopePrevious5MinutePeriod = 3,
+};
+
 template <class T> class TimeBasedRow : public Row
+{
+public:
+
+  // For the data type T, store a current and previous period (duration defined by _interval) of
+  // the data. (For example, the current five seconds of data and the previous five seconds of
+  // data).
+  class CurrentAndPrevious
   {
   public:
+    CurrentAndPrevious(int interval):
+      current(&a),
+      previous(&b),
+      _interval(interval),
+      _tick(0),
+      a(),
+      b()
+    {}
 
-    // For the data type T over the period _interval, store a current and previous accumulation of
-    // the data. (For example, the current five seconds of data and the previous five seconds of
-    // data).
-    class CurrentAndPrevious
+    // Rolls the current period over into the previous period if necessary.
+    void update_time()
     {
-    public:
-      CurrentAndPrevious(int interval):
-        current(&a),
-        previous(&b),
-        _interval(interval),
-        _tick(0),
-        a(),
-        b()
-      {}
+      struct timespec now;
+      clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
 
-      // Rolls the current period over into the previous period if necessary.
-      void update_time()
+      // Count of how many _interval periods have passed since the epoch
+      uint32_t new_tick = (now.tv_sec / _interval);
+
+      // Count of how many _interval periods have passed since the last change
+      uint32_t tick_difference = new_tick - _tick;
+      _tick = new_tick;
+
+      if (tick_difference == 1)
       {
-        struct timespec now;
-        clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
-
-        // Count of how many _interval periods have passed since the epoch
-        uint32_t new_tick = (now.tv_sec / _interval);
-
-        // Count of how many _interval periods have passed since the last change
-        uint32_t tick_difference = new_tick - _tick;
-        _tick = new_tick;
-
-        if (tick_difference == 1)
-        {
-          T* tmp;
-          tmp = previous;
-          previous = current;
-          (*tmp) = {0,};
-          current = tmp;
-        }
-        else if (tick_difference > 1)
-        {
-          (*current) = {0,};
-          (*previous) = {0,};
-        }
+        T* tmp;
+        tmp = previous;
+        previous = current;
+        (*tmp) = {0,};
+        current = tmp;
       }
-
-      T* current;
-      T* previous;
-    protected:
-      uint32_t _interval;
-      uint32_t _tick;
-      T a;
-      T b;
-
-    };
-
-    // A view into a CurrentAndPrevious set of data. See CurrentView and PreviousView.
-    class View
-    {
-    public:
-      View(CurrentAndPrevious* data): _data(data) {};
-      virtual ~View() {};
-      virtual T* get_data()
+      else if (tick_difference > 1)
       {
-        _data->update_time();
-        return get_ptr();
+        (*current) = {0,};
+        (*previous) = {0,};
       }
-    protected:
-      virtual T* get_ptr() = 0;
-      CurrentAndPrevious* _data;
-    };
+    }
 
-    // A view into the current part of a CurrentAndPrevious set of data.
-    class CurrentView : public View
-    {
-    public:
-      CurrentView(CurrentAndPrevious* data): View(data) {};
-
-      T* get_ptr() { return this->_data->current; };
-    };
-
-    // A view into the previous part of a CurrentAndPrevious set of data.
-    class PreviousView : public View
-    {
-    public:
-      PreviousView(CurrentAndPrevious* data): View(data) {};
-      T* get_ptr() { return this->_data->previous; };
-    };
-
-
-    // Finished with inner classes, back into TimeBasedRow.
-
-    // Constructor, takes ownership of the View*.
-    TimeBasedRow(int index, View* view) :
-      Row(),
-      _index(index),
-      _view(view)
-    {
-      // Time-based rows are indexed off a single integer representing the time period.
-      netsnmp_tdata_row_add_index(_row,
-                                  ASN_INTEGER,
-                                  &_index,
-                                  sizeof(int));
-
-    };
-
-    virtual ~TimeBasedRow()
-    {
-      delete(_view);
-    };
-
-    virtual ColumnData get_columns() = 0;
-
+    T* current;
+    T* previous;
   protected:
-    uint32_t _index;
-    View* _view;
+    uint32_t _interval;
+    uint32_t _tick;
+    T a;
+    T b;
+
   };
+
+  // A view into a CurrentAndPrevious set of data. See CurrentView and PreviousView.
+  class View
+  {
+  public:
+    View(CurrentAndPrevious* data): _data(data) {};
+    virtual ~View() {};
+    virtual T* get_data()
+    {
+      _data->update_time();
+      return get_ptr();
+    }
+  protected:
+    virtual T* get_ptr() = 0;
+    CurrentAndPrevious* _data;
+  };
+
+  // A view into the current part of a CurrentAndPrevious set of data.
+  class CurrentView : public View
+  {
+  public:
+    CurrentView(CurrentAndPrevious* data): View(data) {};
+
+    T* get_ptr() { return this->_data->current; };
+  };
+
+  // A view into the previous part of a CurrentAndPrevious set of data.
+  class PreviousView : public View
+  {
+  public:
+    PreviousView(CurrentAndPrevious* data): View(data) {};
+    T* get_ptr() { return this->_data->previous; };
+  };
+
+
+  // Finished with inner classes, back into TimeBasedRow.
+
+  // Constructor, takes ownership of the View*.
+  TimeBasedRow(int index, View* view) :
+    Row(),
+    _index(index),
+    _view(view)
+  {
+    // Time-based rows are indexed off a single integer representing the time period.
+    netsnmp_tdata_row_add_index(_row,
+                                ASN_INTEGER,
+                                &_index,
+                                sizeof(int));
+
+  };
+
+  virtual ~TimeBasedRow()
+  {
+    delete(_view);
+  };
+
+  virtual ColumnData get_columns() = 0;
+
+protected:
+  uint32_t _index;
+  View* _view;
+};
 
 }
 
