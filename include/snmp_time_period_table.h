@@ -38,7 +38,7 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <tuple>
+#include <atomic>
 #include "snmp_includes.h"
 #include "logger.h"
 
@@ -72,7 +72,10 @@ public:
       _tick(0),
       a(),
       b()
-    {}
+    {
+      a.reset();
+      b.reset();
+    }
 
     // Rolls the current period over into the previous period if necessary.
     void update_time()
@@ -90,21 +93,24 @@ public:
       if (tick_difference == 1)
       {
         T* tmp;
-        tmp = previous;
-        previous = current;
-        (*tmp) = {0,};
-        current = tmp;
+        tmp = previous.load();
+        previous.store(current);
+        tmp->reset();
+        current.store(tmp);
       }
       else if (tick_difference > 1)
       {
-        (*current) = {0,};
-        (*previous) = {0,};
+        current.load()->reset();
+        previous.load()->reset();
       }
     }
 
-    T* current;
-    T* previous;
+    T* get_current() { update_time(); return current.load(); }
+    T* get_previous() { update_time(); return previous.load(); }
+
   protected:
+    std::atomic<T*> current;
+    std::atomic<T*> previous;
     uint32_t _interval;
     uint32_t _tick;
     T a;
@@ -118,13 +124,8 @@ public:
   public:
     View(CurrentAndPrevious* data): _data(data) {};
     virtual ~View() {};
-    virtual T* get_data()
-    {
-      _data->update_time();
-      return get_ptr();
-    }
+    virtual T* get_data() = 0;
   protected:
-    virtual T* get_ptr() = 0;
     CurrentAndPrevious* _data;
   };
 
@@ -134,7 +135,7 @@ public:
   public:
     CurrentView(CurrentAndPrevious* data): View(data) {};
 
-    T* get_ptr() { return this->_data->current; };
+    T* get_data() { return this->_data->get_current(); };
   };
 
   // A view into the previous part of a CurrentAndPrevious set of data.
@@ -142,7 +143,7 @@ public:
   {
   public:
     PreviousView(CurrentAndPrevious* data): View(data) {};
-    T* get_ptr() { return this->_data->previous; };
+    T* get_data() { return this->_data->get_previous(); };
   };
 
 

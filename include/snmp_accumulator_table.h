@@ -37,7 +37,7 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <tuple>
+#include <atomic>
 
 #include "snmp_includes.h"
 #include "snmp_time_period_table.h"
@@ -59,11 +59,13 @@ namespace SNMP
 // Storage for the underlying data
 struct Statistics
 {
-  uint64_t count;
-  uint64_t sum;
-  uint64_t sqsum;
-  uint64_t hwm;
-  uint64_t lwm;
+  std::atomic_uint_fast64_t count;
+  std::atomic_uint_fast64_t sum;
+  std::atomic_uint_fast64_t sqsum;
+  std::atomic_uint_fast64_t hwm;
+  std::atomic_uint_fast64_t lwm;
+
+  void reset();
 };
 
 // Just a TimeBasedRow that maps the data from Statistics into the right five columns.

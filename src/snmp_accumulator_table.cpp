@@ -39,48 +39,72 @@
 namespace SNMP
 {
 
+void Statistics::reset()
+{
+  count.store(0);
+  sum.store(0);
+  sqsum.store(0);
+  lwm.store(0);
+  hwm.store(0);
+}
+
 ColumnData AccumulatorRow::get_columns()
 {
-  Statistics accumulated = *(_view->get_data());
-  uint32_t sum = accumulated.sum;
-  uint32_t sumsq = accumulated.sqsum;
-  uint32_t count = accumulated.count;
+  Statistics* accumulated = _view->get_data();
+  uint_fast32_t count = accumulated->count.load();
 
-  // Calculate the average and the variance from the stored sum and sum-of-squares.
-  uint32_t avg = sum/std::max(count, 1u);
-  uint32_t variance = (sumsq/std::max(count, 1u)) - avg;
-  
+  uint_fast32_t avg, variance, lwm, hwm = 0;
+ 
+  if (count > 0)
+  {
+    uint_fast64_t sum = accumulated->sum.load();
+    uint_fast64_t sumsq = accumulated->sqsum.load();
+    // Calculate the average and the variance from the stored sum and sum-of-squares.
+    avg = sum/count;
+    variance = sumsq/count - avg;
+    
+    hwm = accumulated->hwm.load();
+    lwm = accumulated->lwm.load();
+  }
+
   // Construct and return a ColumnData with the appropriate values
   ColumnData ret;
   ret[1] = Value::integer(_index);
   ret[2] = Value::uint(count);
   ret[3] = Value::uint(avg);
   ret[4] = Value::uint(variance);
-  ret[5] = Value::uint(accumulated.lwm);
-  ret[6] = Value::uint(accumulated.hwm);
+  ret[5] = Value::uint(lwm);
+  ret[6] = Value::uint(hwm);
   return ret;
 }
 
-void AccumulatorTable::accumulate_internal(AccumulatorRow::CurrentAndPrevious& data, uint32_t latency)
+void AccumulatorTable::accumulate_internal(AccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
 {
-  data.update_time();
+  Statistics* current = data.get_current();
 
-  data.current->count++;
+  current->count++;
 
   // Just keep a running total as we go along, so we can calculate the average and variance on
   // request
-  data.current->sum += latency;
-  data.current->sqsum += (latency * latency);
+  current->sum += sample;
+  current->sqsum += (sample * sample);
 
-  // Change the high-water-mark and low-water-mark if this data is the highest/lowest we've seen.
-  if (latency > data.current->hwm)
+  // Update the low- and high-water marks.  In each case, we get the current
+  // value, decide whether a change is required and then atomically swap it
+  // if so, repeating if it was changed in the meantime.  Note that
+  // compare_exchange_weak loads the current value into the expected value
+  // parameter (lwm or hwm below) if the compare fails.
+  uint_fast64_t lwm = current->lwm.load();
+  while (((sample < lwm) || (lwm == 0)) &&
+         (!current->lwm.compare_exchange_weak(lwm, sample)))
   {
-    data.current->hwm = latency;
+    // Do nothing.
   }
-
-  if ((latency < data.current->lwm) || (data.current->lwm == 0))
+  uint_fast64_t hwm = current->hwm.load();
+  while ((sample > hwm) &&
+         (!current->hwm.compare_exchange_weak(hwm, sample)))
   {
-    data.current->lwm = latency;
+    // Do nothing.
   }
 };
 

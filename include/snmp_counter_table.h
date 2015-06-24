@@ -57,6 +57,8 @@ namespace SNMP
 struct SingleCount
 {
   uint64_t count;
+
+  void reset() { count = 0; };
 };
 
 
@@ -93,10 +95,8 @@ public:
   void increment()
   {
     // Increment each underlying set of data.
-    five_second.update_time();
-    five_second.current->count++;
-    five_minute.update_time();
-    five_minute.current->count++;
+    five_second.get_current()->count++;
+    five_minute.get_current()->count++;
   }
 
 private: 
