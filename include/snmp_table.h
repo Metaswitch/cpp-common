@@ -147,18 +147,18 @@ protected:
   netsnmp_tdata_row* get_netsnmp_row() { return _row; };
 };
 
-// Generic SNMPTable class wrapping a netsnmp_tdata and netsnmp_table_registration_info and exposes
+// Generic SNMPTable class wrapping a netsnmp_tdata and netsnmp_table_registration_info and exposing
 // an API for manipulating them easily. Doesn't need subclassing, but should usually be wrapped in a
 // ManagedTable subclass for convenience.
 template<class T> class Table
 {
 public:
-  Table(std::string name,
-        oid* tbl_oid,
+  Table(std::string name, // Name of this table, for logging
+        oid* tbl_oid,     // Root OID of this table
         int oidlen,
-        int min_visible_column,
+        int min_visible_column,        // Range of columns to expose for queries
         int max_visible_column,
-        std::vector<int> index_types):
+        std::vector<int> index_types): // Types of the index columns
     _name(name),
     _tbl_oid(tbl_oid),
     _oidlen(oidlen),
