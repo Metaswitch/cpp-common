@@ -64,6 +64,7 @@ public:
 
   ~U32Scalar()
   {
+    // Call into netsnmp to unregister this OID.
     unregister_mib(_oid, _oidlen);
   }
 

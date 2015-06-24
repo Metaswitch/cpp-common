@@ -69,10 +69,6 @@ public:
   ColumnData get_columns();
 };
 
-static int FIRST_VISIBLE_COLUMN = 2;
-static int LAST_VISIBLE_COLUMN = 2;
-static std::vector<int> INDEX_TYPES = {ASN_INTEGER};
-
 class CounterTable: public ManagedTable<CounterRow, int>
 {
 public:
@@ -82,9 +78,9 @@ public:
     ManagedTable<CounterRow, int>(name,
                                   tbl_oid,
                                   oidlen,
-                                  FIRST_VISIBLE_COLUMN,
-                                  LAST_VISIBLE_COLUMN,
-                                  INDEX_TYPES),
+                                  2,
+                                  2, // Only column 2 should be visible
+                                  { ASN_INTEGER }), // Type of the index column
     five_second(5),
     five_minute(300)
   {
@@ -93,7 +89,17 @@ public:
     add(TimePeriodIndexes::scopeCurrent5MinutePeriod);
     add(TimePeriodIndexes::scopePrevious5MinutePeriod);
   }
-  
+ 
+  void increment()
+  {
+    // Increment each underlying set of data.
+    five_second.update_time();
+    five_second.current->count++;
+    five_minute.update_time();
+    five_minute.current->count++;
+  }
+
+private: 
   // Map row indexes to the view of the underlying data they should expose
   CounterRow* new_row(int index)
   {
@@ -111,15 +117,6 @@ public:
         break;
     }
     return new CounterRow(index, view);
-  }
-
-  void increment()
-  {
-    // Increment each underlying set of data.
-    five_second.update_time();
-    five_second.current->count++;
-    five_minute.update_time();
-    five_minute.current->count++;
   }
 
   CounterRow::CurrentAndPrevious five_second;

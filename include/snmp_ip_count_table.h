@@ -55,7 +55,7 @@ enum AddrTypes
   Unknown = 0,
   IPv4 = 1,
   IPv6 = 2
-}
+};
 
 // Row of counters indexed by RFC 2851 IP addresses
 class IPCountRow : public Row
@@ -64,10 +64,10 @@ public:
   IPCountRow(struct in_addr addr) :
     Row(),
     _addr_type(AddrTypes::IPv4),
-    _addr(addr),
     _addr_len(sizeof(struct in_addr)),
     _count(0)
   {
+    _addr.v4 = addr;
     // Set the IPAddrType and IPAddr as indexes
     netsnmp_tdata_row_add_index(_row,
                                 ASN_INTEGER,
@@ -84,10 +84,10 @@ public:
   IPCountRow(struct in6_addr addr) :
     Row(),
     _addr_type(AddrTypes::IPv6),
-    _addr(addr),
     _addr_len(sizeof(struct in6_addr)),
     _count(0)
   {
+    _addr.v6 = addr;
     // Set the IPAddrType and IPAddr as indexes
     netsnmp_tdata_row_add_index(_row,
                                 ASN_INTEGER,
@@ -117,18 +117,14 @@ public:
 
 protected:
   int _addr_type;
+  int _addr_len;
+  uint32_t _count;
   union
   {
     struct in_addr  v4;
     struct in6_addr v6;
   } _addr;
-  int _addr_len;
-  uint32_t _count;
 };
-
-static int FIRST_VISIBLE_COLUMN = 3;
-static int LAST_VISIBLE_COLUMN = 3;
-static std::vector<int> INDEX_TYPES = {ASN_INTEGER, ASN_OCTET_STR};
 
 class IPCountTable: public ManagedTable<IPCountRow, std::string>
 {
@@ -139,9 +135,9 @@ public:
     ManagedTable<IPCountRow, std::string>(name,
                                           tbl_oid,
                                           oidlen,
-                                          FIRST_VISIBLE_COLUMN,
-                                          LAST_VISIBLE_COLUMN,
-                                          INDEX_TYPES)
+                                          3,
+                                          3, // Only column 3 should be visible
+                                          { ASN_INTEGER, ASN_OCTET_STR }) // Types of the index columns
   {}
 
   IPCountRow* new_row(std::string ip)

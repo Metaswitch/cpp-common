@@ -44,13 +44,6 @@
 #ifndef SNMP_TABLE_H
 #define SNMP_TABLE_H
 
-// netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
-// and maps the row and column to a value.
-int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
-                             netsnmp_handler_registration *reginfo,
-                             netsnmp_agent_request_info *reqinfo,
-                             netsnmp_request_info *requests);
-
 namespace SNMP
 {
 
@@ -129,10 +122,13 @@ public:
 // its value.
 typedef std::map<int, Value> ColumnData;
 
+template<class T> class Table;
+
 // Abstract Row class which wraps a netsnmp_tdata_row.
 class Row
 {
 public:
+  template<class T> friend class Table;
   Row()
   {
     _row = netsnmp_tdata_create_row();
@@ -146,9 +142,9 @@ public:
 
   virtual ColumnData get_columns() = 0;
 
-  netsnmp_tdata_row* get_netsnmp_row() { return _row; };
 protected:
   netsnmp_tdata_row* _row;
+  netsnmp_tdata_row* get_netsnmp_row() { return _row; };
 };
 
 // Generic SNMPTable class wrapping a netsnmp_tdata and netsnmp_table_registration_info and exposes
@@ -185,7 +181,7 @@ public:
  
     TRC_INFO("Registering SNMP table %s", _name.c_str());
     _handler_reg = netsnmp_create_handler_registration(_name.c_str(),
-                                                       netsnmp_table_handler_fn,
+                                                       Table::netsnmp_table_handler_fn,
                                                        _tbl_oid,
                                                        _oidlen,
                                                        HANDLER_CAN_RONLY | HANDLER_CAN_GETBULK);
@@ -226,6 +222,69 @@ protected:
   netsnmp_handler_registration* _handler_reg;
   netsnmp_table_registration_info* _table_info;
   netsnmp_tdata* _table;
+private:
+  // netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
+  // and maps the row and column to a value.
+  static int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
+                               netsnmp_handler_registration *reginfo,
+                               netsnmp_agent_request_info *reqinfo,
+                               netsnmp_request_info *requests)
+  {
+    std::map<netsnmp_tdata_row*, SNMP::ColumnData> cache;
+    char buf[64];
+
+    TRC_INFO("Starting handling batch of SNMP requests");
+
+    for (; requests != NULL; requests = requests->next)
+    {
+      snprint_objid(buf, sizeof(buf),
+                    requests->requestvb->name, requests->requestvb->name_length);
+      TRC_INFO("Handling SNMP request for OID %s", buf);
+
+      if (requests->processed)
+      {
+        continue;
+      }
+
+      netsnmp_tdata_row* row = netsnmp_tdata_extract_row(requests);
+      netsnmp_table_request_info* table_info = netsnmp_extract_table_info(requests);
+
+      if (!row || !table_info || !row->data)
+      {
+        // This should not have been passed through to this handler
+        TRC_WARNING("Request for nonexistent row - OID %s", buf);
+        return SNMP_ERR_NOSUCHNAME;
+      }
+
+      // Map back to the original SNMP::Row object.
+      SNMP::Row* data = static_cast<SNMP::Row*>(row->data);
+
+      // We need to get information a row at a time, and remember it - this avoids us reading column
+      // 1, and having the data change before we query column 2
+      if (cache.find(row) == cache.end())
+      {
+        SNMP::ColumnData cd = data->get_columns();
+        cache[row] = cd;
+      }
+      TRC_DEBUG("Got %d columns for row %p\n", cache[row].size(), row);
+
+      if (cache[row][table_info->colnum].size != 0)
+      {
+        snmp_set_var_typed_value(requests->requestvb,
+                                 cache[row][table_info->colnum].type,
+                                 cache[row][table_info->colnum].value,
+                                 cache[row][table_info->colnum].size);
+      }
+      else
+      {
+        TRC_WARNING("No value for OID %s", buf);
+        return SNMP_ERR_NOSUCHNAME;
+      }
+    }
+
+    TRC_INFO("Finished handling batch of SNMP requests");
+    return SNMP_ERR_NOERROR;
+  }
 };
 
 // Base ManagedTable, which manages the ownership of rows (whereas ordinary Tables expect Row
@@ -268,7 +327,7 @@ public:
     }
     else
     {
-      TRC_ERROR("Failed to add row to table %s", _name.c_str());
+      TRC_ERROR("Failed to add row to table %s", this->_name.c_str());
     }
   }
 

@@ -37,10 +37,11 @@
 #ifndef CW_SNMP_AGENT_H
 #define CW_SNMP_AGENT_H
 
-// Starts the SNMP agent thread
+// Starts the SNMP agent thread. 'name' is passed through to the netsnmp library as the application
+// name - this is arbitrary, but should be spomething sensible (e.g. 'sprout', 'bono').
 int snmp_setup(const char* name);
 
-// Terminates the SNMP agent thread
+// Terminates the SNMP agent thread. 'name' should match the string passed to snmp_setup.
 void snmp_terminate(const char* name);
 
 #endif

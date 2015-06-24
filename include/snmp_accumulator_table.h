@@ -74,11 +74,6 @@ public:
   ColumnData get_columns();
 };
 
-
-static int FIRST_VISIBLE_COLUMN = 2;
-static int LAST_VISIBLE_COLUMN = 6;
-static std::vector<int> INDEX_TYPES = {ASN_INTEGER};
-
 class AccumulatorTable: public ManagedTable<AccumulatorRow, int>
 {
 public:
@@ -88,9 +83,9 @@ public:
     ManagedTable<AccumulatorRow, int>(name,
                                       tbl_oid,
                                       oidlen,
-                                      FIRST_VISIBLE_COLUMN,
-                                      LAST_VISIBLE_COLUMN,
-                                      INDEX_TYPES),
+                                      2,
+                                      6, // Columns 2-6 should be visible
+                                      { ASN_INTEGER }), // Type of the index column
     five_second(5),
     five_minute(300)
   {
