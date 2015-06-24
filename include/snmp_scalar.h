@@ -41,6 +41,16 @@
 #ifndef SNMP_SCALAR_H
 #define SNMP_SCALAR_H
 
+// This file contains infrastructure for SNMP scalars (single values, not in a table).
+//
+// To use one, simply create a U32Scalar and modify its `value` object as necessary - changes to
+// this will automatically be reflected over SNMP. For example:
+//
+// SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count",
+//                                                  my_oid,
+//                                                  OID_LENGTH(my_oid));
+// cxn_count.value = 42;
+
 namespace SNMP
 {
 

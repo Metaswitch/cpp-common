@@ -47,6 +47,25 @@
 #ifndef SNMP_IP_COUNT_TABLE_H
 #define SNMP_IP_COUNT_TABLE_H
 
+// This file contains infrastructure for tables which:
+//   - are indexed by IP address and IP address type
+//   - report a count for each IP address
+//
+// To use an IP count table, simply create one, call `get` on it to create appropriate rows, and
+// call `increment` or `decrement` on those rows as necessary:
+//
+// SNMP::IPCountTable* xdm_cxns_table = new IPCountTable("connections_to_homer", 
+//                                                       my_oid,
+//                                                       OID_LENGTH(my_oid));
+// xdm_cxns_table->get("10.0.0.1")->increment();
+// xdm_cxns_table->get("10.0.0.2")->decrement();
+//
+// IPCountRow objects are automatically created when needed, but need to be explicitly deleted (with
+// `remove`):
+//
+// xdm_cxns_table->remove("10.0.0.1");
+
+
 namespace SNMP
 {
 

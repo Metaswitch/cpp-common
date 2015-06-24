@@ -45,6 +45,11 @@
 #ifndef SNMP_TIME_PERIOD_TABLE_H
 #define SNMP_TIME_PERIOD_TABLE_H
 
+// This file contains the base infrastructure for SNMP tables which are indexed by time period. It
+// contains only abstract classes, which need to be subclassed - e.g. SNMP::AccumulatorRow and
+// SNMP::AccumulatorTable.
+
+
 namespace SNMP
 {
 

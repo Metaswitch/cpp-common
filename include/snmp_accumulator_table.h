@@ -52,6 +52,18 @@
 //   - report a count of samples, mean sample value, variance, high-water-mark and low-water-mark
 //
 // The thing sampled doesn't matter - it could be latency, size of a queue, etc.
+//
+// To create an accumulator table, simply create one, and call `accumulate` on it as data comes in,
+// e.g.:
+//
+// AccumulatorTable* bono_latency_table = new AccumulatorTable("bono_latency", 
+//                                                             my_oid,
+//                                                             OID_LENGTH(my_oid));
+// bono_latency_table->accumulate(2000);
+//
+// This will create AccumulatorRow and Statistics classes internally (the user doesn't need to
+// handle those).
+
 
 namespace SNMP
 {
