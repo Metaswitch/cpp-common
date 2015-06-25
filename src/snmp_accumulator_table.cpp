@@ -70,11 +70,11 @@ ColumnData AccumulatorRow::get_columns()
   // Construct and return a ColumnData with the appropriate values
   ColumnData ret;
   ret[1] = Value::integer(_index);
-  ret[2] = Value::uint(count);
-  ret[3] = Value::uint(avg);
-  ret[4] = Value::uint(variance);
-  ret[5] = Value::uint(lwm);
-  ret[6] = Value::uint(hwm);
+  ret[2] = Value::uint(avg);
+  ret[3] = Value::uint(variance);
+  ret[4] = Value::uint(lwm);
+  ret[5] = Value::uint(hwm);
+  ret[6] = Value::uint(count);
   return ret;
 }
 
