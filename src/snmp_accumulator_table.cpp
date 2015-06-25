@@ -44,7 +44,7 @@ void Statistics::reset()
   count.store(0);
   sum.store(0);
   sqsum.store(0);
-  lwm.store(0);
+  lwm.store(ULONG_MAX);
   hwm.store(0);
 }
 
@@ -53,7 +53,7 @@ ColumnData AccumulatorRow::get_columns()
   Statistics* accumulated = _view->get_data();
   uint_fast32_t count = accumulated->count.load();
 
-  uint_fast32_t avg, variance, lwm, hwm = 0;
+  uint_fast32_t avg, variance, lwm, hwm = 0, 0, 0, 0;
  
   if (count > 0)
   {
@@ -95,7 +95,7 @@ void AccumulatorTable::accumulate_internal(AccumulatorRow::CurrentAndPrevious& d
   // compare_exchange_weak loads the current value into the expected value
   // parameter (lwm or hwm below) if the compare fails.
   uint_fast64_t lwm = current->lwm.load();
-  while (((sample < lwm) || (lwm == 0)) &&
+  while ((sample < lwm) &&
          (!current->lwm.compare_exchange_weak(lwm, sample)))
   {
     // Do nothing.
