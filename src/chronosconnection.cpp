@@ -74,7 +74,7 @@ HTTPCode ChronosConnection::send_delete(const std::string& delete_identity,
   {
     // Don't bother sending the timer request to Chronos, as it will just reject it
     // with a 405
-    LOG_ERROR("Can't delete a timer with an empty timer id");
+    TRC_ERROR("Can't delete a timer with an empty timer id");
     return HTTP_BADMETHOD;
   }
 

@@ -61,7 +61,7 @@ void AlarmState::issue()
 
   AlarmReqAgent::get_instance().alarm_request(req);
 
-  LOG_DEBUG("%s issued %s alarm", _issuer.c_str(), _identifier.c_str());
+  TRC_DEBUG("%s issued %s alarm", _issuer.c_str(), _identifier.c_str());
 }
 
 void AlarmState::clear_all(const std::string& issuer)
@@ -73,7 +73,7 @@ void AlarmState::clear_all(const std::string& issuer)
 
   AlarmReqAgent::get_instance().alarm_request(req);
 
-  LOG_DEBUG("%s cleared its alarms", issuer.c_str());
+  TRC_DEBUG("%s cleared its alarms", issuer.c_str());
 }
 
 Alarm::Alarm(const std::string& issuer,
@@ -135,7 +135,7 @@ bool AlarmReqAgent::start()
   {
     // LCOV_EXCL_START - No mock for pthread_create
 
-    LOG_ERROR("AlarmReqAgent: error creating thread %s", strerror(rc));
+    TRC_ERROR("AlarmReqAgent: error creating thread %s", strerror(rc));
 
     zmq_clean_ctx();
 
@@ -166,7 +166,7 @@ void AlarmReqAgent::alarm_request(std::vector<std::string> req)
 {
   if (!_req_q->push_noblock(req))
   {
-    LOG_DEBUG("AlarmReqAgent: queue overflowed");
+    TRC_DEBUG("AlarmReqAgent: queue overflowed");
   }
 }
 
@@ -186,7 +186,7 @@ bool AlarmReqAgent::zmq_init_ctx()
   _ctx = zmq_ctx_new();
   if (_ctx == NULL)
   {
-    LOG_ERROR("AlarmReqAgent: zmq_ctx_new failed: %s", zmq_strerror(errno));
+    TRC_ERROR("AlarmReqAgent: zmq_ctx_new failed: %s", zmq_strerror(errno));
     return false;
   }
 
@@ -198,7 +198,7 @@ bool AlarmReqAgent::zmq_init_sck()
   _sck = zmq_socket(_ctx, ZMQ_REQ);
   if (_sck == NULL)
   {
-    LOG_ERROR("AlarmReqAgent: zmq_socket failed: %s", zmq_strerror(errno));
+    TRC_ERROR("AlarmReqAgent: zmq_socket failed: %s", zmq_strerror(errno));
     return false;
   }
 
@@ -207,14 +207,14 @@ bool AlarmReqAgent::zmq_init_sck()
   int linger = 0;
   if (zmq_setsockopt(_sck, ZMQ_LINGER, &linger, sizeof(linger)) == -1)
   {
-    LOG_ERROR("AlarmReqAgent: zmq_setsockopt failed: %s", zmq_strerror(errno));
+    TRC_ERROR("AlarmReqAgent: zmq_setsockopt failed: %s", zmq_strerror(errno));
     return false;
   }
 
   std::string addr = "tcp://127.0.0.1:" + std::to_string(ZMQ_PORT);
   if (zmq_connect(_sck, addr.c_str()) == -1)
   {
-    LOG_ERROR("AlarmReqAgent: zmq_connect failed: %s", zmq_strerror(errno));
+    TRC_ERROR("AlarmReqAgent: zmq_connect failed: %s", zmq_strerror(errno));
     return false;
   }
 
@@ -227,7 +227,7 @@ void AlarmReqAgent::zmq_clean_ctx()
   {
     if (zmq_ctx_destroy(_ctx) == -1)
     {
-      LOG_ERROR("AlarmReqAgent: zmq_ctx_destroy failed: %s", zmq_strerror(errno));
+      TRC_ERROR("AlarmReqAgent: zmq_ctx_destroy failed: %s", zmq_strerror(errno));
     }
 
     _ctx = NULL;
@@ -240,7 +240,7 @@ void AlarmReqAgent::zmq_clean_sck()
   {
     if (zmq_close(_sck) == -1)
     {
-      LOG_ERROR("AlarmReqAgent: zmq_close failed: %s", zmq_strerror(errno));
+      TRC_ERROR("AlarmReqAgent: zmq_close failed: %s", zmq_strerror(errno));
     }
 
     _sck = NULL;
@@ -266,7 +266,7 @@ void AlarmReqAgent::agent()
 
   while (_req_q && _req_q->pop(req))
   {
-    LOG_DEBUG("AlarmReqAgent: servicing request queue");
+    TRC_DEBUG("AlarmReqAgent: servicing request queue");
 
     for (std::vector<std::string>::iterator it = req.begin(); it != req.end(); it++)
     {
@@ -274,7 +274,7 @@ void AlarmReqAgent::agent()
       {
         if (errno != ETERM)
         {
-          LOG_ERROR("AlarmReqAgent: zmq_send failed: %s", zmq_strerror(errno));
+          TRC_ERROR("AlarmReqAgent: zmq_send failed: %s", zmq_strerror(errno));
         }
 
         zmq_clean_sck();
@@ -286,7 +286,7 @@ void AlarmReqAgent::agent()
     {
       if (errno != ETERM)
       {
-        LOG_ERROR("AlarmReqAgent: zmq_recv failed: %s", zmq_strerror(errno));
+        TRC_ERROR("AlarmReqAgent: zmq_recv failed: %s", zmq_strerror(errno));
       }
 
       zmq_clean_sck();

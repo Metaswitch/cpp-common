@@ -48,6 +48,7 @@
 
 #include "log.h"
 #include "memcachedstoreview.h"
+#include "cpp_common_pd_definitions.h"
 
 
 MemcachedStoreView::MemcachedStoreView(int vbuckets, int replicas) :
@@ -90,27 +91,8 @@ std::vector<std::string> MemcachedStoreView::
   return names;
 }
 
-/// Updates the view for new current and target server lists.
-void MemcachedStoreView::update(const MemcachedConfig& config)
+void MemcachedStoreView::generate_ring_from_stable_servers()
 {
-  // Clear out any state from the old view.
-  _changes.clear();
-  _current_replicas.clear();
-  _new_replicas.clear();
-
-  for (int ii = 0; ii < _vbuckets; ++ii)
-  {
-    _read_set[ii].clear();
-    _write_set[ii].clear();
-  }
-
-  // Generate the appropriate rings and the resulting vbuckets arrays.
-  if (config.new_servers.empty())
-  {
-    // Stable configuration.
-    LOG_DEBUG("View is stable with %d nodes", config.servers.size());
-    _servers = config.servers;
-
     // Only need to generate a single ring.
     Ring ring(_vbuckets);
     ring.update(_servers.size());
@@ -129,7 +111,7 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
       for (size_t jj = 0; jj < server_indexes.size(); jj++)
       {
         int idx = server_indexes[jj];
-        _read_set[ii].push_back(config.servers[idx]);
+        _read_set[ii].push_back(_servers[idx]);
       }
       _write_set[ii] = _read_set[ii];
 
@@ -137,12 +119,51 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
       // the read set.
       _current_replicas[ii] = _read_set[ii];
     }
+
+}
+
+/// Updates the view for new current and target server lists.
+void MemcachedStoreView::update(const MemcachedConfig& config)
+{
+  // Clear out any state from the old view.
+  _changes.clear();
+  _current_replicas.clear();
+  _new_replicas.clear();
+
+  for (int ii = 0; ii < _vbuckets; ++ii)
+  {
+    _read_set[ii].clear();
+    _write_set[ii].clear();
+  }
+
+  // Generate the appropriate rings and the resulting vbuckets arrays.
+  if (config.new_servers.empty())
+  {
+    // Stable configuration.
+    TRC_DEBUG("View is stable with %d nodes", config.servers.size());
+    CL_MEMCACHED_CLUSTER_UPDATE_STABLE.log(config.servers.size(),
+                                           config.filename.c_str());
+    _servers = config.servers;
+    generate_ring_from_stable_servers();
+  }
+  else if (config.servers.empty())
+  {
+    // Stable configuration.
+    TRC_DEBUG("Cluster is moving from 0 nodes to %d nodes", config.new_servers.size());
+    CL_MEMCACHED_CLUSTER_UPDATE_RESIZE.log(0,
+                                           config.new_servers.size(),
+                                           config.filename.c_str());
+    _servers = config.new_servers;
+    generate_ring_from_stable_servers();
   }
   else
   {
-    LOG_DEBUG("Cluster is moving from %d nodes to %d nodes",
+    TRC_DEBUG("Cluster is moving from %d nodes to %d nodes",
               config.servers.size(),
               config.new_servers.size());
+    CL_MEMCACHED_CLUSTER_UPDATE_RESIZE.log(config.servers.size(),
+                                           config.new_servers.size(),
+                                           config.filename.c_str());
 
     // _servers should contain all the servers we might want to store
     // data on, so combine the old and new server lists, removing any overlap.
@@ -233,7 +254,10 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
     }
   }
 
-  LOG_DEBUG("New view -\n%s", view_to_string().c_str());
+  if (!(config.servers.empty() && config.new_servers.empty()))
+  {
+    TRC_DEBUG("New view -\n%s", view_to_string().c_str());
+  }
 }
 
 
@@ -280,7 +304,7 @@ MemcachedStoreView::Ring::Ring(int slots) :
   _ring(slots),
   _node_slots()
 {
-  LOG_DEBUG("Initializing ring with %d slots", slots);
+  TRC_DEBUG("Initializing ring with %d slots", slots);
 }
 
 
@@ -300,14 +324,14 @@ MemcachedStoreView::Ring::~Ring()
 /// so if the number of nodes reduces the ring must be destroyed and recreated.
 void MemcachedStoreView::Ring::update(int nodes)
 {
-  LOG_DEBUG("Updating ring from %d to %d nodes", _nodes, nodes);
+  TRC_DEBUG("Updating ring from %d to %d nodes", _nodes, nodes);
 
   _node_slots.resize(nodes);
 
   if ((_nodes == 0) && (nodes > 0))
   {
     // Set up the initial ring for the one node case.
-    LOG_DEBUG("Set up ring for node 0");
+    TRC_DEBUG("Set up ring for node 0");
     for (int i = 0; i < _slots; ++i)
     {
       _ring[i] = -1;
@@ -346,7 +370,7 @@ void MemcachedStoreView::Ring::update(int nodes)
     _nodes += 1;
   }
 
-  LOG_DEBUG("Completed updating ring, now contains %d nodes", _nodes);
+  TRC_DEBUG("Completed updating ring, now contains %d nodes", _nodes);
 }
 
 

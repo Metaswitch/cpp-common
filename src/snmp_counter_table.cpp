@@ -1,8 +1,8 @@
 /**
- * @file httpresolver.cpp  Implementation of HTTP DNS resolver class.
+ * @file snmp_counter_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2015 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,55 +34,20 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "log.h"
-#include "httpresolver.h"
+#include "snmp_counter_table.h"
 
-HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
-                           int address_family,
-                           int blacklist_duration) :
-  BaseResolver(dns_client),
-  _address_family(address_family)
+namespace SNMP
 {
-  TRC_DEBUG("Creating HTTP resolver");
 
-  // Create the blacklist.
-  create_blacklist(blacklist_duration);
-
-  TRC_STATUS("Created HTTP resolver");
+ColumnData CounterRow::get_columns()
+{
+  SingleCount accumulated = *(this->_view->get_data());
+  
+  // Construct and return a ColumnData with the appropriate values
+  ColumnData ret;
+  ret[1] = Value::integer(this->_index);
+  ret[2] = Value::uint(accumulated.count);
+  return ret;
 }
 
-HttpResolver::~HttpResolver()
-{
-  destroy_blacklist();
-}
-
-/// Resolve a destination host and realm name to a list of IP addresses,
-/// transports and ports.  HTTP is pretty simple - just look up the A records.
-void HttpResolver::resolve(const std::string& host,
-                           int port,
-                           int max_targets,
-                           std::vector<AddrInfo>& targets,
-                           SAS::TrailId trail)
-{
-  AddrInfo ai;
-  int dummy_ttl = 0;
-
-  TRC_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
-            host.c_str(), port, _address_family);
-
-  port = (port != 0) ? port : DEFAULT_PORT;
-  targets.clear();
-
-  if (parse_ip_target(host, ai.address))
-  {
-    // The name is already an IP address, so no DNS resolution is possible.
-    TRC_DEBUG("Target is an IP address");
-    ai.port = port;
-    ai.transport = TRANSPORT;
-    targets.push_back(ai);
-  }
-  else
-  {
-    a_resolve(host, _address_family, port, TRANSPORT, max_targets, targets, dummy_ttl, trail);
-  }
 }

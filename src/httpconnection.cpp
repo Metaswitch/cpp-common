@@ -86,7 +86,7 @@ static const int MAX_TARGETS = 5;
 /// @param stat_name Name of statistic to report connection info to.
 /// @param load_monitor Load Monitor.
 /// @param lvc Statistics last value cache.
-/// @param sas_log_level the level to log HTTP flows at (protocol/detail).
+/// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
 HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
                                HttpResolver* resolver,
@@ -101,7 +101,8 @@ HttpConnection::HttpConnection(const std::string& server,
   _assert_user(assert_user),
   _resolver(resolver),
   _sas_log_level(sas_log_level),
-  _comm_monitor(comm_monitor)
+  _comm_monitor(comm_monitor),
+  _stat_table(NULL)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -114,9 +115,9 @@ HttpConnection::HttpConnection(const std::string& server,
   _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                load_monitor->get_target_latency_us() :
                                DEFAULT_LATENCY_US);
-  LOG_STATUS("Configuring HTTP Connection");
-  LOG_STATUS("  Connection created for server %s", _server.c_str());
-  LOG_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
+  TRC_STATUS("Configuring HTTP Connection");
+  TRC_STATUS("  Connection created for server %s", _server.c_str());
+  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
 
 /// Create an HTTP connection object.
@@ -124,7 +125,47 @@ HttpConnection::HttpConnection(const std::string& server,
 /// @param server Server to send HTTP requests to.
 /// @param assert_user Assert user in header?
 /// @param resolver HTTP resolver to use to resolve server's IP addresses
-/// @param sas_log_level the level to log HTTP flows at (protocol/detail).
+/// @param stat_name SNMP table to report connection info to.
+/// @param load_monitor Load Monitor.
+/// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
+HttpConnection::HttpConnection(const std::string& server,
+                               bool assert_user,
+                               HttpResolver* resolver,
+                               SNMP::IPCountTable* stat_table,
+                               LoadMonitor* load_monitor,
+                               SASEvent::HttpLogLevel sas_log_level,
+                               CommunicationMonitor* comm_monitor) :
+  _server(server),
+  _host(host_from_server(server)),
+  _port(port_from_server(server)),
+  _assert_user(assert_user),
+  _resolver(resolver),
+  _sas_log_level(sas_log_level),
+  _comm_monitor(comm_monitor),
+  _stat_table(stat_table)
+{
+  pthread_key_create(&_curl_thread_local, cleanup_curl);
+  pthread_key_create(&_uuid_thread_local, cleanup_uuid);
+  pthread_mutex_init(&_lock, NULL);
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+  std::vector<std::string> no_stats;
+  _statistic = NULL;
+  _load_monitor = load_monitor;
+  _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
+                               load_monitor->get_target_latency_us() :
+                               DEFAULT_LATENCY_US);
+  TRC_STATUS("Configuring HTTP Connection");
+  TRC_STATUS("  Connection created for server %s", _server.c_str());
+  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
+}
+
+
+/// Create an HTTP connection object.
+///
+/// @param server Server to send HTTP requests to.
+/// @param assert_user Assert user in header?
+/// @param resolver HTTP resolver to use to resolve server's IP addresses
+/// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
 HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
                                HttpResolver* resolver,
@@ -136,7 +177,8 @@ HttpConnection::HttpConnection(const std::string& server,
   _assert_user(assert_user),
   _resolver(resolver),
   _sas_log_level(sas_log_level),
-  _comm_monitor(comm_monitor)
+  _comm_monitor(comm_monitor),
+  _stat_table(NULL)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -145,9 +187,9 @@ HttpConnection::HttpConnection(const std::string& server,
   _statistic = NULL;
   _load_monitor = NULL;
   _timeout_ms = calc_req_timeout_from_latency(DEFAULT_LATENCY_US);
-  LOG_STATUS("Configuring HTTP Connection");
-  LOG_STATUS("  Connection created for server %s", _server.c_str());
-  LOG_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
+  TRC_STATUS("Configuring HTTP Connection");
+  TRC_STATUS("  Connection created for server %s", _server.c_str());
+  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
 
 HttpConnection::~HttpConnection()
@@ -188,7 +230,7 @@ CURL* HttpConnection::get_curl_handle()
   if (curl == NULL)
   {
     curl = curl_easy_init();
-    LOG_DEBUG("Allocated CURL handle %p", curl);
+    TRC_DEBUG("Allocated CURL handle %p", curl);
     pthread_setspecific(_curl_thread_local, curl);
 
     // Create our private data
@@ -442,11 +484,11 @@ HTTPCode HttpConnection::send_get(const std::string& path,
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_get(const std::string& path,                     
-                                  std::map<std::string, std::string>& headers, 
-                                  std::string& response,                       
-                                  const std::string& username,                 
-                                  SAS::TrailId trail)                          
+HTTPCode HttpConnection::send_get(const std::string& path,
+                                  std::map<std::string, std::string>& headers,
+                                  std::string& response,
+                                  const std::string& username,
+                                  SAS::TrailId trail)
 {
   std::vector<std::string> unused_req_headers;
   return HttpConnection::send_get(path, headers, response, username, unused_req_headers, trail);
@@ -501,6 +543,12 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
   SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
+
+  // By default cURL will add `Expect: 100-continue` to certain requests. This
+  // causes the HTTP stack to send 100 Continue responses, which messes up the
+  // SAS call flow. To prevent this add an empty Expect header, which stops
+  // cURL from adding its own.
+  extra_headers = curl_slist_append(extra_headers, "Expect:");
 
   // Add in any extra headers
   for (std::vector<std::string>::const_iterator i = headers_to_add.begin();
@@ -605,7 +653,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
 
     // Send the request.
     doc.clear();
-    LOG_DEBUG("Sending HTTP request : %s (trying %s) %s", url.c_str(), remote_ip, (recycle_conn) ? "on new connection" : "");
+    TRC_DEBUG("Sending HTTP request : %s (trying %s) %s", url.c_str(), remote_ip, (recycle_conn) ? "on new connection" : "");
     rc = curl_easy_perform(curl);
 
     // If a request was sent, log it to SAS.
@@ -620,11 +668,11 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     {
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
       sas_log_http_rsp(trail, curl, http_rc, method_str, url, recorder.response, 0);
-      LOG_DEBUG("Received HTTP response: status=%d, doc=%s", http_rc, doc.c_str());
+      TRC_DEBUG("Received HTTP response: status=%d, doc=%s", http_rc, doc.c_str());
     }
     else
     {
-      LOG_ERROR("%s failed at server %s : %s (%d) : fatal",
+      TRC_ERROR("%s failed at server %s : %s (%d) : fatal",
                 url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
       sas_log_curl_error(trail, remote_ip, i->port, method_str, url, rc, 0);
     }
@@ -739,7 +787,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
 
   if (((rc != CURLE_OK) && (rc != CURLE_REMOTE_FILE_NOT_FOUND)) || (http_code >= 400))
   {
-    LOG_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
+    TRC_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
   }
 
   reset_curl_handle(curl);
@@ -835,6 +883,39 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
     return;
   }
 
+
+  if (_parent->_statistic != NULL)
+  {
+    update_zmq_ip_counts(value);
+  }
+  else if (_parent->_stat_table != NULL)
+  {
+    update_snmp_ip_counts(value);
+  }
+
+  _remote_ip = value;
+}
+
+void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value)  //< Remote IP, or "" if no connection.
+{
+  if (!_remote_ip.empty())
+  {
+      if (_parent->_stat_table->get(_remote_ip)->decrement() == 0)
+      {
+        _parent->_stat_table->remove(_remote_ip);
+      }
+  }
+
+  if (!value.empty())
+  {
+      _parent->_stat_table->get(value)->increment();
+  }
+}
+
+
+
+void HttpConnection::PoolEntry::update_zmq_ip_counts(const std::string& value)  //< Remote IP, or "" if no connection.
+{
   pthread_mutex_lock(&_parent->_lock);
 
   if (!_remote_ip.empty())
@@ -854,8 +935,6 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
     // insert an entry initialised to 0.)
     ++_parent->_server_count[value];
   }
-
-  _remote_ip = value;
 
   // Now build the statistics to report.
   std::vector<std::string> new_value;
@@ -905,7 +984,7 @@ size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::
   key.erase(std::remove_if(key.begin(), key.end(), ::isspace), key.end());
   val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
 
-  LOG_DEBUG("Received header %s with value %s", key.c_str(), val.c_str());
+  TRC_DEBUG("Received header %s with value %s", key.c_str(), val.c_str());
   (*headers)[key] = val;
 
   return size * nmemb;
@@ -981,17 +1060,20 @@ void HttpConnection::sas_log_http_req(SAS::TrailId trail,
                                       SAS::Timestamp timestamp,
                                       uint32_t instance_id)
 {
-  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
-  SAS::Event event(trail, event_id, instance_id);
+    SAS::Event event(trail, event_id, instance_id);
 
-  sas_add_ip_addrs_and_ports(event, curl);
-  event.add_compressed_param(request_bytes);
-  event.add_var_param(method_str);
-  event.add_var_param(Utils::url_unescape(url));
+    sas_add_ip_addrs_and_ports(event, curl);
+    event.add_compressed_param(request_bytes);
+    event.add_var_param(method_str);
+    event.add_var_param(Utils::url_unescape(url));
 
-  event.set_timestamp(timestamp);
-  SAS::report_event(event);
+    event.set_timestamp(timestamp);
+    SAS::report_event(event);
+  }
 }
 
 void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
@@ -1002,17 +1084,20 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
                                       const std::string& response_bytes,
                                       uint32_t instance_id)
 {
-  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::RX_HTTP_RSP : SASEvent::RX_HTTP_RSP_DETAIL);
-  SAS::Event event(trail, event_id, instance_id);
+    SAS::Event event(trail, event_id, instance_id);
 
-  sas_add_ip_addrs_and_ports(event, curl);
-  event.add_static_param(http_rc);
-  event.add_compressed_param(response_bytes);
-  event.add_var_param(method_str);
-  event.add_var_param(Utils::url_unescape(url));
+    sas_add_ip_addrs_and_ports(event, curl);
+    event.add_static_param(http_rc);
+    event.add_compressed_param(response_bytes);
+    event.add_var_param(method_str);
+    event.add_var_param(Utils::url_unescape(url));
 
-  SAS::report_event(event);
+    SAS::report_event(event);
+  }
 }
 
 void HttpConnection::sas_log_curl_error(SAS::TrailId trail,
@@ -1023,18 +1108,21 @@ void HttpConnection::sas_log_curl_error(SAS::TrailId trail,
                                         CURLcode code,
                                         uint32_t instance_id)
 {
-  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::HTTP_REQ_ERROR : SASEvent::HTTP_REQ_ERROR_DETAIL);
-  SAS::Event event(trail, event_id, instance_id);
+    SAS::Event event(trail, event_id, instance_id);
 
-  event.add_static_param(remote_port);
-  event.add_static_param(code);
-  event.add_var_param(remote_ip_addr);
-  event.add_var_param(method_str);
-  event.add_var_param(Utils::url_unescape(url));
-  event.add_var_param(curl_easy_strerror(code));
+    event.add_static_param(remote_port);
+    event.add_static_param(code);
+    event.add_var_param(remote_ip_addr);
+    event.add_var_param(method_str);
+    event.add_var_param(Utils::url_unescape(url));
+    event.add_var_param(curl_easy_strerror(code));
 
-  SAS::report_event(event);
+    SAS::report_event(event);
+  }
 }
 
 void HttpConnection::host_port_from_server(const std::string& server, std::string& host, int& port)
@@ -1072,8 +1160,8 @@ int HttpConnection::port_from_server(const std::string& server)
   return port;
 }
 
-// Changes the underlying server used by this connection. Use this when 
-// the HTTPConnection was created without a server (e.g. 
+// Changes the underlying server used by this connection. Use this when
+// the HTTPConnection was created without a server (e.g.
 // ChronosInternalConnection)
 void HttpConnection::change_server(std::string override_server)
 {

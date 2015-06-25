@@ -1,8 +1,8 @@
 /**
- * @file httpresolver.cpp  Implementation of HTTP DNS resolver class.
+ * @file snmp_agent.cpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2015 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,55 +34,50 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include "snmp_includes.h"
+#include "snmp_agent.h"
 #include "log.h"
-#include "httpresolver.h"
 
-HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
-                           int address_family,
-                           int blacklist_duration) :
-  BaseResolver(dns_client),
-  _address_family(address_family)
+static pthread_t snmp_thread_var;
+
+void* snmp_thread(void* data)
 {
-  TRC_DEBUG("Creating HTTP resolver");
-
-  // Create the blacklist.
-  create_blacklist(blacklist_duration);
-
-  TRC_STATUS("Created HTTP resolver");
-}
-
-HttpResolver::~HttpResolver()
-{
-  destroy_blacklist();
-}
-
-/// Resolve a destination host and realm name to a list of IP addresses,
-/// transports and ports.  HTTP is pretty simple - just look up the A records.
-void HttpResolver::resolve(const std::string& host,
-                           int port,
-                           int max_targets,
-                           std::vector<AddrInfo>& targets,
-                           SAS::TrailId trail)
-{
-  AddrInfo ai;
-  int dummy_ttl = 0;
-
-  TRC_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
-            host.c_str(), port, _address_family);
-
-  port = (port != 0) ? port : DEFAULT_PORT;
-  targets.clear();
-
-  if (parse_ip_target(host, ai.address))
+  while (1)
   {
-    // The name is already an IP address, so no DNS resolution is possible.
-    TRC_DEBUG("Target is an IP address");
-    ai.port = port;
-    ai.transport = TRANSPORT;
-    targets.push_back(ai);
+    agent_check_and_process(1);
+  }
+  return NULL;
+};
+
+// Set up the SNMP agent and handler thread. Returns 0 if and only if both succeed.
+int snmp_setup(const char* name)
+{
+  // Make sure we start as a subagent, not a master agent.
+  netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_ROLE, 1);
+
+  netsnmp_container_init_list();
+  int rc = init_agent(name);
+  if (rc != 0)
+  {
+    TRC_WARNING("SNMP AgentX initialization failed");
+    return -1;
   }
   else
   {
-    a_resolve(host, _address_family, port, TRANSPORT, max_targets, targets, dummy_ttl, trail);
+    TRC_STATUS("AgentX agent initialised");
   }
+
+  init_snmp(name);
+
+  int ret = pthread_create(&snmp_thread_var, NULL, snmp_thread, NULL);
+  return ret;
+}
+
+// Cancel the handler thread and shut down the SNMP agent.
+void snmp_terminate(const char* name)
+{
+  pthread_cancel(snmp_thread_var);
+  shutdown_agent();
+  snmp_shutdown(name);
+  netsnmp_container_free_list();
 }

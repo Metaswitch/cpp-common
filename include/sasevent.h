@@ -42,7 +42,7 @@
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20150507";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20150519";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -53,6 +53,7 @@ namespace SASEvent {
   // The levels at which clearwater nodes may log HTTP messages.
   enum struct HttpLogLevel
   {
+    NONE = 0,
     DETAIL = 40,
     PROTOCOL = 60
   };

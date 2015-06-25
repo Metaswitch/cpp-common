@@ -51,6 +51,7 @@
 #include "load_monitor.h"
 #include "sasevent.h"
 #include "communicationmonitor.h"
+#include "snmp_ip_count_table.h"
 
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
@@ -85,8 +86,17 @@ public:
   HttpConnection(const std::string& server,
                  bool assert_user,
                  HttpResolver* resolver,
+                 SNMP::IPCountTable* stat_table,
+                 LoadMonitor* load_monitor,
                  SASEvent::HttpLogLevel,
                  CommunicationMonitor* comm_monitor);
+
+  HttpConnection(const std::string& server,
+                 bool assert_user,
+                 HttpResolver* resolver,
+                 SASEvent::HttpLogLevel,
+                 CommunicationMonitor* comm_monitor);
+
   virtual ~HttpConnection();
 
   virtual long send_get(const std::string& path,
@@ -190,6 +200,9 @@ private:
     void update_deadline(unsigned long now_ms);
 
   private:
+    void update_zmq_ip_counts(const std::string& value);
+    void update_snmp_ip_counts(const std::string& value);
+
     /// Parent HttpConnection object.
     HttpConnection* _parent;
 
@@ -292,6 +305,7 @@ private:
   std::map<std::string, int> _server_count;  // must access under _lock
   SASEvent::HttpLogLevel _sas_log_level;
   CommunicationMonitor* _comm_monitor;
+  SNMP::IPCountTable* _stat_table;
 
   friend class PoolEntry; // so it can update stats
 };

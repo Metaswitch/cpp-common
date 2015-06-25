@@ -329,7 +329,7 @@ namespace Utils
       }
       else if (!_already_logged)
       {
-        LOG_ERROR("Failed to get start timestamp: %s", strerror(errno));
+        TRC_ERROR("Failed to get start timestamp: %s", strerror(errno));
         _already_logged = true;
       }
 
@@ -372,7 +372,7 @@ namespace Utils
         }
         else
         {
-          LOG_ERROR("Failed to get stop timestamp: %s", strerror(errno));
+          TRC_ERROR("Failed to get stop timestamp: %s", strerror(errno));
         }
       }
       else

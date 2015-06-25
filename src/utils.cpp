@@ -287,7 +287,7 @@ bool Utils::split_host_port(const std::string& host_port,
     Utils::split_string(host_port, ':', host_port_parts);
     if (host_port_parts.size() != 2)
     {
-      LOG_DEBUG("Malformed host/port %s", host_port.c_str());
+      TRC_DEBUG("Malformed host/port %s", host_port.c_str());
       return false;
     }
   }
@@ -302,7 +302,7 @@ bool Utils::split_host_port(const std::string& host_port,
         (host_port_parts[0][0] != '[') ||
         (host_port_parts[1][0] != ':'))
     {
-      LOG_DEBUG("Malformed host/port %s", host_port.c_str());
+      TRC_DEBUG("Malformed host/port %s", host_port.c_str());
       return false;
     }
 
@@ -316,7 +316,7 @@ bool Utils::split_host_port(const std::string& host_port,
   // Check the port was parsed correctly.
   if (std::to_string(port) != host_port_parts[1])
   {
-    LOG_DEBUG("Malformed port %s", host_port_parts[1].c_str());
+    TRC_DEBUG("Malformed port %s", host_port_parts[1].c_str());
     return false;
   }
 

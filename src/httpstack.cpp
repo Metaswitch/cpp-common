@@ -59,14 +59,14 @@ void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
 
 bool HttpStack::Request::get_latency(unsigned long& latency_us)
 {
-  return _stopwatch.read(latency_us);
+  return ((_track_latency) && (_stopwatch.read(latency_us)));
 }
 
 // Wrapper around evhtp_send_reply to ensure that all responses are
 // logged to the access log and SAS.
 void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
 {
-  LOG_VERBOSE("Sending response %d to request for URL %s, args %s", rc, req.req()->uri->path->full, req.req()->uri->query_raw);
+  TRC_VERBOSE("Sending response %d to request for URL %s, args %s", rc, req.req()->uri->path->full, req.req()->uri->query_raw);
   unsigned long latency_us = 0;
   req.get_latency(latency_us);
   log(std::string(req.req()->uri->path->full), req.method_as_str(), rc, latency_us);
@@ -76,14 +76,17 @@ void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
 }
 
 
-void HttpStack::send_reply(Request& req, int rc, SAS::TrailId trail)
+void HttpStack::send_reply(Request& req, 
+                           int rc, 
+                           SAS::TrailId trail)
 {
   send_reply_internal(req, rc, trail);
   // Resume the request to actually send it.  This matches the function to pause the request in
   // HttpStack::handler_callback_fn.
   evhtp_request_resume(req.req());
 
-  // Update the latency stats and throttling algorithm.
+  // Update the latency stats and throttling algorithm if it's appropriate for
+  // the request
   unsigned long latency_us = 0;
   if (req.get_latency(latency_us))
   {
@@ -130,10 +133,10 @@ void HttpStack::configure(const std::string& bind_address,
                           LoadMonitor* load_monitor,
                           HttpStack::StatsInterface* stats)
 {
-  LOG_STATUS("Configuring HTTP stack");
-  LOG_STATUS("  Bind address: %s", bind_address.c_str());
-  LOG_STATUS("  Bind port:    %u", bind_port);
-  LOG_STATUS("  Num threads:  %d", num_threads);
+  TRC_STATUS("Configuring HTTP stack");
+  TRC_STATUS("  Bind address: %s", bind_address.c_str());
+  TRC_STATUS("  Bind port:    %u", bind_port);
+  TRC_STATUS("  Num threads:  %d", num_threads);
   _bind_address = bind_address;
   _bind_port = bind_port;
   _num_threads = num_threads;
@@ -206,7 +209,7 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
   rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), _bind_port, 1024);
   if (rc != 0)
   {
-    LOG_ERROR("evhtp_bind_socket failed with address %s and port %d", full_bind_address.c_str(), _bind_port);
+    TRC_ERROR("evhtp_bind_socket failed with address %s and port %d", full_bind_address.c_str(), _bind_port);
     throw Exception("evhtp_bind_socket", rc); // LCOV_EXCL_LINE
   }
 
@@ -214,7 +217,7 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
     rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), _bind_port, 1024);
     if (rc != 0)
     {
-      LOG_ERROR("evhtp_bind_socket failed with address %s and port %d", local_bind_address.c_str(), _bind_port);
+      TRC_ERROR("evhtp_bind_socket failed with address %s and port %d", local_bind_address.c_str(), _bind_port);
       throw Exception("evhtp_bind_socket - localhost", rc); // LCOV_EXCL_LINE
     }
   }
@@ -228,14 +231,14 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
 
 void HttpStack::stop()
 {
-  LOG_STATUS("Stopping HTTP stack");
+  TRC_STATUS("Stopping HTTP stack");
   event_base_loopbreak(_evbase);
   evhtp_unbind_socket(_evhtp);
 }
 
 void HttpStack::wait_stopped()
 {
-  LOG_STATUS("Waiting for HTTP stack to stop");
+  TRC_STATUS("Waiting for HTTP stack to stop");
   pthread_join(_event_base_thread, NULL);
   evhtp_free(_evhtp);
   _evhtp = NULL;
@@ -273,7 +276,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     evhtp_request_pause(req);
 
     // Pass the request to the handler.
-    LOG_VERBOSE("Process request for URL %s, args %s",
+    TRC_VERBOSE("Process request for URL %s, args %s",
                 req->uri->path->full,
                 req->uri->query_raw);
 

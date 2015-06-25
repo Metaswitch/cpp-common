@@ -1,8 +1,8 @@
 /**
- * @file httpresolver.cpp  Implementation of HTTP DNS resolver class.
+ * @file snmp_scalar.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2015 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,55 +34,56 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "log.h"
-#include "httpresolver.h"
+#include <string>
 
-HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
-                           int address_family,
-                           int blacklist_duration) :
-  BaseResolver(dns_client),
-  _address_family(address_family)
+#include "snmp_includes.h"
+
+#ifndef SNMP_SCALAR_H
+#define SNMP_SCALAR_H
+
+// This file contains infrastructure for SNMP scalars (single values, not in a table).
+//
+// To use one, simply create a U32Scalar and modify its `value` object as necessary - changes to
+// this will automatically be reflected over SNMP. For example:
+//
+// SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count",
+//                                                  my_oid,
+//                                                  OID_LENGTH(my_oid));
+// cxn_count.value = 42;
+
+namespace SNMP
 {
-  TRC_DEBUG("Creating HTTP resolver");
 
-  // Create the blacklist.
-  create_blacklist(blacklist_duration);
-
-  TRC_STATUS("Created HTTP resolver");
-}
-
-HttpResolver::~HttpResolver()
+// Exposes a number as an SNMP Unsigned32.
+class U32Scalar
 {
-  destroy_blacklist();
-}
-
-/// Resolve a destination host and realm name to a list of IP addresses,
-/// transports and ports.  HTTP is pretty simple - just look up the A records.
-void HttpResolver::resolve(const std::string& host,
-                           int port,
-                           int max_targets,
-                           std::vector<AddrInfo>& targets,
-                           SAS::TrailId trail)
-{
-  AddrInfo ai;
-  int dummy_ttl = 0;
-
-  TRC_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
-            host.c_str(), port, _address_family);
-
-  port = (port != 0) ? port : DEFAULT_PORT;
-  targets.clear();
-
-  if (parse_ip_target(host, ai.address))
+public:
+  U32Scalar(std::string name,
+            oid* oid_param,
+            int oidlen):
+    value(0),
+    _oid(oid_param),
+    _oidlen(oidlen)
   {
-    // The name is already an IP address, so no DNS resolution is possible.
-    TRC_DEBUG("Target is an IP address");
-    ai.port = port;
-    ai.transport = TRANSPORT;
-    targets.push_back(ai);
+    netsnmp_register_read_only_ulong_instance(name.c_str(),
+                                              _oid,
+                                              _oidlen,
+                                              &value,
+                                              NULL);
   }
-  else
+
+  ~U32Scalar()
   {
-    a_resolve(host, _address_family, port, TRANSPORT, max_targets, targets, dummy_ttl, trail);
+    // Call into netsnmp to unregister this OID.
+    unregister_mib(_oid, _oidlen);
   }
+
+  unsigned long value;
+  
+private:
+  oid* _oid;
+  int _oidlen;
+};
+
 }
+#endif

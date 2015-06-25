@@ -92,6 +92,7 @@ public:
 private:
   /// Converts the view into a string suitable for logging.
   std::string view_to_string();
+  void generate_ring_from_stable_servers();
 
   /// Converts a set of replicas into an ordered string suitable for logging.
   std::string replicas_to_string(const std::vector<std::string>& replicas);

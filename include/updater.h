@@ -53,7 +53,7 @@ public:
     _pointer(pointer),
     _signal_waiter(signal_waiter)
   {
-    LOG_DEBUG("Created updater");
+    TRC_DEBUG("Created updater");
 
     // Do initial configuration.
     if (run_on_start)
@@ -67,7 +67,7 @@ public:
     if (rc < 0)
     {
       // LCOV_EXCL_START
-      LOG_ERROR("Error creating updater thread");
+      TRC_ERROR("Error creating updater thread");
       // LCOV_EXCL_STOP
     }
   }
@@ -88,7 +88,7 @@ private:
 
   void updater()
   {
-    LOG_DEBUG("Started updater thread");
+    TRC_DEBUG("Started updater thread");
 
     while (!_terminate)
     {
