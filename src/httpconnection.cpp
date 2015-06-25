@@ -101,7 +101,8 @@ HttpConnection::HttpConnection(const std::string& server,
   _assert_user(assert_user),
   _resolver(resolver),
   _sas_log_level(sas_log_level),
-  _comm_monitor(comm_monitor)
+  _comm_monitor(comm_monitor),
+  _stat_table(NULL)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -124,6 +125,46 @@ HttpConnection::HttpConnection(const std::string& server,
 /// @param server Server to send HTTP requests to.
 /// @param assert_user Assert user in header?
 /// @param resolver HTTP resolver to use to resolve server's IP addresses
+/// @param stat_name SNMP table to report connection info to.
+/// @param load_monitor Load Monitor.
+/// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
+HttpConnection::HttpConnection(const std::string& server,
+                               bool assert_user,
+                               HttpResolver* resolver,
+                               SNMP::IPCountTable* stat_table,
+                               LoadMonitor* load_monitor,
+                               SASEvent::HttpLogLevel sas_log_level,
+                               CommunicationMonitor* comm_monitor) :
+  _server(server),
+  _host(host_from_server(server)),
+  _port(port_from_server(server)),
+  _assert_user(assert_user),
+  _resolver(resolver),
+  _sas_log_level(sas_log_level),
+  _comm_monitor(comm_monitor),
+  _stat_table(stat_table)
+{
+  pthread_key_create(&_curl_thread_local, cleanup_curl);
+  pthread_key_create(&_uuid_thread_local, cleanup_uuid);
+  pthread_mutex_init(&_lock, NULL);
+  curl_global_init(CURL_GLOBAL_DEFAULT);
+  std::vector<std::string> no_stats;
+  _statistic = NULL;
+  _load_monitor = load_monitor;
+  _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
+                               load_monitor->get_target_latency_us() :
+                               DEFAULT_LATENCY_US);
+  TRC_STATUS("Configuring HTTP Connection");
+  TRC_STATUS("  Connection created for server %s", _server.c_str());
+  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
+}
+
+
+/// Create an HTTP connection object.
+///
+/// @param server Server to send HTTP requests to.
+/// @param assert_user Assert user in header?
+/// @param resolver HTTP resolver to use to resolve server's IP addresses
 /// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
 HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
@@ -136,7 +177,8 @@ HttpConnection::HttpConnection(const std::string& server,
   _assert_user(assert_user),
   _resolver(resolver),
   _sas_log_level(sas_log_level),
-  _comm_monitor(comm_monitor)
+  _comm_monitor(comm_monitor),
+  _stat_table(NULL)
 {
   pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -841,6 +883,39 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
     return;
   }
 
+
+  if (_parent->_statistic != NULL)
+  {
+    update_zmq_ip_counts(value);
+  }
+  else if (_parent->_stat_table != NULL)
+  {
+    update_snmp_ip_counts(value);
+  }
+
+  _remote_ip = value;
+}
+
+void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value)  //< Remote IP, or "" if no connection.
+{
+  if (!_remote_ip.empty())
+  {
+      if (_parent->_stat_table->get(_remote_ip)->decrement() == 0)
+      {
+        _parent->_stat_table->remove(_remote_ip);
+      }
+  }
+
+  if (!value.empty())
+  {
+      _parent->_stat_table->get(value)->increment();
+  }
+}
+
+
+
+void HttpConnection::PoolEntry::update_zmq_ip_counts(const std::string& value)  //< Remote IP, or "" if no connection.
+{
   pthread_mutex_lock(&_parent->_lock);
 
   if (!_remote_ip.empty())
@@ -860,8 +935,6 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
     // insert an entry initialised to 0.)
     ++_parent->_server_count[value];
   }
-
-  _remote_ip = value;
 
   // Now build the statistics to report.
   std::vector<std::string> new_value;
