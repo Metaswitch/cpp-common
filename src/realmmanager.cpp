@@ -78,6 +78,7 @@ void RealmManager::stop()
   pthread_cond_signal(&_cond);
   pthread_mutex_unlock(&_lock);
   pthread_join(_thread, NULL);
+  _stack->unregister_peer_hook_hdlr();
 }
 
 void RealmManager::connection_succeeded(Diameter::Peer* peer)

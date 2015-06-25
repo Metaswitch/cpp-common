@@ -636,6 +636,7 @@ public:
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
   virtual void register_peer_hook_hdlr();
+  virtual void unregister_peer_hook_hdlr();
   virtual void configure(std::string filename, 
                          ExceptionHandler* exception_handler,
                          CommunicationMonitor* comm_monitor = NULL,

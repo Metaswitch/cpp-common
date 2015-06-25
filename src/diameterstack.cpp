@@ -136,6 +136,14 @@ void Stack::register_peer_hook_hdlr()
   }
 }
 
+void Stack::unregister_peer_hook_hdlr()
+{
+  if (_peer_cb_hdlr)
+  {
+    fd_hook_unregister(_peer_cb_hdlr);
+  }
+}
+
 void Stack::populate_avp_map()
 {
   fd_list* vendor_sentinel;
