@@ -35,6 +35,7 @@
  */
 
 #include "snmp_accumulator_table.h"
+#include "limits.h"
 
 namespace SNMP
 {
@@ -53,7 +54,10 @@ ColumnData AccumulatorRow::get_columns()
   Statistics* accumulated = _view->get_data();
   uint_fast32_t count = accumulated->count.load();
 
-  uint_fast32_t avg, variance, lwm, hwm = 0, 0, 0, 0;
+  uint_fast32_t avg = 0;
+  uint_fast32_t variance = 0;
+  uint_fast32_t lwm = 0;
+  uint_fast32_t hwm = 0;
  
   if (count > 0)
   {
