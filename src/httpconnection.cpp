@@ -78,6 +78,7 @@ static const double CONNECTION_AGE_MS = 60 * 1000.0;
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
+// LCOV_EXCL_START - 0MQ constructor is deprecated in favour of the SNMP one
 /// Create an HTTP connection object.
 ///
 /// @param server Server to send HTTP requests to.
@@ -119,6 +120,7 @@ HttpConnection::HttpConnection(const std::string& server,
   TRC_STATUS("  Connection created for server %s", _server.c_str());
   TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
+// LCOV_EXCL_STOP
 
 /// Create an HTTP connection object.
 ///
@@ -886,7 +888,7 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
 
   if (_parent->_statistic != NULL)
   {
-    update_zmq_ip_counts(value);
+    update_zmq_ip_counts(value); // LCOV_EXCL_LINE - UTs cover new SNMP path instead
   }
   else if (_parent->_stat_table != NULL)
   {
@@ -913,7 +915,7 @@ void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value) 
 }
 
 
-
+// LCOV_EXCL_START - UTs cover new SNMP path instead
 void HttpConnection::PoolEntry::update_zmq_ip_counts(const std::string& value)  //< Remote IP, or "" if no connection.
 {
   pthread_mutex_lock(&_parent->_lock);
@@ -955,6 +957,7 @@ void HttpConnection::PoolEntry::update_zmq_ip_counts(const std::string& value)  
     _parent->_statistic->report_change(new_value);
   }
 }
+// LCOV_EXCL_STOP
 
 size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers)
 {
