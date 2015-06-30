@@ -844,6 +844,8 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
 
 void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value)  //< Remote IP, or "" if no connection.
 {
+  pthread_mutex_lock(&_parent->_lock);
+
   if (!_remote_ip.empty())
   {
       if (_parent->_stat_table->get(_remote_ip)->decrement() == 0)
@@ -856,6 +858,8 @@ void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value) 
   {
       _parent->_stat_table->get(value)->increment();
   }
+  
+  pthread_mutex_unlock(&_parent->_lock);
 }
 
 size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers)
