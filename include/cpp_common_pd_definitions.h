@@ -106,10 +106,9 @@ static const PDLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
 (
   PDLogBase::CL_CPP_COMMON_ID + 5,
   PDLOG_ERR,
-  "%s failed to communicate with HTTP server %s with curl error %s code %d.",
-  "An HTTP connection attempt failed to the specified server with the "
-  "specified error code.",
-  "This condition impacts the ability to register, subscribe, or make a call.",
+  "Request for %s to HTTP server %s failed with error \"%s\" (code %d).",
+  "An HTTP request to the specified server failed with the specified error code.",
+  "This condition may impact the ability to register, subscribe, or make a call.",
   "(1). Check to see if the specified host has failed. "
   "(2). Check to see if there is TCP connectivity to the host by using ping "
   "and/or Wireshark."
@@ -135,6 +134,14 @@ static const PDLog3<int, int, const char*> CL_MEMCACHED_CLUSTER_UPDATE_RESIZE
   "None."
 );
 
-
+static const PDLog3<const char*, const char*, int> CL_HTTP_PROTOCOL_ERR
+(
+  PDLogBase::CL_CPP_COMMON_ID + 8,
+  PDLOG_ERR,
+  "Request for %s to HTTP server %s failed with HTTP status %d.",
+  "An HTTP request was rejected at the specified server with the specified status code.",
+  "This condition may impact the ability to register, subscribe, or make a call.",
+  "Check for logs on the specified server to see why it rejected the request."
+);
 
 #endif
