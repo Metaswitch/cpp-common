@@ -38,91 +38,26 @@
 #include <map>
 #include <string>
 
-#include "snmp_includes.h"
-#include "snmp_time_period_table.h"
-#include "logger.h"
-
 #ifndef SNMP_COUNTER_TABLE_H
 #define SNMP_COUNTER_TABLE_H
 
-// This file contains infrastructure for tables which:
+// This file contains the interface for tables which:
 //   - are indexed by time period
 //   - increment a single counter over time
 //   - report a single column for each time period with that count
+//
+// This is defined as an interface in order not to pollute the codebase with netsnmp include files
+// (which indiscriminately #define things like READ and WRITE).
 
 namespace SNMP
 {
-
-// Storage for the underlying data
-struct SingleCount
+class CounterTable
 {
-  uint64_t count;
+  static CounterTable* create(std::string name, std::string oid);
+  virtual void increment() = 0;
 
-  void reset() { count = 0; };
+protected:
+  CounterTable() {};
 };
-
-
-// Just a TimeBasedRow that maps the data from SingleCount into the right column.
-class CounterRow: public TimeBasedRow<SingleCount>
-{
-public:
-  CounterRow(int index, View* view):
-    TimeBasedRow<SingleCount>(index, view) {};
-  ColumnData get_columns();
-};
-
-class CounterTable: public ManagedTable<CounterRow, int>
-{
-public:
-  CounterTable(std::string name,
-                   oid* tbl_oid,
-                   int oidlen) :
-    ManagedTable<CounterRow, int>(name,
-                                  tbl_oid,
-                                  oidlen,
-                                  2,
-                                  2, // Only column 2 should be visible
-                                  { ASN_INTEGER }), // Type of the index column
-    five_second(5),
-    five_minute(300)
-  {
-    // We have a fixed number of rows, so create them in the constructor.
-    add(TimePeriodIndexes::scopePrevious5SecondPeriod);
-    add(TimePeriodIndexes::scopeCurrent5MinutePeriod);
-    add(TimePeriodIndexes::scopePrevious5MinutePeriod);
-  }
- 
-  void increment()
-  {
-    // Increment each underlying set of data.
-    five_second.get_current()->count++;
-    five_minute.get_current()->count++;
-  }
-
-private: 
-  // Map row indexes to the view of the underlying data they should expose
-  CounterRow* new_row(int index)
-  {
-    CounterRow::View* view = NULL;
-    switch (index)
-    {
-      case TimePeriodIndexes::scopePrevious5SecondPeriod:
-        view = new CounterRow::PreviousView(&five_second);
-        break;
-      case TimePeriodIndexes::scopeCurrent5MinutePeriod:
-        view = new CounterRow::CurrentView(&five_minute);
-        break;
-      case TimePeriodIndexes::scopePrevious5MinutePeriod:
-        view = new CounterRow::PreviousView(&five_minute);
-        break;
-    }
-    return new CounterRow(index, view);
-  }
-
-  CounterRow::CurrentAndPrevious five_second;
-  CounterRow::CurrentAndPrevious five_minute;
-};
-
 }
-
 #endif
