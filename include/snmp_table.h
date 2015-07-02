@@ -170,7 +170,6 @@ public:
 
   virtual ~Table()
   {
-    printf("Destructor for %s\n", _name.c_str());
     if (_handler_reg)
     {
       netsnmp_unregister_handler(_handler_reg);

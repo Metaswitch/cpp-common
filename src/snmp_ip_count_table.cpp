@@ -120,7 +120,6 @@ public:
 
   IPCountRow* new_row(std::string ip)
   {
-    printf("Creating new row for %s\n", ip.c_str());
     struct in_addr  v4;
     struct in6_addr v6;
 
