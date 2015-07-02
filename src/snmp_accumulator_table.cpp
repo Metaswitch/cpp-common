@@ -65,7 +65,7 @@ ColumnData AccumulatorRow::get_columns()
     uint_fast64_t sumsq = accumulated->sqsum.load();
     // Calculate the average and the variance from the stored sum and sum-of-squares.
     avg = sum/count;
-    variance = sumsq/count - avg;
+    variance = sumsq/count - (avg * avg);
     
     hwm = accumulated->hwm.load();
     lwm = accumulated->lwm.load();
@@ -76,8 +76,8 @@ ColumnData AccumulatorRow::get_columns()
   ret[1] = Value::integer(_index);
   ret[2] = Value::uint(avg);
   ret[3] = Value::uint(variance);
-  ret[4] = Value::uint(lwm);
-  ret[5] = Value::uint(hwm);
+  ret[4] = Value::uint(hwm);
+  ret[5] = Value::uint(lwm);
   ret[6] = Value::uint(count);
   return ret;
 }
