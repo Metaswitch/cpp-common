@@ -41,8 +41,4 @@
 #include <net-snmp/net-snmp-includes.h>
 #include <net-snmp/agent/net-snmp-agent-includes.h>
 
-// net-snmp defines conflicting things, so undef them here
-
-#undef ACTION
-
 #endif
