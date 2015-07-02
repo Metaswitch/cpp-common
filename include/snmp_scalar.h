@@ -36,8 +36,6 @@
 
 #include <string>
 
-#include "snmp_includes.h"
-
 #ifndef SNMP_SCALAR_H
 #define SNMP_SCALAR_H
 
@@ -46,10 +44,8 @@
 // To use one, simply create a U32Scalar and modify its `value` object as necessary - changes to
 // this will automatically be reflected over SNMP. For example:
 //
-// SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count",
-//                                                  my_oid,
-//                                                  OID_LENGTH(my_oid));
-// cxn_count.value = 42;
+// SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count", ".1.2.3");
+// cxn_count->value = 42;
 
 namespace SNMP
 {
@@ -58,31 +54,12 @@ namespace SNMP
 class U32Scalar
 {
 public:
-  U32Scalar(std::string name,
-            oid* oid_param,
-            int oidlen):
-    value(0),
-    _oid(oid_param),
-    _oidlen(oidlen)
-  {
-    netsnmp_register_read_only_ulong_instance(name.c_str(),
-                                              _oid,
-                                              _oidlen,
-                                              &value,
-                                              NULL);
-  }
-
-  ~U32Scalar()
-  {
-    // Call into netsnmp to unregister this OID.
-    unregister_mib(_oid, _oidlen);
-  }
-
+  U32Scalar(std::string name, std::string oid);
+  ~U32Scalar();
   unsigned long value;
   
 private:
-  oid* _oid;
-  int _oidlen;
+  std::string _oid;
 };
 
 }

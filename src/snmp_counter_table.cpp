@@ -73,11 +73,9 @@ class CounterTableImpl: public ManagedTable<CounterRow, int>, public CounterTabl
 {
 public:
   CounterTableImpl(std::string name,
-                   oid* tbl_oid,
-                   int oidlen) :
+                   std::string tbl_oid):
     ManagedTable<CounterRow, int>(name,
                                   tbl_oid,
-                                  oidlen,
                                   2,
                                   2, // Only column 2 should be visible
                                   { ASN_INTEGER }), // Type of the index column
@@ -123,7 +121,7 @@ private:
 
 CounterTable* CounterTable::create(std::string name, std::string oid)
 {
-  return new CounterTableImpl(name, NULL, 0);
+  return new CounterTableImpl(name, oid);
 }
 
 }

@@ -1,5 +1,5 @@
 /**
- * @file snmp_accumulator_table.h
+ * @file snmp_scalar.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -28,53 +28,40 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed und er the OpenSSL Licenses.
+ * software and licensed under the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <vector>
-#include <map>
 #include <string>
-#include <atomic>
 
-#include "logger.h"
-
-#ifndef SNMP_ACCUMULATOR_TABLE_H
-#define SNMP_ACCUMULATOR_TABLE_H
-
-// This file contains the interface for tables which:
-//   - are indexed by time period
-//   - accumulate data samples over time
-//   - report a count of samples, mean sample value, variance, high-water-mark and low-water-mark
-//
-// The thing sampled doesn't matter - it could be latency, size of a queue, etc.
-//
-// To create an accumulator table, simply create one, and call `accumulate` on it as data comes in,
-// e.g.:
-//
-// AccumulatorTable* bono_latency_table = AccumulatorTable::create("bono_latency", ".1.2.3");
-// bono_latency_table->accumulate(2000);
+#include "snmp_includes.h"
+#include "snmp_scalar.h"
 
 namespace SNMP
 {
+U32Scalar::U32Scalar(std::string name,
+                     std::string oid_str):
+  value(0),
+  _oid(oid_str)
+  {
+    oid parsed_oid[64];
+    size_t oid_len = 64;
+    read_objid(_oid.c_str(), parsed_oid, &oid_len);
+    netsnmp_register_read_only_ulong_instance(name.c_str(),
+                                              parsed_oid,
+                                              oid_len,
+                                              &value,
+                                              NULL);
+  }
 
-class AccumulatorTable
+U32Scalar::~U32Scalar()
 {
-public:
-  virtual ~AccumulatorTable() {};
-
-  static AccumulatorTable* create(std::string name, std::string oid);
-
-  // Accumulate a sample into the underlying statistics.
-  virtual void accumulate(uint32_t sample) = 0;
-
-protected:
-  AccumulatorTable() {};
-
-};
-
+  oid parsed_oid[64];
+  size_t oid_len = 64;
+  read_objid(_oid.c_str(), parsed_oid, &oid_len);
+  // Call into netsnmp to unregister this OID.
+  unregister_mib(parsed_oid, oid_len);
 }
-
-#endif
+}

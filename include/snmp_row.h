@@ -1,5 +1,5 @@
 /**
- * @file snmp_accumulator_table.h
+ * @file snmp_row.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -28,7 +28,7 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed und er the OpenSSL Licenses.
+ * software and licensed under the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
@@ -37,44 +37,43 @@
 #include <vector>
 #include <map>
 #include <string>
-#include <atomic>
 
-#include "logger.h"
+#include "log.h"
 
-#ifndef SNMP_ACCUMULATOR_TABLE_H
-#define SNMP_ACCUMULATOR_TABLE_H
+#ifndef SNMP_ROW_H
+#define SNMP_ROW_H
 
-// This file contains the interface for tables which:
-//   - are indexed by time period
-//   - accumulate data samples over time
-//   - report a count of samples, mean sample value, variance, high-water-mark and low-water-mark
-//
-// The thing sampled doesn't matter - it could be latency, size of a queue, etc.
-//
-// To create an accumulator table, simply create one, and call `accumulate` on it as data comes in,
-// e.g.:
-//
-// AccumulatorTable* bono_latency_table = AccumulatorTable::create("bono_latency", ".1.2.3");
-// bono_latency_table->accumulate(2000);
+// Forward-declare netsmnmp_tdata_row, so we don't require everyone who includes this header to
+// include all of netsnmp.
+struct netsnmp_tdata_row_s;
+typedef netsnmp_tdata_row_s netsnmp_tdata_row;
 
 namespace SNMP
 {
 
-class AccumulatorTable
+class Value;
+
+// A ColumnData is the information for a particular row, implemented as a map of column number to
+// its value.
+typedef std::map<int, Value> ColumnData;
+
+template<class T> class Table;
+
+// Abstract Row class which wraps a netsnmp_tdata_row.
+class Row
 {
 public:
-  virtual ~AccumulatorTable() {};
+  template<class T> friend class Table;
+  Row();
 
-  static AccumulatorTable* create(std::string name, std::string oid);
+  virtual ~Row();
 
-  // Accumulate a sample into the underlying statistics.
-  virtual void accumulate(uint32_t sample) = 0;
+  virtual ColumnData get_columns() = 0;
 
 protected:
-  AccumulatorTable() {};
-
+  netsnmp_tdata_row* _row;
+  netsnmp_tdata_row* get_netsnmp_row() { return _row; };
 };
 
-}
-
+} // namespace SNMP
 #endif

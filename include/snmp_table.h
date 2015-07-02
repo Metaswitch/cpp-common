@@ -38,6 +38,7 @@
 #include <map>
 #include <string>
 
+#include "snmp_row.h"
 #include "snmp_includes.h"
 #include "log.h"
 
@@ -124,29 +125,6 @@ typedef std::map<int, Value> ColumnData;
 
 template<class T> class Table;
 
-// Abstract Row class which wraps a netsnmp_tdata_row.
-class Row
-{
-public:
-  template<class T> friend class Table;
-  Row()
-  {
-    _row = netsnmp_tdata_create_row();
-    _row->data = this;
-  }
-
-  virtual ~Row()
-  {
-    netsnmp_tdata_delete_row(_row);
-  }
-
-  virtual ColumnData get_columns() = 0;
-
-protected:
-  netsnmp_tdata_row* _row;
-  netsnmp_tdata_row* get_netsnmp_row() { return _row; };
-};
-
 // Generic SNMPTable class wrapping a netsnmp_tdata and netsnmp_table_registration_info and exposing
 // an API for manipulating them easily. Doesn't need subclassing, but should usually be wrapped in a
 // ManagedTable subclass for convenience.
@@ -154,16 +132,15 @@ template<class T> class Table
 {
 public:
   Table(std::string name, // Name of this table, for logging
-        oid* tbl_oid,     // Root OID of this table
-        int oidlen,
+        std::string tbl_oid,     // Root OID of this table
         int min_visible_column,        // Range of columns to expose for queries
         int max_visible_column,
         std::vector<int> index_types): // Types of the index columns
     _name(name),
-    _tbl_oid(tbl_oid),
-    _oidlen(oidlen),
+    _oidlen(64),
     _handler_reg(NULL)
   {
+    read_objid(tbl_oid.c_str(), _tbl_oid, &_oidlen);
     _table = netsnmp_tdata_create_table(_name.c_str(), 0);
     _table_info = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
     
@@ -193,6 +170,7 @@ public:
 
   virtual ~Table()
   {
+    printf("Destructor for %s\n", _name.c_str());
     if (_handler_reg)
     {
       netsnmp_unregister_handler(_handler_reg);
@@ -217,8 +195,8 @@ public:
 
 protected:
   std::string _name;
-  oid* _tbl_oid;
-  int _oidlen;
+  oid _tbl_oid[64];
+  size_t _oidlen;
   netsnmp_handler_registration* _handler_reg;
   netsnmp_table_registration_info* _table_info;
   netsnmp_tdata* _table;
@@ -293,12 +271,11 @@ template<class TRow, class TRowKey> class ManagedTable : public Table<TRow>
 {
 public:
   ManagedTable(std::string name,
-               oid* tbl_oid,
-               int oidlen,
+               std::string tbl_oid,
                int min_visible_column,
                int max_visible_column,
                std::vector<int> index_types):
-    Table<TRow>(name, tbl_oid, oidlen, min_visible_column, max_visible_column, index_types) {}
+    Table<TRow>(name, tbl_oid, min_visible_column, max_visible_column, index_types) {}
 
   // Upon destruction, release all the rows we're managing.
   virtual ~ManagedTable()
