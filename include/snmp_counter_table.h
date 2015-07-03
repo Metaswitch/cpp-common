@@ -53,6 +53,7 @@ namespace SNMP
 {
 class CounterTable
 {
+public:
   static CounterTable* create(std::string name, std::string oid);
   virtual void increment() = 0;
   virtual ~CounterTable() {};
