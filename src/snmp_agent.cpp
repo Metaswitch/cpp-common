@@ -34,7 +34,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "snmp_includes.h"
+#include "snmp_internal/snmp_includes.h"
 #include "snmp_agent.h"
 #include "log.h"
 

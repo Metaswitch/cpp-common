@@ -34,7 +34,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "snmp_time_period_table.h"
+#include "snmp_internal/snmp_time_period_table.h"
 #include "snmp_accumulator_table.h"
 #include "limits.h"
 

@@ -38,7 +38,7 @@
 #include <map>
 #include <string>
 
-#include "snmp_includes.h"
+#include "snmp_internal/snmp_includes.h"
 #include "snmp_row.h"
 #include "log.h"
 

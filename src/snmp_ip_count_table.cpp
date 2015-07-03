@@ -41,8 +41,8 @@
 #include <arpa/inet.h>
 
 #include "snmp_ip_count_table.h"
-#include "snmp_table.h"
-#include "snmp_includes.h"
+#include "snmp_internal/snmp_table.h"
+#include "snmp_internal/snmp_includes.h"
 #include "logger.h"
 
 namespace SNMP

@@ -35,8 +35,8 @@
  */
 
 #include "snmp_counter_table.h"
-#include "snmp_includes.h"
-#include "snmp_time_period_table.h"
+#include "snmp_internal/snmp_includes.h"
+#include "snmp_internal/snmp_time_period_table.h"
 #include "logger.h"
 
 namespace SNMP
