@@ -44,6 +44,17 @@
 
 namespace SNMP
 {
+Value Value::uint(uint32_t val)
+{
+  return Value(ASN_UNSIGNED, (unsigned char*)&val, sizeof(uint32_t));
+};
+
+// Utility constructor for ASN_INTEGERS
+Value Value::integer(int val)
+{
+  return Value(ASN_INTEGER, (unsigned char*)&val, sizeof(int32_t));
+};
+
 
 Row::Row()
 {
