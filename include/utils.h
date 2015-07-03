@@ -66,7 +66,28 @@ struct IP46Address
     }
     else if (af == AF_INET)
     {
-      return addr.ipv4.s_addr - rhs.addr.ipv4.s_addr;
+      // Note that we are not simply returning (addr.ipv4.s_addr - rhs.addr.ipv4.s_addr) here.
+      // This is deliberate - the "s_addr" field in an in_addr.ipv4 structure is
+      // "unsigned long", which means that the difference between two of these
+      // might be larger than the maximum value of an int (2Gig - 1). If we
+      // were to return (addr.ipv4.s_addr - rhs.addr.ipv4.s_addr) here, we could
+      // end up with the compare function saying that A < B < C < A, which ruins
+      // the internal structure of C++ maps relying on this comparison function and
+      // ultimately causes nasty scribblers.
+      //
+      // Hence the more careful explicit comparison below.
+      if (addr.ipv4.s_addr < rhs.addr.ipv4.s_addr)
+      {
+        return -1;
+      }
+      else if (addr.ipv4.s_addr > rhs.addr.ipv4.s_addr)
+      {
+        return 1;
+      }
+      else
+      {
+        return 0;
+      }
     }
     else if (af == AF_INET6)
     {
