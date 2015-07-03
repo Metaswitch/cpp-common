@@ -83,48 +83,6 @@ static const int MAX_TARGETS = 5;
 /// @param server Server to send HTTP requests to.
 /// @param assert_user Assert user in header?
 /// @param resolver HTTP resolver to use to resolve server's IP addresses
-/// @param stat_name Name of statistic to report connection info to.
-/// @param load_monitor Load Monitor.
-/// @param lvc Statistics last value cache.
-/// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
-HttpConnection::HttpConnection(const std::string& server,
-                               bool assert_user,
-                               HttpResolver* resolver,
-                               const std::string& stat_name,
-                               LoadMonitor* load_monitor,
-                               LastValueCache* lvc,
-                               SASEvent::HttpLogLevel sas_log_level,
-                               CommunicationMonitor* comm_monitor) :
-  _server(server),
-  _host(host_from_server(server)),
-  _port(port_from_server(server)),
-  _assert_user(assert_user),
-  _resolver(resolver),
-  _sas_log_level(sas_log_level),
-  _comm_monitor(comm_monitor),
-  _stat_table(NULL)
-{
-  pthread_key_create(&_curl_thread_local, cleanup_curl);
-  pthread_key_create(&_uuid_thread_local, cleanup_uuid);
-  pthread_mutex_init(&_lock, NULL);
-  curl_global_init(CURL_GLOBAL_DEFAULT);
-  std::vector<std::string> no_stats;
-  _statistic = new Statistic(stat_name, lvc);
-  _statistic->report_change(no_stats);
-  _load_monitor = load_monitor;
-  _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
-                               load_monitor->get_target_latency_us() :
-                               DEFAULT_LATENCY_US);
-  TRC_STATUS("Configuring HTTP Connection");
-  TRC_STATUS("  Connection created for server %s", _server.c_str());
-  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
-}
-
-/// Create an HTTP connection object.
-///
-/// @param server Server to send HTTP requests to.
-/// @param assert_user Assert user in header?
-/// @param resolver HTTP resolver to use to resolve server's IP addresses
 /// @param stat_name SNMP table to report connection info to.
 /// @param load_monitor Load Monitor.
 /// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
@@ -149,7 +107,6 @@ HttpConnection::HttpConnection(const std::string& server,
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
   std::vector<std::string> no_stats;
-  _statistic = NULL;
   _load_monitor = load_monitor;
   _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                load_monitor->get_target_latency_us() :
@@ -184,7 +141,6 @@ HttpConnection::HttpConnection(const std::string& server,
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
-  _statistic = NULL;
   _load_monitor = NULL;
   _timeout_ms = calc_req_timeout_from_latency(DEFAULT_LATENCY_US);
   TRC_STATUS("Configuring HTTP Connection");
@@ -211,12 +167,6 @@ HttpConnection::~HttpConnection()
   {
     pthread_setspecific(_uuid_thread_local, NULL);
     cleanup_uuid(uuid_gen); uuid_gen = NULL;
-  }
-
-  if (_statistic != NULL)
-  {
-    delete _statistic;
-    _statistic = NULL;
   }
 
   pthread_key_delete(_curl_thread_local);
@@ -892,11 +842,7 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
   }
 
 
-  if (_parent->_statistic != NULL)
-  {
-    update_zmq_ip_counts(value);
-  }
-  else if (_parent->_stat_table != NULL)
+  if (_parent->_stat_table != NULL)
   {
     update_snmp_ip_counts(value);
   }
@@ -906,6 +852,8 @@ void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Rem
 
 void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value)  //< Remote IP, or "" if no connection.
 {
+  pthread_mutex_lock(&_parent->_lock);
+
   if (!_remote_ip.empty())
   {
       if (_parent->_stat_table->get(_remote_ip)->decrement() == 0)
@@ -918,50 +866,8 @@ void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value) 
   {
       _parent->_stat_table->get(value)->increment();
   }
-}
-
-
-
-void HttpConnection::PoolEntry::update_zmq_ip_counts(const std::string& value)  //< Remote IP, or "" if no connection.
-{
-  pthread_mutex_lock(&_parent->_lock);
-
-  if (!_remote_ip.empty())
-  {
-    // Decrement the number of connections to this address.
-    if (--_parent->_server_count[_remote_ip] <= 0)
-    {
-      // No more connections to this address, so remove it from the map.
-      _parent->_server_count.erase(_remote_ip);
-    }
-  }
-
-  if (!value.empty())
-  {
-    // Increment the count of connections to this address.  (Note this is
-    // safe even if this is the first connection as the [] operator will
-    // insert an entry initialised to 0.)
-    ++_parent->_server_count[value];
-  }
-
-  // Now build the statistics to report.
-  std::vector<std::string> new_value;
-
-  for (std::map<std::string, int>::iterator iter = _parent->_server_count.begin();
-       iter != _parent->_server_count.end();
-       ++iter)
-  {
-    new_value.push_back(iter->first);
-    new_value.push_back(std::to_string(iter->second));
-  }
-
+  
   pthread_mutex_unlock(&_parent->_lock);
-
-  // Actually report outside the mutex to avoid any risk of deadlock.
-  if (_parent->_statistic != NULL)
-  {
-    _parent->_statistic->report_change(new_value);
-  }
 }
 
 size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers)

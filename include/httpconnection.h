@@ -47,7 +47,6 @@
 
 #include "utils.h"
 #include "httpresolver.h"
-#include "statistic.h"
 #include "load_monitor.h"
 #include "sasevent.h"
 #include "communicationmonitor.h"
@@ -75,14 +74,6 @@ static const long HTTP_GATEWAY_TIMEOUT = 504;
 class HttpConnection
 {
 public:
-  HttpConnection(const std::string& server,
-                 bool assert_user,
-                 HttpResolver* resolver,
-                 const std::string& stat_name,
-                 LoadMonitor* load_monitor,
-                 LastValueCache* lvc,
-                 SASEvent::HttpLogLevel,
-                 CommunicationMonitor* comm_monitor);
   HttpConnection(const std::string& server,
                  bool assert_user,
                  HttpResolver* resolver,
@@ -200,7 +191,6 @@ private:
     void update_deadline(unsigned long now_ms);
 
   private:
-    void update_zmq_ip_counts(const std::string& value);
     void update_snmp_ip_counts(const std::string& value);
 
     /// Parent HttpConnection object.
@@ -298,7 +288,6 @@ private:
   pthread_key_t _uuid_thread_local;
 
   HttpResolver* _resolver;
-  Statistic* _statistic;
   LoadMonitor* _load_monitor;
   long _timeout_ms;
   pthread_mutex_t _lock;
