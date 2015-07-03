@@ -1,5 +1,5 @@
 /**
- * @file snmp_accumulator_table.h
+ * @file snmp_table.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -28,53 +28,17 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed und er the OpenSSL Licenses.
+ * software and licensed under the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <vector>
-#include <map>
-#include <string>
-#include <atomic>
+#ifndef SNMP_INCLUDES_H
+#define SNMP_INCLUDES_H
 
-#include "logger.h"
-
-#ifndef SNMP_ACCUMULATOR_TABLE_H
-#define SNMP_ACCUMULATOR_TABLE_H
-
-// This file contains the interface for tables which:
-//   - are indexed by time period
-//   - accumulate data samples over time
-//   - report a count of samples, mean sample value, variance, high-water-mark and low-water-mark
-//
-// The thing sampled doesn't matter - it could be latency, size of a queue, etc.
-//
-// To create an accumulator table, simply create one, and call `accumulate` on it as data comes in,
-// e.g.:
-//
-// AccumulatorTable* bono_latency_table = AccumulatorTable::create("bono_latency", ".1.2.3");
-// bono_latency_table->accumulate(2000);
-
-namespace SNMP
-{
-
-class AccumulatorTable
-{
-public:
-  virtual ~AccumulatorTable() {};
-
-  static AccumulatorTable* create(std::string name, std::string oid);
-
-  // Accumulate a sample into the underlying statistics.
-  virtual void accumulate(uint32_t sample) = 0;
-
-protected:
-  AccumulatorTable() {};
-
-};
-
-}
+#include <net-snmp/net-snmp-config.h>
+#include <net-snmp/net-snmp-includes.h>
+#include <net-snmp/agent/net-snmp-agent-includes.h>
 
 #endif

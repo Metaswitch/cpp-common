@@ -34,11 +34,115 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include "snmp_internal/snmp_time_period_table.h"
 #include "snmp_accumulator_table.h"
 #include "limits.h"
 
 namespace SNMP
 {
+
+// Storage for the underlying data
+struct Statistics
+{
+  std::atomic_uint_fast64_t count;
+  std::atomic_uint_fast64_t sum;
+  std::atomic_uint_fast64_t sqsum;
+  std::atomic_uint_fast64_t hwm;
+  std::atomic_uint_fast64_t lwm;
+
+  void reset();
+};
+
+// Just a TimeBasedRow that maps the data from Statistics into the right five columns.
+class AccumulatorRow: public TimeBasedRow<Statistics>
+{
+public:
+  AccumulatorRow(int index, View* view): TimeBasedRow<Statistics>(index, view) {};
+  ColumnData get_columns();
+};
+
+class AccumulatorTableImpl: public ManagedTable<AccumulatorRow, int>, public AccumulatorTable
+{
+public:
+  AccumulatorTableImpl(std::string name,
+                       std::string tbl_oid):
+    ManagedTable<AccumulatorRow, int>(name,
+                                      tbl_oid,
+                                      2,
+                                      6, // Columns 2-6 should be visible
+                                      { ASN_INTEGER }), // Type of the index column
+    five_second(5),
+    five_minute(300)
+  {
+    // We have a fixed number of rows, so create them in the constructor.
+    add(TimePeriodIndexes::scopePrevious5SecondPeriod);
+    add(TimePeriodIndexes::scopeCurrent5MinutePeriod);
+    add(TimePeriodIndexes::scopePrevious5MinutePeriod);
+  }
+
+  // Accumulate a sample into the underlying statistics.
+  void accumulate(uint32_t sample)
+  {
+    // Pass samples through to the underlying data structures
+    accumulate_internal(five_second, sample);
+    accumulate_internal(five_minute, sample);
+  }
+
+private:
+  // Map row indexes to the view of the underlying data they should expose
+  AccumulatorRow* new_row(int index)
+  {
+    AccumulatorRow::View* view = NULL;
+    switch (index)
+    {
+      case TimePeriodIndexes::scopePrevious5SecondPeriod:
+        view = new AccumulatorRow::PreviousView(&five_second);
+        break;
+      case TimePeriodIndexes::scopeCurrent5MinutePeriod:
+        view = new AccumulatorRow::CurrentView(&five_minute);
+        break;
+      case TimePeriodIndexes::scopePrevious5MinutePeriod:
+        view = new AccumulatorRow::PreviousView(&five_minute);
+        break;
+    }
+    return new AccumulatorRow(index, view);
+  }
+
+  void accumulate_internal(AccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
+  {
+    Statistics* current = data.get_current();
+
+    current->count++;
+
+    // Just keep a running total as we go along, so we can calculate the average and variance on
+    // request
+    current->sum += sample;
+    current->sqsum += (sample * sample);
+
+    // Update the low- and high-water marks.  In each case, we get the current
+    // value, decide whether a change is required and then atomically swap it
+    // if so, repeating if it was changed in the meantime.  Note that
+    // compare_exchange_weak loads the current value into the expected value
+    // parameter (lwm or hwm below) if the compare fails.
+    uint_fast64_t lwm = current->lwm.load();
+    while ((sample < lwm) &&
+           (!current->lwm.compare_exchange_weak(lwm, sample)))
+    {
+      // Do nothing.
+    }
+    uint_fast64_t hwm = current->hwm.load();
+    while ((sample > hwm) &&
+           (!current->hwm.compare_exchange_weak(hwm, sample)))
+    {
+      // Do nothing.
+    }
+  };
+
+
+  AccumulatorRow::CurrentAndPrevious five_second;
+  AccumulatorRow::CurrentAndPrevious five_minute;
+};
+
 
 void Statistics::reset()
 {
@@ -58,7 +162,7 @@ ColumnData AccumulatorRow::get_columns()
   uint_fast32_t variance = 0;
   uint_fast32_t lwm = 0;
   uint_fast32_t hwm = 0;
- 
+
   if (count > 0)
   {
     uint_fast64_t sum = accumulated->sum.load();
@@ -66,7 +170,6 @@ ColumnData AccumulatorRow::get_columns()
     // Calculate the average and the variance from the stored sum and sum-of-squares.
     avg = sum/count;
     variance = sumsq/count - (avg * avg);
-    
     hwm = accumulated->hwm.load();
     lwm = accumulated->lwm.load();
   }
@@ -82,34 +185,9 @@ ColumnData AccumulatorRow::get_columns()
   return ret;
 }
 
-void AccumulatorTable::accumulate_internal(AccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
+AccumulatorTable* AccumulatorTable::create(std::string name, std::string oid)
 {
-  Statistics* current = data.get_current();
+  return new AccumulatorTableImpl(name, oid);
 
-  current->count++;
-
-  // Just keep a running total as we go along, so we can calculate the average and variance on
-  // request
-  current->sum += sample;
-  current->sqsum += (sample * sample);
-
-  // Update the low- and high-water marks.  In each case, we get the current
-  // value, decide whether a change is required and then atomically swap it
-  // if so, repeating if it was changed in the meantime.  Note that
-  // compare_exchange_weak loads the current value into the expected value
-  // parameter (lwm or hwm below) if the compare fails.
-  uint_fast64_t lwm = current->lwm.load();
-  while ((sample < lwm) &&
-         (!current->lwm.compare_exchange_weak(lwm, sample)))
-  {
-    // Do nothing.
-  }
-  uint_fast64_t hwm = current->hwm.load();
-  while ((sample > hwm) &&
-         (!current->hwm.compare_exchange_weak(hwm, sample)))
-  {
-    // Do nothing.
-  }
-};
-
+}
 }

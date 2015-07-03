@@ -38,6 +38,7 @@
 #include <map>
 #include <string>
 
+#include "snmp_row.h"
 #include "snmp_includes.h"
 #include "log.h"
 
@@ -46,106 +47,11 @@
 
 namespace SNMP
 {
-
-// Wraps a typed SNMP value (raw bytes with a type and size) for ease-of-use.
-class Value
-{
-public:
-  // Utility constructor for ASN_UNSIGNEDs
-  static Value uint(uint32_t val)
-  {
-    return Value(ASN_UNSIGNED, (u_char*)&val, sizeof(uint32_t));
-  };
-
-  // Utility constructor for ASN_INTEGERS
-  static Value integer(int val)
-  {
-    return Value(ASN_INTEGER, (u_char*)&val, sizeof(int32_t));
-  };
-
-  // Empty constructor so this can be easily stored in a std::map.
-  Value(): type(0), size(0), value(NULL) {};
-
-  // Constructor - copy the raw bytes to avoid lifetime issues
-  Value(int type_p, const u_char* value_p, int size_p) :
-    type(type_p),
-    size(size_p),
-    value(new u_char[size])
-  {
-    memcpy(value, value_p, size);
-  };
-
-  ~Value()
-  {
-    delete[](value); value = NULL;
-  }
-
-  int type;
-  int size;
-  u_char* value;
-
-  // Move constructor
-  Value(Value&& old):
-    type(old.type),
-    size(old.size),
-    value(old.value)
-  {
-    old.value = NULL;
-  };
-
-  // Copy constructor
-  Value(const Value& old):
-    type(old.type),
-    size(old.size),
-    value(new u_char[size])
-  {
-    memcpy(value, old.value, size);
-  };
-
-  // Assignment operator
-  Value& operator=(const Value& other)
-  {
-    if (this != &other)
-    {
-      delete[](value);
-
-      size = other.size;
-      type = other.type;
-      value = new u_char[size];
-      memcpy(value, other.value, size);
-    }
-    return *this;
-  };
-};
-
 // A ColumnData is the information for a particular row, implemented as a map of column number to
 // its value.
 typedef std::map<int, Value> ColumnData;
 
 template<class T> class Table;
-
-// Abstract Row class which wraps a netsnmp_tdata_row.
-class Row
-{
-public:
-  template<class T> friend class Table;
-  Row()
-  {
-    _row = netsnmp_tdata_create_row();
-    _row->data = this;
-  }
-
-  virtual ~Row()
-  {
-    netsnmp_tdata_delete_row(_row);
-  }
-
-  virtual ColumnData get_columns() = 0;
-
-protected:
-  netsnmp_tdata_row* _row;
-  netsnmp_tdata_row* get_netsnmp_row() { return _row; };
-};
 
 // Generic SNMPTable class wrapping a netsnmp_tdata and netsnmp_table_registration_info and exposing
 // an API for manipulating them easily. Doesn't need subclassing, but should usually be wrapped in a
@@ -154,16 +60,15 @@ template<class T> class Table
 {
 public:
   Table(std::string name, // Name of this table, for logging
-        oid* tbl_oid,     // Root OID of this table
-        int oidlen,
+        std::string tbl_oid,     // Root OID of this table
         int min_visible_column,        // Range of columns to expose for queries
         int max_visible_column,
         std::vector<int> index_types): // Types of the index columns
     _name(name),
-    _tbl_oid(tbl_oid),
-    _oidlen(oidlen),
+    _oidlen(64),
     _handler_reg(NULL)
   {
+    read_objid(tbl_oid.c_str(), _tbl_oid, &_oidlen);
     _table = netsnmp_tdata_create_table(_name.c_str(), 0);
     _table_info = SNMP_MALLOC_TYPEDEF(netsnmp_table_registration_info);
     
@@ -217,8 +122,8 @@ public:
 
 protected:
   std::string _name;
-  oid* _tbl_oid;
-  int _oidlen;
+  oid _tbl_oid[64];
+  size_t _oidlen;
   netsnmp_handler_registration* _handler_reg;
   netsnmp_table_registration_info* _table_info;
   netsnmp_tdata* _table;
@@ -293,12 +198,11 @@ template<class TRow, class TRowKey> class ManagedTable : public Table<TRow>
 {
 public:
   ManagedTable(std::string name,
-               oid* tbl_oid,
-               int oidlen,
+               std::string tbl_oid,
                int min_visible_column,
                int max_visible_column,
                std::vector<int> index_types):
-    Table<TRow>(name, tbl_oid, oidlen, min_visible_column, max_visible_column, index_types) {}
+    Table<TRow>(name, tbl_oid, min_visible_column, max_visible_column, index_types) {}
 
   // Upon destruction, release all the rows we're managing.
   virtual ~ManagedTable()

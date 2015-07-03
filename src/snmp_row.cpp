@@ -1,5 +1,5 @@
 /**
- * @file snmp_table.h
+ * @file snmp_row.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -34,15 +34,36 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SNMP_INCLUDES_H
-#define SNMP_INCLUDES_H
+#include <vector>
+#include <map>
+#include <string>
 
-#include <net-snmp/net-snmp-config.h>
-#include <net-snmp/net-snmp-includes.h>
-#include <net-snmp/agent/net-snmp-agent-includes.h>
+#include "snmp_internal/snmp_includes.h"
+#include "snmp_row.h"
+#include "log.h"
 
-// net-snmp defines conflicting things, so undef them here
+namespace SNMP
+{
+Value Value::uint(uint32_t val)
+{
+  return Value(ASN_UNSIGNED, (unsigned char*)&val, sizeof(uint32_t));
+};
 
-#undef ACTION
+// Utility constructor for ASN_INTEGERS
+Value Value::integer(int val)
+{
+  return Value(ASN_INTEGER, (unsigned char*)&val, sizeof(int32_t));
+};
 
-#endif
+
+Row::Row()
+{
+  _row = netsnmp_tdata_create_row();
+  _row->data = this;
+}
+
+Row::~Row()
+{
+  netsnmp_tdata_delete_row(_row);
+}
+}
