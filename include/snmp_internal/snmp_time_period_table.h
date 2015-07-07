@@ -85,7 +85,7 @@ public:
     void update_time()
     {
       struct timespec now;
-      clock_gettime(CLOCK_MONOTONIC_COARSE, &now);
+      clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
       // Count of how many _interval periods have passed since the epoch
       uint32_t new_tick = (now.tv_sec / _interval);
