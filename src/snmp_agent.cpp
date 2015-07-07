@@ -77,7 +77,6 @@ int snmp_setup(const char* name)
 void snmp_terminate(const char* name)
 {
   pthread_cancel(snmp_thread_var);
-  shutdown_agent();
   snmp_shutdown(name);
   netsnmp_container_free_list();
 }
