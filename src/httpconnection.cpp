@@ -697,7 +697,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
       {
         // Make a SAS log so that its clear that we have stopped retrying
         // deliberately. 1 is Permanent error, 0 is Temporary error.
-        uint32_t reason = fatal_http_error;
+        uint32_t reason = fatal_http_error ? 1 : 0;
         sas_log_http_abort(trail, reason, 0);
         break;
       }
