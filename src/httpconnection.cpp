@@ -696,10 +696,8 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
           fatal_http_error)
       {
         // Make a SAS log so that its clear that we have stopped retrying
-        // deliberately.
-        std::string reason = fatal_http_error
-             ? "Permanent error response received"
-             : "Temporary error response threshold exceeded";
+        // deliberately. 1 is Permanent error, 0 is Temporary error.
+        uint32_t reason = fatal_http_error;
         sas_log_http_abort(trail, reason, 0);
         break;
       }
@@ -872,7 +870,7 @@ void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value) 
   {
       _parent->_stat_table->get(value)->increment();
   }
-  
+
   pthread_mutex_unlock(&_parent->_lock);
 }
 
@@ -1021,13 +1019,13 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
 }
 
 void HttpConnection::sas_log_http_abort(SAS::TrailId trail,
-                                        const std::string& reason,
+                                        uint32_t reason,
                                         uint32_t instance_id)
 {
   int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::HTTP_ABORT : SASEvent::HTTP_ABORT_DETAIL);
   SAS::Event event(trail, event_id, instance_id);
-  event.add_var_param(reason);
+  event.add_static_param(reason);
   SAS::report_event(event);
 }
 

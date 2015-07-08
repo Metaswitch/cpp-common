@@ -269,7 +269,7 @@ private:
                           uint32_t instance_id);
 
   void sas_log_http_abort(SAS::TrailId trail,
-                          const std::string& reason,
+                          uint32_t reason,
                           uint32_t instance_id);
 
   CURL* get_curl_handle();
