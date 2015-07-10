@@ -45,9 +45,9 @@ namespace SNMP
 // Storage for the underlying data
 struct SuccessFailCount
 {
-  uint64_t attempts;
-  uint64_t successes;
-  uint64_t failures;
+  std::atomic_unit_fast64_t attempts;
+  std::atomic_unit_fast64_t successes;
+  std::atomic_unit_fast64_t failures;
 
   void reset()
   {
