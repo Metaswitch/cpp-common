@@ -45,9 +45,9 @@ namespace SNMP
 // Storage for the underlying data
 struct SuccessFailCount
 {
-  std::atomic_unit_fast64_t attempts;
-  std::atomic_unit_fast64_t successes;
-  std::atomic_unit_fast64_t failures;
+  std::atomic_uint_fast64_t attempts;
+  std::atomic_uint_fast64_t successes;
+  std::atomic_uint_fast64_t failures;
 
   void reset()
   {
@@ -66,14 +66,17 @@ public:
     TimeBasedRow<SuccessFailCount>(index, view) {};
   ColumnData get_columns()
   {
-    SuccessFailCount counts = *(this->_view->get_data());
+    SuccessFailCount* counts = _view->get_data();
+    uint_fast32_t attempts = counts->attempts.load();
+    uint_fast32_t successes = counts->successes.load();
+    uint_fast32_t failures = counts->failures.load();
 
     // Construct and return a ColumnData with the appropriate values
     ColumnData ret;
-    ret[1] = Value::integer(this->_index);
-    ret[2] = Value::uint(counts.attempts);
-    ret[3] = Value::uint(counts.successes);
-    ret[4] = Value::uint(counts.failures);
+    ret[1] = Value::integer(_index);
+    ret[2] = Value::uint(attempts);
+    ret[3] = Value::uint(successes);
+    ret[4] = Value::uint(failures);
     return ret;
   }
 };
