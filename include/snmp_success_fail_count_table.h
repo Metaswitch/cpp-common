@@ -72,8 +72,8 @@ struct RegistrationStatsTables
 
 struct AuthenticationStatsTables
 {
-  SuccessFailCountTable* SIP_digest_auth_tbl;
-  SuccessFailCountTable* IMS_AKA_auth_tbl;
+  SuccessFailCountTable* sip_digest_auth_tbl;
+  SuccessFailCountTable* ims_aka_auth_tbl;
 };
 
 }
