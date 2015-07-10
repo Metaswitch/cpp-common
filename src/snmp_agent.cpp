@@ -49,11 +49,56 @@ void* snmp_thread(void* data)
   return NULL;
 };
 
+int logging_callback(int majorID, int minorID, void* serverarg, void* clientarg)
+{
+  snmp_log_message* log_message = (snmp_log_message*)serverarg;
+  int snmp_priority = log_message->priority;
+  int clearwater_priority = Log::STATUS_LEVEL;
+
+  switch (snmp_priority) {
+    case LOG_EMERG:
+    case LOG_ALERT:
+    case LOG_CRIT:
+    case LOG_ERR:
+      clearwater_priority = Log::ERROR_LEVEL;
+      break;
+    case LOG_WARNING:
+      clearwater_priority = Log::WARNING_LEVEL;
+      break;
+    case LOG_NOTICE:
+      clearwater_priority = Log::STATUS_LEVEL;
+      break;
+    case LOG_INFO:
+      clearwater_priority = Log::INFO_LEVEL;
+      break;
+    case LOG_DEBUG:
+      clearwater_priority = Log::DEBUG_LEVEL;
+      break;
+  }
+
+  if (clearwater_priority <= Log::loggingLevel)
+  {
+    char* orig_msg = strdup(log_message->msg);
+    char* msg = orig_msg;
+    // Remove the trailing newline
+    msg[strlen(msg) - 1] = '\0';
+    Log::write(clearwater_priority, "(Net-SNMP)", 0, msg);
+    free(orig_msg);
+  }
+
+  return 0;
+}
+
+
 // Set up the SNMP agent and handler thread. Returns 0 if and only if both succeed.
 int snmp_setup(const char* name)
 {
   // Make sure we start as a subagent, not a master agent.
   netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_ROLE, 1);
+
+  // Use callback-based logging, and integrate it with the Clearwater logger
+  snmp_enable_calllog();
+  snmp_register_callback(SNMP_CALLBACK_LIBRARY, SNMP_CALLBACK_LOGGING, logging_callback, NULL);
 
   netsnmp_container_init_list();
   int rc = init_agent(name);
