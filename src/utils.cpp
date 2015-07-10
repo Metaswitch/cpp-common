@@ -157,13 +157,15 @@ std::string Utils::url_escape(const std::string& s)
 
 std::string Utils::xml_escape(const std::string& s)
 {
-  std::string r;
-  r.reserve(2*s.length());  // Reserve enough space to avoid continually reallocating.
-
-  for (size_t ii = 0; ii < s.length(); ++ii)
+  if (s.find_first_of("&\"'<>") != std::string::npos)
   {
-    switch (s[ii])
+    std::string r;
+    r.reserve(2*s.length());  // Reserve enough space to avoid continually reallocating.
+
+    for (size_t ii = 0; ii < s.length(); ++ii)
     {
+      switch (s[ii])
+      {
       case '&':  r.append("&amp;"); break;
       case '\"': r.append("&quot;"); break;
       case '\'': r.append("&apos;"); break;
@@ -172,9 +174,14 @@ std::string Utils::xml_escape(const std::string& s)
 
       // Otherwise, append the literal character
       default: r.push_back(s[ii]); break;
+      }
     }
+    return r;
   }
-  return r;
+  else
+  {
+    return s;
+  }
 }
 
 
