@@ -696,8 +696,10 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
           fatal_http_error)
       {
         // Make a SAS log so that its clear that we have stopped retrying
-        // deliberately. 1 is Permanent error, 0 is Temporary error.
-        uint32_t reason = fatal_http_error ? 1 : 0;
+        // deliberately.
+        HttpErrorResponseTypes reason = fatal_http_error ?
+                                        HttpErrorResponseTypes::Permanent :
+                                        HttpErrorResponseTypes::Temporary;
         sas_log_http_abort(trail, reason, 0);
         break;
       }
@@ -1019,13 +1021,13 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
 }
 
 void HttpConnection::sas_log_http_abort(SAS::TrailId trail,
-                                        uint32_t reason,
+                                        HttpErrorResponseTypes reason,
                                         uint32_t instance_id)
 {
   int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::HTTP_ABORT : SASEvent::HTTP_ABORT_DETAIL);
   SAS::Event event(trail, event_id, instance_id);
-  event.add_static_param(reason);
+  event.add_static_param(static_cast<uint32_t>(reason));
   SAS::report_event(event);
 }
 

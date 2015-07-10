@@ -268,8 +268,16 @@ private:
                           CURLcode code,
                           uint32_t instance_id);
 
+  /// Enum of response types to correspond with ENUM defined in SAS resource
+  /// bundle. Make sure the two are kept in sync
+  enum class HttpErrorResponseTypes : uint32_t
+  {
+    Temporary = 0,
+    Permanent = 1
+  };
+
   void sas_log_http_abort(SAS::TrailId trail,
-                          uint32_t reason,
+                          HttpErrorResponseTypes reason,
                           uint32_t instance_id);
 
   CURL* get_curl_handle();
