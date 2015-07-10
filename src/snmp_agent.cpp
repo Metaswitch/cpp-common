@@ -49,40 +49,40 @@ void* snmp_thread(void* data)
   return NULL;
 };
 
-int logging_callback(int majorID, int minorID, void *serverarg, void *clientarg)
+int logging_callback(int majorID, int minorID, void* serverarg, void* clientarg)
 {
-  snmp_log_message *log_message = (snmp_log_message *) serverarg;
-  int snmp_prio = log_message->priority;
-  int clearwater_prio = Log::STATUS_LEVEL;
+  snmp_log_message* log_message = (snmp_log_message*)serverarg;
+  int snmp_priority = log_message->priority;
+  int clearwater_priority = Log::STATUS_LEVEL;
 
-  switch (snmp_prio) {
+  switch (snmp_priority) {
     case LOG_EMERG:
     case LOG_ALERT:
     case LOG_CRIT:
     case LOG_ERR:
-      clearwater_prio = Log::ERROR_LEVEL;
+      clearwater_priority = Log::ERROR_LEVEL;
       break;
     case LOG_WARNING:
-      clearwater_prio = Log::WARNING_LEVEL;
+      clearwater_priority = Log::WARNING_LEVEL;
       break;
     case LOG_NOTICE:
-      clearwater_prio = Log::STATUS_LEVEL;
+      clearwater_priority = Log::STATUS_LEVEL;
       break;
     case LOG_INFO:
-      clearwater_prio = Log::INFO_LEVEL;
+      clearwater_priority = Log::INFO_LEVEL;
       break;
     case LOG_DEBUG:
-      clearwater_prio = Log::DEBUG_LEVEL;
+      clearwater_priority = Log::DEBUG_LEVEL;
       break;
   }
 
-  if (clearwater_prio <= Log::loggingLevel)
+  if (clearwater_priority <= Log::loggingLevel)
   {
     char* orig_msg = strdup(log_message->msg);
     char* msg = orig_msg;
     // Remove the trailing newline
     msg[strlen(msg) - 1] = '\0';
-    Log::write(clearwater_prio, "(Net-SNMP)", 0, msg);
+    Log::write(clearwater_priority, "(Net-SNMP)", 0, msg);
     free(orig_msg);
   }
 
