@@ -164,14 +164,14 @@ std::string Utils::xml_escape(const std::string& s)
   {
     switch (s[ii])
     {
-    case '&':  r.append("&amp;"); break;
-    case '\"': r.append("&quot;"); break;
-    case '\'': r.append("&apos;"); break;
-    case '<':  r.append("&lt;"); break;
-    case '>':  r.append("&gt;"); break;
+      case '&':  r.append("&amp;"); break;
+      case '\"': r.append("&quot;"); break;
+      case '\'': r.append("&apos;"); break;
+      case '<':  r.append("&lt;"); break;
+      case '>':  r.append("&gt;"); break;
 
-               // Otherwise, append the literal character
-    default: r.push_back(s[ii]); break;
+      // Otherwise, append the literal character
+      default: r.push_back(s[ii]); break;
     }
   }
   return r;
