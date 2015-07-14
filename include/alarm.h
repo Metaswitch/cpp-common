@@ -54,7 +54,7 @@ class AlarmState
 {
 public:
   AlarmState(const std::string& issuer,
-             AlarmDef::Index index,
+             const int index,
              AlarmDef::Severity severity);
 
   /// Queue request to update the alarm identified by index, to the
@@ -80,14 +80,10 @@ private:
 /// Used to manage the reporting of a fault condition, and subsequent clear
 /// of said condition.
 
-class Alarm
+class BaseAlarm
 {
 public:
-  Alarm(const std::string& issuer,
-        AlarmDef::Index index,
-        AlarmDef::Severity severity);
-
-  virtual ~Alarm() {}
+  virtual ~BaseAlarm() {}
 
   /// Queues a request to generate an alarm state change corresponding to the
   /// CLEARED severity if a state change for the non-CLEARED severity was
@@ -104,14 +100,31 @@ public:
   virtual bool alarmed() {return _alarmed.load();}
 
   /// Returns the index of this alarm.
-  virtual AlarmDef::Index index() const {return _index;}
+  virtual const int index() const {return _index;}
 
 private:
-  AlarmDef::Index _index;
+  const int _index;
   AlarmState _clear_state;
   AlarmState _set_state;
 
   std::atomic<bool> _alarmed;
+
+protected:
+  // Constructor. This is protected to prevent the BaseAlarm from being
+  // instantiated directly.
+  BaseAlarm(const std::string& issuer,
+            const int index,
+            AlarmDef::Severity severity);
+};
+
+class Alarm : public BaseAlarm
+{
+public:
+  Alarm(const std::string& issuer,
+        AlarmDef::Index index,
+        AlarmDef::Severity severity) :
+    BaseAlarm(issuer, index, severity)
+  {}
 };
 
 /// @class AlarmReqAgent

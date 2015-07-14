@@ -44,7 +44,7 @@
 AlarmReqAgent AlarmReqAgent::_instance;
 
 AlarmState::AlarmState(const std::string& issuer,
-                       AlarmDef::Index index,
+                       const int index,
                        AlarmDef::Severity severity) :
   _issuer(issuer)
 {
@@ -76,9 +76,9 @@ void AlarmState::clear_all(const std::string& issuer)
   TRC_DEBUG("%s cleared its alarms", issuer.c_str());
 }
 
-Alarm::Alarm(const std::string& issuer,
-             AlarmDef::Index index,
-             AlarmDef::Severity severity) :
+BaseAlarm::BaseAlarm(const std::string& issuer,
+                     const int index,
+                     AlarmDef::Severity severity) :
   _index(index),
   _clear_state(issuer, index, AlarmDef::CLEARED),
   _set_state(issuer, index, severity),
@@ -86,7 +86,7 @@ Alarm::Alarm(const std::string& issuer,
 {
 }
 
-void Alarm::set()
+void BaseAlarm::set()
 {
   bool previously_alarmed = _alarmed.exchange(true);
 
@@ -96,7 +96,7 @@ void Alarm::set()
   }
 }
 
-void Alarm::clear()
+void BaseAlarm::clear()
 {
   bool previously_alarmed = _alarmed.exchange(false);
 
@@ -211,7 +211,9 @@ bool AlarmReqAgent::zmq_init_sck()
     return false;
   }
 
-  std::string addr = "tcp://127.0.0.1:" + std::to_string(ZMQ_PORT);
+  std::string addr = "ipc:///var/run/clearwater/alarms";
+  TRC_DEBUG("AlarmRegAgent: addr=%s", addr.c_str());
+
   if (zmq_connect(_sck, addr.c_str()) == -1)
   {
     TRC_ERROR("AlarmReqAgent: zmq_connect failed: %s", zmq_strerror(errno));

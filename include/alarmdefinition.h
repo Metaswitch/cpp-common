@@ -116,6 +116,8 @@ namespace AlarmDef {
     ETCD_CLUSTER_HEALTH,
     ETCD_CLUSTERING_TAKING_TOO_LONG,
     ETCD_NO_SHARED_CONFIG,
+
+    // Alarms 7000-7999 are reserved
   };
 
   enum Severity {
@@ -151,15 +153,15 @@ namespace AlarmDef {
   };
 
   struct SeverityDetails {
-    const Severity    _severity;
-    const std::string _description;
-    const std::string _details;
+    Severity    _severity;
+    std::string _description;
+    std::string _details;
   };
 
   struct AlarmDefinition {
-    const Index _index;
-    const Cause _cause;
-    const std::vector<SeverityDetails> _severity_details;
+    Index _index;
+    Cause _cause;
+    std::vector<SeverityDetails> _severity_details;
   };
 
   extern const std::vector<AlarmDefinition> alarm_definitions;

@@ -113,7 +113,7 @@ protected:
   BaseMemcachedStore(bool binary,
                      MemcachedConfigReader* config_reader,
                      CommunicationMonitor* comm_monitor,
-                     Alarm* vbucket_alarm);
+                     BaseAlarm* vbucket_alarm);
 
 private:
   // A copy of this structure is maintained for each worker thread, as
@@ -249,7 +249,7 @@ private:
   pthread_mutex_t _vbucket_comm_lock;
 
   // Alarms to be used for reporting vbucket inaccessible conditions.
-  Alarm* _vbucket_alarm;
+  BaseAlarm* _vbucket_alarm;
 
   // The lifetime (in seconds) of tombstones that are written to memcached when
   // a record is deleted using `delete_data`. This is needed to allow active
@@ -283,7 +283,7 @@ public:
   MemcachedStore(bool binary,
                  const std::string& config_file,
                  CommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL);
+                 BaseAlarm* vbucket_alarm = NULL);
 
   /// Construct a MemcachedStore that reads its config from a user-supplied
   /// object.
@@ -299,7 +299,7 @@ public:
   MemcachedStore(bool binary,
                  MemcachedConfigReader* config_reader,
                  CommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL);
+                 BaseAlarm* vbucket_alarm = NULL);
 };
 
 #endif
