@@ -661,32 +661,45 @@ put_columns(const std::vector<RowColumns>& to_put,
 // -  The arguments for the underlying get method.
 //
 // It works as follows:
-// -  Call the underlying method with a consistency level of ONE.
-// -  If this raises a NotFoundException, try again with a consistency level of
-//    QUORUM.
-// -  If this fails again with either NotFoundException or UnavailableException
-//    (meaning the necessary servers are not currently available), re-throw the
-//    original exception.
+// -  Call the underlying method with a consistency level of LOCAL_QUORUM.
+//    If successful, this indicates that we've managed to find multiple nodes
+//    with the same data, and so we can trust the response (if we're wrong, it
+//    will be because several local nodes failed or were down simultaneously
+//    which we can consider a non-mainline failure case for which some level of
+//    service impact is acceptable)
+// -  If this raises an UnavailableException (in other words, we couldn't
+//    contact a quorum of servers on the local node), try again with a
+//    consistency level of QUORUM.  This is going to attempt to get a quorum of
+//    responses from BOTH sites in a GR system, so is inevitably slower than
+//    LOCAL_QUORUM.  However, we cannot just drop straight through to the ONE
+//    level as this is the expected behaviour in a 2+2 GR system when we are
+//    restarting one of the homesteads (e.g. thanks to an upgrade) and we can't
+//    run the risk that the ONE read might hit another recently restarted
+//    homestead that is still out of date.
+// -  If this *also* fails with UnavailableException, perform a ONE read.  In
+//    this case at least half of the servers in the cluster are down, and so
+//    we are already in error recovery mode in which some service impact is not
+//    unexpected, so the risk that we might return out of date data is
+//    acceptable.
+//
 #define HA(METHOD, ...)                                                      \
         try                                                                  \
         {                                                                    \
-          METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
+          METHOD(__VA_ARGS__, ConsistencyLevel::LOCAL_QUORUM);               \
         }                                                                    \
-        catch(NotFoundException& nfe)                                        \
+        catch(UnavailableException)                                          \
         {                                                                    \
           TRC_DEBUG("Failed ONE read for %s. Try QUORUM", #METHOD);          \
+          // SASLOG "LOCAL_QUORUM didn't work"                               \
                                                                              \
           try                                                                \
           {                                                                  \
             METHOD(__VA_ARGS__, ConsistencyLevel::QUORUM);                   \
           }                                                                  \
-          catch(NotFoundException)                                           \
-          {                                                                  \
-            throw nfe;                                                       \
-          }                                                                  \
           catch(UnavailableException)                                        \
           {                                                                  \
-            throw nfe;                                                       \
+            // SASLOG "QUORUM didn't work either"                            \
+            METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                      \
           }                                                                  \
         }
 
