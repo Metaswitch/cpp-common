@@ -111,7 +111,9 @@ private:
 
 protected:
   // Constructor. This is protected to prevent the BaseAlarm from being
-  // instantiated directly.
+  // instantiated directly. Subclasses will use specific ENUMs for the 
+  // allowed issuer/index, which may be different depending on the sub
+  // class
   BaseAlarm(const std::string& issuer,
             const int index,
             AlarmDef::Severity severity);

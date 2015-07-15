@@ -212,7 +212,6 @@ bool AlarmReqAgent::zmq_init_sck()
   }
 
   std::string addr = "ipc:///var/run/clearwater/alarms";
-  TRC_DEBUG("AlarmRegAgent: addr=%s", addr.c_str());
 
   if (zmq_connect(_sck, addr.c_str()) == -1)
   {
