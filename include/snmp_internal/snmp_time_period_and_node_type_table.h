@@ -35,6 +35,7 @@
  */
 
 #include "snmp_time_period_table.h"
+#include "snmp_node_types.h"
 
 #ifndef SNMP_TIME_PERIOD_AND_NODE_TYPE_TABLE_H
 #define SNMP_TIME_PERIOD_AND_NODE_TYPE_TABLE_H
@@ -43,28 +44,6 @@
 // which are indexed by time period and node type.
 namespace SNMP
 {
-
-enum NodeTypes
-{
-  SCSCF = 0,
-  PCSCF = 1,
-  ICSCF = 2,
-  MRFC = 3, 
-  MGCF = 4, 
-  BGCF = 5,
-  AS = 6,
-  IBCF = 7,
-  SGW = 8,
-  PGW = 9,
-  HSGW = 10,
-  ECSCF = 11, 
-  MME = 12, 
-  TRF = 13, 
-  TF = 14,
-  ATCF = 15,
-  PROXYFUNCTION = 16,
-  EPDG = 17
-};
 
 template <class T> class TimeAndNodeTypeBasedRow : public TimeBasedRow<T>
 {

@@ -37,6 +37,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include "snmp_node_types.h"
 
 #ifndef SINGLE_COUNT_BY_NODE_TYPE_H
 #define SINGLE_COUNT_BY_NODE_TYPE_H
@@ -59,7 +60,7 @@ public:
   virtual ~SingleCountByNodeTypeTable() {};
 
   static SingleCountByNodeTypeTable* create(std::string name, std::string oid);
-  virtual void increment(int node_type) = 0;
+  virtual void increment(NodeTypes node_type) = 0;
 };
 
 }

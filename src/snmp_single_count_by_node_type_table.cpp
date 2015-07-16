@@ -78,24 +78,10 @@ public:
     CountsByNodeTypeTableImpl<SingleCountByNodeTypeRow>(name, tbl_oid)
   {}
  
-  void increment(int type)
+  void increment(NodeTypes type)
   {
-    // Increment each underlying set of data.
-    switch (type)
-    {
-      case NodeTypes::ICSCF:
-        five_second_i.get_current()->count++;
-        five_minute_i.get_current()->count++;
-        break;
-      case NodeTypes::SCSCF:
-        five_second_s.get_current()->count++;
-        five_minute_s.get_current()->count++;
-        break;
-      case NodeTypes::BGCF:
-        five_second_b.get_current()->count++;
-        five_minute_b.get_current()->count++;
-        break;
-    }
+    five_second[type]->get_current()->count++;
+    five_minute[type]->get_current()->count++;
   }
 };
 

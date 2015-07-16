@@ -1,5 +1,5 @@
 /**
- * @file snmp_counts_by_node_type_table.h
+ * @file snmp_node_types.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -28,52 +28,23 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
+ * software and licensed und er the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SNMP_COUNTS_BY_NODE_TYPE_TABLE_H
-#define SNMP_COUNTS_BY_NODE_TYPE_TABLE_H
-
-#include "snmp_internal/snmp_time_period_and_node_type_table.h"
+#ifndef SNMP_NODE_TYPES_H
+#define SNMP_NODE_TYPES_H
 
 namespace SNMP
 {
 
-template <class T> class CountsByNodeTypeTableImpl: public ManagedTable<T, int>
+enum NodeTypes
 {
-public:
-  CountsByNodeTypeTableImpl(std::string name,
-                            std::string tbl_oid):
-    ManagedTable<T, int>(name,
-                         tbl_oid,
-                         3,
-                         T::get_count_size(),
-                         { ASN_INTEGER , ASN_INTEGER }) // Types of the index columns
-  {
-    int n = 0;
-    std::vector<NodeTypes> nodes = { NodeTypes::SCSCF, NodeTypes::ICSCF, NodeTypes::BGCF };
-
-    for (std::vector<NodeTypes>::iterator node_type = nodes.begin();
-         node_type != nodes.end();
-         node_type++)
-    {
-      five_second[*node_type] = new typename T::CurrentAndPrevious(5);
-      five_minute[*node_type] = new typename T::CurrentAndPrevious(300);
-
-      this->add(n++, new T(TimePeriodIndexes::scopePrevious5SecondPeriod, *node_type, new typename T::PreviousView(five_second[*node_type])));
-      this->add(n++, new T(TimePeriodIndexes::scopeCurrent5MinutePeriod, *node_type, new typename T::CurrentView(five_minute[*node_type])));
-      this->add(n++, new T(TimePeriodIndexes::scopePrevious5MinutePeriod, *node_type, new typename T::PreviousView(five_minute[*node_type])));
-    }
-  }
-
-protected:
-  T* new_row(int indexes) { return NULL; };
-
-  std::map<NodeTypes, typename T::CurrentAndPrevious*> five_second;
-  std::map<NodeTypes, typename T::CurrentAndPrevious*> five_minute;
+  SCSCF = 0,
+  ICSCF = 2,
+  BGCF = 5,
 };
 
 }
