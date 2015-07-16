@@ -218,16 +218,21 @@ public:
     }
   }
 
+  void add(TRowKey key, TRow* row)
+  {
+    std::pair<TRowKey, TRow*> new_entry(key, row);
+    _map.insert(new_entry);
+
+    Table<TRow>::add(row);
+  }
+
   // Creates the row keyed off `key`.
   void add(TRowKey key)
   {
     TRow* row = new_row(key);
     if (row != NULL)
     {
-      std::pair<TRowKey, TRow*> new_entry(key, row);
-      _map.insert(new_entry);
-
-      Table<TRow>::add(row);
+      add(key, row);
     }
     else
     {

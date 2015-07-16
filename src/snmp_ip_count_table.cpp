@@ -130,7 +130,7 @@ public:
     }
     else if (inet_pton(AF_INET6, ip.c_str(), &v6) == 1)
     {
-      return new IPCountRow(v4);
+      return new IPCountRow(v6);
     }
     else
     {
