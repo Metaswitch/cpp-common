@@ -53,7 +53,7 @@ public:
     TimeBasedRow<T>(time_index, view),
     _type_index(type_index)
   {
-    // Add index for the node type
+    // Add index for the node type (the time index is added in the base class)
     netsnmp_tdata_row_add_index(this->_row,
                                 ASN_INTEGER,
                                 &_type_index,
