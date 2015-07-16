@@ -62,7 +62,10 @@ static bool completely_control_time = false;
 
 /// When completely controlling time, these store the time at which the test
 /// scripts took control. Protected by time_lock.
-static const clockid_t supported_clock_ids[] = {CLOCK_REALTIME, CLOCK_MONOTONIC, CLOCK_MONOTONIC_COARSE};
+static const clockid_t supported_clock_ids[] = {CLOCK_REALTIME,
+                                                CLOCK_REALTIME_COARSE,
+                                                CLOCK_MONOTONIC,
+                                                CLOCK_MONOTONIC_COARSE};
 static std::map<clockid_t, struct timespec> abs_timespecs;
 static time_t abs_time;
 
