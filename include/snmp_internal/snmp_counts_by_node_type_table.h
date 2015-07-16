@@ -42,92 +42,38 @@
 namespace SNMP
 {
 
-template <class T, int i> class CountsByNodeTypeTableImpl: public ManagedTable<T, std::pair<int, int>>
+template <class T, int i> class CountsByNodeTypeTableImpl: public ManagedTable<T, int>
 {
 public:
   CountsByNodeTypeTableImpl(std::string name,
                             std::string tbl_oid):
-    ManagedTable<T, std::pair<int, int>>(name,
+    ManagedTable<T, int>(name,
                                          tbl_oid,
                                          3,
                                          3 + i,
-                                         { ASN_INTEGER , ASN_INTEGER }), // Types of the index columns
-    five_second_i(5),
-    five_minute_i(300),
-    five_second_s(5),
-    five_minute_s(300),
-    five_second_b(5),
-    five_minute_b(300)
+                                         { ASN_INTEGER , ASN_INTEGER }) // Types of the index columns
   {
-    this->add( std::pair<int, int>(TimePeriodIndexes::scopePrevious5SecondPeriod, NodeTypes::SCSCF) );
-    this->add( std::pair<int, int>(TimePeriodIndexes::scopeCurrent5MinutePeriod, NodeTypes::SCSCF) );
-    this->add( std::pair<int, int>(TimePeriodIndexes::scopePrevious5MinutePeriod, NodeTypes::SCSCF) );
-    this->add( std::pair<int, int>(TimePeriodIndexes::scopePrevious5SecondPeriod, NodeTypes::ICSCF) );
-    this->add( std::pair<int, int>(TimePeriodIndexes::scopeCurrent5MinutePeriod, NodeTypes::ICSCF) );
-    this->add( std::pair<int, int>(TimePeriodIndexes::scopePrevious5MinutePeriod, NodeTypes::ICSCF) );
-    this->add( std::pair<int, int>(TimePeriodIndexes::scopePrevious5SecondPeriod, NodeTypes::BGCF) );
-    this->add( std::pair<int, int>(TimePeriodIndexes::scopeCurrent5MinutePeriod, NodeTypes::BGCF) );
-    this->add( std::pair<int, int>(TimePeriodIndexes::scopePrevious5MinutePeriod, NodeTypes::BGCF) );
+    int n = 0;
+    std::vector<NodeTypes> nodes = { NodeTypes::SCSCF, NodeTypes::ICSCF, NodeTypes::BGCF };
+
+    for (std::vector<NodeTypes>::iterator node_type = nodes.begin();
+         node_type != nodes.end();
+         node_type++)
+    {
+      five_second[*node_type] = new typename T::CurrentAndPrevious(5);
+      five_minute[*node_type] = new typename T::CurrentAndPrevious(300);
+
+      this->add(n++, new T(TimePeriodIndexes::scopePrevious5SecondPeriod, *node_type, new typename T::PreviousView(five_second[*node_type])));
+      this->add(n++, new T(TimePeriodIndexes::scopeCurrent5MinutePeriod, *node_type, new typename T::CurrentView(five_minute[*node_type])));
+      this->add(n++, new T(TimePeriodIndexes::scopePrevious5MinutePeriod, *node_type, new typename T::PreviousView(five_minute[*node_type])));
+    }
   }
 
 protected:
-  T* new_row(struct std::pair<int, int> indexes)
-  {
-    typename T::View* view = NULL;
-    switch (indexes.first)
-    {
-      case TimePeriodIndexes::scopePrevious5SecondPeriod:
-        switch (indexes.second)
-        {
-          case NodeTypes::ICSCF:
-            view = new typename T::PreviousView(&five_second_i);
-            break;
-          case NodeTypes::SCSCF:
-            view = new typename T::PreviousView(&five_second_s);
-            break;
-          case NodeTypes::BGCF:
-            view = new typename T::PreviousView(&five_second_b);
-            break;
-        }
-        break;
-      case TimePeriodIndexes::scopeCurrent5MinutePeriod:
-        switch (indexes.second)
-        {
-          case NodeTypes::ICSCF:
-            view = new typename T::CurrentView(&five_minute_i);
-            break;
-          case NodeTypes::SCSCF:
-            view = new typename T::CurrentView(&five_minute_s);
-            break;
-          case NodeTypes::BGCF:
-            view = new typename T::CurrentView(&five_minute_b);
-            break;
-        }
-        break;
-      case TimePeriodIndexes::scopePrevious5MinutePeriod:
-        switch (indexes.second)
-        {
-          case NodeTypes::ICSCF:
-            view = new typename T::PreviousView(&five_minute_i);
-            break;
-          case NodeTypes::SCSCF:
-            view = new typename T::PreviousView(&five_minute_s);
-            break;
-          case NodeTypes::BGCF:
-            view = new typename T::PreviousView(&five_minute_b);
-            break;
-        }
-        break;
-    }
-    return new T(indexes.first, indexes.second, view);
-  }
+  T* new_row(int indexes) { return NULL; };
 
-  typename T::CurrentAndPrevious five_second_i;
-  typename T::CurrentAndPrevious five_minute_i;
-  typename T::CurrentAndPrevious five_second_s;
-  typename T::CurrentAndPrevious five_minute_s;
-  typename T::CurrentAndPrevious five_second_b;
-  typename T::CurrentAndPrevious five_minute_b;
+  std::map<NodeTypes, typename T::CurrentAndPrevious*> five_second;
+  std::map<NodeTypes, typename T::CurrentAndPrevious*> five_minute;
 };
 
 template <class T, int i> class CountsByNodeTypeTable

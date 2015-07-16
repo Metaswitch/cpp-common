@@ -1,5 +1,5 @@
 /**
- * @file snmp_time_period_and_node_type_table.h
+ * @file snmp_node_types.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -34,38 +34,17 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "snmp_time_period_table.h"
-#include "snmp_node_types.h"
+#ifndef SNMP_NODE_TYPES_H
+#define SNMP_NODE_TYPES_H
 
-#ifndef SNMP_TIME_PERIOD_AND_NODE_TYPE_TABLE_H
-#define SNMP_TIME_PERIOD_AND_NODE_TYPE_TABLE_H
-
-// This file contains the base infrastructure for SNMP tables 
-// which are indexed by time period and node type.
 namespace SNMP
 {
 
-template <class T> class TimeAndNodeTypeBasedRow : public TimeBasedRow<T>
+enum NodeTypes
 {
-public:
-  // Constructor, takes ownership of the View*.
-  TimeAndNodeTypeBasedRow(int time_index, int type_index, typename TimeBasedRow<T>::View* view) :
-    TimeBasedRow<T>(time_index, view),
-    _type_index(type_index)
-  {
-    // Add index for the node type
-    netsnmp_tdata_row_add_index(this->_row,
-                                ASN_INTEGER,
-                                &_type_index,
-                                sizeof(int));
-  };
-
-  virtual ~TimeAndNodeTypeBasedRow()
-  {
-  };
-
-protected:
-  uint32_t _type_index;
+  SCSCF = 0,
+  ICSCF = 2,
+  BGCF = 5,
 };
 
 }
