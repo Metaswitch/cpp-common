@@ -50,7 +50,7 @@ public:
     ManagedTable<T, int>(name,
                          tbl_oid,
                          3,
-                         T::get_count_size(),
+                         3 + T::get_count_size(),
                          { ASN_INTEGER , ASN_INTEGER }) // Types of the index columns
   {
     int n = 0;
