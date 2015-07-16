@@ -987,7 +987,7 @@ void HttpConnection::sas_log_http_req(SAS::TrailId trail,
     SAS::Event event(trail, event_id, instance_id);
 
     sas_add_ip_addrs_and_ports(event, curl);
-    event.add_compressed_param(request_bytes);
+    event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
     event.add_var_param(method_str);
     event.add_var_param(Utils::url_unescape(url));
 
@@ -1012,7 +1012,7 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
 
     sas_add_ip_addrs_and_ports(event, curl);
     event.add_static_param(http_rc);
-    event.add_compressed_param(response_bytes);
+    event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
     event.add_var_param(method_str);
     event.add_var_param(Utils::url_unescape(url));
 
