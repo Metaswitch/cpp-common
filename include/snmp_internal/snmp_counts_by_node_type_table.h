@@ -42,7 +42,7 @@
 namespace SNMP
 {
 
-template <class T, int i> class CountsByNodeTypeTableImpl: public ManagedTable<T, std::pair<int, int>>
+template <class T> class CountsByNodeTypeTableImpl: public ManagedTable<T, std::pair<int, int>>
 {
 public:
   CountsByNodeTypeTableImpl(std::string name,
@@ -50,7 +50,7 @@ public:
     ManagedTable<T, std::pair<int, int>>(name,
                                          tbl_oid,
                                          3,
-                                         3 + i,
+                                         T::get_count_size(),
                                          { ASN_INTEGER , ASN_INTEGER }), // Types of the index columns
     five_second_i(5),
     five_minute_i(300),
@@ -128,20 +128,6 @@ protected:
   typename T::CurrentAndPrevious five_minute_s;
   typename T::CurrentAndPrevious five_second_b;
   typename T::CurrentAndPrevious five_minute_b;
-};
-
-template <class T, int i> class CountsByNodeTypeTable
-{
-public:
-  virtual ~CountsByNodeTypeTable() {};
-
-  CountsByNodeTypeTable* create(std::string name,
-                                std::string tbl_oid)
-  {
-    return new CountsByNodeTypeTableImpl<T, i>(name, tbl_oid);
-  }
-
-  CountsByNodeTypeTable() {};
 };
 
 }

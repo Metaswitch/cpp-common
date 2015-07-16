@@ -66,14 +66,16 @@ public:
     ret[3] = Value::uint(accumulated.count);
     return ret;
   }
+
+  static int get_count_size() { return 0; }
 };
 
-class SingleCountByNodeTypeTableImpl: public CountsByNodeTypeTableImpl<SingleCountByNodeTypeRow, 0>, public SingleCountByNodeTypeTable
+class SingleCountByNodeTypeTableImpl: public CountsByNodeTypeTableImpl<SingleCountByNodeTypeRow>, public SingleCountByNodeTypeTable
 {
 public:
   SingleCountByNodeTypeTableImpl(std::string name,
                                  std::string tbl_oid):
-    CountsByNodeTypeTableImpl<SingleCountByNodeTypeRow, 0>(name, tbl_oid)
+    CountsByNodeTypeTableImpl<SingleCountByNodeTypeRow>(name, tbl_oid)
   {}
  
   void increment(int type)

@@ -47,8 +47,23 @@ namespace SNMP
 enum NodeTypes
 {
   SCSCF = 0,
+  PCSCF = 1,
   ICSCF = 2,
+  MRFC = 3, 
+  MGCF = 4, 
   BGCF = 5,
+  AS = 6,
+  IBCF = 7,
+  SGW = 8,
+  PGW = 9,
+  HSGW = 10,
+  ECSCF = 11, 
+  MME = 12, 
+  TRF = 13, 
+  TF = 14,
+  ATCF = 15,
+  PROXYFUNCTION = 16,
+  EPDG = 17
 };
 
 template <class T> class TimeAndNodeTypeBasedRow : public TimeBasedRow<T>
@@ -59,7 +74,7 @@ public:
     TimeBasedRow<T>(time_index, view),
     _type_index(type_index)
   {
-    // Add index for the node type
+    // Add index for the node type (the time index is added in the base class)
     netsnmp_tdata_row_add_index(this->_row,
                                 ASN_INTEGER,
                                 &_type_index,
