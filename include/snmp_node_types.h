@@ -43,8 +43,23 @@ namespace SNMP
 enum NodeTypes
 {
   SCSCF = 0,
+  PCSCF = 1,
   ICSCF = 2,
+  MRFC = 3, 
+  MGCF = 4, 
   BGCF = 5,
+  AS = 6,
+  IBCF = 7,
+  SGW = 8,
+  PGW = 9,
+  HSGW = 10,
+  ECSCF = 11, 
+  MME = 12, 
+  TRF = 13, 
+  TF = 14,
+  ATCF = 15,
+  PROXYFUNCTION = 16,
+  EPDG = 17
 };
 
 }
