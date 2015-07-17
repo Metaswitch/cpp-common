@@ -69,6 +69,23 @@ public:
     }
   }
 
+  ~CountsByNodeTypeTableImpl()
+  {
+    for (typename std::map<NodeTypes, typename T::CurrentAndPrevious*>::iterator node_type = five_second.begin();
+         node_type != five_second.end();
+         node_type++)
+    {
+      delete node_type->second;
+    }
+
+    for (typename std::map<NodeTypes, typename T::CurrentAndPrevious*>::iterator node_type = five_minute.begin();
+         node_type != five_minute.end();
+         node_type++)
+    {
+      delete node_type->second;
+    }
+  }
+
 protected:
   T* new_row(int indexes) { return NULL; };
 
