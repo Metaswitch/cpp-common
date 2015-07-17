@@ -359,18 +359,12 @@ HTTPCode HttpConnection::send_put(const std::string& path,                     /
                                   const std::string& username)                 //< Username to assert (if assertUser was true, else ignored)
 {
   CURL *curl = get_curl_handle();
-  struct curl_slist *slist = NULL;
-  slist = curl_slist_append(slist, "Content-Type: application/json");
-
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
   std::vector<std::string> unused_extra_headers;
   HTTPCode status = send_request(path, body, response, "", trail, "PUT", unused_extra_headers, curl);
-
-  curl_slist_free_all(slist);
 
   return status;
 }
@@ -393,18 +387,12 @@ HTTPCode HttpConnection::send_post(const std::string& path,                     
                                    const std::string& username)                 //< Username to assert (if assertUser was true, else ignored).
 {
   CURL *curl = get_curl_handle();
-  struct curl_slist *slist = NULL;
-  slist = curl_slist_append(slist, "Content-Type: application/json");
-
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_POST, 1);
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
   std::vector<std::string> unused_extra_headers;
   HTTPCode status = send_request(path, body, response, username, trail, "POST", unused_extra_headers, curl);
-
-  curl_slist_free_all(slist);
 
   return status;
 }
@@ -479,6 +467,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
   if (!body.empty())
   {
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+    extra_headers = curl_slist_append(extra_headers, "Content-Type: application/json");
   }
 
   // Create a UUID to use for SAS correlation and add it to the HTTP message.
