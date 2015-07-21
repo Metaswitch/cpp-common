@@ -78,8 +78,8 @@ public:
   /// the caller it should be passed to avoid duplicate work.
   virtual void inform_failure(unsigned long now_ms = 0);
 
-private:
-  void update_alarm_state(unsigned long now_ms);
+protected:
+  virtual void update_alarm_state(unsigned long now_ms);
   unsigned long current_time_ms();
 
   BaseAlarm* _alarm;

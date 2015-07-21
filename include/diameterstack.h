@@ -654,6 +654,18 @@ public:
   virtual void start();
   virtual void stop();
   virtual void wait_stopped();
+  virtual void close_connections();
+
+  virtual bool get_allow_connections()
+  {
+    return _allow_connections;
+  }
+
+  virtual void set_allow_connections(bool allowed)
+  {
+    _allow_connections = allowed;
+  }
+
   std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>>& avp_map()
   {
     return _avp_map;
@@ -668,6 +680,20 @@ public:
 
   virtual bool add(Peer* peer);
   virtual void remove(Peer* peer);
+
+  static int allow_connections(struct peer_info* info,
+                               int* auth,
+                               int(**cb2)(struct peer_info*))
+  {
+    if (!get_instance()->_allow_connections)
+    {
+      TRC_DEBUG("Rejecting peer '%s' as connections are not currently allowed",
+                info->pi_diamid);
+      *auth = -1;
+    }
+
+    return 0;
+  }
 
 private:
   static Stack* INSTANCE;
@@ -701,6 +727,7 @@ private:
                                           void * stack_ptr);
 
   bool _initialized;
+  std::atomic_bool _allow_connections;
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
   struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
