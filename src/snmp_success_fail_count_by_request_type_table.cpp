@@ -1,5 +1,5 @@
 /**
- * @file snmp_single_count_by_node_type_table.cpp
+ * @file snmp_success_fail_count_by_request_type_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -36,62 +36,87 @@
 
 #include "snmp_single_count_by_node_type_table.h"
 #include "snmp_internal/snmp_includes.h"
-#include "snmp_internal/snmp_counts_by_node_type_table.h"
+#include "snmp_internal/snmp_counts_by_other_type_table.h"
 #include "logger.h"
 
 namespace SNMP
 {
 
 // Storage for the underlying data
-struct SingleCount
+struct SuccessFailCount
 {
-  uint64_t count;
-  void reset() { count = 0; };
+  uint64_t attempts;
+  uint64_t successes;
+  uint64_t failures;
+  void reset()
+  {
+    attempts = 0;
+    successes = 0;
+    failures = 0;
+  }
 };
 
-// Time and Node Based Row that maps the data from SingleCount into the right column.
-class SingleCountByNodeTypeRow: public TimeAndNodeTypeBasedRow<SingleCount>
+// Time and Node Based Row that maps the data from SuccessFailCount into the right column.
+class SuccessFailCountByRequestTypeRow: public TimeAndOtherTypeBasedRow<SuccessFailCount>
 {
 public:
-  SingleCountByNodeTypeRow(int time_index, int type_index, View* view):
-    TimeAndNodeTypeBasedRow<SingleCount>(time_index, type_index, view) {};
+  SuccessFailCountByOtherTypeRow(int time_index, int type_index, View* view):
+    TimeAndOtherTypeBasedRow<SingleCount>(time_index, type_index, view) {};
   ColumnData get_columns()
   {
-    SingleCount accumulated = *(this->_view->get_data());
+    SuccessFailCount counts = *(this->_view->get_data());
 
     // Construct and return a ColumnData with the appropriate values
     ColumnData ret;
     ret[1] = Value::integer(this->_index);
     ret[2] = Value::integer(this->_type_index);
-    ret[3] = Value::uint(accumulated.count);
+    ret[3] = Value::uint(counts.attempts);
+    ret[4] = Value::uint(counts.successes);
+    ret[5] = Value::uint(counts.failures);
     return ret;
   }
-
-  static int get_count_size() { return 0; }
 };
 
-class SingleCountByNodeTypeTableImpl: public CountsByNodeTypeTableImpl<SingleCountByNodeTypeRow>, public SingleCountByNodeTypeTable
+class SuccessFailCountByRequestTypeTableImpl: public CountsByOtherTypeTableImpl<SuccessFailCountByRequestTypeRow>,
+  public SuccessFailCountByRequestTypeTable
 {
 public:
-  SingleCountByNodeTypeTableImpl(std::string name,
-                                 std::string tbl_oid):
-    CountsByNodeTypeTableImpl<SingleCountByNodeTypeRow>(name,
-                                                        tbl_oid,
-                                                        std::vector<int> node_types =
-                                                          { NodeTypes::SCSCF, NodeTypes::ICSCF, NodeTypes::BGCF })
+  std::vector<int> request_types = 
+  {
+    SIPRequestTypes::INVITE,
+    SIPRequestTypes::ACK,
+    SIPRequestTypes::BYE,
+    SIPRequestTypes::CANCEL,
+    SIPRequestTypes::OPTIONS,
+    SIPRequestTypes::REGISTER,
+    SIPRequestTypes::PRACK,
+    SIPRequestTypes::SUBSCRIBE,
+    SIPRequestTypes::NOTIFY,
+    SIPRequestTypes::PUBLISH,
+    SIPRequestTypes::INFO,
+    SIPRequestTypes::REFER,
+    SIPRequestTypes::MESSAGE,
+    SIPRequestTypes::UPDATE,
+    SIPRequestTypes::OTHER
+  }
+  SuccessFailCountByRequestTypeTableImpl(std::string name,
+                                         std::string tbl_oid):
+    CountsByOtherTypeTableImpl<SuccessFailCountByRequestTypeRow>(name,
+                                                                 tbl_oid,
+                                                                 request_types)
   {}
  
-  void increment(NodeTypes type)
+  void increment(SIPRequestTypes type)
   {
     five_second[type]->get_current()->count++;
     five_minute[type]->get_current()->count++;
   }
 };
 
-SingleCountByNodeTypeTable* SingleCountByNodeTypeTable::create(std::string name,
-                                                               std::string oid)
+SuccessFailCountByRequestTypeTable* SuccessFailCountByRequestTypeTable::create(std::string name,
+                                                                               std::string oid)
 {
-  return new SingleCountByNodeTypeTableImpl(name, oid);
+  return new SuccessFailCountByRequestTypeTableImpl(name, oid);
 }
 
 }
