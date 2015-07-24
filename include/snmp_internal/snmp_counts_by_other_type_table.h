@@ -55,10 +55,11 @@ public:
                          { ASN_INTEGER , ASN_INTEGER }) // Types of the index columns
   {
     int n = 0;
-    std::vector<int> types = other_types
+    std::vector<int> types = other_types;
+    // printf("first: %d\n", types.front());
 
     for (std::vector<int>::iterator type = types.begin();
-         type_type != types.end();
+         type != types.end();
          type++)
     {
       five_second[*type] = new typename T::CurrentAndPrevious(5);

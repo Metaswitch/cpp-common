@@ -34,9 +34,10 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "snmp_single_count_by_node_type_table.h"
+#include "snmp_success_fail_count_by_request_type_table.h"
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_internal/snmp_counts_by_other_type_table.h"
+#include "snmp_sip_request_types.h"
 #include "logger.h"
 
 namespace SNMP
@@ -60,8 +61,8 @@ struct SuccessFailCount
 class SuccessFailCountByRequestTypeRow: public TimeAndOtherTypeBasedRow<SuccessFailCount>
 {
 public:
-  SuccessFailCountByOtherTypeRow(int time_index, int type_index, View* view):
-    TimeAndOtherTypeBasedRow<SingleCount>(time_index, type_index, view) {};
+  SuccessFailCountByRequestTypeRow(int time_index, int type_index, View* view):
+    TimeAndOtherTypeBasedRow<SuccessFailCount>(time_index, type_index, view) {};
   ColumnData get_columns()
   {
     SuccessFailCount counts = *(this->_view->get_data());
@@ -75,41 +76,55 @@ public:
     ret[5] = Value::uint(counts.failures);
     return ret;
   }
+  static int get_count_size() { return 2; }
+};
+
+static std::vector<int> request_types = 
+{
+  SIPRequestTypes::INVITE,
+  SIPRequestTypes::ACK,
+  SIPRequestTypes::BYE,
+  SIPRequestTypes::CANCEL,
+  SIPRequestTypes::OPTIONS,
+  SIPRequestTypes::REGISTER,
+  SIPRequestTypes::PRACK,
+  SIPRequestTypes::SUBSCRIBE,
+  SIPRequestTypes::NOTIFY,
+  SIPRequestTypes::PUBLISH,
+  SIPRequestTypes::INFO,
+  SIPRequestTypes::REFER,
+  SIPRequestTypes::MESSAGE,
+  SIPRequestTypes::UPDATE,
+  SIPRequestTypes::OTHER
 };
 
 class SuccessFailCountByRequestTypeTableImpl: public CountsByOtherTypeTableImpl<SuccessFailCountByRequestTypeRow>,
   public SuccessFailCountByRequestTypeTable
 {
 public:
-  std::vector<int> request_types = 
-  {
-    SIPRequestTypes::INVITE,
-    SIPRequestTypes::ACK,
-    SIPRequestTypes::BYE,
-    SIPRequestTypes::CANCEL,
-    SIPRequestTypes::OPTIONS,
-    SIPRequestTypes::REGISTER,
-    SIPRequestTypes::PRACK,
-    SIPRequestTypes::SUBSCRIBE,
-    SIPRequestTypes::NOTIFY,
-    SIPRequestTypes::PUBLISH,
-    SIPRequestTypes::INFO,
-    SIPRequestTypes::REFER,
-    SIPRequestTypes::MESSAGE,
-    SIPRequestTypes::UPDATE,
-    SIPRequestTypes::OTHER
-  }
   SuccessFailCountByRequestTypeTableImpl(std::string name,
                                          std::string tbl_oid):
     CountsByOtherTypeTableImpl<SuccessFailCountByRequestTypeRow>(name,
                                                                  tbl_oid,
                                                                  request_types)
-  {}
- 
-  void increment(SIPRequestTypes type)
+  {} 
+  
+  void increment_attempts(SIPRequestTypes type)
   {
-    five_second[type]->get_current()->count++;
-    five_minute[type]->get_current()->count++;
+    five_second[type]->get_current()->attempts++;
+    five_minute[type]->get_current()->attempts++;
+  }
+  
+  void increment_successes(SIPRequestTypes type)
+  {
+    five_second[type]->get_current()->successes++;
+    five_minute[type]->get_current()->successes++;
+  }
+  
+  void increment_failures(SIPRequestTypes type)
+  {
+    five_second[type]->get_current()->failures++;
+    five_minute[type]->get_current()->failures++;
   }
 };
 
