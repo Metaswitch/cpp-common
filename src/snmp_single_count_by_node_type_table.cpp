@@ -71,7 +71,6 @@ public:
   static int get_count_size() { return 1; }
 };
 
-static std::vector<int> node_types = { NodeTypes::SCSCF, NodeTypes::ICSCF, NodeTypes::BGCF };
 class SingleCountByNodeTypeTableImpl: public CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow>, public SingleCountByNodeTypeTable
 {
 public:
