@@ -37,25 +37,12 @@
 #include "snmp_success_fail_count_by_request_type_table.h"
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_internal/snmp_counts_by_other_type_table.h"
+#include "success_fail_count.h"
 #include "snmp_sip_request_types.h"
 #include "logger.h"
 
 namespace SNMP
 {
-
-// Storage for the underlying data
-struct SuccessFailCount
-{
-  uint64_t attempts;
-  uint64_t successes;
-  uint64_t failures;
-  void reset()
-  {
-    attempts = 0;
-    successes = 0;
-    failures = 0;
-  }
-};
 
 // Time and Node Based Row that maps the data from SuccessFailCount into the right column.
 class SuccessFailCountByRequestTypeRow: public TimeAndOtherTypeBasedRow<SuccessFailCount>
@@ -65,18 +52,21 @@ public:
     TimeAndOtherTypeBasedRow<SuccessFailCount>(time_index, type_index, view) {};
   ColumnData get_columns()
   {
-    SuccessFailCount counts = *(this->_view->get_data());
+    SuccessFailCount* counts = _view->get_data();
+    uint_fast32_t attempts = counts->attempts.load();
+    uint_fast32_t successes = counts->successes.load();
+    uint_fast32_t failures = counts->failures.load();
 
     // Construct and return a ColumnData with the appropriate values
     ColumnData ret;
     ret[1] = Value::integer(this->_index);
     ret[2] = Value::integer(this->_type_index);
-    ret[3] = Value::uint(counts.attempts);
-    ret[4] = Value::uint(counts.successes);
-    ret[5] = Value::uint(counts.failures);
+    ret[3] = Value::uint(attempts);
+    ret[4] = Value::uint(successes);
+    ret[5] = Value::uint(failures);
     return ret;
   }
-  static int get_count_size() { return 2; }
+  static int get_count_size() { return 3; }
 };
 
 static std::vector<int> request_types = 

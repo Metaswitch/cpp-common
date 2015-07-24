@@ -47,16 +47,14 @@ template <class T> class CountsByOtherTypeTableImpl: public ManagedTable<T, int>
 public:
   CountsByOtherTypeTableImpl(std::string name,
                              std::string tbl_oid,
-                             std::vector<int> other_types):
+                             std::vector<int> types):
     ManagedTable<T, int>(name,
                          tbl_oid,
                          3,
-                         3 + T::get_count_size(),
+                         3 + T::get_count_size() - 1,
                          { ASN_INTEGER , ASN_INTEGER }) // Types of the index columns
   {
     int n = 0;
-    std::vector<int> types = other_types;
-    // printf("first: %d\n", types.front());
 
     for (std::vector<int>::iterator type = types.begin();
          type != types.end();

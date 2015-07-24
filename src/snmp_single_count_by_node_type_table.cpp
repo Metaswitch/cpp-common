@@ -68,7 +68,7 @@ public:
     return ret;
   }
 
-  static int get_count_size() { return 0; }
+  static int get_count_size() { return 1; }
 };
 
 static std::vector<int> node_types = { NodeTypes::SCSCF, NodeTypes::ICSCF, NodeTypes::BGCF };
