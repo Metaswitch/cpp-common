@@ -1,5 +1,5 @@
 /**
- * @file snmp_time_period_and_node_type_table.h
+ * @file snmp_success_fail_count_by_request_type_table.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -34,40 +34,36 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "snmp_time_period_table.h"
-#include "snmp_node_types.h"
+#include <vector>
+#include <map>
+#include <string>
+#include "snmp_sip_request_types.h"
 
-#ifndef SNMP_TIME_PERIOD_AND_NODE_TYPE_TABLE_H
-#define SNMP_TIME_PERIOD_AND_NODE_TYPE_TABLE_H
+#ifndef SNMP_SUCCESS_FAIL_COUNT_BY_REQUEST_TYPE_TABLE_H
+#define SNMP_SUCCESS_FAIL_COUNT_BY_REQUEST_TYPE_TABLE_H
 
-// This file contains the base infrastructure for SNMP tables 
-// which are indexed by time period and node type.
+// This file contains the interface for tables which:
+//   - are indexed by time period and SIP request type
+//   - increment a count of the attempts, successes and failures over time
+//   - report a count of the attempts, successes and failures
+//
+// This is defined as an interface in order not to pollute the codebase with netsnmp include files
+// (which indiscriminately #define things like READ and WRITE).
+
 namespace SNMP
 {
 
-template <class T> class TimeAndNodeTypeBasedRow : public TimeBasedRow<T>
+class SuccessFailCountByRequestTypeTable
 {
 public:
-  // Constructor, takes ownership of the View*.
-  TimeAndNodeTypeBasedRow(int time_index, int type_index, typename TimeBasedRow<T>::View* view) :
-    TimeBasedRow<T>(time_index, view),
-    _type_index(type_index)
-  {
-    // Add index for the node type (the time index is added in the base class)
-    netsnmp_tdata_row_add_index(this->_row,
-                                ASN_INTEGER,
-                                &_type_index,
-                                sizeof(int));
-  };
+  SuccessFailCountByRequestTypeTable() {};
+  virtual ~SuccessFailCountByRequestTypeTable() {};
 
-  virtual ~TimeAndNodeTypeBasedRow()
-  {
-  };
-
-protected:
-  uint32_t _type_index;
+  static SuccessFailCountByRequestTypeTable* create(std::string name, std::string oid);
+  virtual void increment_attempts(SIPRequestTypes request_type) = 0;
+  virtual void increment_successes(SIPRequestTypes request_type) = 0;
+  virtual void increment_failures(SIPRequestTypes request_type) = 0;
 };
 
 }
-
 #endif

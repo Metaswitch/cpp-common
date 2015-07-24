@@ -1,5 +1,5 @@
 /**
- * @file snmp_counts_by_node_type_table.h
+ * @file snmp_counts_by_other_type_table.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -34,63 +34,63 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SNMP_COUNTS_BY_NODE_TYPE_TABLE_H
-#define SNMP_COUNTS_BY_NODE_TYPE_TABLE_H
+#ifndef SNMP_COUNTS_BY_OTHER_TYPE_TABLE_H
+#define SNMP_COUNTS_BY_OTHER_TYPE_TABLE_H
 
-#include "snmp_internal/snmp_time_period_and_node_type_table.h"
+#include "snmp_internal/snmp_time_period_and_other_type_table.h"
 
 namespace SNMP
 {
 
-template <class T> class CountsByNodeTypeTableImpl: public ManagedTable<T, int>
+template <class T> class CountsByOtherTypeTableImpl: public ManagedTable<T, int>
 {
 public:
-  CountsByNodeTypeTableImpl(std::string name,
-                            std::string tbl_oid):
+  CountsByOtherTypeTableImpl(std::string name,
+                             std::string tbl_oid,
+                             std::vector<int> types):
     ManagedTable<T, int>(name,
                          tbl_oid,
                          3,
-                         3 + T::get_count_size(),
+                         3 + T::get_count_size() - 1,
                          { ASN_INTEGER , ASN_INTEGER }) // Types of the index columns
   {
     int n = 0;
-    std::vector<NodeTypes> nodes = { NodeTypes::SCSCF, NodeTypes::ICSCF, NodeTypes::BGCF };
 
-    for (std::vector<NodeTypes>::iterator node_type = nodes.begin();
-         node_type != nodes.end();
-         node_type++)
+    for (std::vector<int>::iterator type = types.begin();
+         type != types.end();
+         type++)
     {
-      five_second[*node_type] = new typename T::CurrentAndPrevious(5);
-      five_minute[*node_type] = new typename T::CurrentAndPrevious(300);
+      five_second[*type] = new typename T::CurrentAndPrevious(5);
+      five_minute[*type] = new typename T::CurrentAndPrevious(300);
 
-      this->add(n++, new T(TimePeriodIndexes::scopePrevious5SecondPeriod, *node_type, new typename T::PreviousView(five_second[*node_type])));
-      this->add(n++, new T(TimePeriodIndexes::scopeCurrent5MinutePeriod, *node_type, new typename T::CurrentView(five_minute[*node_type])));
-      this->add(n++, new T(TimePeriodIndexes::scopePrevious5MinutePeriod, *node_type, new typename T::PreviousView(five_minute[*node_type])));
+      this->add(n++, new T(TimePeriodIndexes::scopePrevious5SecondPeriod, *type, new typename T::PreviousView(five_second[*type])));
+      this->add(n++, new T(TimePeriodIndexes::scopeCurrent5MinutePeriod, *type, new typename T::CurrentView(five_minute[*type])));
+      this->add(n++, new T(TimePeriodIndexes::scopePrevious5MinutePeriod, *type, new typename T::PreviousView(five_minute[*type])));
     }
   }
 
-  ~CountsByNodeTypeTableImpl()
+  ~CountsByOtherTypeTableImpl()
   {
-    for (typename std::map<NodeTypes, typename T::CurrentAndPrevious*>::iterator node_type = five_second.begin();
-         node_type != five_second.end();
-         node_type++)
+    for (typename std::map<int, typename T::CurrentAndPrevious*>::iterator type = five_second.begin();
+         type != five_second.end();
+         type++)
     {
-      delete node_type->second;
+      delete type->second;
     }
 
-    for (typename std::map<NodeTypes, typename T::CurrentAndPrevious*>::iterator node_type = five_minute.begin();
-         node_type != five_minute.end();
-         node_type++)
+    for (typename std::map<int, typename T::CurrentAndPrevious*>::iterator type = five_minute.begin();
+         type != five_minute.end();
+         type++)
     {
-      delete node_type->second;
+      delete type->second;
     }
   }
 
 protected:
   T* new_row(int indexes) { return NULL; };
 
-  std::map<NodeTypes, typename T::CurrentAndPrevious*> five_second;
-  std::map<NodeTypes, typename T::CurrentAndPrevious*> five_minute;
+  std::map<int, typename T::CurrentAndPrevious*> five_second;
+  std::map<int, typename T::CurrentAndPrevious*> five_minute;
 };
 
 }
