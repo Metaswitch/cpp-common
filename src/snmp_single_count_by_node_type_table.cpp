@@ -75,7 +75,8 @@ class SingleCountByNodeTypeTableImpl: public CountsByOtherTypeTableImpl<SingleCo
 {
 public:
   SingleCountByNodeTypeTableImpl(std::string name,
-                                 std::string tbl_oid): CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow>(name, tbl_oid, node_types)
+                                 std::string tbl_oid,
+                                 std::vector<int> node_types): CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow>(name, tbl_oid, node_types)
   {}
  
   void increment(NodeTypes type)
@@ -86,9 +87,10 @@ public:
 };
 
 SingleCountByNodeTypeTable* SingleCountByNodeTypeTable::create(std::string name,
-                                                               std::string oid)
+                                                               std::string oid,
+                                                               std::vector<int> node_types)
 {
-  return new SingleCountByNodeTypeTableImpl(name, oid);
+  return new SingleCountByNodeTypeTableImpl(name, oid, node_types);
 }
 
 }

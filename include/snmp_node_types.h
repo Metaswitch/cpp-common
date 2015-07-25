@@ -61,13 +61,6 @@ enum NodeTypes
   PROXYFUNCTION = 16,
   EPDG = 17
 };
-
-static std::vector<int> node_types = { NodeTypes::SCSCF,
-                                       NodeTypes::PCSCF,
-                                       NodeTypes::ICSCF,
-                                       NodeTypes::BGCF,
-                                       NodeTypes::IBCF,
-                                       NodeTypes::ECSCF };
 }
 
 #endif
