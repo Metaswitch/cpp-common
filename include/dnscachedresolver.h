@@ -76,9 +76,9 @@ private:
 class DnsCachedResolver
 {
 public:
-  DnsCachedResolver(const std::vector<IP46Address>& dns_server);
-  static DnsCachedResolver* from_server_ip (const std::string& dns_server);
-  static DnsCachedResolver* from_server_ips (const std::vector<std::string>& dns_server);
+  DnsCachedResolver(const std::vector<IP46Address>& dns_servers);
+  DnsCachedResolver(const std::vector<std::string>& dns_servers);
+  DnsCachedResolver(const std::string& dns_server);
   ~DnsCachedResolver();
 
   /// Queries a single DNS record.
@@ -102,6 +102,8 @@ public:
   void clear();
 
 private:
+  void init(const std::vector<IP46Address>& dns_server);
+  void init_from_server_ips(const std::vector<std::string>& dns_server);
 
   struct DnsChannel
   {

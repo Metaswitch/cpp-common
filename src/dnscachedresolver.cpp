@@ -115,11 +115,11 @@ DnsResult::~DnsResult()
   }
 }
 
-DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers) :
-  _dns_servers(dns_servers),
-  _cache_lock(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
-  _cache()
+void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers) 
 {
+  _dns_servers = dns_servers;
+  _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+
   // Initialize the ares library.  This might have already been done by curl
   // but it's safe to do it twice.
   ares_library_init(ARES_LIB_INIT_ALL);
@@ -135,9 +135,10 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers
   pthread_condattr_destroy(&cond_attr);
 }
 
-DnsCachedResolver* DnsCachedResolver::from_server_ips(const std::vector<std::string>& dns_servers)
+void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns_servers)
 {
   std::vector<IP46Address> dns_server_ips;
+  dns_server_ips.reserve(dns_servers.size());
 
   TRC_STATUS("Creating Cached Resolver using servers:");
   for (size_t i = 0; i < dns_servers.size(); i++)
@@ -162,12 +163,26 @@ DnsCachedResolver* DnsCachedResolver::from_server_ips(const std::vector<std::str
     dns_server_ips.push_back(addr);
   }
 
-  return new DnsCachedResolver(dns_server_ips);
+  init(dns_server_ips);
 }
 
-DnsCachedResolver* DnsCachedResolver::from_server_ip(const std::string& dns_server)
+
+DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers) :
+  _cache()
 {
-  return DnsCachedResolver::from_server_ips({ dns_server });
+  init(dns_servers);
+}
+
+DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
+  _cache()
+{
+  init_from_server_ips(dns_servers);
+}
+
+DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
+  _cache()
+{
+  init_from_server_ips({dns_server});
 }
 
 DnsCachedResolver::~DnsCachedResolver()
@@ -758,7 +773,13 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
   // Get the channel from the thread-local data, or create a new one if none
   // found.
   DnsChannel* channel = (DnsChannel*)pthread_getspecific(_thread_local);
-  size_t server_count = std::min((size_t)3u, _dns_servers.size());
+  size_t server_count = _dns_servers.size();
+  if (server_count > 3)
+  {
+    TRC_WARNING("%d DNS servers provided, only using the first 3", _dns_servers.size());
+    server_count = 3;
+  }
+
   if ((channel == NULL) &&
       (server_count > 0))
   {
@@ -811,7 +832,7 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
       }
     }
     
-    ares_set_servers(channel->channel, &(_ares_addrs[0]));
+    ares_set_servers(channel->channel, _ares_addrs);
 
     pthread_setspecific(_thread_local, channel);
   }
