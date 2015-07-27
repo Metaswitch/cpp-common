@@ -51,7 +51,7 @@ namespace JSONAlarms
     if (alarms_str == "")
     {
       // LCOV_EXCL_START - Not tested in UT
-      error = "Empty file";
+      error = "Empty/unopenable file";
       return false;
       // LCOV_EXCL_STOP
     }
@@ -62,7 +62,8 @@ namespace JSONAlarms
 
     if (doc.HasParseError())
     {
-      error = rapidjson::GetParseError_En(doc.GetParseError());
+      error = std::string("Invalid JSON file. Error: ").
+                append(rapidjson::GetParseError_En(doc.GetParseError()));
       return false;
     }
 
@@ -91,7 +92,9 @@ namespace JSONAlarms
         AlarmDef::Cause e_cause = AlarmDef::cause_to_enum(cause);
         if (e_cause == AlarmDef::UNDEFINED_CAUSE)
         {
-          error = "Invalid cause: " + cause;
+          char error_text[100];
+          sprintf(error_text, "alarm %d: Invalid cause %s", index, cause.c_str());
+          error = std::string(error_text);
           return false;
         }
 
@@ -118,7 +121,9 @@ namespace JSONAlarms
           AlarmDef::Severity e_severity = AlarmDef::severity_to_enum(severity);
           if (e_severity == AlarmDef::UNDEFINED_SEVERITY)
           {
-            error = "Invalid severity: " + severity;
+            char error_text[100];
+            sprintf(error_text, "alarm %d: Invalid severity %s", index, severity.c_str());
+            error = std::string(error_text);
             return false;
           }
           else if (e_severity == AlarmDef::CLEARED)
@@ -133,46 +138,61 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "details", details);
           if (details.length() > 255)
           {
-            error = "Details string is too long (max 255): " + details;
+            char error_text[100];
+            sprintf(error_text, "alarm %d: 'details' exceeds %d char limit", index, 255);
+            error = std::string(error_text);
             return false;
           }
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "description", description);
           if (description.length() > 255)
           {
-            error = "Description string is too long (max 255): " + description;
+            char error_text[100];
+            sprintf(error_text, "alarm %d: 'description' exceeds %d char limit", index, 255);
+            error = std::string(error_text);
             return false;
           }
 
           AlarmDef::SeverityDetails sd = {e_severity, description, details}; 
           severity_vec.push_back(sd);
         }
-
-        if ((found_non_cleared) && (found_cleared))
+      
+      
+        if (!found_cleared)
+        {
+          char error_text[100];
+          sprintf(error_text, "alarm %d.*: must define a CLEARED severity", index);
+          error = std::string(error_text);
+          return false;
+        }
+        else if (!found_non_cleared)
+        {
+          char error_text[100];
+          sprintf(error_text, "alarm %d.*: must define at least one non-CLEARED severity", index);
+          error = std::string(error_text);
+          return false;
+        }
+        else 
         {
           AlarmDef::AlarmDefinition ad = {index,
                                           e_cause,
                                           severity_vec};
           alarms.push_back(ad);
         }
-        else
-        {
-          error = "Alarm is missing both a cleared and non-cleared level";
-          return false;
-        }
       }
     }
     catch (JsonFormatError err)
     {
-      error = std::string("File: ").append(err._file).
-                                    append(", line: ").
-                                    append(std::to_string(err._line));
+      error = std::string("Invalid JSON file: ").append(err._file).
+                                                 append(", line: ").
+                                                 append(std::to_string(err._line));
       return false;
     }
 
     return true;
   }
 
+  // LCOV_EXCL_START - This function isn't tested in UTs
   void write_header_file(std::string name, std::map<std::string, int> alarms)
   {
     std::string alarm_values;
@@ -199,4 +219,5 @@ namespace JSONAlarms
     std::ofstream file(filename);
     file << alarms_header;
   }
+  // LCOV_EXCL_STOP
 };
