@@ -138,11 +138,16 @@ void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
 void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns_servers)
 {
   std::vector<IP46Address> dns_server_ips;
-  dns_server_ips.reserve(dns_servers.size());
 
   TRC_STATUS("Creating Cached Resolver using servers:");
   for (size_t i = 0; i < dns_servers.size(); i++)
   {
+    if (dns_servers[i] == "0.0.0.0")
+    {
+      // Skip this DNS server
+      continue;
+    }
+
     IP46Address addr;
     TRC_STATUS("    %s", dns_servers[i].c_str());
     // Parse the DNS server's IP address.
@@ -887,5 +892,6 @@ void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned
 {
   _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen);
   --_channel->pending_queries;
+  delete this;
 }
 
