@@ -359,18 +359,12 @@ HTTPCode HttpConnection::send_put(const std::string& path,                     /
                                   const std::string& username)                 //< Username to assert (if assertUser was true, else ignored)
 {
   CURL *curl = get_curl_handle();
-  struct curl_slist *slist = NULL;
-  slist = curl_slist_append(slist, "Content-Type: application/json");
-
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
   std::vector<std::string> unused_extra_headers;
   HTTPCode status = send_request(path, body, response, "", trail, "PUT", unused_extra_headers, curl);
-
-  curl_slist_free_all(slist);
 
   return status;
 }
@@ -393,18 +387,12 @@ HTTPCode HttpConnection::send_post(const std::string& path,                     
                                    const std::string& username)                 //< Username to assert (if assertUser was true, else ignored).
 {
   CURL *curl = get_curl_handle();
-  struct curl_slist *slist = NULL;
-  slist = curl_slist_append(slist, "Content-Type: application/json");
-
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_POST, 1);
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
   std::vector<std::string> unused_extra_headers;
   HTTPCode status = send_request(path, body, response, username, trail, "POST", unused_extra_headers, curl);
-
-  curl_slist_free_all(slist);
 
   return status;
 }
@@ -479,6 +467,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
   if (!body.empty())
   {
     curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+    extra_headers = curl_slist_append(extra_headers, "Content-Type: application/json");
   }
 
   // Create a UUID to use for SAS correlation and add it to the HTTP message.
@@ -695,6 +684,12 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
           (num_http_504_responses >= 1) ||
           fatal_http_error)
       {
+        // Make a SAS log so that its clear that we have stopped retrying
+        // deliberately.
+        HttpErrorResponseTypes reason = fatal_http_error ?
+                                        HttpErrorResponseTypes::Permanent :
+                                        HttpErrorResponseTypes::Temporary;
+        sas_log_http_abort(trail, reason, 0);
         break;
       }
     }
@@ -866,7 +861,7 @@ void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value) 
   {
       _parent->_stat_table->get(value)->increment();
   }
-  
+
   pthread_mutex_unlock(&_parent->_lock);
 }
 
@@ -981,7 +976,7 @@ void HttpConnection::sas_log_http_req(SAS::TrailId trail,
     SAS::Event event(trail, event_id, instance_id);
 
     sas_add_ip_addrs_and_ports(event, curl);
-    event.add_compressed_param(request_bytes);
+    event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
     event.add_var_param(method_str);
     event.add_var_param(Utils::url_unescape(url));
 
@@ -1006,12 +1001,23 @@ void HttpConnection::sas_log_http_rsp(SAS::TrailId trail,
 
     sas_add_ip_addrs_and_ports(event, curl);
     event.add_static_param(http_rc);
-    event.add_compressed_param(response_bytes);
+    event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
     event.add_var_param(method_str);
     event.add_var_param(Utils::url_unescape(url));
 
     SAS::report_event(event);
   }
+}
+
+void HttpConnection::sas_log_http_abort(SAS::TrailId trail,
+                                        HttpErrorResponseTypes reason,
+                                        uint32_t instance_id)
+{
+  int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                    SASEvent::HTTP_ABORT : SASEvent::HTTP_ABORT_DETAIL);
+  SAS::Event event(trail, event_id, instance_id);
+  event.add_static_param(static_cast<uint32_t>(reason));
+  SAS::report_event(event);
 }
 
 void HttpConnection::sas_log_curl_error(SAS::TrailId trail,

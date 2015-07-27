@@ -123,6 +123,19 @@ namespace Utils
   std::string url_escape(const std::string& s);
 
   std::string xml_escape(const std::string& s);
+  inline std::string xml_check_escape(const std::string& s)
+  {
+    // XML escaping is inefficient. Only do it if the string contains any
+    // characters that require escaping.
+    if (s.find_first_of("&\"'<>") != std::string::npos)
+    {
+      return xml_escape(s);
+    }
+    else
+    {
+      return s;
+    }
+  }
 
   std::string ip_addr_to_arpa(IP46Address ip_addr);
 
