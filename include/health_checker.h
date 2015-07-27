@@ -57,7 +57,7 @@ public:
   void hit_exception();
   void do_check();
   void start_thread();
-  void terminate();
+  void stop_thread();
 
   static void* static_main_thread_function(void* health_checker);
   void main_thread_function();

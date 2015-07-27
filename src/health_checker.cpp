@@ -146,7 +146,7 @@ void HealthChecker::start_thread()
                  (void*)this);
  
 }
-void HealthChecker::terminate()
+void HealthChecker::stop_thread()
 {
   pthread_mutex_lock(&_condvar_lock);
   _terminate = true;
