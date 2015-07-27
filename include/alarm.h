@@ -123,7 +123,7 @@ class Alarm : public BaseAlarm
 {
 public:
   Alarm(const std::string& issuer,
-        AlarmDef::Index index,
+        int index,
         AlarmDef::Severity severity) :
     BaseAlarm(issuer, index, severity)
   {}

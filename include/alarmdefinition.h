@@ -71,10 +71,6 @@ namespace AlarmDef {
     SPROUT_VBUCKET_ERROR,
     SPROUT_REMOTE_VBUCKET_ERROR,
 
-    HOMESTEAD_PROCESS_FAIL = 1500,
-    HOMESTEAD_CASSANDRA_COMM_ERROR,
-    HOMESTEAD_HSS_COMM_ERROR,
-
     RALF_PROCESS_FAIL = 2000,
     RALF_MEMCACHED_COMM_ERROR,
     RALF_CHRONOS_COMM_ERROR,
@@ -159,7 +155,7 @@ namespace AlarmDef {
   };
 
   struct AlarmDefinition {
-    Index _index;
+    int _index;
     Cause _cause;
     std::vector<SeverityDetails> _severity_details;
   };

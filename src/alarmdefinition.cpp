@@ -182,50 +182,6 @@ namespace AlarmDef {
       }
     },
 
-    {HOMESTEAD_PROCESS_FAIL, SOFTWARE_ERROR,
-      {
-        {CLEARED,
-          "Homestead: Process failure cleared",
-          "The Homestead process has been restored to normal operation."
-        },
-        {CRITICAL,
-          "Homestead: Process failure",
-          "Monit has detected that the Homestead process has failed. A restart will automatically be "
-          "attempted. If this alarm does not clear, the Homestead process may have been stopped or an "
-          "unrecoverable failure may have occurred."
-        }
-      }
-    },
-
-    {HOMESTEAD_CASSANDRA_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
-      {
-        {CLEARED,
-          "Homestead: Cassandra communication error cleared",
-          "Homestead communication to the local Cassandra has been restored."
-        },
-        {CRITICAL,
-          "Homestead: Cassandra communication error",
-          "Homestead is unable to contact the local Cassandra. It will periodically attempt to reconnect. "
-          "If this alarm does not clear, ensure that the local Cassandra is configured correctly then "
-          "restart it."
-        }
-      }
-    },
-
-    {HOMESTEAD_HSS_COMM_ERROR, UNDERLYING_RESOURCE_UNAVAILABLE,
-      {
-        {CLEARED,
-          "Homestead: HSS communication error cleared",
-          "Homestead communication to at least one HSS has been restored."
-        },
-        {CRITICAL,
-          "Homestead: HSS communication error",
-          "Homestead is unable to contact any HSSs. It will periodically attempt to reconnect. If this alarm "
-          "does not clear, ensure that at least one HSS is operational and that network connectivity exists "
-          "between it and Homestead."
-        }
-      }
-    },
 
     {RALF_PROCESS_FAIL, SOFTWARE_ERROR,
       {
