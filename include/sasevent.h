@@ -42,7 +42,7 @@
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20150728";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20150729";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
