@@ -39,6 +39,7 @@
 
 #include <string>
 #include <vector>
+#include <boost/algorithm/string.hpp> 
 
 // To add a new alarm:
 //
@@ -161,6 +162,9 @@ namespace AlarmDef {
     Cause _cause;
     std::vector<SeverityDetails> _severity_details;
   };
+
+  Cause cause_to_enum(std::string cause);
+  Severity severity_to_enum(std::string severity);
 
   extern const std::vector<AlarmDefinition> alarm_definitions;
 }
