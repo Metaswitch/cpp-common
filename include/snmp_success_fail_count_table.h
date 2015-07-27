@@ -74,6 +74,7 @@ struct AuthenticationStatsTables
 {
   SuccessFailCountTable* sip_digest_auth_tbl;
   SuccessFailCountTable* ims_aka_auth_tbl;
+  SuccessFailCountTable* non_register_auth_tbl;
 };
 
 }
