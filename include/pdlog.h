@@ -92,7 +92,9 @@ public:
     CL_SCRIPT_ID = 6000,
     CL_ASTAIRE_ID = 7000,
     CL_CLUSTER_MGR_ID = 8000,
-    CL_CONFIG_MGR_ID = 9000
+    CL_CONFIG_MGR_ID = 9000,
+    // The range 10000-11999 is reserved
+    CL_PYTHON_COMMON_ID = 12000
   };
 
   PDLogBase(int log_id,
