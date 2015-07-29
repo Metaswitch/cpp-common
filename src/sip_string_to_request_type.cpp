@@ -1,5 +1,5 @@
 /**
- * @file snmp_node_types.h
+ * @file sip_string_to_request_type.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -34,33 +34,33 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SNMP_NODE_TYPES_H
-#define SNMP_NODE_TYPES_H
+extern "C" {
+#include <pjsip.h>
+#include <pjlib-util.h>
+#include <pjlib.h>
+}
+#include "snmp_sip_request_types.h"
 
 namespace SNMP
 {
-
-enum NodeTypes
+// LCOV_EXCL_START
+SIPRequestTypes string_to_request_type(const pj_str_t* req_string)
 {
-  SCSCF = 0,
-  PCSCF = 1,
-  ICSCF = 2,
-  MRFC = 3, 
-  MGCF = 4, 
-  BGCF = 5,
-  AS = 6,
-  IBCF = 7,
-  SGW = 8,
-  PGW = 9,
-  HSGW = 10,
-  ECSCF = 11, 
-  MME = 12, 
-  TRF = 13, 
-  TF = 14,
-  ATCF = 15,
-  PROXYFUNCTION = 16,
-  EPDG = 17
-};
+  if (!pj_stricmp2(req_string, "INVITE")) { return SIPRequestTypes::INVITE; }
+  else if (!pj_stricmp2(req_string, "ACK")) { return SIPRequestTypes::ACK; }
+  else if (!pj_stricmp2(req_string, "BYE")) { return SIPRequestTypes::BYE; }
+  else if (!pj_stricmp2(req_string, "CANCEL")) { return SIPRequestTypes::CANCEL; }
+  else if (!pj_stricmp2(req_string, "OPTIONS")) { return SIPRequestTypes::OPTIONS; }
+  else if (!pj_stricmp2(req_string, "REGISTER")) { return SIPRequestTypes::REGISTER; }
+  else if (!pj_stricmp2(req_string, "PRACK")) { return SIPRequestTypes::PRACK; }
+  else if (!pj_stricmp2(req_string, "SUBSCRIBE")) { return SIPRequestTypes::SUBSCRIBE; }
+  else if (!pj_stricmp2(req_string, "NOTIFY")) { return SIPRequestTypes::NOTIFY; }
+  else if (!pj_stricmp2(req_string, "PUBLISH")) { return SIPRequestTypes::PUBLISH; }
+  else if (!pj_stricmp2(req_string, "INFO")) { return SIPRequestTypes::INFO; }
+  else if (!pj_stricmp2(req_string, "REFER")) { return SIPRequestTypes::REFER; }
+  else if (!pj_stricmp2(req_string, "MESSAGE")) { return SIPRequestTypes::MESSAGE; }
+  else if (!pj_stricmp2(req_string, "UPDATE")) { return SIPRequestTypes::UPDATE; }
+  else { return SIPRequestTypes::OTHER; }
 }
-
-#endif
+// LCOV_EXCL_STOP 
+}

@@ -59,7 +59,7 @@ public:
   SingleCountByNodeTypeTable() {};
   virtual ~SingleCountByNodeTypeTable() {};
 
-  static SingleCountByNodeTypeTable* create(std::string name, std::string oid);
+  static SingleCountByNodeTypeTable* create(std::string name, std::string oid, std::vector<int> node_types);
   virtual void increment(NodeTypes node_type) = 0;
 };
 

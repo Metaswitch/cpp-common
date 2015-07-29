@@ -37,9 +37,14 @@
 #ifndef SNMP_SIP_REQUEST_TYPES_H
 #define SNMP_SIP_REQUEST_TYPES_H
 
+extern "C" {
+#include <pjsip.h>
+#include <pjlib-util.h>
+#include <pjlib.h>
+}
+
 namespace SNMP
 {
-
 enum SIPRequestTypes
 {
   INVITE = 0,
@@ -58,6 +63,8 @@ enum SIPRequestTypes
   UPDATE = 13, 
   OTHER = 14,
 };
+
+SIPRequestTypes string_to_request_type(const pj_str_t* req_string);
 
 }
 
