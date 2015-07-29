@@ -40,6 +40,22 @@ namespace JSONAlarms
 {
   bool validate_alarms_from_json(std::string path,
                                  std::string& error,
+                                 std::map<std::string, int>& header)
+  {
+    std::vector<AlarmDef::AlarmDefinition> unused;
+    return validate_alarms_from_json(path, error, unused, header);
+  }
+
+  bool validate_alarms_from_json(std::string path,
+                                 std::string& error,
+                                 std::vector<AlarmDef::AlarmDefinition>& alarms)
+  {
+    std::map<std::string, int> unused;
+    return validate_alarms_from_json(path, error, alarms, unused);
+  }
+
+  bool validate_alarms_from_json(std::string path,
+                                 std::string& error,
                                  std::vector<AlarmDef::AlarmDefinition>& alarms,
                                  std::map<std::string, int>& header)
   {

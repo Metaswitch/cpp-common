@@ -1,5 +1,5 @@
 /**
- * @file json_alarms.h  Handler for UNIX signals.
+ * @file alarms_header.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015  Metaswitch Networks Ltd
@@ -33,50 +33,42 @@
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
-#ifndef JSON_ALARMS_H
-#define JSON_ALARMS_H
+#include "json_alarms.h"
 
-#include <string>
-#include <map>
-#include <vector>
-#include <fstream>
-#include <sys/stat.h>
-
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
-
-#include "json_parse_utils.h"
-#include "alarmdefinition.h"
-
-namespace JSONAlarms
+int main(int argc, char**argv)
 {
-  // Parses alarms from a JSON file. This validates the alarms and populates
-  // two alarm structures
-  //
-  // @params path - Location of the JSON file
-  // @params result - Error string. Only set if an error was hit. This is 
-  //                  returned so that different callers of this method can
-  //                  log it appropriately
-  // @params alarms - Vector of alarm definitions built from the JSON
-  // @params header - Map of the alarm name to index
-  // @returns - if the parsing was successful
-  bool validate_alarms_from_json(std::string path,
-                                 std::string& error,
-                                 std::vector<AlarmDef::AlarmDefinition>& alarms,
-                                 std::map<std::string, int>& header);
+  std::string json_file;
+  std::string process_name;
+  int c;
 
-  // Wrapper functions for different callers of the JSON validation 
-  // function
-  bool validate_alarms_from_json(std::string path,
-                                 std::string& error,
-                                 std::map<std::string, int>& header);
+  opterr = 0;
+  while ((c = getopt (argc, argv, "j:n:")) != -1)
+  {
+    switch (c)
+      {
+      case 'j':
+        json_file = optarg;
+        break;
+      case 'n':
+        process_name = optarg;
+        break;
+      default:
+        abort ();
+      }
+  }
 
-  bool validate_alarms_from_json(std::string path,
-                                 std::string& error,
-                                 std::vector<AlarmDef::AlarmDefinition>& alarms);
+  // Parse the JSON alarms and generate a header file that has the alarm IDs
+  std::string result;
+  std::map<std::string, int> header;
 
-  // Writes a header file that includes the alarm IDs and their index
-  void write_header_file(std::string name, std::map<std::string, int> alarms);
-};
+  bool rc = JSONAlarms::validate_alarms_from_json(json_file, result, header);
 
-#endif
+  if (rc)
+  {
+    JSONAlarms::write_header_file(process_name, header);  
+  }
+  else
+  { 
+    fprintf(stderr, "Invalid JSON file. Error: %s", result.c_str());
+  }
+}
