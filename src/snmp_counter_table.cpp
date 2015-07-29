@@ -47,7 +47,7 @@ struct SingleCount
 {
   uint64_t count;
 
-  void reset() { count = 0; };
+  void reset(SingleCount* previous = NULL, uint32_t periodstart = 0) { count = 0; };
 };
 
 
@@ -87,7 +87,7 @@ public:
     add(TimePeriodIndexes::scopeCurrent5MinutePeriod);
     add(TimePeriodIndexes::scopePrevious5MinutePeriod);
   }
- 
+
   void increment()
   {
     // Increment each underlying set of data.
@@ -95,7 +95,7 @@ public:
     five_minute.get_current()->count++;
   }
 
-private: 
+private:
   // Map row indexes to the view of the underlying data they should expose
   CounterRow* new_row(int index)
   {

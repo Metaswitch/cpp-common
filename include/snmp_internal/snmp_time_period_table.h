@@ -46,7 +46,7 @@
 
 // This file contains the base infrastructure for SNMP tables which are indexed by time period. It
 // contains only abstract classes, which need to be subclassed - e.g. SNMP::AccumulatorRow and
-// SNMP::AccumulatorTable.
+// SNMP::EventAccumulatorTable.
 
 
 namespace SNMP
@@ -72,13 +72,17 @@ public:
     CurrentAndPrevious(int interval):
       current(&a),
       previous(&b),
-      _interval(interval),
+      _interval(interval), // In s.
       _tick(0),
       a(),
       b()
     {
-      a.reset();
-      b.reset();
+      struct timespec now;
+      clock_gettime(CLOCK_REALTIME_COARSE, &now);
+      uint64_t time_now = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
+
+      a.reset(NULL, time_now);
+      b.reset(NULL, time_now-(interval*1000));
     }
 
     // Rolls the current period over into the previous period if necessary.
@@ -99,18 +103,19 @@ public:
         T* tmp;
         tmp = previous.load();
         previous.store(current);
-        tmp->reset();
+        tmp->reset(current.load(), new_tick * _interval * 1000);
         current.store(tmp);
       }
       else if (tick_difference > 1)
       {
-        current.load()->reset();
-        previous.load()->reset();
+        current.load()->reset(current.load(), new_tick * _interval * 1000);
+        previous.load()->reset(current.load(), (new_tick-1) * _interval * 1000);
       }
     }
 
     T* get_current() { update_time(); return current.load(); }
     T* get_previous() { update_time(); return previous.load(); }
+    uint32_t get_interval() { return _interval; }
 
   protected:
     std::atomic<T*> current;
@@ -129,6 +134,8 @@ public:
     View(CurrentAndPrevious* data): _data(data) {};
     virtual ~View() {};
     virtual T* get_data() = 0;
+    // Return interval in ms
+    uint32_t get_interval_ms() { return (this->_data->get_interval()) * 1000; }
   protected:
     CurrentAndPrevious* _data;
   };
@@ -138,7 +145,6 @@ public:
   {
   public:
     CurrentView(CurrentAndPrevious* data): View(data) {};
-
     T* get_data() { return this->_data->get_current(); };
   };
 

@@ -1,5 +1,5 @@
 /**
- * @file snmp_accumulator_table.cpp
+ * @file snmp_event_accumulator_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -35,14 +35,14 @@
  */
 
 #include "snmp_internal/snmp_time_period_table.h"
-#include "snmp_accumulator_table.h"
+#include "snmp_event_accumulator_table.h"
 #include "limits.h"
 
 namespace SNMP
 {
 
 // Storage for the underlying data
-struct Statistics
+struct EventStatistics
 {
   std::atomic_uint_fast64_t count;
   std::atomic_uint_fast64_t sum;
@@ -50,23 +50,23 @@ struct Statistics
   std::atomic_uint_fast64_t hwm;
   std::atomic_uint_fast64_t lwm;
 
-  void reset();
+  void reset(EventStatistics* previous = NULL, uint32_t periodstart = 0);
 };
 
-// Just a TimeBasedRow that maps the data from Statistics into the right five columns.
-class AccumulatorRow: public TimeBasedRow<Statistics>
+// Just a TimeBasedRow that maps the data from EventStatistics into the right five columns.
+class EventAccumulatorRow: public TimeBasedRow<EventStatistics>
 {
 public:
-  AccumulatorRow(int index, View* view): TimeBasedRow<Statistics>(index, view) {};
+  EventAccumulatorRow(int index, View* view): TimeBasedRow<EventStatistics>(index, view) {};
   ColumnData get_columns();
 };
 
-class AccumulatorTableImpl: public ManagedTable<AccumulatorRow, int>, public AccumulatorTable
+class EventAccumulatorTableImpl: public ManagedTable<EventAccumulatorRow, int>, public EventAccumulatorTable
 {
 public:
-  AccumulatorTableImpl(std::string name,
+  EventAccumulatorTableImpl(std::string name,
                        std::string tbl_oid):
-    ManagedTable<AccumulatorRow, int>(name,
+    ManagedTable<EventAccumulatorRow, int>(name,
                                       tbl_oid,
                                       2,
                                       6, // Columns 2-6 should be visible
@@ -90,27 +90,27 @@ public:
 
 private:
   // Map row indexes to the view of the underlying data they should expose
-  AccumulatorRow* new_row(int index)
+  EventAccumulatorRow* new_row(int index)
   {
-    AccumulatorRow::View* view = NULL;
+    EventAccumulatorRow::View* view = NULL;
     switch (index)
     {
       case TimePeriodIndexes::scopePrevious5SecondPeriod:
-        view = new AccumulatorRow::PreviousView(&five_second);
+        view = new EventAccumulatorRow::PreviousView(&five_second);
         break;
       case TimePeriodIndexes::scopeCurrent5MinutePeriod:
-        view = new AccumulatorRow::CurrentView(&five_minute);
+        view = new EventAccumulatorRow::CurrentView(&five_minute);
         break;
       case TimePeriodIndexes::scopePrevious5MinutePeriod:
-        view = new AccumulatorRow::PreviousView(&five_minute);
+        view = new EventAccumulatorRow::PreviousView(&five_minute);
         break;
     }
-    return new AccumulatorRow(index, view);
+    return new EventAccumulatorRow(index, view);
   }
 
-  void accumulate_internal(AccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
+  void accumulate_internal(EventAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
   {
-    Statistics* current = data.get_current();
+    EventStatistics* current = data.get_current();
 
     current->count++;
 
@@ -139,12 +139,12 @@ private:
   };
 
 
-  AccumulatorRow::CurrentAndPrevious five_second;
-  AccumulatorRow::CurrentAndPrevious five_minute;
+  EventAccumulatorRow::CurrentAndPrevious five_second;
+  EventAccumulatorRow::CurrentAndPrevious five_minute;
 };
 
 
-void Statistics::reset()
+void EventStatistics::reset(EventStatistics* previous, uint32_t periodstart)
 {
   count.store(0);
   sum.store(0);
@@ -153,9 +153,9 @@ void Statistics::reset()
   hwm.store(0);
 }
 
-ColumnData AccumulatorRow::get_columns()
+ColumnData EventAccumulatorRow::get_columns()
 {
-  Statistics* accumulated = _view->get_data();
+  EventStatistics* accumulated = _view->get_data();
   uint_fast32_t count = accumulated->count.load();
 
   uint_fast32_t avg = 0;
@@ -185,9 +185,9 @@ ColumnData AccumulatorRow::get_columns()
   return ret;
 }
 
-AccumulatorTable* AccumulatorTable::create(std::string name, std::string oid)
+EventAccumulatorTable* EventAccumulatorTable::create(std::string name, std::string oid)
 {
-  return new AccumulatorTableImpl(name, oid);
+  return new EventAccumulatorTableImpl(name, oid);
 
 }
 }

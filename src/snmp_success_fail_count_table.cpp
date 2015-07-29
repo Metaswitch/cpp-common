@@ -49,7 +49,7 @@ struct SuccessFailCount
   std::atomic_uint_fast64_t successes;
   std::atomic_uint_fast64_t failures;
 
-  void reset()
+  void reset(SuccessFailCount* previous = NULL, uint32_t periodstart = 0)
   {
     attempts = 0;
     successes = 0;
@@ -99,21 +99,21 @@ public:
     add(TimePeriodIndexes::scopeCurrent5MinutePeriod);
     add(TimePeriodIndexes::scopePrevious5MinutePeriod);
   }
- 
+
   void increment_attempts()
   {
     // Increment each underlying set of data.
     five_second.get_current()->attempts++;
     five_minute.get_current()->attempts++;
   }
-  
+
   void increment_successes()
   {
     // Increment each underlying set of data.
     five_second.get_current()->successes++;
     five_minute.get_current()->successes++;
   }
-  
+
   void increment_failures()
   {
     // Increment each underlying set of data.
@@ -121,7 +121,7 @@ public:
     five_minute.get_current()->failures++;
   }
 
-private: 
+private:
   // Map row indexes to the view of the underlying data they should expose
   SuccessFailCountRow* new_row(int index)
   {

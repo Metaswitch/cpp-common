@@ -36,6 +36,8 @@
 
 #include "load_monitor.h"
 #include "log.h"
+#include "snmp_continuous_accumulator_table.h"
+#include "snmp_scalar.h"
 
 
 TokenBucket::TokenBucket(int s, float r)
@@ -81,7 +83,12 @@ void TokenBucket::replenish_bucket()
 }
 
 LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
-                         float init_token_rate, float init_min_token_rate)
+                         float init_token_rate, float init_min_token_rate,
+                         SNMP::ContinuousAccumulatorTable* token_rate_tbl,
+                         SNMP::U32Scalar* smoothed_latency_sclr,
+                         SNMP::U32Scalar* target_latency_sclr,
+                         SNMP::U32Scalar* penalties_sclr,
+                         SNMP::U32Scalar* token_rate_sclr)
                          : bucket(max_bucket_size, init_token_rate)
 {
   pthread_mutexattr_t attrs;
@@ -115,6 +122,15 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
   adjust_count = 0;
   clock_gettime(CLOCK_MONOTONIC_COARSE, &last_adjustment_time);
   min_token_rate = init_min_token_rate;
+  _token_rate_table = token_rate_tbl;
+  _smoothed_latency_scalar = smoothed_latency_sclr;
+  _target_latency_scalar = target_latency_sclr;
+  _penalties_scalar = penalties_sclr;
+  _token_rate_scalar = token_rate_sclr;
+
+  // As this statistics reporting is continuous, we should
+  // publish the statistics when initialised.
+  update_statistics();
 }
 
 LoadMonitor::~LoadMonitor()
@@ -195,9 +211,11 @@ void LoadMonitor::request_complete(int latency)
 
       // latency is above where we want it to be, or we are getting overload responses from
       // Homer/Homestead, so adjust the rate downwards by a multiplicative factor
+
+      float new_rate = bucket.rate;
       if (err > DECREASE_THRESHOLD || penalties > 0)
       {
-        float new_rate = bucket.rate / DECREASE_FACTOR;
+        new_rate = bucket.rate / DECREASE_FACTOR;
 
         if (new_rate < min_token_rate)
         {
@@ -212,7 +230,7 @@ void LoadMonitor::request_complete(int latency)
       }
       else if (err < INCREASE_THRESHOLD)
       {
-        float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
+        new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
         bucket.update_rate(new_rate);
         TRC_STATUS("Maximum incoming request rate/second increased to %f "
                    "(based on a smoothed mean latency of %d and %d upstream overload responses)",
@@ -226,6 +244,8 @@ void LoadMonitor::request_complete(int latency)
                   bucket.rate);
       }
 
+      update_statistics();
+
       // Reset counts
       last_adjustment_time = current_time;
       adjust_count = 0;
@@ -236,4 +256,28 @@ void LoadMonitor::request_complete(int latency)
   }
 
   pthread_mutex_unlock(&_lock);
+}
+
+void LoadMonitor::update_statistics()
+{
+  if (_smoothed_latency_scalar != NULL)
+  {
+    _smoothed_latency_scalar->value = smoothed_latency;
+  }
+  if (_target_latency_scalar != NULL)
+  {
+    _target_latency_scalar->value = target_latency;
+  }
+  if (_penalties_scalar != NULL)
+  {
+    _penalties_scalar->value = penalties;
+  }
+  if (_token_rate_table != NULL)
+  {
+    _token_rate_table->accumulate(bucket.rate);
+  }
+  if (_token_rate_scalar != NULL)
+  {
+  _token_rate_scalar->value = bucket.rate;
+  }
 }
