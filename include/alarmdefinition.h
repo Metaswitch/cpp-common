@@ -39,6 +39,7 @@
 
 #include <string>
 #include <vector>
+#include <boost/algorithm/string.hpp> 
 
 // To add a new alarm:
 //
@@ -71,9 +72,7 @@ namespace AlarmDef {
     SPROUT_VBUCKET_ERROR,
     SPROUT_REMOTE_VBUCKET_ERROR,
 
-    HOMESTEAD_PROCESS_FAIL = 1500,
-    HOMESTEAD_CASSANDRA_COMM_ERROR,
-    HOMESTEAD_HSS_COMM_ERROR,
+    // Homestead alarms: 1500->1999
 
     RALF_PROCESS_FAIL = 2000,
     RALF_MEMCACHED_COMM_ERROR,
@@ -159,10 +158,13 @@ namespace AlarmDef {
   };
 
   struct AlarmDefinition {
-    Index _index;
+    int _index;
     Cause _cause;
     std::vector<SeverityDetails> _severity_details;
   };
+
+  Cause cause_to_enum(std::string cause);
+  Severity severity_to_enum(std::string severity);
 
   extern const std::vector<AlarmDefinition> alarm_definitions;
 }
