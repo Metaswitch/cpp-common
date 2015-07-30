@@ -38,6 +38,7 @@
 
 namespace JSONAlarms
 {
+  // LCOV_EXCL_START - The other helper function is covered by UTs
   bool validate_alarms_from_json(std::string path,
                                  std::string& error,
                                  std::map<std::string, int>& header)
@@ -45,6 +46,7 @@ namespace JSONAlarms
     std::vector<AlarmDef::AlarmDefinition> unused;
     return validate_alarms_from_json(path, error, unused, header);
   }
+  // LCOV_EXCL_STOP
 
   bool validate_alarms_from_json(std::string path,
                                  std::string& error,
