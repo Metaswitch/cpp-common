@@ -44,7 +44,7 @@ class MockAlarm : public Alarm
 {
 public:
   MockAlarm() : 
-    Alarm("sprout", AlarmDef::SPROUT_HOMESTEAD_COMM_ERROR, AlarmDef::CRITICAL) {}
+    Alarm("sprout", 0, AlarmDef::CRITICAL) {}
 
   MOCK_METHOD0(clear, void());
   MOCK_METHOD0(set, void());

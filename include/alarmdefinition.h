@@ -43,81 +43,22 @@
 
 // To add a new alarm:
 //
-//   - If the alarm is for a defined issuer with previous alarm defintions,
-//     simply add a new Index enumeration for the issuer at the end of its
-//     existing section.
-//
-//   - If the alarm is for a new issuer. Add a new Issuer enumeration at
-//     the end of the existing list for the new issuer. Add a new section
-//     at the bottom of the Index enumeration for the new issuer. The first
-//     value in the section should be set to 500 more than the first value
-//     in the previous section (i.e. room for 500 alarm index values per
-//     issuer).
-//
-//   - For any new alarm Index enumerations defined, add a corresponding
-//     AlarmDefinition to alarm_definitions in alarmdefinition.cpp.
-
+//   - Add it to the JSON alarm file in the relevant repository.
+//   
+//   - If it's a new repo, then make sure that the alarm file gets 
+//     installed to /usr/share/clearwater/infrastructure/alarms. 
 namespace AlarmDef {
 
-  enum Index {
-    UNDEFINED_INDEX,
-
-    SPROUT_PROCESS_FAIL = 1000,
-    SPROUT_HOMESTEAD_COMM_ERROR,
-    SPROUT_MEMCACHED_COMM_ERROR,
-    SPROUT_REMOTE_MEMCACHED_COMM_ERROR,
-    SPROUT_CHRONOS_COMM_ERROR,
-    SPROUT_RALF_COMM_ERROR,
-    SPROUT_ENUM_COMM_ERROR,
-    SPROUT_VBUCKET_ERROR,
-    SPROUT_REMOTE_VBUCKET_ERROR,
-
-    // Homestead alarms: 1500->1999
-
-    RALF_PROCESS_FAIL = 2000,
-    RALF_MEMCACHED_COMM_ERROR,
-    RALF_CHRONOS_COMM_ERROR,
-    RALF_CDF_COMM_ERROR,
-    RALF_VBUCKET_ERROR,
-
-//  BONO_PROCESS_FAIL = 2500
-
-    CHRONOS_PROCESS_FAIL = 3000,
-    CHRONOS_TIMER_POP_ERROR,
-    CHRONOS_SCALE_IN_PROGRESS,
-    CHRONOS_NOT_YET_CLUSTERED,
-
-    MEMCACHED_PROCESS_FAIL = 3500,
-    MEMCACHED_NOT_YET_CLUSTERED,
-
-    CASSANDRA_PROCESS_FAIL = 4000,
-    CASSANDRA_RING_NODE_FAIL = 4001,
-    CASSANDRA_NOT_YET_CLUSTERED = 4002,
-    CASSANDRA_NOT_YET_DECOMMISSIONED = 4003,
-
-    MONIT_PROCESS_FAIL = 4500,
-
-    MEMENTO_HTTP_SERVER_PROCESS_FAIL = 5000,
-    MEMENTO_PROXY_SERVER_PROCESS_FAIL = 5001,
-    MEMENTO_MEMCACHED_COMM_ERROR = 5002,
-    MEMENTO_MEMCACHED_VBUCKET_ERROR = 5003,
-    MEMENTO_HOMESTEAD_COMM_ERROR = 5004,
-    MEMENTO_CASSANDRA_COMM_ERROR = 5005,
-    MEMENTO_AS_CASSANDRA_COMM_ERROR = 5006,
-    MEMENTO_HTTP_SERVER_COMM_ERROR = 5007,
-
-    ASTAIRE_PROCESS_FAIL = 5500,
-    ASTAIRE_RESYNC_IN_PROGRESS = 5501,
-
-    CLEARWATER_LIVE_TEST_SERVICE_FAILED = 6000,
-
-    ETCD_PROCESS_FAIL = 6500,
-    ETCD_CLUSTER_HEALTH,
-    ETCD_CLUSTERING_TAKING_TOO_LONG,
-    ETCD_NO_SHARED_CONFIG,
-
-    // Alarms 7000-7999 are reserved
-  };
+  // Sprout alarms: 1000->1499
+  // Homestead alarms: 1500->1999
+  // Ralf alarms: 2000->2499
+  // Bono alarms: 2500->2999
+  // Chronos alarms: 3000->3499
+  // Cassandra alarms: 4000->4499
+  // Memento alarms: 5000->5499
+  // Astaire alarms: 5500->5999
+  // Etcd alarms: 6500->6999
+  // Alarms 7000-7999 are reserved
 
   enum Severity {
     UNDEFINED_SEVERITY,
@@ -134,21 +75,6 @@ namespace AlarmDef {
     DATABASE_INCONSISTENCY = 160,
     SOFTWARE_ERROR = 163,
     UNDERLYING_RESOURCE_UNAVAILABLE = 554
-  };
-
-  enum Issuer {
-    UNDEFINED_ISSUER,
-    SPROUT,
-    HOMESTEAD,
-    RALF,
-    CHRONOS,
-    MEMCACHED,
-    CASSANDRA,
-    MONIT,
-    MEMENTO,
-    ASTAIRE,
-    CLEARWATER_LIVE_TEST,
-    ETCD,
   };
 
   struct SeverityDetails {

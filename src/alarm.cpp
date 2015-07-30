@@ -76,9 +76,9 @@ void AlarmState::clear_all(const std::string& issuer)
   TRC_DEBUG("%s cleared its alarms", issuer.c_str());
 }
 
-BaseAlarm::BaseAlarm(const std::string& issuer,
-                     const int index,
-                     AlarmDef::Severity severity) :
+Alarm::Alarm(const std::string& issuer,
+             const int index,
+             AlarmDef::Severity severity) :
   _index(index),
   _clear_state(issuer, index, AlarmDef::CLEARED),
   _set_state(issuer, index, severity),
@@ -86,7 +86,7 @@ BaseAlarm::BaseAlarm(const std::string& issuer,
 {
 }
 
-void BaseAlarm::set()
+void Alarm::set()
 {
   bool previously_alarmed = _alarmed.exchange(true);
 
@@ -96,7 +96,7 @@ void BaseAlarm::set()
   }
 }
 
-void BaseAlarm::clear()
+void Alarm::clear()
 {
   bool previously_alarmed = _alarmed.exchange(false);
 
