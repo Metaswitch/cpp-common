@@ -1095,7 +1095,7 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
       TRC_ERROR("Cannot store multiple values in one ACR, ignoring");
       break;
     case rapidjson::kStringType:
-      val_str(value.GetString());
+      val_str(std::string(value.GetString(), value.GetStringLength()));
       break;
     case rapidjson::kNumberType:
       // Parse the value out of the JSON as the appropriate type
