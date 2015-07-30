@@ -39,13 +39,12 @@
 
 #include "gmock/gmock.h"
 #include "communicationmonitor.h"
-#include "sprout_alarmdefinition.h"
 
 class MockCommunicationMonitor : public CommunicationMonitor
 {
 public:
   MockCommunicationMonitor() : 
-    CommunicationMonitor(new Alarm("sprout", AlarmDef::SPROUT_HOMESTEAD_COMM_ERROR, AlarmDef::CRITICAL)) {}
+    CommunicationMonitor(new Alarm("sprout", 0, AlarmDef::CRITICAL)) {}
 
   MOCK_METHOD1(inform_success, void(unsigned long now_ms));
   MOCK_METHOD1(inform_failure, void(unsigned long now_ms));
