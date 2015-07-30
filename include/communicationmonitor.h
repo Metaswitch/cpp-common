@@ -64,7 +64,7 @@
 class CommunicationMonitor
 {
 public:
-  CommunicationMonitor(BaseAlarm* alarm,
+  CommunicationMonitor(Alarm* alarm,
                        unsigned int clear_confirm_sec = 30,
                        unsigned int set_confirm_sec = 15);
 
@@ -82,7 +82,7 @@ protected:
   virtual void update_alarm_state(unsigned long now_ms);
   unsigned long current_time_ms();
 
-  BaseAlarm* _alarm;
+  Alarm* _alarm;
 
   unsigned int _clear_confirm_ms;
   unsigned int _set_confirm_ms;

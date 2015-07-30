@@ -1,4 +1,5 @@
-/* @file snmp_success_fail_count_table.h
+/**
+ * @file snmp_success_fail_count_by_request_type_table.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -36,12 +37,13 @@
 #include <vector>
 #include <map>
 #include <string>
+#include "snmp_sip_request_types.h"
 
-#ifndef SNMP_SUCCESS_FAIL_COUNT_TABLE_H
-#define SNMP_SUCCESS_FAIL_COUNT_TABLE_H
+#ifndef SNMP_SUCCESS_FAIL_COUNT_BY_REQUEST_TYPE_TABLE_H
+#define SNMP_SUCCESS_FAIL_COUNT_BY_REQUEST_TYPE_TABLE_H
 
 // This file contains the interface for tables which:
-//   - are indexed by time period
+//   - are indexed by time period and SIP request type
 //   - increment a count of the attempts, successes and failures over time
 //   - report a count of the attempts, successes and failures
 //
@@ -50,31 +52,17 @@
 
 namespace SNMP
 {
-class SuccessFailCountTable
+
+class SuccessFailCountByRequestTypeTable
 {
 public:
-  static SuccessFailCountTable* create(std::string name, std::string oid);
-  virtual void increment_attempts() = 0;
-  virtual void increment_successes() = 0;
-  virtual void increment_failures() = 0;
-  virtual ~SuccessFailCountTable() {};
+  SuccessFailCountByRequestTypeTable() {};
+  virtual ~SuccessFailCountByRequestTypeTable() {};
 
-protected:
-  SuccessFailCountTable() {};
-};
-
-struct RegistrationStatsTables
-{
-  SuccessFailCountTable* init_reg_tbl;
-  SuccessFailCountTable* re_reg_tbl;
-  SuccessFailCountTable* de_reg_tbl;
-};
-
-struct AuthenticationStatsTables
-{
-  SuccessFailCountTable* sip_digest_auth_tbl;
-  SuccessFailCountTable* ims_aka_auth_tbl;
-  SuccessFailCountTable* non_register_auth_tbl;
+  static SuccessFailCountByRequestTypeTable* create(std::string name, std::string oid);
+  virtual void increment_attempts(SIPRequestTypes request_type) = 0;
+  virtual void increment_successes(SIPRequestTypes request_type) = 0;
+  virtual void increment_failures(SIPRequestTypes request_type) = 0;
 };
 
 }

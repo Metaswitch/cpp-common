@@ -36,7 +36,8 @@
 
 #include "snmp_single_count_by_node_type_table.h"
 #include "snmp_internal/snmp_includes.h"
-#include "snmp_internal/snmp_counts_by_node_type_table.h"
+#include "snmp_internal/snmp_counts_by_other_type_table.h"
+#include "snmp_node_types.h"
 #include "logger.h"
 
 namespace SNMP
@@ -50,11 +51,11 @@ struct SingleCount
 };
 
 // Time and Node Based Row that maps the data from SingleCount into the right column.
-class SingleCountByNodeTypeRow: public TimeAndNodeTypeBasedRow<SingleCount>
+class SingleCountByNodeTypeRow: public TimeAndOtherTypeBasedRow<SingleCount>
 {
 public:
   SingleCountByNodeTypeRow(int time_index, int type_index, View* view):
-    TimeAndNodeTypeBasedRow<SingleCount>(time_index, type_index, view) {};
+    TimeAndOtherTypeBasedRow<SingleCount>(time_index, type_index, view) {};
   ColumnData get_columns()
   {
     SingleCount accumulated = *(this->_view->get_data());
@@ -67,15 +68,15 @@ public:
     return ret;
   }
 
-  static int get_count_size() { return 0; }
+  static int get_count_size() { return 1; }
 };
 
-class SingleCountByNodeTypeTableImpl: public CountsByNodeTypeTableImpl<SingleCountByNodeTypeRow>, public SingleCountByNodeTypeTable
+class SingleCountByNodeTypeTableImpl: public CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow>, public SingleCountByNodeTypeTable
 {
 public:
   SingleCountByNodeTypeTableImpl(std::string name,
-                                 std::string tbl_oid):
-    CountsByNodeTypeTableImpl<SingleCountByNodeTypeRow>(name, tbl_oid)
+                                 std::string tbl_oid,
+                                 std::vector<int> node_types): CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow>(name, tbl_oid, node_types)
   {}
  
   void increment(NodeTypes type)
@@ -86,9 +87,10 @@ public:
 };
 
 SingleCountByNodeTypeTable* SingleCountByNodeTypeTable::create(std::string name,
-                                                               std::string oid)
+                                                               std::string oid,
+                                                               std::vector<int> node_types)
 {
-  return new SingleCountByNodeTypeTableImpl(name, oid);
+  return new SingleCountByNodeTypeTableImpl(name, oid, node_types);
 }
 
 }

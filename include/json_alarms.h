@@ -1,8 +1,8 @@
 /**
- * @file mockcommunicationmonitor.h Mock CommunicationMonitor.
+ * @file json_alarms.h  Handler for UNIX signals.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -33,21 +33,50 @@
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
+#ifndef JSON_ALARMS_H
+#define JSON_ALARMS_H
 
-#ifndef MOCKCOMMUNICATIONMONITOR_H__
-#define MOCKCOMMUNICATIONMONITOR_H__
+#include <string>
+#include <map>
+#include <vector>
+#include <fstream>
+#include <sys/stat.h>
 
-#include "gmock/gmock.h"
-#include "communicationmonitor.h"
+#include "rapidjson/document.h"
+#include "rapidjson/error/en.h"
 
-class MockCommunicationMonitor : public CommunicationMonitor
+#include "json_parse_utils.h"
+#include "alarmdefinition.h"
+
+namespace JSONAlarms
 {
-public:
-  MockCommunicationMonitor() : 
-    CommunicationMonitor(new Alarm("sprout", 0, AlarmDef::CRITICAL)) {}
+  // Parses alarms from a JSON file. This validates the alarms and populates
+  // two alarm structures
+  //
+  // @params path - Location of the JSON file
+  // @params result - Error string. Only set if an error was hit. This is 
+  //                  returned so that different callers of this method can
+  //                  log it appropriately
+  // @params alarms - Vector of alarm definitions built from the JSON
+  // @params header - Map of the alarm name to index
+  // @returns - if the parsing was successful
+  bool validate_alarms_from_json(std::string path,
+                                 std::string& error,
+                                 std::vector<AlarmDef::AlarmDefinition>& alarms,
+                                 std::map<std::string, int>& header);
 
-  MOCK_METHOD1(inform_success, void(unsigned long now_ms));
-  MOCK_METHOD1(inform_failure, void(unsigned long now_ms));
+  // Wrapper functions for different callers of the JSON validation 
+  // function
+  bool validate_alarms_from_json(std::string path,
+                                 std::string& error,
+                                 std::map<std::string, int>& header);
+
+  bool validate_alarms_from_json(std::string path,
+                                 std::string& error,
+                                 std::vector<AlarmDef::AlarmDefinition>& alarms);
+
+  // Writes a header file that includes the alarm IDs and their index
+  void write_header_file(std::string name, std::map<std::string, int> alarms);
 };
 
 #endif
