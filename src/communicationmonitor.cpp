@@ -37,7 +37,7 @@
 #include "communicationmonitor.h"
 #include "log.h"
 
-CommunicationMonitor::CommunicationMonitor(BaseAlarm* alarm,
+CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
                                            unsigned int clear_confirm_sec,
                                            unsigned int set_confirm_sec) :
   _alarm(alarm),

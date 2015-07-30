@@ -39,6 +39,7 @@
 
 #include "gmock/gmock.h"
 #include "communicationmonitor.h"
+#include "sprout_alarmdefinition.h"
 
 class MockCommunicationMonitor : public CommunicationMonitor
 {

@@ -79,11 +79,14 @@ private:
 /// Encapsulates an alarm active state and its associated alarm clear state.
 /// Used to manage the reporting of a fault condition, and subsequent clear
 /// of said condition.
-
-class BaseAlarm
+class Alarm
 {
 public:
-  virtual ~BaseAlarm() {}
+  Alarm(const std::string& issuer,
+        const int index,
+        AlarmDef::Severity severity);
+
+  virtual ~Alarm() {}
 
   /// Queues a request to generate an alarm state change corresponding to the
   /// CLEARED severity if a state change for the non-CLEARED severity was
@@ -108,25 +111,6 @@ private:
   AlarmState _set_state;
 
   std::atomic<bool> _alarmed;
-
-protected:
-  // Constructor. This is protected to prevent the BaseAlarm from being
-  // instantiated directly. Subclasses will use specific ENUMs for the 
-  // allowed issuer/index, which may be different depending on the sub
-  // class
-  BaseAlarm(const std::string& issuer,
-            const int index,
-            AlarmDef::Severity severity);
-};
-
-class Alarm : public BaseAlarm
-{
-public:
-  Alarm(const std::string& issuer,
-        int index,
-        AlarmDef::Severity severity) :
-    BaseAlarm(issuer, index, severity)
-  {}
 };
 
 /// @class AlarmReqAgent
