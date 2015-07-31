@@ -105,13 +105,12 @@ int snmp_setup(const char* name)
   if (rc != 0)
   {
     TRC_WARNING("SNMP AgentX initialization failed");
-    return -1;
   }
   else
   {
     TRC_STATUS("AgentX agent initialised");
   }
-  return 0;
+  return rc;
 }
 
 // Set up the SNMP handling threads. Returns 0 if it succeeds.
