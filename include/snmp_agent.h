@@ -41,6 +41,8 @@
 // name - this is arbitrary, but should be spomething sensible (e.g. 'sprout', 'bono').
 int snmp_setup(const char* name);
 
+int init_snmp_handler_threads(const char* name);
+
 // Terminates the SNMP agent thread. 'name' should match the string passed to snmp_setup.
 void snmp_terminate(const char* name);
 
