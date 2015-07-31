@@ -90,7 +90,7 @@ int logging_callback(int majorID, int minorID, void* serverarg, void* clientarg)
 }
 
 
-// Set up the SNMP agent and handler thread. Returns 0 if and only if both succeed.
+// Set up the SNMP agent. Returns 0 if it succeeds.
 int snmp_setup(const char* name)
 {
   // Make sure we start as a subagent, not a master agent.
@@ -111,7 +111,12 @@ int snmp_setup(const char* name)
   {
     TRC_STATUS("AgentX agent initialised");
   }
+  return 0;
+}
 
+// Set up the SNMP handling threads. Returns 0 if it succeeds.
+int init_snmp_handler_threads(const char* name)
+{
   init_snmp(name);
 
   int ret = pthread_create(&snmp_thread_var, NULL, snmp_thread, NULL);
