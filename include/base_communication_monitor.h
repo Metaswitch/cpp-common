@@ -1,8 +1,8 @@
 /**
- * @file communication_monitor.h
+ * @file base_communication_monitor.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015  Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,40 +34,46 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef COMMUNICATION_MONITOR_H__
-#define COMMUNICATION_MONITOR_H__
+#ifndef BASE_COMMUNICATION_MONITOR_H__
+#define BASE_COMMUNICATION_MONITOR_H__
 
-#include "alarm.h"
-#include "base_communication_monitor.h"
+#include <pthread.h>
+#include <string>
+#include <atomic>
 
 /// @class CommunicationMonitor
 ///
-/// Provides a simple mechanism to track communication state for an entity,
-/// and manage the associated alarm reporting. 
+/// Abstract class that provides a simple mechanism to track communication 
+/// state for an entity.
 ///
-/// If the monitor detects that all comms are failing over a set_confirm_sec
-/// interval, an alarm active state is requested. Once alarmed the monitor
-/// will check for a successful comm. at a clear_confirm_sec interval. Once
-/// one is detected, an alarm clear state is requested. Note that timing is
-/// driven by calls to the inform_* methods. As such the intervals will not
-/// be very precise at low call volume.
-class CommunicationMonitor : public BaseCommunicationMonitor
+///   - whenever an entity successfully communicates with a peer, the
+///     inform_success() method should be called
+///
+///   - whenever an entity fails to communicate with a peer, the 
+///     inform_failure() method should be called
+class BaseCommunicationMonitor
 {
 public:
-  CommunicationMonitor(Alarm* alarm,
-                       unsigned int clear_confirm_sec = 30,
-                       unsigned int set_confirm_sec = 15);
+  virtual ~BaseCommunicationMonitor();
 
-  virtual ~CommunicationMonitor();
+  /// Report a successful communication. If the current time in ms is available
+  /// to the caller it should be passed to avoid duplicate work.
+  virtual void inform_success(unsigned long now_ms = 0);
 
-private:
-  virtual void track_communication_changes(unsigned long now_ms);
-  unsigned long current_time_ms();
+  /// Report a failed communication. If the current time in ms is available to
+  /// the caller it should be passed to avoid duplicate work.
+  virtual void inform_failure(unsigned long now_ms = 0);
 
-  Alarm* _alarm;
-  unsigned int _clear_confirm_ms;
-  unsigned int _set_confirm_ms;
-  unsigned long _next_check;
+protected:
+  BaseCommunicationMonitor();
+
+  /// Carry out any desired behaviour given the current communication state
+  /// (implemented by subclass). 
+  virtual void track_communication_changes(unsigned long now_ms = 0) = 0;
+
+  std::atomic<int> _succeeded;
+  std::atomic<int> _failed;
+  pthread_mutex_t _lock;
 };
 
 #endif

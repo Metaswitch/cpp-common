@@ -80,13 +80,13 @@ public:
                  SNMP::IPCountTable* stat_table,
                  LoadMonitor* load_monitor,
                  SASEvent::HttpLogLevel,
-                 CommunicationMonitor* comm_monitor);
+                 BaseCommunicationMonitor* comm_monitor);
 
   HttpConnection(const std::string& server,
                  bool assert_user,
                  HttpResolver* resolver,
                  SASEvent::HttpLogLevel,
-                 CommunicationMonitor* comm_monitor);
+                 BaseCommunicationMonitor* comm_monitor);
 
   virtual ~HttpConnection();
 
@@ -305,7 +305,7 @@ private:
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock
   SASEvent::HttpLogLevel _sas_log_level;
-  CommunicationMonitor* _comm_monitor;
+  BaseCommunicationMonitor* _comm_monitor;
   SNMP::IPCountTable* _stat_table;
 
   friend class PoolEntry; // so it can update stats

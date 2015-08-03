@@ -112,7 +112,7 @@ protected:
   // instantiated directly.
   BaseMemcachedStore(bool binary,
                      MemcachedConfigReader* config_reader,
-                     CommunicationMonitor* comm_monitor,
+                     BaseCommunicationMonitor* comm_monitor,
                      Alarm* vbucket_alarm);
 
 private:
@@ -235,7 +235,7 @@ private:
 
   // Helper used to track replica communication state, and issue/clear alarms
   // based upon recent activity.
-  CommunicationMonitor* _comm_monitor;
+  BaseCommunicationMonitor* _comm_monitor;
 
   // State of last communication with replica(s) for a given vbucket, indexed
   // by vbucket.
@@ -282,7 +282,7 @@ public:
   ///                        uncontactable.
   MemcachedStore(bool binary,
                  const std::string& config_file,
-                 CommunicationMonitor* comm_monitor = NULL,
+                 BaseCommunicationMonitor* comm_monitor = NULL,
                  Alarm* vbucket_alarm = NULL);
 
   /// Construct a MemcachedStore that reads its config from a user-supplied
@@ -298,7 +298,7 @@ public:
   ///                        uncontactable.
   MemcachedStore(bool binary,
                  MemcachedConfigReader* config_reader,
-                 CommunicationMonitor* comm_monitor = NULL,
+                 BaseCommunicationMonitor* comm_monitor = NULL,
                  Alarm* vbucket_alarm = NULL);
 };
 

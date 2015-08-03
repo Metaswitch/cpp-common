@@ -92,7 +92,7 @@ HttpConnection::HttpConnection(const std::string& server,
                                SNMP::IPCountTable* stat_table,
                                LoadMonitor* load_monitor,
                                SASEvent::HttpLogLevel sas_log_level,
-                               CommunicationMonitor* comm_monitor) :
+                               BaseCommunicationMonitor* comm_monitor) :
   _server(server),
   _host(host_from_server(server)),
   _port(port_from_server(server)),
@@ -127,7 +127,7 @@ HttpConnection::HttpConnection(const std::string& server,
                                bool assert_user,
                                HttpResolver* resolver,
                                SASEvent::HttpLogLevel sas_log_level,
-                               CommunicationMonitor* comm_monitor) :
+                               BaseCommunicationMonitor* comm_monitor) :
   _server(server),
   _host(host_from_server(server)),
   _port(port_from_server(server)),

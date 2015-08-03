@@ -58,6 +58,8 @@ public:
   MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
   MOCK_METHOD1(add, bool(Diameter::Peer*));
   MOCK_METHOD1(remove, void(Diameter::Peer*));
+  MOCK_METHOD0(set_allow_connections, void());
+  MOCK_METHOD0(close_connections, void());
 };
 
 #endif

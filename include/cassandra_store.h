@@ -459,7 +459,7 @@ public:
   ///                            on recent activity.
   virtual void configure_connection(std::string cass_hostname,
                                     uint16_t cass_port,
-                                    CommunicationMonitor* comm_monitor = NULL);
+                                    BaseCommunicationMonitor* comm_monitor = NULL);
 
   /// Tests the store.
   ///
@@ -589,7 +589,7 @@ private:
 
   // Helper used to track local communication state, and issue/clear alarms
   // based upon recent activity.
-  CommunicationMonitor* _comm_monitor;
+  BaseCommunicationMonitor* _comm_monitor;
 
   // Cassandra connection management.
   //
