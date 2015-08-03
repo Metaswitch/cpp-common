@@ -62,7 +62,7 @@ static const std::string TOMBSTONE = "";
 
 BaseMemcachedStore::BaseMemcachedStore(bool binary,
                                        MemcachedConfigReader* config_reader,
-                                       CommunicationMonitor* comm_monitor,
+                                       BaseCommunicationMonitor* comm_monitor,
                                        Alarm* vbucket_alarm) :
   _binary(binary),
   _updater(NULL),
@@ -1023,7 +1023,7 @@ void BaseMemcachedStore::log_delete_failure(const std::string& fqkey,
 
 MemcachedStore::MemcachedStore(bool binary,
                                const std::string& config_file,
-                               CommunicationMonitor* comm_monitor,
+                               BaseCommunicationMonitor* comm_monitor,
                                Alarm* vbucket_alarm) :
   BaseMemcachedStore(binary,
                      new MemcachedConfigFileReader(config_file),
@@ -1033,7 +1033,7 @@ MemcachedStore::MemcachedStore(bool binary,
 
 MemcachedStore::MemcachedStore(bool binary,
                                MemcachedConfigReader* config_reader,
-                               CommunicationMonitor* comm_monitor,
+                               BaseCommunicationMonitor* comm_monitor,
                                Alarm* vbucket_alarm) :
   BaseMemcachedStore(binary,
                      config_reader,

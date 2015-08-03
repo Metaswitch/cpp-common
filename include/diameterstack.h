@@ -639,7 +639,7 @@ public:
   virtual void unregister_peer_hook_hdlr();
   virtual void configure(std::string filename, 
                          ExceptionHandler* exception_handler,
-                         CommunicationMonitor* comm_monitor = NULL,
+                         BaseCommunicationMonitor* comm_monitor = NULL,
                          StatisticCounter* realm_counter = NULL,
                          StatisticCounter* host_counter = NULL);
   virtual void advertize_application(const Dictionary::Application::Type type,
@@ -655,16 +655,7 @@ public:
   virtual void stop();
   virtual void wait_stopped();
   virtual void close_connections();
-
-  virtual bool get_allow_connections()
-  {
-    return _allow_connections;
-  }
-
-  virtual void set_allow_connections(bool allowed)
-  {
-    _allow_connections = allowed;
-  }
+  virtual void set_allow_connections() { _allow_connections = true; }
 
   std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>>& avp_map()
   {
@@ -744,7 +735,7 @@ private:
   std::vector<Peer*> _peers;
   pthread_mutex_t _peers_lock;
   ExceptionHandler* _exception_handler;
-  CommunicationMonitor* _comm_monitor;
+  BaseCommunicationMonitor* _comm_monitor;
   StatisticCounter* _realm_counter;
   StatisticCounter* _host_counter;
 

@@ -149,7 +149,7 @@ Store::Store(const std::string& keyspace) :
 
 void Store::configure_connection(std::string cass_hostname,
                                  uint16_t cass_port,
-                                 CommunicationMonitor* comm_monitor)
+                                 BaseCommunicationMonitor* comm_monitor)
 {
   TRC_STATUS("Configuring store connection");
   TRC_STATUS("  Hostname:  %s", cass_hostname.c_str());
@@ -167,7 +167,8 @@ ResultCode Store::connection_test()
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the specified keyspace, so is a good test of whether
   // cassandra is working properly.
-  TRC_STATUS("Starting store");
+  TRC_DEBUG("Testing cassandra connection");
+
   try
   {
     get_client();

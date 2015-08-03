@@ -40,38 +40,20 @@
 CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
                                            unsigned int clear_confirm_sec,
                                            unsigned int set_confirm_sec) :
+  BaseCommunicationMonitor(),
   _alarm(alarm),
   _clear_confirm_ms(clear_confirm_sec * 1000),
-  _set_confirm_ms(set_confirm_sec * 1000),
-  _succeeded(0), _failed(0)
+  _set_confirm_ms(set_confirm_sec * 1000)
 {
   _next_check = current_time_ms() + _set_confirm_ms;
-
-  pthread_mutex_init(&_lock, NULL);
 }
 
 CommunicationMonitor::~CommunicationMonitor()
 {
-  pthread_mutex_destroy(&_lock);
-
   delete _alarm;
 }
 
-void CommunicationMonitor::inform_success(unsigned long now_ms)
-{
-  _succeeded++;
-
-  update_alarm_state(now_ms);
-}
-
-void CommunicationMonitor::inform_failure(unsigned long now_ms)
-{
-  _failed++;
-
-  update_alarm_state(now_ms);
-}
-
-void CommunicationMonitor::update_alarm_state(unsigned long now_ms)
+void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
 {
   if (_alarm == NULL)
   {
@@ -140,4 +122,3 @@ unsigned long CommunicationMonitor::current_time_ms()
 
   return ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
 }
-

@@ -50,7 +50,7 @@ public:
   ChronosConnection(const std::string& chronos,
                     std::string callback_host,
                     HttpResolver* resolver,
-                    CommunicationMonitor* comm_monitor);
+                    BaseCommunicationMonitor* comm_monitor);
   virtual ~ChronosConnection();
 
   virtual HTTPCode send_delete(const std::string& delete_id,

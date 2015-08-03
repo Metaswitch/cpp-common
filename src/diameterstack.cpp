@@ -344,7 +344,7 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
 
 void Stack::configure(std::string filename,
                       ExceptionHandler* exception_handler,
-                      CommunicationMonitor* comm_monitor,
+                      BaseCommunicationMonitor* comm_monitor,
                       StatisticCounter* realm_counter,
                       StatisticCounter* host_counter)
 {
@@ -572,8 +572,12 @@ void Stack::wait_stopped()
 
 void Stack::close_connections()
 {
-  // Shut down any Diameter connections immediately.
-  (void)fd_connections_shutdown();
+  if (_allow_connections)
+  {
+    // Shut down any Diameter connections immediately.
+    _allow_connections = false;
+    (void)fd_connections_shutdown();
+  }
 }
 
 void Stack::logger(int fd_log_level, const char* fmt, va_list args)
