@@ -81,8 +81,8 @@ public:
       clock_gettime(CLOCK_REALTIME_COARSE, &now);
       uint64_t time_now = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
 
-      a.reset(NULL, time_now);
-      b.reset(NULL, time_now-(interval*1000));
+      a.reset(time_now, NULL);
+      b.reset(time_now-(interval*1000), NULL);
     }
 
     // Rolls the current period over into the previous period if necessary.
@@ -103,13 +103,13 @@ public:
         T* tmp;
         tmp = previous.load();
         previous.store(current);
-        tmp->reset(current.load(), new_tick * _interval * 1000);
+        tmp->reset(new_tick * _interval * 1000, current.load());
         current.store(tmp);
       }
       else if (tick_difference > 1)
       {
-        current.load()->reset(current.load(), new_tick * _interval * 1000);
-        previous.load()->reset(current.load(), (new_tick-1) * _interval * 1000);
+        current.load()->reset(new_tick * _interval * 1000, current.load());
+        previous.load()->reset((new_tick-1) * _interval * 1000, current.load());
       }
     }
 

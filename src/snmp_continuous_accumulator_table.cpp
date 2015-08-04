@@ -53,7 +53,7 @@ struct ContinuousStatistics
   std::atomic_uint_fast64_t hwm;
   std::atomic_uint_fast64_t lwm;
 
-  void reset(ContinuousStatistics* previous = NULL, uint64_t periodstart = 0);
+  void reset(uint64_t periodstart, ContinuousStatistics* previous = NULL);
 };
 
 // Just a TimeBasedRow that maps the data from ContinuousStatistics into the right five columns.
@@ -165,7 +165,7 @@ private:
   ContinuousAccumulatorRow::CurrentAndPrevious five_minute;
 };
 
-void ContinuousStatistics::reset(ContinuousStatistics* previous, uint64_t periodstart_ms)
+void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* previous)
 {
   struct timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
