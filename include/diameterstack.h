@@ -51,6 +51,7 @@
 #include "communicationmonitor.h"
 #include "exception_handler.h"
 #include "counter.h"
+#include "snmp_counter_table.h"
 
 namespace Diameter
 {
@@ -640,8 +641,8 @@ public:
   virtual void configure(std::string filename, 
                          ExceptionHandler* exception_handler,
                          BaseCommunicationMonitor* comm_monitor = NULL,
-                         StatisticCounter* realm_counter = NULL,
-                         StatisticCounter* host_counter = NULL);
+                         SNMP::CounterTable* realm_counter = NULL,
+                         SNMP::CounterTable* host_counter = NULL);
   virtual void advertize_application(const Dictionary::Application::Type type,
                                      const Dictionary::Application& app);
   virtual void advertize_application(const Dictionary::Application::Type type,
@@ -736,8 +737,8 @@ private:
   pthread_mutex_t _peers_lock;
   ExceptionHandler* _exception_handler;
   BaseCommunicationMonitor* _comm_monitor;
-  StatisticCounter* _realm_counter;
-  StatisticCounter* _host_counter;
+  SNMP::CounterTable* _realm_counter;
+  SNMP::CounterTable* _host_counter;
 
   // Map of Vendor->AVP name->AVP dictionary
   std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>> _avp_map;
