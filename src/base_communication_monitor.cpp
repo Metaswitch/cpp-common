@@ -1,7 +1,8 @@
-/* @file snmp_success_fail_count_table.h
+/**
+ * @file base_communication_monitor.cpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -27,55 +28,34 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed und er the OpenSSL Licenses.
+ * software and licensed under the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <vector>
-#include <map>
-#include <string>
+#include "base_communication_monitor.h"
 
-#ifndef SNMP_SUCCESS_FAIL_COUNT_TABLE_H
-#define SNMP_SUCCESS_FAIL_COUNT_TABLE_H
-
-// This file contains the interface for tables which:
-//   - are indexed by time period
-//   - increment a count of the attempts, successes and failures over time
-//   - report a count of the attempts, successes and failures
-//
-// This is defined as an interface in order not to pollute the codebase with netsnmp include files
-// (which indiscriminately #define things like READ and WRITE).
-
-namespace SNMP
+BaseCommunicationMonitor::BaseCommunicationMonitor() :
+  _succeeded(0),
+  _failed(0)
 {
-class SuccessFailCountTable
-{
-public:
-  static SuccessFailCountTable* create(std::string name, std::string oid);
-  virtual void increment_attempts() = 0;
-  virtual void increment_successes() = 0;
-  virtual void increment_failures() = 0;
-  virtual ~SuccessFailCountTable() {};
-
-protected:
-  SuccessFailCountTable() {};
-};
-
-struct RegistrationStatsTables
-{
-  SuccessFailCountTable* init_reg_tbl;
-  SuccessFailCountTable* re_reg_tbl;
-  SuccessFailCountTable* de_reg_tbl;
-};
-
-struct AuthenticationStatsTables
-{
-  SuccessFailCountTable* sip_digest_auth_tbl;
-  SuccessFailCountTable* ims_aka_auth_tbl;
-  SuccessFailCountTable* non_register_auth_tbl;
-};
-
+  pthread_mutex_init(&_lock, NULL);
 }
-#endif
+
+BaseCommunicationMonitor::~BaseCommunicationMonitor()
+{
+  pthread_mutex_destroy(&_lock);
+}
+
+void BaseCommunicationMonitor::inform_success(unsigned long now_ms)
+{
+  _succeeded++;
+  track_communication_changes(now_ms);
+}
+
+void BaseCommunicationMonitor::inform_failure(unsigned long now_ms)
+{
+  _failed++;
+  track_communication_changes(now_ms);
+}

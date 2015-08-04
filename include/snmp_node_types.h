@@ -61,7 +61,6 @@ enum NodeTypes
   PROXYFUNCTION = 16,
   EPDG = 17
 };
-
 }
 
 #endif

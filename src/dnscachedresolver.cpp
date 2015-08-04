@@ -115,28 +115,14 @@ DnsResult::~DnsResult()
   }
 }
 
-DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
-  _cache_lock(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
-  _cache()
+void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers) 
 {
+  _dns_servers = dns_servers;
+  _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+
   // Initialize the ares library.  This might have already been done by curl
   // but it's safe to do it twice.
   ares_library_init(ARES_LIB_INIT_ALL);
-
-  size_t max_servers = 3;
-  _dns_servers_count = std::min(max_servers, dns_servers.size());
-
-  TRC_STATUS("Creating Cached Resolver using servers:");
-  for (size_t i = 0; i < _dns_servers_count; i++)
-  {
-    TRC_STATUS("    %s", dns_servers[i].c_str());
-    // Parse the DNS server's IP address.
-    if (!inet_aton(dns_servers[i].c_str(), &(_dns_servers[i])))
-    {
-      TRC_ERROR("Failed to parse '%s' as IP address - defaulting to 127.0.0.1", dns_servers[i].c_str());
-      (void)inet_aton("127.0.0.1", &(_dns_servers[i]));
-    }
-  }
 
   // We store a DNSResolver in thread-local data, so create the thread-local
   // store.
@@ -149,34 +135,59 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers
   pthread_condattr_destroy(&cond_attr);
 }
 
-DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
-  _cache_lock(PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP),
-  _cache()
+void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns_servers)
 {
-  TRC_STATUS("Creating Cached Resolver using server %s", dns_server.c_str());
+  std::vector<IP46Address> dns_server_ips;
 
-  // Initialize the ares library.  This might have already been done by curl
-  // but it's safe to do it twice.
-  ares_library_init(ARES_LIB_INIT_ALL);
-
-  _dns_servers_count = 1;
-
-  // Parse the DNS server's IP address.
-  if (!inet_aton(dns_server.c_str(), &(_dns_servers[0])))
+  TRC_STATUS("Creating Cached Resolver using servers:");
+  for (size_t i = 0; i < dns_servers.size(); i++)
   {
-    TRC_ERROR("Failed to parse '%s' as IP address - defaulting to 127.0.0.1", dns_server.c_str());
-    (void)inet_aton("127.0.0.1", &(_dns_servers[0]));
+    if (dns_servers[i] == "0.0.0.0")
+    {
+      // Skip this DNS server
+      continue;
+    }
+
+    IP46Address addr;
+    TRC_STATUS("    %s", dns_servers[i].c_str());
+    // Parse the DNS server's IP address.
+    if (inet_pton(AF_INET, dns_servers[i].c_str(), &(addr.addr.ipv4)))
+    {
+      addr.af = AF_INET;
+    }
+    else if (inet_pton(AF_INET6, dns_servers[i].c_str(), &(addr.addr.ipv6)))
+    {
+      addr.af = AF_INET6;
+    }
+    else
+    {
+      TRC_ERROR("Failed to parse '%s' as IP address - defaulting to 127.0.0.1", dns_servers[i].c_str());
+      addr.af = AF_INET;
+      (void)inet_aton("127.0.0.1", &(addr.addr.ipv4));
+    }
+    dns_server_ips.push_back(addr);
   }
 
-  // We store a DNSResolver in thread-local data, so create the thread-local
-  // store.
-  pthread_key_create(&_thread_local, (void(*)(void*))&destroy_dns_channel);
+  init(dns_server_ips);
+}
 
-  pthread_condattr_t cond_attr;
-  pthread_condattr_init(&cond_attr);
-  pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
-  pthread_cond_init(&_got_reply_cond, &cond_attr);
-  pthread_condattr_destroy(&cond_attr);
+
+DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers) :
+  _cache()
+{
+  init(dns_servers);
+}
+
+DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
+  _cache()
+{
+  init_from_server_ips(dns_servers);
+}
+
+DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
+  _cache()
+{
+  init_from_server_ips({dns_server});
 }
 
 DnsCachedResolver::~DnsCachedResolver()
@@ -767,8 +778,15 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
   // Get the channel from the thread-local data, or create a new one if none
   // found.
   DnsChannel* channel = (DnsChannel*)pthread_getspecific(_thread_local);
+  size_t server_count = _dns_servers.size();
+  if (server_count > 3)
+  {
+    TRC_WARNING("%d DNS servers provided, only using the first 3", _dns_servers.size());
+    server_count = 3;
+  }
+
   if ((channel == NULL) &&
-      (_dns_servers[0].s_addr != 0))
+      (server_count > 0))
   {
     channel = new DnsChannel;
     channel->pending_queries = 0;
@@ -780,10 +798,11 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     // but it's what we've always tested with so not worth the risk of removing.
     options.flags = ARES_FLAG_STAYOPEN;
     options.timeout = 1000;
-    options.tries = _dns_servers_count;
+    options.tries = server_count;
     options.ndots = 0;
-    options.servers = (struct in_addr*)_dns_servers;
-    options.nservers = _dns_servers_count;
+    // We must use ares_set_servers rather than setting it in the options for IPv6 support.
+    options.servers = NULL;
+    options.nservers = 0;
     ares_init_options(&channel->channel,
                       &options,
                       ARES_OPT_FLAGS |
@@ -791,6 +810,35 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
                       ARES_OPT_TRIES |
                       ARES_OPT_NDOTS |
                       ARES_OPT_SERVERS);
+
+    // Convert our vector of IP46Addresses into the linked list of
+    // ares_addr_nodes which ares_set_servers takes.
+    for (size_t ii = 0;
+         ii < server_count;
+         ii++)
+    {
+      IP46Address server = _dns_servers[ii];
+      struct ares_addr_node* ares_addr = &_ares_addrs[ii];
+      memset(ares_addr, 0, sizeof(struct ares_addr_node));
+      if (ii > 0)
+      {
+        int prev_idx = ii - 1;
+        _ares_addrs[prev_idx].next = ares_addr;
+      }
+
+      ares_addr->family = server.af;
+      if (server.af == AF_INET)
+      {
+        memcpy(&ares_addr->addr.addr4, &server.addr.ipv4, sizeof(ares_addr->addr.addr4));
+      }
+      else
+      {
+        memcpy(&ares_addr->addr.addr6, &server.addr.ipv6, sizeof(ares_addr->addr.addr6));
+      }
+    }
+    
+    ares_set_servers(channel->channel, _ares_addrs);
+
     pthread_setspecific(_thread_local, channel);
   }
 
@@ -844,5 +892,6 @@ void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned
 {
   _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen);
   --_channel->pending_queries;
+  delete this;
 }
 

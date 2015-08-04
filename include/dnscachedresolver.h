@@ -49,6 +49,7 @@
 #include <arpa/nameser.h>
 #include <ares.h>
 
+#include "utils.h"
 #include "dnsrrecords.h"
 
 class DnsResult
@@ -75,8 +76,9 @@ private:
 class DnsCachedResolver
 {
 public:
+  DnsCachedResolver(const std::vector<IP46Address>& dns_servers);
+  DnsCachedResolver(const std::vector<std::string>& dns_servers);
   DnsCachedResolver(const std::string& dns_server);
-  DnsCachedResolver(const std::vector<std::string>& dns_server);
   ~DnsCachedResolver();
 
   /// Queries a single DNS record.
@@ -100,6 +102,8 @@ public:
   void clear();
 
 private:
+  void init(const std::vector<IP46Address>& dns_server);
+  void init_from_server_ips(const std::vector<std::string>& dns_server);
 
   struct DnsChannel
   {
@@ -180,8 +184,8 @@ private:
   void wait_for_replies(DnsChannel* channel);
   static void destroy_dns_channel(DnsChannel* channel);
 
-  struct in_addr _dns_servers[3];
-  size_t _dns_servers_count;
+  struct ares_addr_node _ares_addrs[3];
+  std::vector<IP46Address> _dns_servers;
 
   // The thread-local store - used for storing DnsChannels.
   pthread_key_t _thread_local;

@@ -1,7 +1,8 @@
-/* @file snmp_success_fail_count_table.h
+/**
+ * @file alarms_header.cpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -27,55 +28,47 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed und er the OpenSSL Licenses.
+ * software and licensed under the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
+#include "json_alarms.h"
 
-#include <vector>
-#include <map>
-#include <string>
-
-#ifndef SNMP_SUCCESS_FAIL_COUNT_TABLE_H
-#define SNMP_SUCCESS_FAIL_COUNT_TABLE_H
-
-// This file contains the interface for tables which:
-//   - are indexed by time period
-//   - increment a count of the attempts, successes and failures over time
-//   - report a count of the attempts, successes and failures
-//
-// This is defined as an interface in order not to pollute the codebase with netsnmp include files
-// (which indiscriminately #define things like READ and WRITE).
-
-namespace SNMP
+int main(int argc, char**argv)
 {
-class SuccessFailCountTable
-{
-public:
-  static SuccessFailCountTable* create(std::string name, std::string oid);
-  virtual void increment_attempts() = 0;
-  virtual void increment_successes() = 0;
-  virtual void increment_failures() = 0;
-  virtual ~SuccessFailCountTable() {};
+  std::string json_file;
+  std::string process_name;
+  int c;
 
-protected:
-  SuccessFailCountTable() {};
-};
+  opterr = 0;
+  while ((c = getopt (argc, argv, "j:n:")) != -1)
+  {
+    switch (c)
+      {
+      case 'j':
+        json_file = optarg;
+        break;
+      case 'n':
+        process_name = optarg;
+        break;
+      default:
+        abort ();
+      }
+  }
 
-struct RegistrationStatsTables
-{
-  SuccessFailCountTable* init_reg_tbl;
-  SuccessFailCountTable* re_reg_tbl;
-  SuccessFailCountTable* de_reg_tbl;
-};
+  // Parse the JSON alarms and generate a header file that has the alarm IDs
+  std::string result;
+  std::map<std::string, int> header;
 
-struct AuthenticationStatsTables
-{
-  SuccessFailCountTable* sip_digest_auth_tbl;
-  SuccessFailCountTable* ims_aka_auth_tbl;
-  SuccessFailCountTable* non_register_auth_tbl;
-};
+  bool rc = JSONAlarms::validate_alarms_from_json(json_file, result, header);
 
+  if (rc)
+  {
+    JSONAlarms::write_header_file(process_name, header);  
+  }
+  else
+  { 
+    fprintf(stderr, "Invalid JSON file. Error: %s", result.c_str());
+  }
 }
-#endif

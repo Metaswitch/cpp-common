@@ -46,6 +46,7 @@ Stack Stack::DEFAULT_INSTANCE;
 struct fd_hook_data_hdl* Stack::_sas_cb_data_hdl = NULL;
 
 Stack::Stack() : _initialized(false),
+                 _allow_connections(true),
                  _callback_handler(NULL),
                  _callback_fallback_handler(NULL),
                  _exception_handler(NULL),
@@ -343,7 +344,7 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
 
 void Stack::configure(std::string filename,
                       ExceptionHandler* exception_handler,
-                      CommunicationMonitor* comm_monitor,
+                      BaseCommunicationMonitor* comm_monitor,
                       StatisticCounter* realm_counter,
                       StatisticCounter* host_counter)
 {
@@ -354,6 +355,17 @@ void Stack::configure(std::string filename,
   if (rc != 0)
   {
     throw Exception("fd_core_parseconf", rc); // LCOV_EXCL_LINE
+  }
+
+  // Configure a peer connection validator. This is calls when processing
+  // a CER, and rejects it if the Diameter stack is not accepting connections.
+  // This must be done after loading any extensions, as we want this
+  // validator to have the first choice at rejecting any connections
+  rc = fd_peer_validate_register(allow_connections);
+
+  if (rc != 0)
+  {
+    throw Exception("fd_peer_validate_register", rc); // LCOV_EXCL_LINE
   }
 
   populate_avp_map();
@@ -555,6 +567,16 @@ void Stack::wait_stopped()
     }
     fd_log_handler_unregister();
     _initialized = false;
+  }
+}
+
+void Stack::close_connections()
+{
+  if (_allow_connections)
+  {
+    // Shut down any Diameter connections immediately.
+    _allow_connections = false;
+    (void)fd_connections_shutdown();
   }
 }
 
@@ -1095,7 +1117,7 @@ AVP& AVP::val_json(const std::vector<std::string>& vendors,
       TRC_ERROR("Cannot store multiple values in one ACR, ignoring");
       break;
     case rapidjson::kStringType:
-      val_str(value.GetString());
+      val_str(std::string(value.GetString(), value.GetStringLength()));
       break;
     case rapidjson::kNumberType:
       // Parse the value out of the JSON as the appropriate type

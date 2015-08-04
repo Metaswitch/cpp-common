@@ -40,6 +40,7 @@
 
 #include "cassandra_store.h"
 #include "sasevent.h"
+#include "sas.h"
 
 using namespace apache::thrift;
 using namespace apache::thrift::transport;
@@ -148,7 +149,7 @@ Store::Store(const std::string& keyspace) :
 
 void Store::configure_connection(std::string cass_hostname,
                                  uint16_t cass_port,
-                                 CommunicationMonitor* comm_monitor)
+                                 BaseCommunicationMonitor* comm_monitor)
 {
   TRC_STATUS("Configuring store connection");
   TRC_STATUS("  Hostname:  %s", cass_hostname.c_str());
@@ -166,7 +167,8 @@ ResultCode Store::connection_test()
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the specified keyspace, so is a good test of whether
   // cassandra is working properly.
-  TRC_STATUS("Starting store");
+  TRC_DEBUG("Testing cassandra connection");
+
   try
   {
     get_client();
@@ -653,6 +655,14 @@ put_columns(const std::vector<RowColumns>& to_put,
   batch_mutate(mutmap, ConsistencyLevel::ONE);
 }
 
+// A map from quorum consistency levels to their corresponding SAS enum value.
+// Any changes made to this must be consistently applied to the sas resource
+// bundle.
+enum class Quorum_Consistency_Levels
+{
+  LOCAL_QUORUM = ::cass::ConsistencyLevel::LOCAL_QUORUM,
+  QUORUM = ::cass::ConsistencyLevel::QUORUM
+};
 
 // Macro to turn an underlying (non-HA) get method into an HA one.
 //
@@ -661,32 +671,52 @@ put_columns(const std::vector<RowColumns>& to_put,
 // -  The arguments for the underlying get method.
 //
 // It works as follows:
-// -  Call the underlying method with a consistency level of ONE.
-// -  If this raises a NotFoundException, try again with a consistency level of
-//    QUORUM.
-// -  If this fails again with either NotFoundException or UnavailableException
-//    (meaning the necessary servers are not currently available), re-throw the
-//    original exception.
-#define HA(METHOD, ...)                                                      \
+// -  Call the underlying method with a consistency level of LOCAL_QUORUM.
+//    If successful, this indicates that we've managed to find multiple nodes
+//    with the same data, and so we can trust the response (if we're wrong, it
+//    will be because several local nodes failed or were down simultaneously
+//    which we can consider a non-mainline failure case for which some level of
+//    service impact is acceptable)
+// -  If this raises an UnavailableException (in other words, we couldn't
+//    contact a quorum of servers in the local datacenter), try again with a
+//    consistency level of QUORUM.  This is going to attempt to get a quorum of
+//    responses from BOTH sites in a GR system, so is inevitably slower than
+//    LOCAL_QUORUM.  However, we cannot just drop straight through to the ONE
+//    level as this is the expected behaviour in a 2+2 GR system when we are
+//    restarting one of the nodes (e.g. thanks to an upgrade) and we can't
+//    run the risk that the ONE read might hit another recently restarted
+//    node that is still out of date.
+// -  If this *also* fails with UnavailableException, perform a ONE read.  In
+//    this case at least half of the servers in the cluster are down, and so
+//    we are already in error recovery mode in which some service impact is not
+//    unexpected, so the risk that we might return out of date data is
+//    acceptable.
+//
+#define HA(METHOD, TRAIL_ID, ...)                                            \
         try                                                                  \
         {                                                                    \
-          METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
+          METHOD(__VA_ARGS__, ConsistencyLevel::LOCAL_QUORUM);               \
         }                                                                    \
-        catch(NotFoundException& nfe)                                        \
+        catch(UnavailableException& ue)                                      \
         {                                                                    \
           TRC_DEBUG("Failed ONE read for %s. Try QUORUM", #METHOD);          \
-                                                                             \
+          int event_id = SASEvent::QUORUM_FAILURE;                           \
+          SAS::Event event(TRAIL_ID, event_id, 0);                           \
+          event.add_static_param(                                            \
+            static_cast<uint32_t>(Quorum_Consistency_Levels::LOCAL_QUORUM)); \
+          SAS::report_event(event);                                          \
           try                                                                \
           {                                                                  \
             METHOD(__VA_ARGS__, ConsistencyLevel::QUORUM);                   \
           }                                                                  \
-          catch(NotFoundException)                                           \
+          catch(UnavailableException& ue)                                    \
           {                                                                  \
-            throw nfe;                                                       \
-          }                                                                  \
-          catch(UnavailableException)                                        \
-          {                                                                  \
-            throw nfe;                                                       \
+            int event_id = SASEvent::QUORUM_FAILURE;                         \
+            SAS::Event event(TRAIL_ID, event_id, 0);                         \
+            event.add_static_param(                                          \
+              static_cast<uint32_t>(Quorum_Consistency_Levels::QUORUM));     \
+            SAS::report_event(event);                                        \
+            METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                      \
           }                                                                  \
         }
 
@@ -695,9 +725,10 @@ void Client::
 ha_get_columns(const std::string& column_family,
                const std::string& key,
                const std::vector<std::string>& names,
-               std::vector<ColumnOrSuperColumn>& columns)
+               std::vector<ColumnOrSuperColumn>& columns,
+               SAS::TrailId trail)
 {
-  HA(get_columns, column_family, key, names, columns);
+  HA(get_columns, trail, column_family, key, names, columns);
 }
 
 
@@ -705,9 +736,10 @@ void Client::
 ha_get_columns_with_prefix(const std::string& column_family,
                            const std::string& key,
                            const std::string& prefix,
-                           std::vector<ColumnOrSuperColumn>& columns)
+                           std::vector<ColumnOrSuperColumn>& columns,
+                           SAS::TrailId trail)
 {
-  HA(get_columns_with_prefix, column_family, key, prefix, columns);
+  HA(get_columns_with_prefix, trail, column_family, key, prefix, columns);
 }
 
 
@@ -715,17 +747,19 @@ void Client::
 ha_multiget_columns_with_prefix(const std::string& column_family,
                                 const std::vector<std::string>& keys,
                                 const std::string& prefix,
-                                std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns)
+                                std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
+                                SAS::TrailId trail)
 {
-  HA(multiget_columns_with_prefix, column_family, keys, prefix, columns);
+  HA(multiget_columns_with_prefix, trail, column_family, keys, prefix, columns);
 }
 
 void Client::
 ha_get_all_columns(const std::string& column_family,
                    const std::string& key,
-                   std::vector<ColumnOrSuperColumn>& columns)
+                   std::vector<ColumnOrSuperColumn>& columns,
+                   SAS::TrailId trail)
 {
-  HA(get_row, column_family, key, columns);
+  HA(get_row, trail, column_family, key, columns);
 }
 
 

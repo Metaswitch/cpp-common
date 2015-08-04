@@ -49,7 +49,7 @@
 ChronosConnection::ChronosConnection(const std::string& server,
                                      std::string callback_host,
                                      HttpResolver* resolver,
-                                     CommunicationMonitor* comm_monitor) :
+                                     BaseCommunicationMonitor* comm_monitor) :
   _callback_host(callback_host),
   _http(new HttpConnection(server,
                            false,

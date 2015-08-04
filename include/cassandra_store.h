@@ -197,7 +197,8 @@ public:
   /// @param columns        - (out) Columns in the row.
   void ha_get_row(const std::string& column_family,
                   const std::string& key,
-                  std::vector<cass::ColumnOrSuperColumn>& columns);
+                  std::vector<cass::ColumnOrSuperColumn>& columns,
+                  SAS::TrailId trail);
 
   /// HA get specific columns in a row.
   ///
@@ -212,7 +213,8 @@ public:
   void ha_get_columns(const std::string& column_family,
                       const std::string& key,
                       const std::vector<std::string>& names,
-                      std::vector<cass::ColumnOrSuperColumn>& columns);
+                      std::vector<cass::ColumnOrSuperColumn>& columns,
+                      SAS::TrailId trail);
 
   /// HA get all columns in a row
   /// This is useful when working with dynamic columns.
@@ -222,7 +224,8 @@ public:
   /// @param columns        - (out) The retrieved columns.
   void ha_get_all_columns(const std::string& column_family,
                           const std::string& key,
-                          std::vector<cass::ColumnOrSuperColumn>& columns);
+                          std::vector<cass::ColumnOrSuperColumn>& columns,
+                          SAS::TrailId trail);
 
   /// HA get all columns in a row that have a particular prefix to their name.
   /// This is useful when working with dynamic columns.
@@ -235,7 +238,8 @@ public:
   void ha_get_columns_with_prefix(const std::string& column_family,
                                   const std::string& key,
                                   const std::string& prefix,
-                                  std::vector<cass::ColumnOrSuperColumn>& columns);
+                                  std::vector<cass::ColumnOrSuperColumn>& columns,
+                                  SAS::TrailId trail);
 
   /// HA get all columns in multiple rows that have a particular prefix to their
   /// name.  This is useful when working with dynamic columns.
@@ -250,7 +254,8 @@ public:
   void ha_multiget_columns_with_prefix(const std::string& column_family,
                                        const std::vector<std::string>& keys,
                                        const std::string& prefix,
-                                       std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns);
+                                       std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns,
+                                       SAS::TrailId trail);
 
   /// Get an entire row (non-HA).
   /// @param consistency_level cassandra consistency level.
@@ -454,7 +459,7 @@ public:
   ///                            on recent activity.
   virtual void configure_connection(std::string cass_hostname,
                                     uint16_t cass_port,
-                                    CommunicationMonitor* comm_monitor = NULL);
+                                    BaseCommunicationMonitor* comm_monitor = NULL);
 
   /// Tests the store.
   ///
@@ -584,7 +589,7 @@ private:
 
   // Helper used to track local communication state, and issue/clear alarms
   // based upon recent activity.
-  CommunicationMonitor* _comm_monitor;
+  BaseCommunicationMonitor* _comm_monitor;
 
   // Cassandra connection management.
   //

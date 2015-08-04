@@ -1,5 +1,5 @@
 /**
- * @file snmp_time_period_and_node_type_table.h
+ * @file snmp_sip_request_types.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -34,39 +34,31 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "snmp_time_period_table.h"
-#include "snmp_node_types.h"
+#ifndef SNMP_SIP_REQUEST_TYPES_H
+#define SNMP_SIP_REQUEST_TYPES_H
 
-#ifndef SNMP_TIME_PERIOD_AND_NODE_TYPE_TABLE_H
-#define SNMP_TIME_PERIOD_AND_NODE_TYPE_TABLE_H
-
-// This file contains the base infrastructure for SNMP tables 
-// which are indexed by time period and node type.
 namespace SNMP
 {
-
-template <class T> class TimeAndNodeTypeBasedRow : public TimeBasedRow<T>
+enum SIPRequestTypes
 {
-public:
-  // Constructor, takes ownership of the View*.
-  TimeAndNodeTypeBasedRow(int time_index, int type_index, typename TimeBasedRow<T>::View* view) :
-    TimeBasedRow<T>(time_index, view),
-    _type_index(type_index)
-  {
-    // Add index for the node type (the time index is added in the base class)
-    netsnmp_tdata_row_add_index(this->_row,
-                                ASN_INTEGER,
-                                &_type_index,
-                                sizeof(int));
-  };
-
-  virtual ~TimeAndNodeTypeBasedRow()
-  {
-  };
-
-protected:
-  uint32_t _type_index;
+  INVITE = 0,
+  ACK = 1,
+  BYE = 2,
+  CANCEL = 3, 
+  OPTIONS = 4, 
+  REGISTER = 5,
+  PRACK = 6,
+  SUBSCRIBE = 7,
+  NOTIFY = 8,
+  PUBLISH = 9,
+  INFO = 10,
+  REFER = 11, 
+  MESSAGE = 12, 
+  UPDATE = 13, 
+  OTHER = 14,
 };
+
+SIPRequestTypes string_to_request_type(char* req_type, int slen);
 
 }
 
