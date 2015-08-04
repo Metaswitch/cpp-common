@@ -50,7 +50,7 @@ struct EventStatistics
   std::atomic_uint_fast64_t hwm;
   std::atomic_uint_fast64_t lwm;
 
-  void reset(uint32_t periodstart, EventStatistics* previous = NULL);
+  void reset(uint64_t periodstart, EventStatistics* previous = NULL);
 };
 
 // Just a TimeBasedRow that maps the data from EventStatistics into the right five columns.
@@ -144,7 +144,7 @@ private:
 };
 
 
-void EventStatistics::reset(uint32_t periodstart, EventStatistics* previous)
+void EventStatistics::reset(uint64_t periodstart, EventStatistics* previous)
 {
   count.store(0);
   sum.store(0);

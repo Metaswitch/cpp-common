@@ -125,21 +125,13 @@ private:
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
     uint64_t time_sincelastupdate = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
-                                     - current_data->time_lastupdate_ms.load();
+                                     - (current_data->time_lastupdate_ms.load());
     uint32_t current_value = current_data->current_value.load();
-
-
 
     current_data->time_lastupdate_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
     current_data->sum += current_value * time_sincelastupdate;
     current_data->sqsum += current_value * current_value * time_sincelastupdate;
     current_data->current_value = sample;
-
-    //TRC_DEBUG("time_sincelastupdate (%llu) = now (%llu) - time_lastupdate_ms (%llu)",
-    //          time_sincelastupdate, ((now.tv_sec * 1000) + (now.tv_nsec / 1000000)),
-    //          current_data->time_lastupdate_ms.load());
-    //TRC_DEBUG("Sum has increased by %llu", current_value * time_sincelastupdate);
-    //TRC_DEBUG("Sum is now %llu", current_data->sum.load() - current_value * time_sincelastupdate);
 
     // Update the low- and high-water marks.  In each case, we get the current
     // value, decide whether a change is required and then atomically swap it
@@ -187,7 +179,8 @@ void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* 
     hwm.store(0);
   }
 
-  if (periodstart_ms == 0) {
+  if (periodstart_ms == 0)
+  {
     uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
 
     time_lastupdate_ms.store(time_now_ms);
