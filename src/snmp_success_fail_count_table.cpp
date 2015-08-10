@@ -43,22 +43,6 @@
 namespace SNMP
 {
 
-// Storage for the underlying data
-struct SuccessFailCount
-{
-  std::atomic_uint_fast64_t attempts;
-  std::atomic_uint_fast64_t successes;
-  std::atomic_uint_fast64_t failures;
-
-  void reset(uint64_t time_periodstart, SuccessFailCount* previous = NULL)
-  {
-    attempts = 0;
-    successes = 0;
-    failures = 0;
-  }
-};
-
-
 // Just a TimeBasedRow that maps the data from SuccessFailCount into the right columns.
 class SuccessFailCountRow: public TimeBasedRow<SuccessFailCount>
 {
