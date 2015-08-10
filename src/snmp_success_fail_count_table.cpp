@@ -49,7 +49,7 @@ struct SuccessFailCount
   std::atomic_uint_fast64_t successes;
   std::atomic_uint_fast64_t failures;
 
-  void reset(uint64_t periodstart, SuccessFailCount* previous = NULL)
+  void reset(uint64_t time_periodstart, SuccessFailCount* previous = NULL)
   {
     attempts = 0;
     successes = 0;
