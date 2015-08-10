@@ -79,10 +79,10 @@ public:
     {
       struct timespec now;
       clock_gettime(CLOCK_REALTIME_COARSE, &now);
-      uint64_t time_now = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
+      uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
 
-      a.reset(time_now, NULL);
-      b.reset(time_now-(interval*1000), NULL);
+      a.reset(time_now_ms, NULL);
+      b.reset(time_now_ms - (interval*1000), NULL);
     }
 
     // Rolls the current period over into the previous period if necessary.
@@ -108,8 +108,8 @@ public:
       }
       else if (tick_difference > 1)
       {
-        current.load()->reset(new_tick * _interval * 1000, current.load());
-        previous.load()->reset((new_tick-1) * _interval * 1000, current.load());
+        current.load()->reset(((uint64_t)new_tick) * _interval * 1000, current.load());
+        previous.load()->reset(((uint64_t)(new_tick - 1)) * _interval * 1000, current.load());
       }
     }
 

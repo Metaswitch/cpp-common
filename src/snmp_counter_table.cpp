@@ -47,7 +47,7 @@ struct SingleCount
 {
   uint64_t count;
 
-  void reset(SingleCount* previous = NULL, uint32_t periodstart = 0) { count = 0; };
+  void reset(uint32_t periodstart, SingleCount* previous = NULL) { count = 0; };
 };
 
 
