@@ -115,6 +115,8 @@ private:
   {
     ContinuousStatistics* current_data = data.get_current();
 
+    TRC_DEBUG("Calling accumulate with value: (%uui)", sample);
+
     current_data->count++;
 
     // Compute the updated sum and sqsum based on the previous values, dependant on
@@ -162,6 +164,8 @@ void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* 
   struct timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
+  TRC_DEBUG("New period created at time: (%uui)", periodstart_ms);
+
   count.store(0);
   sum.store(0);
   sqsum.store(0);
@@ -191,6 +195,7 @@ void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* 
     time_lastupdate_ms.store(periodstart_ms);
     time_periodstart_ms.store(periodstart_ms);
   }
+  TRC_DEBUG("Stored periodstart value: %u", time_periodstart_ms.load());
 }
 
 ColumnData ContinuousAccumulatorRow::get_columns()
@@ -205,32 +210,44 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   uint_fast64_t variance = 0;
   uint_fast32_t lwm = accumulated->lwm.load();
   uint_fast32_t hwm = accumulated->hwm.load();
+  uint_fast64_t time_lastupdate_ms = accumulated->time_lastupdate_ms.load();
+  uint_fast64_t time_periodstart_ms = accumulated->time_periodstart_ms.load();
+  uint_fast64_t sum = accumulated->sum.load();
+  uint_fast64_t sqsum = accumulated->sqsum.load();
+
+  TRC_DEBUG("Avg: (%uui)", avg);
+  TRC_DEBUG("time_lastupdate: (%uui)", time_lastupdate_ms);
+  TRC_DEBUG("time_periodstart: (%uui)", time_periodstart_ms);
+  TRC_DEBUG("sum: (%uui)", sum);
+  TRC_DEBUG("sqsum: (%uui)", sqsum);
 
   if (count > 0)
   {
-    uint_fast64_t time_lastupdate_ms = accumulated->time_lastupdate_ms.load();
-    uint_fast64_t time_periodstart_ms = accumulated->time_periodstart_ms.load();
-    uint_fast64_t sum = accumulated->sum.load();
-    uint_fast64_t sumsq = accumulated->sqsum.load();
+    time_lastupdate_ms = accumulated->time_lastupdate_ms.load();
+    time_periodstart_ms = accumulated->time_periodstart_ms.load();
+    sum = accumulated->sum.load();
+    sqsum = accumulated->sqsum.load();
 
     // Distinguish between periods and only take the relevant value for
     // time_sincelastupdate as once a period is finished, we should not
     // recalculate the values.
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
-    uint64_t time_now = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
-    uint64_t time_periodend = ((time_periodstart_ms + interval) / interval) * interval;
-    uint64_t time_comesfirst = std::min(time_periodend, time_now);
+    uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
+    uint64_t time_periodend_ms = ((time_periodstart_ms + interval) / interval) * interval;
+    uint64_t time_comesfirst_ms = std::min(time_periodend_ms, time_now_ms);
 
-    uint64_t time_sincelastupdate = time_comesfirst - time_lastupdate_ms;
-    accumulated->time_lastupdate_ms.store(time_comesfirst);
+    uint64_t time_sincelastupdate_ms = time_comesfirst_ms - time_lastupdate_ms;
+    accumulated->time_lastupdate_ms.store(time_comesfirst_ms);
 
     // Calculate the average and the variance from the stored average/time of last upadted
     // and sum-of-squares.
-    sum += time_sincelastupdate * current_value;
-    sumsq += time_sincelastupdate * current_value * current_value;
-    avg = sum/(time_comesfirst - time_periodstart_ms);
-    variance = sumsq/(time_comesfirst - time_periodstart_ms) - (avg * avg);
+    sum += time_sincelastupdate_ms * current_value;
+    accumulated->sum.store(sum);
+    sqsum += time_sincelastupdate_ms * current_value * current_value;
+    accumulated->sqsum.store(sqsum);
+    avg = sum/(time_comesfirst_ms - time_periodstart_ms);
+    variance = sqsum/(time_comesfirst_ms - time_periodstart_ms) - (avg * avg);
   }
 
   // Construct and return a ColumnData with the appropriate values

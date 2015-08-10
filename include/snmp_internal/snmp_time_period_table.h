@@ -73,7 +73,6 @@ public:
       current(&a),
       previous(&b),
       _interval(interval), // In s.
-      _tick(0),
       a(),
       b()
     {
@@ -81,6 +80,7 @@ public:
       clock_gettime(CLOCK_REALTIME_COARSE, &now);
       uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
 
+      _tick = (now.tv_sec / _interval);
       a.reset(time_now_ms, NULL);
       b.reset(time_now_ms - (interval*1000), NULL);
     }
@@ -92,7 +92,7 @@ public:
       clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
       // Count of how many _interval periods have passed since the epoch
-      uint32_t new_tick = (now.tv_sec / _interval);
+      uint64_t new_tick = (now.tv_sec / _interval);
 
       // Count of how many _interval periods have passed since the last change
       uint32_t tick_difference = new_tick - _tick;
@@ -108,8 +108,8 @@ public:
       }
       else if (tick_difference > 1)
       {
-        current.load()->reset(((uint64_t)new_tick) * _interval * 1000, current.load());
-        previous.load()->reset(((uint64_t)(new_tick - 1)) * _interval * 1000, current.load());
+        current.load()->reset(new_tick * _interval * 1000, current.load());
+        previous.load()->reset((new_tick - 1) * _interval * 1000, current.load());
       }
     }
 
