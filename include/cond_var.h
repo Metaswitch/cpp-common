@@ -1,8 +1,8 @@
 /**
- * @file alarmdefinition.h
+ * @file cond_var.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2013  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,68 +34,37 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef ALARM_DEFINITION_H__
-#define ALARM_DEFINITION_H__
+#ifndef COND_VAR_H__
+#define COND_VAR_H__
 
-#include <string>
-#include <vector>
-#include <boost/algorithm/string.hpp> 
+#include <pthread.h>
 
-// To add a new alarm:
+// This class wraps a condition varable and mutex together and offers a C++ interface.
 //
-//   - Add it to the JSON alarm file in the relevant repository.
-//   
-//   - If it's a new repo, then make sure that the alarm file gets 
-//     installed to /usr/share/clearwater/infrastructure/alarms. 
-namespace AlarmDef {
+// Apart from the more C++-like interface benefit, this also allows us to mock out
+// condition variables in the UT framework (see MockPThreadCondVar for the mock 
+// implementation).
+class CondVar
+{
+public:
+  CondVar(pthread_mutex_t* mutex) : _mutex(mutex)
+  {
+    pthread_condattr_t cond_attr;
+    pthread_condattr_init(&cond_attr);
+    pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&_cond, &cond_attr);
+    pthread_condattr_destroy(&cond_attr);
+  }
+  ~CondVar() { pthread_cond_destroy(&_cond); }
 
-  // Sprout alarms: 1000->1499
-  // Homestead alarms: 1500->1999
-  // Ralf alarms: 2000->2499
-  // Bono alarms: 2500->2999
-  // Chronos alarms: 3000->3499
-  // Cassandra alarms: 4000->4499
-  // Memento alarms: 5000->5499
-  // Astaire alarms: 5500->5999
-  // Etcd alarms: 6500->6999
-  // Alarms 7000-7999 are reserved
-  // Cluster-manager alarms: 8000->8499
-  // Config-manager alarms: 8500->8999
+  int wait() { return pthread_cond_wait(&_cond, _mutex); }
+  int timedwait(struct timespec* ts) { return pthread_cond_timedwait(&_cond, _mutex, ts); }
+  int signal() { return pthread_cond_signal(&_cond); }
+  int broadcast() { return pthread_cond_broadcast(&_cond); }
 
-  enum Severity {
-    UNDEFINED_SEVERITY,
-    CLEARED,
-    INDETERMINATE,
-    CRITICAL,
-    MAJOR,
-    MINOR,
-    WARNING
-  };
-
-  enum Cause {
-    UNDEFINED_CAUSE,
-    DATABASE_INCONSISTENCY = 160,
-    SOFTWARE_ERROR = 163,
-    UNDERLYING_RESOURCE_UNAVAILABLE = 554
-  };
-
-  struct SeverityDetails {
-    Severity    _severity;
-    std::string _description;
-    std::string _details;
-  };
-
-  struct AlarmDefinition {
-    int _index;
-    Cause _cause;
-    std::vector<SeverityDetails> _severity_details;
-  };
-
-  Cause cause_to_enum(std::string cause);
-  Severity severity_to_enum(std::string severity);
-
-  extern const std::vector<AlarmDefinition> alarm_definitions;
-}
+private:
+  pthread_cond_t _cond;
+  pthread_mutex_t* _mutex;
+};
 
 #endif
-
