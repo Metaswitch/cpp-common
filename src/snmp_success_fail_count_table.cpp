@@ -51,7 +51,10 @@ public:
     TimeBasedRow<SuccessFailCount>(index, view) {};
   ColumnData get_columns()
   {
-    SuccessFailCount* counts = _view->get_data();
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    SuccessFailCount* counts = _view->get_data(now);
     uint_fast32_t attempts = counts->attempts.load();
     uint_fast32_t successes = counts->successes.load();
     uint_fast32_t failures = counts->failures.load();
@@ -87,23 +90,32 @@ public:
 
   void increment_attempts()
   {
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
     // Increment each underlying set of data.
-    five_second.get_current()->attempts++;
-    five_minute.get_current()->attempts++;
+    five_second.get_current(now)->attempts++;
+    five_minute.get_current(now)->attempts++;
   }
 
   void increment_successes()
   {
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
     // Increment each underlying set of data.
-    five_second.get_current()->successes++;
-    five_minute.get_current()->successes++;
+    five_second.get_current(now)->successes++;
+    five_minute.get_current(now)->successes++;
   }
 
   void increment_failures()
   {
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
     // Increment each underlying set of data.
-    five_second.get_current()->failures++;
-    five_minute.get_current()->failures++;
+    five_second.get_current(now)->failures++;
+    five_minute.get_current(now)->failures++;
   }
 
 private:
