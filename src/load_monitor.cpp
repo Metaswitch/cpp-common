@@ -212,11 +212,9 @@ void LoadMonitor::request_complete(int latency)
       // latency is above where we want it to be, or we are getting overload responses from
       // Homer/Homestead, so adjust the rate downwards by a multiplicative factor
 
-      float new_rate = bucket.rate;
       if (err > DECREASE_THRESHOLD || penalties > 0)
       {
-        new_rate = bucket.rate / DECREASE_FACTOR;
-
+        float new_rate = bucket.rate / DECREASE_FACTOR;
         if (new_rate < min_token_rate)
         {
           new_rate = min_token_rate;
@@ -230,7 +228,7 @@ void LoadMonitor::request_complete(int latency)
       }
       else if (err < INCREASE_THRESHOLD)
       {
-        new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
+        float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
         bucket.update_rate(new_rate);
         TRC_STATUS("Maximum incoming request rate/second increased to %f "
                    "(based on a smoothed mean latency of %d and %d upstream overload responses)",
