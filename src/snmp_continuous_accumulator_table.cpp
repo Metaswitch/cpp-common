@@ -218,6 +218,12 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   uint_fast64_t avg = current_value;
   uint_fast64_t variance = 0;
   uint_fast32_t lwm = accumulated->lwm.load();
+  // If LWM is still ULONG_MAX, then report as 0, as no results
+  // have been entered (and HWM will be reported as 0)
+  if (lwm == ULONG_MAX)
+  {
+    lwm = 0;
+  }
   uint_fast32_t hwm = accumulated->hwm.load();
   uint_fast64_t time_last_update_ms = accumulated->time_last_update_ms.load();
   uint_fast64_t time_period_start_ms = accumulated->time_period_start_ms.load();
