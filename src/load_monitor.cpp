@@ -84,12 +84,17 @@ void TokenBucket::replenish_bucket()
 
 LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
                          float init_token_rate, float init_min_token_rate,
-                         SNMP::ContinuousAccumulatorTable* token_rate_tbl,
-                         SNMP::U32Scalar* smoothed_latency_sclr,
-                         SNMP::U32Scalar* target_latency_sclr,
-                         SNMP::U32Scalar* penalties_sclr,
-                         SNMP::U32Scalar* token_rate_sclr)
-                         : bucket(max_bucket_size, init_token_rate)
+                         SNMP::ContinuousAccumulatorTable* token_rate_table,
+                         SNMP::U32Scalar* smoothed_latency_scalar,
+                         SNMP::U32Scalar* target_latency_scalar,
+                         SNMP::U32Scalar* penalties_scalar,
+                         SNMP::U32Scalar* token_rate_scalar)
+                         : bucket(max_bucket_size, init_token_rate),
+                           _token_rate_table(token_rate_table),
+                           _smoothed_latency_scalar(smoothed_latency_scalar),
+                           _target_latency_scalar(target_latency_scalar),
+                           _penalties_scalar(penalties_scalar),
+                           _token_rate_scalar(token_rate_scalar)
 {
   pthread_mutexattr_t attrs;
   pthread_mutexattr_init(&attrs);
@@ -122,11 +127,6 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
   adjust_count = 0;
   clock_gettime(CLOCK_MONOTONIC_COARSE, &last_adjustment_time);
   min_token_rate = init_min_token_rate;
-  _token_rate_table = token_rate_tbl;
-  _smoothed_latency_scalar = smoothed_latency_sclr;
-  _target_latency_scalar = target_latency_sclr;
-  _penalties_scalar = penalties_sclr;
-  _token_rate_scalar = token_rate_sclr;
 
   // As this statistics reporting is continuous, we should
   // publish the statistics when initialised.
@@ -278,6 +278,6 @@ void LoadMonitor::update_statistics()
   }
   if (_token_rate_scalar != NULL)
   {
-  _token_rate_scalar->value = bucket.rate;
+    _token_rate_scalar->value = bucket.rate;
   }
 }

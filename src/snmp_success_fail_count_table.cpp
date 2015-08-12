@@ -76,8 +76,8 @@ public:
                                            2,
                                            4, // Only columns 2-4 should be visible
                                            { ASN_INTEGER }), // Type of the index column
-    five_second(5),
-    five_minute(300)
+    five_second(5000),
+    five_minute(300000)
   {
     // We have a fixed number of rows, so create them in the constructor.
     add(TimePeriodIndexes::scopePrevious5SecondPeriod);
