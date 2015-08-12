@@ -250,8 +250,9 @@ ColumnData ContinuousAccumulatorRow::get_columns()
     accumulated->sum.store(sum);
     sqsum += time_since_last_update_ms * current_value * current_value;
     accumulated->sqsum.store(sqsum);
-    avg = sum/(time_comes_first_ms - time_period_start_ms);
-    variance = sqsum/(time_comes_first_ms - time_period_start_ms) - (avg * avg);
+    uint64_t count = (times_comes_first_ms - time_period_start_ms);
+    avg = sum / count
+    variance = ((sqsum * count) - (sum * sum)) / (count * count);
   }
 
   // Construct and return a ColumnData with the appropriate values

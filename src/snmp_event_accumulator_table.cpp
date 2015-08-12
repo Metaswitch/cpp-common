@@ -169,7 +169,7 @@ ColumnData EventAccumulatorRow::get_columns()
     uint_fast64_t sumsq = accumulated->sqsum.load();
     // Calculate the average and the variance from the stored sum and sum-of-squares.
     avg = sum/count;
-    variance = sumsq/count - (avg * avg);
+    variance = ((sumsq * count - (sum * sum)) / (count * count);
     hwm = accumulated->hwm.load();
     lwm = accumulated->lwm.load();
   }
