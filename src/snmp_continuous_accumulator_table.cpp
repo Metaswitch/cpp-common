@@ -183,7 +183,7 @@ void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* 
   else
   {
     current_value.store(0);
-    lwm.store(0);
+    lwm.store(ULONG_MAX);
     hwm.store(0);
   }
 
