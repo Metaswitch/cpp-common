@@ -125,6 +125,15 @@ void cwtest_advance_time_ms(long delta_ms)  ///< Delta to add to the current off
   pthread_mutex_unlock(&time_lock);
 }
 
+/// Go back a way
+void cwtest_reverse_time_ms(long delta_ms) ///< Delta to *remove* to the current offset applied to returned times (in ms)
+{
+  struct timespec delta = { delta_ms / 1000, (delta_ms % 1000) * 1000L * 1000L };
+  pthread_mutex_lock(&time_lock);
+  ts_sub(time_offset, delta, time_offset);
+  pthread_mutex_unlock(&time_lock);
+}
+
 /// Restore the fabric of space-time.
 void cwtest_reset_time()
 {
@@ -290,7 +299,7 @@ time_t time(time_t* v) throw ()
 
 /// Replacement pthread_cond_timedwait()
 ///
-/// WARNING: This replacement calls through to the 2.3.2 version of the 
+/// WARNING: This replacement calls through to the 2.3.2 version of the
 /// real pthread_cond_timedwait, regardless of the version the calling code
 /// assumed it would be calling.  This will need updating to support other
 /// libc versions.
