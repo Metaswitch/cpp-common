@@ -345,8 +345,8 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
 void Stack::configure(std::string filename,
                       ExceptionHandler* exception_handler,
                       BaseCommunicationMonitor* comm_monitor,
-                      StatisticCounter* realm_counter,
-                      StatisticCounter* host_counter)
+                      SNMP::CounterTable* realm_counter,
+                      SNMP::CounterTable* host_counter)
 {
   initialize();
   TRC_STATUS("Configuring Diameter stack from file %s", filename.c_str());
