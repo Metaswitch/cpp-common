@@ -94,8 +94,8 @@ public:
   void increment()
   {
     // Increment each underlying set of data.
-    five_second.get_current(now)->count++;
-    five_minute.get_current(now)->count++;
+    five_second.get_current()->count++;
+    five_minute.get_current()->count++;
   }
 
 private:

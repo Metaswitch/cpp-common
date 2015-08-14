@@ -86,7 +86,7 @@ public:
     }
 
     // Rolls the current period over into the previous period if necessary.
-    void update_time(timespec now)
+    void update_time(struct timespec now)
     {
       // Count of how many _interval periods have passed since the epoch
       uint64_t new_tick = (now.tv_sec / (_interval_ms / 1000));
@@ -142,7 +142,7 @@ public:
   public:
     View(CurrentAndPrevious* data): _data(data) {};
     virtual ~View() {};
-    virtual T* get_data(timespec now) = 0;
+    virtual T* get_data(struct timespec now) = 0;
     // Return interval in ms
     uint32_t get_interval_ms() { return (this->_data->get_interval_ms()); }
   protected:
@@ -154,7 +154,7 @@ public:
   {
   public:
     CurrentView(CurrentAndPrevious* data): View(data) {};
-    T* get_data(timespec now) { return this->_data->get_current(now); };
+    T* get_data(struct timespec now) { return this->_data->get_current(now); };
   };
 
   // A view into the previous part of a CurrentAndPrevious set of data.
@@ -162,7 +162,7 @@ public:
   {
   public:
     PreviousView(CurrentAndPrevious* data): View(data) {};
-    T* get_data(timespec now) { return this->_data->get_previous(now); };
+    T* get_data(struct timespec now) { return this->_data->get_previous(now); };
   };
 
 
