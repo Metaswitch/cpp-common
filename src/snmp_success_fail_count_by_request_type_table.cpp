@@ -52,7 +52,10 @@ public:
     TimeAndOtherTypeBasedRow<SuccessFailCount>(time_index, type_index, view) {};
   ColumnData get_columns()
   {
-    SuccessFailCount* counts = _view->get_data();
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    SuccessFailCount* counts = _view->get_data(now);
     uint_fast32_t attempts = counts->attempts.load();
     uint_fast32_t successes = counts->successes.load();
     uint_fast32_t failures = counts->failures.load();
@@ -69,7 +72,7 @@ public:
   static int get_count_size() { return 3; }
 };
 
-static std::vector<int> request_types = 
+static std::vector<int> request_types =
 {
   SIPRequestTypes::INVITE,
   SIPRequestTypes::ACK,
@@ -97,20 +100,20 @@ public:
     CountsByOtherTypeTableImpl<SuccessFailCountByRequestTypeRow>(name,
                                                                  tbl_oid,
                                                                  request_types)
-  {} 
-  
+  {}
+
   void increment_attempts(SIPRequestTypes type)
   {
     five_second[type]->get_current()->attempts++;
     five_minute[type]->get_current()->attempts++;
   }
-  
+
   void increment_successes(SIPRequestTypes type)
   {
     five_second[type]->get_current()->successes++;
     five_minute[type]->get_current()->successes++;
   }
-  
+
   void increment_failures(SIPRequestTypes type)
   {
     five_second[type]->get_current()->failures++;

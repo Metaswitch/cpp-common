@@ -60,8 +60,8 @@ public:
          type != types.end();
          type++)
     {
-      five_second[*type] = new typename T::CurrentAndPrevious(5);
-      five_minute[*type] = new typename T::CurrentAndPrevious(300);
+      five_second[*type] = new typename T::CurrentAndPrevious(5000);
+      five_minute[*type] = new typename T::CurrentAndPrevious(300000);
 
       this->add(n++, new T(TimePeriodIndexes::scopePrevious5SecondPeriod, *type, new typename T::PreviousView(five_second[*type])));
       this->add(n++, new T(TimePeriodIndexes::scopeCurrent5MinutePeriod, *type, new typename T::CurrentView(five_minute[*type])));

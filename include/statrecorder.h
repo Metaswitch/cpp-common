@@ -44,24 +44,24 @@ class StatRecorder
 public:
   /// Default accumulation period, in microseconds.
   static const uint_fast64_t DEFAULT_PERIOD_US = 5 * 1000 * 1000;
-  
+
   /// Constructor.
   inline StatRecorder(uint_fast64_t period_us = DEFAULT_PERIOD_US) :
            _target_period_us(period_us) {}
-  
+
   /// Refresh our calculations - called at the end of each period, or
   /// optionally at other times to get an up-to-date result.
   /// must be implemented by subclass
   virtual void refresh(bool force = false) = 0;
-  
+
   /// Resets the accumulator - must be implemented by subclass
   virtual void reset() = 0;
-  
+
   /// Callback whenever the accumulated statistics are refreshed. Default is
   /// to do nothing.
   /// must be implemented by subclass
   virtual void refreshed() = 0;
-  
+
 protected:
   /// Maximum value of a uint_fast64_t (assuming 2s-complement). There is a
   /// #define for this, but it's unavailable in C++.
@@ -71,7 +71,7 @@ protected:
   /// Might be inaccurate due to timing errors, or because events don't come
   /// in frequently enough.
   uint_fast64_t _target_period_us;
-  
+
   /// Get a timestamp in microseconds.
   inline uint_fast64_t get_timestamp_us()
   {
