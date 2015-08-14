@@ -52,6 +52,8 @@ struct ContinuousStatistics
   std::atomic_uint_fast64_t sqsum;
   std::atomic_uint_fast64_t hwm;
   std::atomic_uint_fast64_t lwm;
+  std::atomic_uint_fast64_t avg;
+  std::atomic_uint_fast64_t variance;
 
   void reset(uint64_t periodstart, ContinuousStatistics* previous = NULL);
 };
@@ -171,6 +173,7 @@ void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* 
   count.store(0);
   sum.store(0);
   sqsum.store(0);
+  variance.store(0);
 
   // Carry across the previous values from the last table,
   // allowing us to set current, lwm and hwm.
@@ -179,6 +182,7 @@ void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* 
     current_value.store(previous->current_value.load());
     lwm.store(previous->current_value.load());
     hwm.store(previous->current_value.load());
+    avg.store(previous->current_value.load());
   }
   // Without any new data, default the values to 0
   else
@@ -186,6 +190,7 @@ void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* 
     current_value.store(0);
     lwm.store(ULONG_MAX);
     hwm.store(0);
+    avg.store(0);
   }
 
   // Given a ridiculuous periodstart, default the value
@@ -211,16 +216,16 @@ void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* 
 ColumnData ContinuousAccumulatorRow::get_columns()
 {
   struct timespec now;
-  clock_gettime(CLOCK_REALTIME_COARSE, &now);
+  clock_gettime(CLOCK_REALTIME, &now);
 
   ContinuousStatistics* accumulated = _view->get_data(now);
   uint32_t interval_ms = _view->get_interval_ms();
 
   uint_fast32_t count = accumulated->count.load();
-  uint_fast32_t current_value = accumulated->current_value.load();
+  uint_fast64_t current_value = accumulated->current_value.load();
 
-  uint_fast64_t avg = current_value;
-  uint_fast64_t variance = 0;
+  uint_fast64_t avg = accumulated->avg.load();
+  uint_fast64_t variance = accumulated->variance.load();
   uint_fast32_t lwm = accumulated->lwm.load();
   // If LWM is still ULONG_MAX, then report as 0, as no results
   // have been entered (and HWM will be reported as 0)
@@ -258,9 +263,11 @@ ColumnData ContinuousAccumulatorRow::get_columns()
     accumulated->sum.store(sum);
     sqsum += time_since_last_update_ms * current_value * current_value;
     accumulated->sqsum.store(sqsum);
-    uint64_t count = (time_comes_first_ms - time_period_start_ms);
-    avg = sum / count;
-    variance = ((sqsum * count) - (sum * sum)) / (count * count);
+    uint64_t period_count = (time_comes_first_ms - time_period_start_ms);
+    avg = sum / period_count;
+    accumulated->avg.store(avg);
+    variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
+    accumulated->variance.store(variance);
   }
 
   // Construct and return a ColumnData with the appropriate values
