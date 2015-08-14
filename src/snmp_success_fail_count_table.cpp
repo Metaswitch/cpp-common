@@ -90,32 +90,23 @@ public:
 
   void increment_attempts()
   {
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
     // Increment each underlying set of data.
-    five_second.get_current(now)->attempts++;
-    five_minute.get_current(now)->attempts++;
+    five_second.get_current()->attempts++;
+    five_minute.get_current()->attempts++;
   }
 
   void increment_successes()
   {
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
     // Increment each underlying set of data.
-    five_second.get_current(now)->successes++;
-    five_minute.get_current(now)->successes++;
+    five_second.get_current()->successes++;
+    five_minute.get_current()->successes++;
   }
 
   void increment_failures()
   {
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
     // Increment each underlying set of data.
-    five_second.get_current(now)->failures++;
-    five_minute.get_current(now)->failures++;
+    five_second.get_current()->failures++;
+    five_minute.get_current()->failures++;
   }
 
 private:

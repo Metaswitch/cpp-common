@@ -110,8 +110,20 @@ public:
       }
     }
 
-    T* get_current(timespec now) { update_time(now); return current.load(); }
-    T* get_previous(timespec now) { update_time(now); return previous.load(); }
+    T* get_current() {
+      struct timespec now;
+      clock_gettime(CLOCK_REALTIME_COARSE, &now);
+      return get_current(now);
+    }
+
+    T* get_previous() {
+      struct timespec now;
+      clock_gettime(CLOCK_REALTIME_COARSE, &now);
+      return get_previous(now);
+    }
+
+    T* get_current(struct timespec now) { update_time(now); return current.load(); }
+    T* get_previous(struct timespec now) { update_time(now); return previous.load(); }
     uint32_t get_interval_ms() { return _interval_ms; }
 
   protected:

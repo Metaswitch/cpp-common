@@ -94,9 +94,6 @@ public:
   void increment()
   {
     // Increment each underlying set of data.
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
     five_second.get_current(now)->count++;
     five_minute.get_current(now)->count++;
   }

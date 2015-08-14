@@ -104,29 +104,20 @@ public:
 
   void increment_attempts(SIPRequestTypes type)
   {
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
-    five_second[type]->get_current(now)->attempts++;
-    five_minute[type]->get_current(now)->attempts++;
+    five_second[type]->get_current()->attempts++;
+    five_minute[type]->get_current()->attempts++;
   }
 
   void increment_successes(SIPRequestTypes type)
   {
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
-    five_second[type]->get_current(now)->successes++;
-    five_minute[type]->get_current(now)->successes++;
+    five_second[type]->get_current()->successes++;
+    five_minute[type]->get_current()->successes++;
   }
 
   void increment_failures(SIPRequestTypes type)
   {
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
-    five_second[type]->get_current(now)->failures++;
-    five_minute[type]->get_current(now)->failures++;
+    five_second[type]->get_current()->failures++;
+    five_minute[type]->get_current()->failures++;
   }
 };
 
