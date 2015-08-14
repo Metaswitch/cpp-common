@@ -51,7 +51,10 @@ public:
     TimeBasedRow<SuccessFailCount>(index, view) {};
   ColumnData get_columns()
   {
-    SuccessFailCount* counts = _view->get_data();
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    SuccessFailCount* counts = _view->get_data(now);
     uint_fast32_t attempts = counts->attempts.load();
     uint_fast32_t successes = counts->successes.load();
     uint_fast32_t failures = counts->failures.load();

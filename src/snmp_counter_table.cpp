@@ -59,7 +59,10 @@ public:
     TimeBasedRow<SingleCount>(index, view) {};
   ColumnData get_columns()
   {
-    SingleCount accumulated = *(this->_view->get_data());
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    SingleCount accumulated = *(this->_view->get_data(now));
 
     // Construct and return a ColumnData with the appropriate values
     ColumnData ret;

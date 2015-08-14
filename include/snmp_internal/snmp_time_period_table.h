@@ -86,11 +86,8 @@ public:
     }
 
     // Rolls the current period over into the previous period if necessary.
-    void update_time()
+    void update_time(struct timespec now)
     {
-      struct timespec now;
-      clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
       // Count of how many _interval periods have passed since the epoch
       uint64_t new_tick = (now.tv_sec / (_interval_ms / 1000));
 
@@ -113,8 +110,20 @@ public:
       }
     }
 
-    T* get_current() { update_time(); return current.load(); }
-    T* get_previous() { update_time(); return previous.load(); }
+    T* get_current() {
+      struct timespec now;
+      clock_gettime(CLOCK_REALTIME_COARSE, &now);
+      return get_current(now);
+    }
+
+    T* get_previous() {
+      struct timespec now;
+      clock_gettime(CLOCK_REALTIME_COARSE, &now);
+      return get_previous(now);
+    }
+
+    T* get_current(struct timespec now) { update_time(now); return current.load(); }
+    T* get_previous(struct timespec now) { update_time(now); return previous.load(); }
     uint32_t get_interval_ms() { return _interval_ms; }
 
   protected:
@@ -133,7 +142,7 @@ public:
   public:
     View(CurrentAndPrevious* data): _data(data) {};
     virtual ~View() {};
-    virtual T* get_data() = 0;
+    virtual T* get_data(struct timespec now) = 0;
     // Return interval in ms
     uint32_t get_interval_ms() { return (this->_data->get_interval_ms()); }
   protected:
@@ -145,7 +154,7 @@ public:
   {
   public:
     CurrentView(CurrentAndPrevious* data): View(data) {};
-    T* get_data() { return this->_data->get_current(); };
+    T* get_data(struct timespec now) { return this->_data->get_current(now); };
   };
 
   // A view into the previous part of a CurrentAndPrevious set of data.
@@ -153,7 +162,7 @@ public:
   {
   public:
     PreviousView(CurrentAndPrevious* data): View(data) {};
-    T* get_data() { return this->_data->get_previous(); };
+    T* get_data(struct timespec now) { return this->_data->get_previous(now); };
   };
 
 

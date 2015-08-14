@@ -113,7 +113,10 @@ private:
 
   void accumulate_internal(ContinuousAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
   {
-    ContinuousStatistics* current_data = data.get_current();
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    ContinuousStatistics* current_data = data.get_current(now);
 
     TRC_DEBUG("Accumulating sample %uui into continuous accumulator statistic", sample);
 
@@ -123,8 +126,6 @@ private:
     // how long since an update happened. Additionally update the sum of squares as a
     // rolling total, and update the time of the last update. Also maintain a
     // current value held, that can be used if the period ends.
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
     uint64_t time_since_last_update = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
                                      - (current_data->time_last_update_ms.load());
@@ -209,7 +210,10 @@ void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* 
 
 ColumnData ContinuousAccumulatorRow::get_columns()
 {
-  ContinuousStatistics* accumulated = _view->get_data();
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+  ContinuousStatistics* accumulated = _view->get_data(now);
   uint32_t interval_ms = _view->get_interval_ms();
 
   uint_fast32_t count = accumulated->count.load();
@@ -235,8 +239,6 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   // next period though, which we do by comparing the calculated end of period
   // with the current time. We should use the smaller value to accumulate with,
   // to stop us from updating periods that are now out of date.
-  struct timespec now;
-  clock_gettime(CLOCK_REALTIME_COARSE, &now);
   uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
 
   // As a time period might not begin on a boundary, we must synchronize

@@ -110,7 +110,10 @@ private:
 
   void accumulate_internal(EventAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
   {
-    EventStatistics* current = data.get_current();
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    EventStatistics* current = data.get_current(now);
 
     current->count++;
 
@@ -155,7 +158,10 @@ void EventStatistics::reset(uint64_t periodstart, EventStatistics* previous)
 
 ColumnData EventAccumulatorRow::get_columns()
 {
-  EventStatistics* accumulated = _view->get_data();
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+  EventStatistics* accumulated = _view->get_data(now);
   uint_fast32_t count = accumulated->count.load();
 
   uint_fast32_t avg = 0;
