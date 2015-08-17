@@ -249,8 +249,9 @@ ColumnData ContinuousAccumulatorRow::get_columns()
 
   uint64_t time_since_last_update_ms = time_comes_first_ms - time_last_update_ms;
   accumulated->time_last_update_ms.store(time_comes_first_ms);
+  uint64_t period_count = (time_comes_first_ms - time_period_start_ms);
 
-  if (time_since_last_update_ms > 0)
+  if (period_count > 0)
   {
     // Calculate the average and the variance from the stored average/time of last upadted
     // and sum-of-squares.
@@ -258,9 +259,8 @@ ColumnData ContinuousAccumulatorRow::get_columns()
     accumulated->sum.store(sum);
     sqsum += time_since_last_update_ms * current_value * current_value;
     accumulated->sqsum.store(sqsum);
-    uint64_t count = (time_comes_first_ms - time_period_start_ms);
-    avg = sum / count;
-    variance = ((sqsum * count) - (sum * sum)) / (count * count);
+    avg = sum / period_count;
+    variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
   }
 
   // Construct and return a ColumnData with the appropriate values
