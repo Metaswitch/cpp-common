@@ -59,7 +59,10 @@ public:
     TimeBasedRow<SingleCount>(index, view) {};
   ColumnData get_columns()
   {
-    SingleCount accumulated = *(this->_view->get_data());
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    SingleCount accumulated = *(this->_view->get_data(now));
 
     // Construct and return a ColumnData with the appropriate values
     ColumnData ret;
@@ -79,8 +82,8 @@ public:
                                   2,
                                   2, // Only column 2 should be visible
                                   { ASN_INTEGER }), // Type of the index column
-    five_second(5),
-    five_minute(300)
+    five_second(5000),
+    five_minute(300000)
   {
     // We have a fixed number of rows, so create them in the constructor.
     add(TimePeriodIndexes::scopePrevious5SecondPeriod);

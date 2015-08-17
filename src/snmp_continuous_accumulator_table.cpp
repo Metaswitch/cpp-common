@@ -46,8 +46,8 @@ struct ContinuousStatistics
 {
   std::atomic_uint_fast64_t count;
   std::atomic_uint_fast64_t current_value;
-  std::atomic_uint_fast64_t time_lastupdate_ms;    // In ms.
-  std::atomic_uint_fast64_t time_periodstart_ms;   // In ms.
+  std::atomic_uint_fast64_t time_last_update_ms;
+  std::atomic_uint_fast64_t time_period_start_ms;
   std::atomic_uint_fast64_t sum;
   std::atomic_uint_fast64_t sqsum;
   std::atomic_uint_fast64_t hwm;
@@ -74,8 +74,8 @@ public:
                                       2,
                                       6, // Columns 2-6 should be visible
                                       { ASN_INTEGER }), // Type of the index column
-    five_second(5),
-    five_minute(300)
+    five_second(5000),
+    five_minute(300000)
   {
     // We have a fixed number of rows, so create them in the constructor.
     add(TimePeriodIndexes::scopePrevious5SecondPeriod);
@@ -113,26 +113,27 @@ private:
 
   void accumulate_internal(ContinuousAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
   {
-    ContinuousStatistics* current_data = data.get_current();
-
-    TRC_DEBUG("Calling accumulate with value: (%uui)", sample);
-
-    current_data->count++;
-
-    // Compute the updated sum and sqsum based on the previous values, dependant on
-    // how long since an update happened. Additionally update the sum of squares as a
-    // rolling total, and update the time of the last update. Also maintain a
-    // current value held, that can be used if the period ends.
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
-    uint64_t time_sincelastupdate = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
-                                     - (current_data->time_lastupdate_ms.load());
+    ContinuousStatistics* current_data = data.get_current(now);
+
+    TRC_DEBUG("Accumulating sample %uui into continuous accumulator statistic", sample);
+
+    current_data->count++;
+
+    // Compute the updated sum and sqsum based on the previous values, dependent on
+    // how long since an update happened. Additionally update the sum of squares as a
+    // rolling total, and update the time of the last update. Also maintain a
+    // current value held, that can be used if the period ends.
+
+    uint64_t time_since_last_update = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
+                                     - (current_data->time_last_update_ms.load());
     uint32_t current_value = current_data->current_value.load();
 
-    current_data->time_lastupdate_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
-    current_data->sum += current_value * time_sincelastupdate;
-    current_data->sqsum += current_value * current_value * time_sincelastupdate;
+    current_data->time_last_update_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
+    current_data->sum += current_value * time_since_last_update;
+    current_data->sqsum += current_value * current_value * time_since_last_update;
     current_data->current_value = sample;
 
     // Update the low- and high-water marks.  In each case, we get the current
@@ -159,49 +160,61 @@ private:
   ContinuousAccumulatorRow::CurrentAndPrevious five_minute;
 };
 
+// Reset the table in preparation for a new time period
+// Statistics can be carried over from the previous table
 void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* previous)
 {
   struct timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
-  TRC_DEBUG("New period created at time: (%uui)", periodstart_ms);
-
+  // At time 0, all incrementing values should be 0
   count.store(0);
   sum.store(0);
   sqsum.store(0);
 
+  // Carry across the previous values from the last table,
+  // allowing us to set current, lwm and hwm.
   if (previous != NULL)
   {
     current_value.store(previous->current_value.load());
     lwm.store(previous->current_value.load());
     hwm.store(previous->current_value.load());
   }
+  // Without any new data, default the values to 0
   else
   {
     current_value.store(0);
-    lwm.store(0);
+    lwm.store(ULONG_MAX);
     hwm.store(0);
   }
 
+  // Given a ridiculuous periodstart, default the value
+  // to the current time
   if (periodstart_ms == 0)
   {
     uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
 
-    time_lastupdate_ms.store(time_now_ms);
-    time_periodstart_ms.store(time_now_ms);
+    time_last_update_ms.store(time_now_ms);
+    time_period_start_ms.store(time_now_ms);
   }
+  // Set the last update time to be the start of the period
+  // Letting us calculate the incrementing values more accurately in
+  // accumulate() or get_columns()
+  // (As they were set to 0 above)
   else
   {
-    time_lastupdate_ms.store(periodstart_ms);
-    time_periodstart_ms.store(periodstart_ms);
+    time_last_update_ms.store(periodstart_ms);
+    time_period_start_ms.store(periodstart_ms);
   }
-  TRC_DEBUG("Stored periodstart value: %u", time_periodstart_ms.load());
 }
 
 ColumnData ContinuousAccumulatorRow::get_columns()
 {
-  ContinuousStatistics* accumulated = _view->get_data();
-  uint32_t interval = _view->get_interval_ms();
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+  ContinuousStatistics* accumulated = _view->get_data(now);
+  uint32_t interval_ms = _view->get_interval_ms();
 
   uint_fast32_t count = accumulated->count.load();
   uint_fast32_t current_value = accumulated->current_value.load();
@@ -209,45 +222,45 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   uint_fast64_t avg = current_value;
   uint_fast64_t variance = 0;
   uint_fast32_t lwm = accumulated->lwm.load();
+  // If LWM is still ULONG_MAX, then report as 0, as no results
+  // have been entered (and HWM will be reported as 0)
+  if (lwm == ULONG_MAX)
+  {
+    lwm = 0;
+  }
   uint_fast32_t hwm = accumulated->hwm.load();
-  uint_fast64_t time_lastupdate_ms = accumulated->time_lastupdate_ms.load();
-  uint_fast64_t time_periodstart_ms = accumulated->time_periodstart_ms.load();
+  uint_fast64_t time_last_update_ms = accumulated->time_last_update_ms.load();
+  uint_fast64_t time_period_start_ms = accumulated->time_period_start_ms.load();
   uint_fast64_t sum = accumulated->sum.load();
   uint_fast64_t sqsum = accumulated->sqsum.load();
 
-  TRC_DEBUG("Avg: (%uui)", avg);
-  TRC_DEBUG("time_lastupdate: (%uui)", time_lastupdate_ms);
-  TRC_DEBUG("time_periodstart: (%uui)", time_periodstart_ms);
-  TRC_DEBUG("sum: (%uui)", sum);
-  TRC_DEBUG("sqsum: (%uui)", sqsum);
+  // We need to know how long it has been since we've last updated.
+  // We must distinguish between the case that we have moved onto the
+  // next period though, which we do by comparing the calculated end of period
+  // with the current time. We should use the smaller value to accumulate with,
+  // to stop us from updating periods that are now out of date.
+  uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
 
-  if (count > 0)
+  // As a time period might not begin on a boundary, we must synchronize
+  // the end of the period with a boundary which is why the following line
+  // requires so many interval_ms!
+  uint64_t time_period_end_ms = ((time_period_start_ms + interval_ms) / interval_ms) * interval_ms;
+  uint64_t time_comes_first_ms = std::min(time_period_end_ms, time_now_ms);
+
+  uint64_t time_since_last_update_ms = time_comes_first_ms - time_last_update_ms;
+  accumulated->time_last_update_ms.store(time_comes_first_ms);
+  uint64_t period_count = (time_comes_first_ms - time_period_start_ms);
+
+  if (period_count > 0)
   {
-    time_lastupdate_ms = accumulated->time_lastupdate_ms.load();
-    time_periodstart_ms = accumulated->time_periodstart_ms.load();
-    sum = accumulated->sum.load();
-    sqsum = accumulated->sqsum.load();
-
-    // Distinguish between periods and only take the relevant value for
-    // time_sincelastupdate as once a period is finished, we should not
-    // recalculate the values.
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-    uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
-    uint64_t time_periodend_ms = ((time_periodstart_ms + interval) / interval) * interval;
-    uint64_t time_comesfirst_ms = std::min(time_periodend_ms, time_now_ms);
-
-    uint64_t time_sincelastupdate_ms = time_comesfirst_ms - time_lastupdate_ms;
-    accumulated->time_lastupdate_ms.store(time_comesfirst_ms);
-
     // Calculate the average and the variance from the stored average/time of last upadted
     // and sum-of-squares.
-    sum += time_sincelastupdate_ms * current_value;
+    sum += time_since_last_update_ms * current_value;
     accumulated->sum.store(sum);
-    sqsum += time_sincelastupdate_ms * current_value * current_value;
+    sqsum += time_since_last_update_ms * current_value * current_value;
     accumulated->sqsum.store(sqsum);
-    avg = sum/(time_comesfirst_ms - time_periodstart_ms);
-    variance = sqsum/(time_comesfirst_ms - time_periodstart_ms) - (avg * avg);
+    avg = sum / period_count;
+    variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
   }
 
   // Construct and return a ColumnData with the appropriate values
