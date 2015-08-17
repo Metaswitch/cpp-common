@@ -39,9 +39,8 @@
 extern "C" {
 #endif
 
-int create_connection_in_namespace(const char* host,
-                                   const char* port,
-                                   const char* socket_factory_path);
+int create_connection_in_signaling_namespace(const char* host, const char* port);
+int create_connection_in_management_namespace(const char* host, const char* port);
 
 #ifdef __cplusplus
 }

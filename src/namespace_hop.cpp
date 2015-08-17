@@ -43,6 +43,7 @@
 #include <string>
 
 #include "namespace_hop.h"
+#include "log.h"
 
 // Send a message with 'control messages (also called ancillary data) that are not a part of the
 // socket payload'. The control messages can convey a file descriptor as the SCM_RIGHTS - this is
@@ -70,7 +71,7 @@ static int recv_file_descriptor(int socket)
   int res = recvmsg(socket, &message, 0);
   if (res <= 0)
   {
-    fprintf(stderr, "recvmsg returned %d (%d %s)\n", res, errno, strerror(errno));
+    TRC_WARNING("Failed to retrieve cross-namespace socket - recvmsg returned %d (%d %s)\n", res, errno, strerror(errno));
     return res;
   }
 
@@ -86,7 +87,7 @@ static int recv_file_descriptor(int socket)
     }
   }
 
-  fprintf(stderr, "No socket received\n");
+  TRC_ERROR("No cross-namespace socket received\n");
   return -1;
 }
 
@@ -105,7 +106,10 @@ int create_connection_in_namespace(const char* host,
                                    const char* socket_factory_path)
 {
   std::string target = (host + std::string(":") + port);
-  printf("Get socket to %s\n", target.c_str());
+
+  TRC_DEBUG("Get cross-namespace socket to %s via %s\n",
+            target.c_str(),
+            socket_factory_path);
   
   struct sockaddr_un addr = {AF_LOCAL};
   strcpy(addr.sun_path, socket_factory_path);
@@ -113,14 +117,15 @@ int create_connection_in_namespace(const char* host,
 
   if (fd < 0)
   {
-    perror("Failed to create client socket");
+    TRC_ERROR("Failed to create client socket to cross-namespace socket factory");
     return fd;
   }
 
   int ret = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
   if (ret < 0)
   {
-    perror("Failed to connect to server\n");
+    TRC_ERROR("Failed to connect to cross-namespace socket factory %s",
+              socket_factory_path);
     return -1;
   }
 
@@ -128,10 +133,29 @@ int create_connection_in_namespace(const char* host,
   ret = send(fd, target.c_str(), target.size(), 0);
   if (ret < 0)
   {
-    fprintf(stderr, "Error sending target '%s' to server: %s", target.c_str(), strerror(errno));
+    TRC_ERROR("Error sending target '%s' to %s: %s",
+              target.c_str(),
+              socket_factory_path,
+              strerror(errno));
     return -2;
   }
 
   return recv_file_descriptor(fd);
 }
 
+
+int create_connection_in_signaling_namespace(const char* host,
+                                             const char* port)
+{
+  return create_connection_in_namespace(host,
+                                        port,
+                                        "/tmp/clearwater_signaling_namespace_socket");
+}
+
+int create_connection_in_management_namespace(const char* host,
+                                              const char* port)
+{
+  return create_connection_in_namespace(host,
+                                        port,
+                                        "/tmp/clearwater_management_namespace_socket");
+}
