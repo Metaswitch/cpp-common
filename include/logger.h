@@ -90,12 +90,13 @@ private:
   void release_lock() {pthread_mutex_unlock(&_lock);}
 
   int _flags;
-  std::string _prefix;
   int _last_hour;
   bool _rotate;
   FILE* _fd;
   int _discards;
   int _saved_errno;
+  std::string _filename;
+  std::string _directory;
   pthread_mutex_t _lock;
 
   /// Defines how frequently (in terms of log attempts) we will try to

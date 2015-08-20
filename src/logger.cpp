@@ -73,10 +73,11 @@ Logger::Logger(const std::string& directory, const std::string& filename) :
   _rotate(true),
   _fd(NULL),
   _discards(0),
-  _saved_errno(0)
+  _saved_errno(0),
+  _filename(filename),
+  _directory(directory)
 {
   pthread_mutex_init(&_lock, NULL);
-  _prefix = directory + "/" + filename;
 }
 
 
@@ -214,23 +215,26 @@ void Logger::cycle_log_file(const timestamp_t& ts)
   {
     fclose(_fd);
   }
-  char fname[100];
-  sprintf(fname, "%s_%4.4d%2.2d%2.2dT%2.2d0000Z.txt",
-          _prefix.c_str(),
+
+  std::string prefix = _directory + "/" + _filename + "_";
+  char time_date_stamp[100];
+  sprintf(time_date_stamp, "%4.4d%2.2d%2.2dT%2.2d0000Z",
           (ts.year + 1900),
           (ts.mon + 1),
           ts.mday,
           ts.hour);
-  _fd = fopen(fname, "a");
+  std::string full_path = prefix + time_date_stamp + ".txt";
+
+  _fd = fopen(full_path.c_str(), "a");
 
   // Set up /var/log/<component>/<component>_current.txt as a symlink
   // If this fails, there's not much we can do, it's not like we can drop
   // a log.
-  char cfname[100];
-  sprintf(cfname, "%s_current.txt",
-          _prefix.c_str());
-  unlink(cfname);
-  if (symlink(fname, cfname) < 0)
+  std::string symlink_path = prefix + "current.txt";
+  std::string relative_path = "./" + _filename + "_" + time_date_stamp + ".txt";
+  unlink(symlink_path.c_str());
+
+  if (symlink(relative_path.c_str(), symlink_path.c_str()) < 0)
   {
     // We don't get a helpful symlink.
   }
