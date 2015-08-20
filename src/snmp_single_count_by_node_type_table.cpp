@@ -47,7 +47,7 @@ namespace SNMP
 struct SingleCount
 {
   uint64_t count;
-  void reset() { count = 0; };
+  void reset(uint64_t time_periodstart, SingleCount* previous = NULL) { count = 0; };
 };
 
 // Time and Node Based Row that maps the data from SingleCount into the right column.
@@ -58,7 +58,10 @@ public:
     TimeAndOtherTypeBasedRow<SingleCount>(time_index, type_index, view) {};
   ColumnData get_columns()
   {
-    SingleCount accumulated = *(this->_view->get_data());
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    SingleCount accumulated = *(this->_view->get_data(now));
 
     // Construct and return a ColumnData with the appropriate values
     ColumnData ret;
@@ -78,7 +81,7 @@ public:
                                  std::string tbl_oid,
                                  std::vector<int> node_types): CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow>(name, tbl_oid, node_types)
   {}
- 
+
   void increment(NodeTypes type)
   {
     five_second[type]->get_current()->count++;

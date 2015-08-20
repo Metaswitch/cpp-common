@@ -46,7 +46,7 @@
 
 // This file contains the base infrastructure for SNMP tables which are indexed by time period. It
 // contains only abstract classes, which need to be subclassed - e.g. SNMP::AccumulatorRow and
-// SNMP::AccumulatorTable.
+// SNMP::EventAccumulatorTable.
 
 
 namespace SNMP
@@ -69,26 +69,27 @@ public:
   class CurrentAndPrevious
   {
   public:
-    CurrentAndPrevious(int interval):
+    CurrentAndPrevious(int interval_ms):
       current(&a),
       previous(&b),
-      _interval(interval),
-      _tick(0),
+      _interval_ms(interval_ms),
       a(),
       b()
     {
-      a.reset();
-      b.reset();
+      struct timespec now;
+      clock_gettime(CLOCK_REALTIME_COARSE, &now);
+      uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
+
+      _tick = (now.tv_sec / (_interval_ms / 1000));
+      a.reset(time_now_ms, NULL);
+      b.reset(time_now_ms - _interval_ms, NULL);
     }
 
     // Rolls the current period over into the previous period if necessary.
-    void update_time()
+    void update_time(struct timespec now)
     {
-      struct timespec now;
-      clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
       // Count of how many _interval periods have passed since the epoch
-      uint32_t new_tick = (now.tv_sec / _interval);
+      uint64_t new_tick = (now.tv_sec / (_interval_ms / 1000));
 
       // Count of how many _interval periods have passed since the last change
       uint32_t tick_difference = new_tick - _tick;
@@ -99,23 +100,36 @@ public:
         T* tmp;
         tmp = previous.load();
         previous.store(current);
-        tmp->reset();
+        tmp->reset(new_tick * _interval_ms, current.load());
         current.store(tmp);
       }
       else if (tick_difference > 1)
       {
-        current.load()->reset();
-        previous.load()->reset();
+        current.load()->reset(new_tick * _interval_ms, current.load());
+        previous.load()->reset((new_tick - 1) * _interval_ms, current.load());
       }
     }
 
-    T* get_current() { update_time(); return current.load(); }
-    T* get_previous() { update_time(); return previous.load(); }
+    T* get_current() {
+      struct timespec now;
+      clock_gettime(CLOCK_REALTIME_COARSE, &now);
+      return get_current(now);
+    }
+
+    T* get_previous() {
+      struct timespec now;
+      clock_gettime(CLOCK_REALTIME_COARSE, &now);
+      return get_previous(now);
+    }
+
+    T* get_current(struct timespec now) { update_time(now); return current.load(); }
+    T* get_previous(struct timespec now) { update_time(now); return previous.load(); }
+    uint32_t get_interval_ms() { return _interval_ms; }
 
   protected:
     std::atomic<T*> current;
     std::atomic<T*> previous;
-    uint32_t _interval;
+    uint32_t _interval_ms;
     uint32_t _tick;
     T a;
     T b;
@@ -128,7 +142,9 @@ public:
   public:
     View(CurrentAndPrevious* data): _data(data) {};
     virtual ~View() {};
-    virtual T* get_data() = 0;
+    virtual T* get_data(struct timespec now) = 0;
+    // Return interval in ms
+    uint32_t get_interval_ms() { return (this->_data->get_interval_ms()); }
   protected:
     CurrentAndPrevious* _data;
   };
@@ -138,8 +154,7 @@ public:
   {
   public:
     CurrentView(CurrentAndPrevious* data): View(data) {};
-
-    T* get_data() { return this->_data->get_current(); };
+    T* get_data(struct timespec now) { return this->_data->get_current(now); };
   };
 
   // A view into the previous part of a CurrentAndPrevious set of data.
@@ -147,7 +162,7 @@ public:
   {
   public:
     PreviousView(CurrentAndPrevious* data): View(data) {};
-    T* get_data() { return this->_data->get_previous(); };
+    T* get_data(struct timespec now) { return this->_data->get_previous(now); };
   };
 
 

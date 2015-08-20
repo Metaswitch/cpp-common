@@ -51,7 +51,10 @@ public:
     TimeBasedRow<SuccessFailCount>(index, view) {};
   ColumnData get_columns()
   {
-    SuccessFailCount* counts = _view->get_data();
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    SuccessFailCount* counts = _view->get_data(now);
     uint_fast32_t attempts = counts->attempts.load();
     uint_fast32_t successes = counts->successes.load();
     uint_fast32_t failures = counts->failures.load();
@@ -76,29 +79,29 @@ public:
                                            2,
                                            4, // Only columns 2-4 should be visible
                                            { ASN_INTEGER }), // Type of the index column
-    five_second(5),
-    five_minute(300)
+    five_second(5000),
+    five_minute(300000)
   {
     // We have a fixed number of rows, so create them in the constructor.
     add(TimePeriodIndexes::scopePrevious5SecondPeriod);
     add(TimePeriodIndexes::scopeCurrent5MinutePeriod);
     add(TimePeriodIndexes::scopePrevious5MinutePeriod);
   }
- 
+
   void increment_attempts()
   {
     // Increment each underlying set of data.
     five_second.get_current()->attempts++;
     five_minute.get_current()->attempts++;
   }
-  
+
   void increment_successes()
   {
     // Increment each underlying set of data.
     five_second.get_current()->successes++;
     five_minute.get_current()->successes++;
   }
-  
+
   void increment_failures()
   {
     // Increment each underlying set of data.
@@ -106,7 +109,7 @@ public:
     five_minute.get_current()->failures++;
   }
 
-private: 
+private:
   // Map row indexes to the view of the underlying data they should expose
   SuccessFailCountRow* new_row(int index)
   {

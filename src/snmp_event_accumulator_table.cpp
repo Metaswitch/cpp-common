@@ -1,5 +1,5 @@
 /**
- * @file snmp_accumulator_table.cpp
+ * @file snmp_event_accumulator_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -35,14 +35,14 @@
  */
 
 #include "snmp_internal/snmp_time_period_table.h"
-#include "snmp_accumulator_table.h"
+#include "snmp_event_accumulator_table.h"
 #include "limits.h"
 
 namespace SNMP
 {
 
 // Storage for the underlying data
-struct Statistics
+struct EventStatistics
 {
   std::atomic_uint_fast64_t count;
   std::atomic_uint_fast64_t sum;
@@ -50,29 +50,29 @@ struct Statistics
   std::atomic_uint_fast64_t hwm;
   std::atomic_uint_fast64_t lwm;
 
-  void reset();
+  void reset(uint64_t periodstart, EventStatistics* previous = NULL);
 };
 
-// Just a TimeBasedRow that maps the data from Statistics into the right five columns.
-class AccumulatorRow: public TimeBasedRow<Statistics>
+// Just a TimeBasedRow that maps the data from EventStatistics into the right five columns.
+class EventAccumulatorRow: public TimeBasedRow<EventStatistics>
 {
 public:
-  AccumulatorRow(int index, View* view): TimeBasedRow<Statistics>(index, view) {};
+  EventAccumulatorRow(int index, View* view): TimeBasedRow<EventStatistics>(index, view) {};
   ColumnData get_columns();
 };
 
-class AccumulatorTableImpl: public ManagedTable<AccumulatorRow, int>, public AccumulatorTable
+class EventAccumulatorTableImpl: public ManagedTable<EventAccumulatorRow, int>, public EventAccumulatorTable
 {
 public:
-  AccumulatorTableImpl(std::string name,
+  EventAccumulatorTableImpl(std::string name,
                        std::string tbl_oid):
-    ManagedTable<AccumulatorRow, int>(name,
+    ManagedTable<EventAccumulatorRow, int>(name,
                                       tbl_oid,
                                       2,
                                       6, // Columns 2-6 should be visible
                                       { ASN_INTEGER }), // Type of the index column
-    five_second(5),
-    five_minute(300)
+    five_second(5000),
+    five_minute(300000)
   {
     // We have a fixed number of rows, so create them in the constructor.
     add(TimePeriodIndexes::scopePrevious5SecondPeriod);
@@ -90,27 +90,30 @@ public:
 
 private:
   // Map row indexes to the view of the underlying data they should expose
-  AccumulatorRow* new_row(int index)
+  EventAccumulatorRow* new_row(int index)
   {
-    AccumulatorRow::View* view = NULL;
+    EventAccumulatorRow::View* view = NULL;
     switch (index)
     {
       case TimePeriodIndexes::scopePrevious5SecondPeriod:
-        view = new AccumulatorRow::PreviousView(&five_second);
+        view = new EventAccumulatorRow::PreviousView(&five_second);
         break;
       case TimePeriodIndexes::scopeCurrent5MinutePeriod:
-        view = new AccumulatorRow::CurrentView(&five_minute);
+        view = new EventAccumulatorRow::CurrentView(&five_minute);
         break;
       case TimePeriodIndexes::scopePrevious5MinutePeriod:
-        view = new AccumulatorRow::PreviousView(&five_minute);
+        view = new EventAccumulatorRow::PreviousView(&five_minute);
         break;
     }
-    return new AccumulatorRow(index, view);
+    return new EventAccumulatorRow(index, view);
   }
 
-  void accumulate_internal(AccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
+  void accumulate_internal(EventAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
   {
-    Statistics* current = data.get_current();
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+    EventStatistics* current = data.get_current(now);
 
     current->count++;
 
@@ -139,12 +142,12 @@ private:
   };
 
 
-  AccumulatorRow::CurrentAndPrevious five_second;
-  AccumulatorRow::CurrentAndPrevious five_minute;
+  EventAccumulatorRow::CurrentAndPrevious five_second;
+  EventAccumulatorRow::CurrentAndPrevious five_minute;
 };
 
 
-void Statistics::reset()
+void EventStatistics::reset(uint64_t periodstart, EventStatistics* previous)
 {
   count.store(0);
   sum.store(0);
@@ -153,9 +156,12 @@ void Statistics::reset()
   hwm.store(0);
 }
 
-ColumnData AccumulatorRow::get_columns()
+ColumnData EventAccumulatorRow::get_columns()
 {
-  Statistics* accumulated = _view->get_data();
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+  EventStatistics* accumulated = _view->get_data(now);
   uint_fast32_t count = accumulated->count.load();
 
   uint_fast32_t avg = 0;
@@ -169,7 +175,7 @@ ColumnData AccumulatorRow::get_columns()
     uint_fast64_t sumsq = accumulated->sqsum.load();
     // Calculate the average and the variance from the stored sum and sum-of-squares.
     avg = sum/count;
-    variance = sumsq/count - (avg * avg);
+    variance = ((sumsq * count) - (sum * sum)) / (count * count);
     hwm = accumulated->hwm.load();
     lwm = accumulated->lwm.load();
   }
@@ -185,9 +191,9 @@ ColumnData AccumulatorRow::get_columns()
   return ret;
 }
 
-AccumulatorTable* AccumulatorTable::create(std::string name, std::string oid)
+EventAccumulatorTable* EventAccumulatorTable::create(std::string name, std::string oid)
 {
-  return new AccumulatorTableImpl(name, oid);
+  return new EventAccumulatorTableImpl(name, oid);
 
 }
 }

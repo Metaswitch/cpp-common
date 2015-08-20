@@ -39,6 +39,8 @@
 
 #include <time.h>
 #include <pthread.h>
+#include "snmp_continuous_accumulator_table.h"
+#include "snmp_scalar.h"
 
 class TokenBucket
 {
@@ -58,12 +60,18 @@ class LoadMonitor
 {
   public:
     LoadMonitor(int init_target_latency, int max_bucket_size,
-                float init_token_rate, float init_min_token_rate);
+                float init_token_rate, float init_min_token_rate,
+                SNMP::ContinuousAccumulatorTable* token_rate_tbl = NULL,
+                SNMP::U32Scalar* smoothed_latency_scalar = NULL,
+                SNMP::U32Scalar* target_latency_scalar = NULL,
+                SNMP::U32Scalar* penalties_scalar = NULL,
+                SNMP::U32Scalar* token_rate_scalar = NULL);
     virtual ~LoadMonitor();
     virtual bool admit_request();
     virtual void incr_penalties();
     virtual int get_target_latency_us();
     virtual void request_complete(int latency);
+    virtual void update_statistics();
 
     int get_target_latency() { return target_latency; }
     int get_current_latency() { return smoothed_latency; }
@@ -95,6 +103,11 @@ class LoadMonitor
     timespec last_adjustment_time;
     float min_token_rate;
     TokenBucket bucket;
+    SNMP::ContinuousAccumulatorTable* _token_rate_table;
+    SNMP::U32Scalar* _smoothed_latency_scalar;
+    SNMP::U32Scalar* _target_latency_scalar;
+    SNMP::U32Scalar* _penalties_scalar;
+    SNMP::U32Scalar* _token_rate_scalar;
 };
 
 #endif

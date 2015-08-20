@@ -1,5 +1,5 @@
 /**
- * @file success_fail_count.h
+ * @file snmp_event_accumulator_table.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -28,33 +28,55 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
+ * software and licensed und er the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SUCCESS_FAIL_COUNT_H
-#define SUCCESS_FAIL_COUNT_H
+#include <vector>
+#include <map>
+#include <string>
+#include <atomic>
 
-// This file contains a struct for storing a count of attempts, successes and failures.
+#include "logger.h"
+
+#ifndef SNMP_EVENT_ACCUMULATOR_TABLE_H
+#define SNMP_EVENT_ACCUMULATOR_TABLE_H
+
+// This file contains the interface for tables which:
+//   - are indexed by time period
+//   - accumulate data samples over time
+//   - report a count of samples, mean sample value, variance, high-water-mark and low-water-mark
+//   - reset completely at the end of the period
+//
+// The thing sampled should be event related, i.e. size of a queue, latency
+// values
+//
+// To create an event accumulator table, simply create one, and call `accumulate` on it as data comes in,
+// e.g.:
+//
+// EventAccumulatorTable* bono_latency_table = EventAccumulatorTable::create("bono_latency", ".1.2.3");
+// bono_latency_table->accumulate(2000);
 
 namespace SNMP
 {
 
-struct SuccessFailCount
+class EventAccumulatorTable
 {
-  std::atomic_uint_fast64_t attempts;
-  std::atomic_uint_fast64_t successes;
-  std::atomic_uint_fast64_t failures;
+public:
+  virtual ~EventAccumulatorTable() {};
 
-  void reset(uint64_t time_periodstart, SuccessFailCount* previous = NULL)
-  {
-    attempts = 0;
-    successes = 0;
-    failures = 0;
-  }
+  static EventAccumulatorTable* create(std::string name, std::string oid);
+
+  // Accumulate a sample into the underlying statistics.
+  virtual void accumulate(uint32_t sample) = 0;
+
+protected:
+  EventAccumulatorTable() {};
+
 };
 
 }
+
 #endif
