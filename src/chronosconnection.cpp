@@ -46,6 +46,8 @@
 #include "httpconnection.h"
 #include "chronosconnection.h"
 
+const std::vector<std::string> ChronosConnection::EMPTY_TAGS = std::vector<std::string>();
+
 ChronosConnection::ChronosConnection(const std::string& server,
                                      std::string callback_host,
                                      HttpResolver* resolver,
@@ -88,11 +90,12 @@ HTTPCode ChronosConnection::send_put(std::string& put_identity,
                                      uint32_t repeat_for,
                                      const std::string& callback_uri,
                                      const std::string& opaque_data,
-                                     SAS::TrailId trail)
+                                     SAS::TrailId trail,
+                                     const std::vector<std::string>& tags)
 {
   std::string path = "/timers/" +
                      Utils::url_escape(put_identity);
-  std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data);
+  std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data, tags);
   std::map<std::string, std::string> headers;
 
   HTTPCode rc = _http->send_put(path, headers, body, trail);
@@ -120,10 +123,11 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
                                       uint32_t repeat_for,
                                       const std::string& callback_uri,
                                       const std::string& opaque_data,
-                                      SAS::TrailId trail)
+                                      SAS::TrailId trail,
+                                      const std::vector<std::string>& tags)
 {
   std::string path = "/timers";
-  std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data);
+  std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data, tags);
   std::map<std::string, std::string> headers;
 
   HTTPCode rc = _http->send_post(path, headers, body, trail);
@@ -150,24 +154,27 @@ HTTPCode ChronosConnection::send_put(std::string& put_identity,
                                      uint32_t timer_interval,
                                      const std::string& callback_uri,
                                      const std::string& opaque_data,
-                                     SAS::TrailId trail)
+                                     SAS::TrailId trail,
+                                     const std::vector<std::string>& tags)
 {
-  return send_put(put_identity, timer_interval, timer_interval, callback_uri, opaque_data, trail);
+  return send_put(put_identity, timer_interval, timer_interval, callback_uri, opaque_data, trail, tags);
 }
 
 HTTPCode ChronosConnection::send_post(std::string& post_identity,
                                       uint32_t timer_interval,
                                       const std::string& callback_uri,
                                       const std::string& opaque_data,
-                                      SAS::TrailId trail)
+                                      SAS::TrailId trail,
+                                      const std::vector<std::string>& tags)
 {
-  return send_post(post_identity, timer_interval, timer_interval, callback_uri, opaque_data, trail);
+  return send_post(post_identity, timer_interval, timer_interval, callback_uri, opaque_data, trail, tags);
 }
 
 std::string ChronosConnection::create_body(uint32_t interval,
                                            uint32_t repeat_for,
                                            const std::string& path,
-                                           const std::string& opaque_data)
+                                           const std::string& opaque_data,
+                                           const std::vector<std::string>& tags)
 {
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -196,6 +203,23 @@ std::string ChronosConnection::create_body(uint32_t interval,
         writer.String(opaque_data.c_str());
       }
       writer.EndObject();
+    }
+    writer.EndObject();
+
+    writer.String("statistics");
+    writer.StartObject();
+    {
+      writer.String("tags");
+      writer.StartArray();
+      {
+        for (std::vector<std::string>::const_iterator it = tags.begin();
+                                                      it != tags.end();
+                                                      ++it)
+        {
+          writer.String((*it).c_str());
+        }
+      }
+      writer.EndArray();
     }
     writer.EndObject();
   }
