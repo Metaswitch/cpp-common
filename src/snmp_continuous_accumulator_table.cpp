@@ -91,6 +91,18 @@ public:
     accumulate_internal(five_minute, sample);
   }
 
+  void increment()
+  {
+    accumulate_adjustment(five_second, 1);
+    accumulate_adjustment(five_minute, 1);
+  }
+
+  void decrement()
+  {
+    accumulate_adjustment(five_second, -1);
+    accumulate_adjustment(five_minute, -1);
+  }
+
 private:
   // Map row indexes to the view of the underlying data they should expose
   ContinuousAccumulatorRow* new_row(int index)
@@ -111,11 +123,34 @@ private:
     return new ContinuousAccumulatorRow(index, view);
   }
 
-  void accumulate_internal(ContinuousAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
+  // Used if the new accumulate value is dependent on the previous data.
+  // Currently only used for fixed difference to the current value
+  void accumulate_adjustment(ContinuousAccumulatorRow::CurrentAndPrevious& data, int difference)
   {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
+    ContinuousStatistics* current_data = data.get_current(now);
+    uint32_t adjusted = current_data->current_value + difference;
+
+    accumulate_internal(five_second, adjusted, now);
+    accumulate_internal(five_minute, adjusted, now);
+  }
+
+  void accumulate_internal(ContinuousAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
+  {
+    struct timespec now;
+    clock_gettime(CLOCK_REALTIME_COARSE, &now);
+    accumulate_internal(data, sample, now);
+  }
+
+  // Used when we've already performed an operation on a particular row. This is
+  // to avoid reading from a row, it being updated, then accumulating to a
+  // different row. Current examples include increment and decrement functions
+  void accumulate_internal(ContinuousAccumulatorRow::CurrentAndPrevious& data,
+                           uint32_t sample,
+                           timespec now)
+  {
     ContinuousStatistics* current_data = data.get_current(now);
 
     TRC_DEBUG("Accumulating sample %uui into continuous accumulator statistic", sample);

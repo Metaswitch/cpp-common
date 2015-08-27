@@ -73,6 +73,8 @@ public:
 
   // Accumulate a sample into the underlying statistics.
   virtual void accumulate(uint32_t sample) = 0;
+  virtual void increment() = 0;
+  virtual void decrement() = 0;
 
 protected:
   ContinuousAccumulatorTable() {};
