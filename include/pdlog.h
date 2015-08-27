@@ -82,6 +82,8 @@ class PDLogBase
 public:
   static const int MAX_FORMAT_LINE = 1024;
   // Identifies the application type reporting the log
+  // The following must be kept in sync with
+  // https://github.com/Metaswitch/python-common/blob/dev/metaswitch/common/pdlogs.py
   enum PDNodeType
   {
     CL_CPP_COMMON_ID = 1000,
@@ -94,7 +96,8 @@ public:
     CL_CLUSTER_MGR_ID = 8000,
     CL_CONFIG_MGR_ID = 9000,
     // The range 10000-11999 is reserved
-    CL_PYTHON_COMMON_ID = 12000
+    CL_PYTHON_COMMON_ID = 12000,
+    CL_CREST_ID = 13000
   };
 
   PDLogBase(int log_id,
