@@ -118,8 +118,8 @@ private:
     return new CounterRow(index, view);
   }
 
-  CounterRow::CurrentAndPrevious five_second;
-  CounterRow::CurrentAndPrevious five_minute;
+  CurrentAndPrevious<SingleCount> five_second;
+  CurrentAndPrevious<SingleCount> five_minute;
 };
 
 CounterTable* CounterTable::create(std::string name, std::string oid)

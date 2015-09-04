@@ -42,16 +42,16 @@
 namespace SNMP
 {
 
-template <class T> class CountsByOtherTypeTableImpl: public ManagedTable<T, int>
+template <class RowType, class DataType> class CountsByOtherTypeTableImpl: public ManagedTable<RowType, int>
 {
 public:
   CountsByOtherTypeTableImpl(std::string name,
                              std::string tbl_oid,
                              std::vector<int> types):
-    ManagedTable<T, int>(name,
+    ManagedTable<RowType, int>(name,
                          tbl_oid,
                          3,
-                         3 + T::get_count_size() - 1,
+                         3 + RowType::get_count_size() - 1,
                          { ASN_INTEGER , ASN_INTEGER }) // Types of the index columns
   {
     int n = 0;
@@ -60,25 +60,25 @@ public:
          type != types.end();
          type++)
     {
-      five_second[*type] = new typename T::CurrentAndPrevious(5000);
-      five_minute[*type] = new typename T::CurrentAndPrevious(300000);
+      five_second[*type] = new CurrentAndPrevious<DataType>(5000);
+      five_minute[*type] = new CurrentAndPrevious<DataType>(300000);
 
-      this->add(n++, new T(TimePeriodIndexes::scopePrevious5SecondPeriod, *type, new typename T::PreviousView(five_second[*type])));
-      this->add(n++, new T(TimePeriodIndexes::scopeCurrent5MinutePeriod, *type, new typename T::CurrentView(five_minute[*type])));
-      this->add(n++, new T(TimePeriodIndexes::scopePrevious5MinutePeriod, *type, new typename T::PreviousView(five_minute[*type])));
+      this->add(n++, new RowType(TimePeriodIndexes::scopePrevious5SecondPeriod, *type, new typename RowType::PreviousView(five_second[*type])));
+      this->add(n++, new RowType(TimePeriodIndexes::scopeCurrent5MinutePeriod, *type, new typename RowType::CurrentView(five_minute[*type])));
+      this->add(n++, new RowType(TimePeriodIndexes::scopePrevious5MinutePeriod, *type, new typename RowType::PreviousView(five_minute[*type])));
     }
   }
 
   ~CountsByOtherTypeTableImpl()
   {
-    for (typename std::map<int, typename T::CurrentAndPrevious*>::iterator type = five_second.begin();
+    for (typename std::map<int, CurrentAndPrevious<DataType>*>::iterator type = five_second.begin();
          type != five_second.end();
          type++)
     {
       delete type->second;
     }
 
-    for (typename std::map<int, typename T::CurrentAndPrevious*>::iterator type = five_minute.begin();
+    for (typename std::map<int, CurrentAndPrevious<DataType>*>::iterator type = five_minute.begin();
          type != five_minute.end();
          type++)
     {
@@ -87,10 +87,10 @@ public:
   }
 
 protected:
-  T* new_row(int indexes) { return NULL; };
+  RowType* new_row(int indexes) { return NULL; };
 
-  std::map<int, typename T::CurrentAndPrevious*> five_second;
-  std::map<int, typename T::CurrentAndPrevious*> five_minute;
+  std::map<int, CurrentAndPrevious<DataType>*> five_second;
+  std::map<int, CurrentAndPrevious<DataType>*> five_minute;
 };
 
 }

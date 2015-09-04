@@ -123,21 +123,7 @@ private:
     return new ContinuousAccumulatorRow(index, view);
   }
 
-  // Used if the new accumulate value is dependent on the previous data.
-  // Currently only used for fixed difference to the current value
-  void accumulate_adjustment(ContinuousAccumulatorRow::CurrentAndPrevious& data, int difference)
-  {
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
-    ContinuousStatistics* current_data = data.get_current(now);
-    uint32_t adjusted = current_data->current_value + difference;
-
-    accumulate_internal(five_second, adjusted, now);
-    accumulate_internal(five_minute, adjusted, now);
-  }
-
-  void accumulate_internal(ContinuousAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
+  void accumulate_internal(CurrentAndPrevious<ContinuousStatistics>& data, uint32_t sample)
   {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
@@ -191,8 +177,8 @@ private:
   };
 
 
-  ContinuousAccumulatorRow::CurrentAndPrevious five_second;
-  ContinuousAccumulatorRow::CurrentAndPrevious five_minute;
+  CurrentAndPrevious<ContinuousStatistics> five_second;
+  CurrentAndPrevious<ContinuousStatistics> five_minute;
 };
 
 // Reset the table in preparation for a new time period
