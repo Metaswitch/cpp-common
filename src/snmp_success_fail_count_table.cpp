@@ -129,8 +129,8 @@ private:
     return new SuccessFailCountRow(index, view);
   }
 
-  SuccessFailCountRow::CurrentAndPrevious five_second;
-  SuccessFailCountRow::CurrentAndPrevious five_minute;
+  CurrentAndPrevious<SuccessFailCount> five_second;
+  CurrentAndPrevious<SuccessFailCount> five_minute;
 };
 
 SuccessFailCountTable* SuccessFailCountTable::create(std::string name, std::string oid)

@@ -111,7 +111,7 @@ private:
     return new ContinuousAccumulatorRow(index, view);
   }
 
-  void accumulate_internal(ContinuousAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
+  void accumulate_internal(CurrentAndPrevious<ContinuousStatistics>& data, uint32_t sample)
   {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
@@ -156,8 +156,8 @@ private:
   };
 
 
-  ContinuousAccumulatorRow::CurrentAndPrevious five_second;
-  ContinuousAccumulatorRow::CurrentAndPrevious five_minute;
+  CurrentAndPrevious<ContinuousStatistics> five_second;
+  CurrentAndPrevious<ContinuousStatistics> five_minute;
 };
 
 // Reset the table in preparation for a new time period

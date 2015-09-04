@@ -108,7 +108,7 @@ private:
     return new EventAccumulatorRow(index, view);
   }
 
-  void accumulate_internal(EventAccumulatorRow::CurrentAndPrevious& data, uint32_t sample)
+  void accumulate_internal(CurrentAndPrevious<EventStatistics>& data, uint32_t sample)
   {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
@@ -142,8 +142,8 @@ private:
   };
 
 
-  EventAccumulatorRow::CurrentAndPrevious five_second;
-  EventAccumulatorRow::CurrentAndPrevious five_minute;
+  CurrentAndPrevious<EventStatistics> five_second;
+  CurrentAndPrevious<EventStatistics> five_minute;
 };
 
 
