@@ -105,74 +105,118 @@ public:
                                     4,
                                     { ASN_INTEGER , ASN_INTEGER , ASN_INTEGER })
   {
-    int n = 0;
+    n = 0;
 
     for (std::vector<int>::iterator code = base_codes.begin();
          code != base_codes.end();
          code++)
     {
-      base_five_second[*code] = new CxCounterRow::CurrentAndPrevious(5000);
-      base_five_minute[*code] = new CxCounterRow::CurrentAndPrevious(300000);
-
-      this->add(n++, new CxCounterRow(TimePeriodIndexes::scopePrevious5SecondPeriod,
-                                      AppId::BASE,
-                                      *code,
-                                      new CxCounterRow::PreviousView(base_five_second[*code])));
-      this->add(n++, new CxCounterRow(TimePeriodIndexes::scopeCurrent5MinutePeriod,
-                                      AppId::BASE,
-                                      *code,
-                                      new CxCounterRow::CurrentView(base_five_minute[*code])));
-      this->add(n++, new CxCounterRow(TimePeriodIndexes::scopePrevious5MinutePeriod,
-                                      AppId::BASE,
-                                      *code,
-                                      new CxCounterRow::PreviousView(base_five_minute[*code])));
+      create_and_add_rows(AppId::BASE, *code);
     }
 
     for (std::vector<int>::iterator code = _3gpp_codes.begin();
         code != _3gpp_codes.end();
         code++)
     {
-      _3gpp_five_second[*code] = new CxCounterRow::CurrentAndPrevious(5000);
-      _3gpp_five_minute[*code] = new CxCounterRow::CurrentAndPrevious(300000);
-
-      this->add(n++, new CxCounterRow(TimePeriodIndexes::scopePrevious5SecondPeriod,
-                                      AppId::_3GPP,
-                                      *code,
-                                      new CxCounterRow::PreviousView(_3gpp_five_second[*code])));
-      this->add(n++, new CxCounterRow(TimePeriodIndexes::scopeCurrent5MinutePeriod,
-                                      AppId::_3GPP,
-                                      *code,
-                                      new CxCounterRow::CurrentView(_3gpp_five_minute[*code])));
-      this->add(n++, new CxCounterRow(TimePeriodIndexes::scopePrevious5MinutePeriod,
-                                      AppId::_3GPP,
-                                      *code,
-                                      new CxCounterRow::PreviousView(_3gpp_five_minute[*code])));
+      create_and_add_rows(AppId::_3GPP, *code);
     }
+
+    create_and_add_rows(AppId::TIMEOUT, 0);
   }
   
+  void create_and_add_rows(AppId app_id, int code)
+  {
+    std::map<int, CxCounterRow::CurrentAndPrevious*>* five_second;
+    std::map<int, CxCounterRow::CurrentAndPrevious*>* five_minute;
+    
+    switch (app_id)
+    {
+      case BASE:
+        five_second = &base_five_second;
+        five_minute = &base_five_minute;
+        break;
+      case _3GPP:
+        five_second = &_3gpp_five_second;
+        five_minute = &_3gpp_five_minute;
+        break;
+      case TIMEOUT:
+        five_second = &timeout_five_second;
+        five_minute = &timeout_five_minute;
+        break;
+    }
+
+    (*five_second)[code] = new CxCounterRow::CurrentAndPrevious(5000);
+    (*five_minute)[code] = new CxCounterRow::CurrentAndPrevious(300000);
+    this->add(n++, new CxCounterRow(TimePeriodIndexes::scopePrevious5SecondPeriod,
+                                    app_id,
+                                    code,
+                                    new CxCounterRow::PreviousView((*five_second)[code])));
+    this->add(n++, new CxCounterRow(TimePeriodIndexes::scopeCurrent5MinutePeriod,
+                                    app_id,
+                                    code,
+                                    new CxCounterRow::CurrentView((*five_minute)[code])));
+    this->add(n++, new CxCounterRow(TimePeriodIndexes::scopePrevious5MinutePeriod,
+                                    app_id,
+                                    code,
+                                    new CxCounterRow::PreviousView((*five_minute)[code])));
+  }
+
   void increment(AppId app_id, int result_code)
   {
-    if (app_id == AppId::BASE)
+    switch (app_id)
     {
-      base_five_second[result_code]->get_current()->count++;
-      base_five_minute[result_code]->get_current()->count++;
-    }
-    else if (app_id == AppId::_3GPP)
-    {
-      _3gpp_five_second[result_code]->get_current()->count++;
-      _3gpp_five_minute[result_code]->get_current()->count++;
+      case BASE:
+        base_five_second[result_code]->get_current()->count++;
+        base_five_minute[result_code]->get_current()->count++;
+        break;
+      case _3GPP:
+        _3gpp_five_second[result_code]->get_current()->count++;
+        _3gpp_five_minute[result_code]->get_current()->count++;
+        break;
+      case TIMEOUT:
+        timeout_five_second[result_code]->get_current()->count++;
+        timeout_five_minute[result_code]->get_current()->count++;
+        break;
     }
   }
- 
+
+  ~CxCounterTableImpl()
+  {
+    for (std::map<int, CxCounterRow::CurrentAndPrevious*>::iterator type = base_five_second.begin();
+         type != base_five_second.end();
+         type++)
+    {  delete type->second; }
+    for (std::map<int, CxCounterRow::CurrentAndPrevious*>::iterator type = base_five_minute.begin();
+         type != base_five_minute.end();
+         type++)
+    {  delete type->second; }
+    
+    for (std::map<int, CxCounterRow::CurrentAndPrevious*>::iterator type = _3gpp_five_second.begin();
+         type != _3gpp_five_second.end();
+         type++)
+    {  delete type->second; }
+    for (std::map<int, CxCounterRow::CurrentAndPrevious*>::iterator type = _3gpp_five_minute.begin();
+         type != _3gpp_five_minute.end();
+         type++)
+    {  delete type->second; }
+    
+    delete timeout_five_second.begin()->second;
+    delete timeout_five_minute.begin()->second;
+  } 
 private:
  
   CxCounterRow* new_row(int indexes) { return NULL;};
+
+  int n;
 
   std::map<int, CxCounterRow::CurrentAndPrevious*> base_five_second;
   std::map<int, CxCounterRow::CurrentAndPrevious*> base_five_minute;
   
   std::map<int, CxCounterRow::CurrentAndPrevious*> _3gpp_five_second;
   std::map<int, CxCounterRow::CurrentAndPrevious*> _3gpp_five_minute;
+  
+  std::map<int, CxCounterRow::CurrentAndPrevious*> timeout_five_second;
+  std::map<int, CxCounterRow::CurrentAndPrevious*> timeout_five_minute;
 };
 
 CxCounterTable* CxCounterTable::create(std::string name,
