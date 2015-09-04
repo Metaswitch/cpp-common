@@ -36,8 +36,6 @@
 
 #include <vector>
 #include <map>
-#include <string>
-#include "snmp_node_types.h"
 
 #ifndef CX_COUNTER_H
 #define CX_COUNTER_H
@@ -53,14 +51,21 @@
 namespace SNMP
 {
 
+enum AppId
+{
+  BASE = 0,
+  _3GPP = 1,
+  TIMEOUT = 2
+};
+
 class CxCounterTable
 {
 public:
   CxCounterTable() {};
   virtual ~CxCounterTable() {};
 
-  static CxCounterTable* create(std::string name, std::string oid, std::vector<int> base_result_codes, std::vector<int> 3gpp_result_codes);
-  virtual void increment(AppId appId, ResultCode result_code) = 0;
+  static CxCounterTable* create(std::string name, std::string oid);
+  virtual void increment(AppId appId, int result_code) = 0;
 };
 
 }

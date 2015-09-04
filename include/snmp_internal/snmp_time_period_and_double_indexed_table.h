@@ -50,7 +50,7 @@ public:
   // Constructor, takes ownership of the View*.
   TimeAndDoubleIndexedRow(int time_index, int first_index, int second_index, typename TimeBasedRow<T>::View* view) :
     TimeBasedRow<T>(time_index, view),
-    _first_index(first_index)
+    _first_index(first_index),
     _second_index(second_index)
   {
     // Add first index (the time index is added in the base class).
