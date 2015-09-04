@@ -51,7 +51,7 @@
 namespace SNMP
 {
 
-enum AppId
+enum DiameterAppId
 {
   BASE = 0,
   _3GPP = 1,
@@ -65,7 +65,7 @@ public:
   virtual ~CxCounterTable() {};
 
   static CxCounterTable* create(std::string name, std::string oid);
-  virtual void increment(AppId appId, int result_code) = 0;
+  virtual void increment(DiameterAppId appId, int result_code) = 0;
 };
 
 }

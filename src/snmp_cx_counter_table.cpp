@@ -43,6 +43,7 @@
 namespace SNMP
 {
 
+// The Diameter base protocol result codes as documented in RFC 6733.
 static std::vector<int> base_result_codes = 
 {
   1001,
@@ -53,6 +54,7 @@ static std::vector<int> base_result_codes =
   5014, 5015, 5016, 5017
 };
 
+// The 3GPP specific result codes as documented in ETSI TS 129 229.
 static std::vector<int> _3gpp_result_codes = 
 {
   2001, 2002, 2003, 2004,
@@ -71,7 +73,7 @@ struct SingleCount
 class CxCounterRow: public TimeAndDoubleIndexedRow<SingleCount>
 {
 public:
-  CxCounterRow(int time_index, AppId app_id, int result_code, View* view):
+  CxCounterRow(int time_index, DiameterAppId app_id, int result_code, View* view):
     TimeAndDoubleIndexedRow<SingleCount>(time_index, app_id, result_code, view) {};
 
   ColumnData get_columns()
@@ -96,9 +98,7 @@ class CxCounterTableImpl: public ManagedTable<CxCounterRow, int>, public CxCount
 {
 public:
   CxCounterTableImpl(std::string name,
-                     std::string tbl_oid,
-                     std::vector<int> base_codes = base_result_codes,
-                     std::vector<int> _3gpp_codes = _3gpp_result_codes ):
+                     std::string tbl_oid):
     ManagedTable<CxCounterRow, int>(name,
                                     tbl_oid,
                                     4,
@@ -107,24 +107,24 @@ public:
   {
     n = 0;
 
-    for (std::vector<int>::iterator code = base_codes.begin();
-         code != base_codes.end();
+    for (std::vector<int>::iterator code = base_result_codes.begin();
+         code != base_result_codes.end();
          code++)
     {
-      create_and_add_rows(AppId::BASE, *code);
+      create_and_add_rows(DiameterAppId::BASE, *code);
     }
 
-    for (std::vector<int>::iterator code = _3gpp_codes.begin();
-        code != _3gpp_codes.end();
+    for (std::vector<int>::iterator code = _3gpp_result_codes.begin();
+        code != _3gpp_result_codes.end();
         code++)
     {
-      create_and_add_rows(AppId::_3GPP, *code);
+      create_and_add_rows(DiameterAppId::_3GPP, *code);
     }
 
-    create_and_add_rows(AppId::TIMEOUT, 0);
+    create_and_add_rows(DiameterAppId::TIMEOUT, 0);
   }
   
-  void create_and_add_rows(AppId app_id, int code)
+  void create_and_add_rows(DiameterAppId app_id, int code)
   {
     std::map<int, CxCounterRow::CurrentAndPrevious*>* five_second;
     std::map<int, CxCounterRow::CurrentAndPrevious*>* five_minute;
@@ -161,7 +161,7 @@ public:
                                     new CxCounterRow::PreviousView((*five_minute)[code])));
   }
 
-  void increment(AppId app_id, int result_code)
+  void increment(DiameterAppId app_id, int result_code)
   {
     switch (app_id)
     {
