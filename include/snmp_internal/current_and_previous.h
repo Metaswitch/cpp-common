@@ -34,6 +34,9 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef CURRENT_AND_PREVIOUS_H
+#define CURRENT_AND_PREVIOUS_H
+
 #include <vector>
 #include <map>
 #include <string>
@@ -113,3 +116,5 @@ protected:
     T b;
 
 };
+
+#endif

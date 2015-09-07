@@ -34,19 +34,37 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef TIMER_COUNTER_H
+#define TIMER_COUNTER_H
+
+#include "snmp_internal/current_and_previous.h"
+#include "snmp_statistics_structures.h"
+
 #include <vector>
 #include <map>
 #include <string>
 #include <atomic>
 
-#include "logger.h"
+#include "log.h"
 
 class TimerCounter
 {
 public:
-  virtual ~TimerCounter() {};
+  TimerCounter();
+  ~TimerCounter();
 
-  virtual void increment() = 0;
-  virtual void decrement() = 0;
-  virtual void get_values() = 0;
+  void increment();
+  void decrement();
+  void update_values(timespec);
+  SNMP::ContinuousStatistics* get_values(int index, timespec);
+  uint32_t get_interval_ms(int index);
+
+  CurrentAndPrevious<SNMP::ContinuousStatistics> five_second;
+  CurrentAndPrevious<SNMP::ContinuousStatistics> five_minute;
+  int current_value = 0;
+
+private:
+  void update_values(CurrentAndPrevious<SNMP::ContinuousStatistics>&, uint32_t, timespec);
 };
+
+#endif

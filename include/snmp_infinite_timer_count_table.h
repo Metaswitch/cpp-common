@@ -1,5 +1,5 @@
 /**
- * @file snmp_continuous_accumulator_table.h
+ * @file snmp_infinite_timer_count_table.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -41,44 +41,26 @@
 
 #include "logger.h"
 
-#ifndef SNMP_CONTINUOUS_ACCUMULATOR_TABLE_H
-#define SNMP_CONTINUOUS_ACCUMULATOR_TABLE_H
-
-// This file contains the interface for tables which:
-//   - are indexed by time period
-//   - accumulate data samples over time
-//   - report a count of samples, high-water-mark and low-water-mark
-//   - report mean sample rate and variance as weighted by the proportion
-//         of time active within the time period
-//   - carry across final value as initial value for the next table
-//
-// The thing sampled should be a continiuous data set, i.e. valued across a
-// time period.
-//
-// To create an accumulator table, simply create one, and call `accumulate` on it as data comes in,
-// e.g.:
-//
-// ContinuousAccumulatorTable* token_rate_table = ContinuousAccumulatorTable::create("token_rate", ".1.2.3");
-// token_rate_table->accumulate(2000);
+#ifndef SNMP_INFINITE_TIMER_TABLE_H
+#define SNMP_INFINITE_TIMER_TABLE_H
 
 namespace SNMP
 {
 
-class ContinuousAccumulatorTable
+class InfiniteTimerCountTable
 {
 public:
-  virtual ~ContinuousAccumulatorTable() {};
+  virtual ~InfiniteTimerCountTable() {};
 
-  static ContinuousAccumulatorTable* create(std::string name, std::string oid);
+  static InfiniteTimerCountTable* create(std::string name, std::string oid);
 
-  // Accumulate a sample into the underlying statistics.
-  virtual void accumulate(uint32_t sample) = 0;
+  virtual void increment(std::string) = 0;
+  virtual void decrement(std::string) = 0;
 
 protected:
-  ContinuousAccumulatorTable() {};
+//  InfiniteTimerCountTable() {};
 
 };
-
 }
 
 #endif

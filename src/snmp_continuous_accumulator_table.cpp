@@ -34,27 +34,13 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include "snmp_statistics_structures.h"
 #include "snmp_internal/snmp_time_period_table.h"
 #include "snmp_continuous_accumulator_table.h"
 #include "limits.h"
 
 namespace SNMP
 {
-
-// Storage for the underlying data
-struct ContinuousStatistics
-{
-  std::atomic_uint_fast64_t count;
-  std::atomic_uint_fast64_t current_value;
-  std::atomic_uint_fast64_t time_last_update_ms;
-  std::atomic_uint_fast64_t time_period_start_ms;
-  std::atomic_uint_fast64_t sum;
-  std::atomic_uint_fast64_t sqsum;
-  std::atomic_uint_fast64_t hwm;
-  std::atomic_uint_fast64_t lwm;
-
-  void reset(uint64_t periodstart, ContinuousStatistics* previous = NULL);
-};
 
 // Just a TimeBasedRow that maps the data from ContinuousStatistics into the right five columns.
 class ContinuousAccumulatorRow: public TimeBasedRow<ContinuousStatistics>
@@ -91,18 +77,6 @@ public:
     accumulate_internal(five_minute, sample);
   }
 
-  void increment()
-  {
-    accumulate_adjustment(five_second, 1);
-    accumulate_adjustment(five_minute, 1);
-  }
-
-  void decrement()
-  {
-    accumulate_adjustment(five_second, -1);
-    accumulate_adjustment(five_minute, -1);
-  }
-
 private:
   // Map row indexes to the view of the underlying data they should expose
   ContinuousAccumulatorRow* new_row(int index)
@@ -127,16 +101,7 @@ private:
   {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
-    accumulate_internal(data, sample, now);
-  }
 
-  // Used when we've already performed an operation on a particular row. This is
-  // to avoid reading from a row, it being updated, then accumulating to a
-  // different row. Current examples include increment and decrement functions
-  void accumulate_internal(ContinuousAccumulatorRow::CurrentAndPrevious& data,
-                           uint32_t sample,
-                           timespec now)
-  {
     ContinuousStatistics* current_data = data.get_current(now);
 
     TRC_DEBUG("Accumulating sample %uui into continuous accumulator statistic", sample);
@@ -180,54 +145,6 @@ private:
   CurrentAndPrevious<ContinuousStatistics> five_second;
   CurrentAndPrevious<ContinuousStatistics> five_minute;
 };
-
-// Reset the table in preparation for a new time period
-// Statistics can be carried over from the previous table
-void ContinuousStatistics::reset(uint64_t periodstart_ms, ContinuousStatistics* previous)
-{
-  struct timespec now;
-  clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
-  // At time 0, all incrementing values should be 0
-  count.store(0);
-  sum.store(0);
-  sqsum.store(0);
-
-  // Carry across the previous values from the last table,
-  // allowing us to set current, lwm and hwm.
-  if (previous != NULL)
-  {
-    current_value.store(previous->current_value.load());
-    lwm.store(previous->current_value.load());
-    hwm.store(previous->current_value.load());
-  }
-  // Without any new data, default the values to 0
-  else
-  {
-    current_value.store(0);
-    lwm.store(ULONG_MAX);
-    hwm.store(0);
-  }
-
-  // Given a ridiculuous periodstart, default the value
-  // to the current time
-  if (periodstart_ms == 0)
-  {
-    uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
-
-    time_last_update_ms.store(time_now_ms);
-    time_period_start_ms.store(time_now_ms);
-  }
-  // Set the last update time to be the start of the period
-  // Letting us calculate the incrementing values more accurately in
-  // accumulate() or get_columns()
-  // (As they were set to 0 above)
-  else
-  {
-    time_last_update_ms.store(periodstart_ms);
-    time_period_start_ms.store(periodstart_ms);
-  }
-}
 
 ColumnData ContinuousAccumulatorRow::get_columns()
 {

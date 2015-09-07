@@ -38,78 +38,98 @@
 #include "timer_counter.h"
 #include "limits.h"
 
-class TimerCounter
+TimerCounter::TimerCounter():
+  five_second(5000),
+  five_minute(300000) {}
+
+
+TimerCounter::~TimerCounter() {}
+
+void TimerCounter::increment()
 {
-public:
-  TimerCounter():
+  current_value++;
+
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+  update_values(five_second, current_value, now);
+  update_values(five_minute, current_value, now);
+}
+
+void TimerCounter::decrement()
+{
+  current_value++;
+
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+  update_values(five_second, current_value, now);
+  update_values(five_minute, current_value, now);
+}
+
+void TimerCounter::update_values(timespec now)
+{
+  update_values(five_second, current_value, now);
+  update_values(five_minute, current_value, now);
+}
+
+SNMP::ContinuousStatistics* TimerCounter::get_values(int index, timespec now)
+{
+  switch (index)
   {
-    five_second = new CurrentAndPrevious<ContinuousStatistics>;
-    five_minute = new CurrentAndPrevious<ContinuousStatistics>;
+    case 1: return five_second.get_previous(now);
+    case 2: return five_minute.get_current(now);
+    case 3: return five_minute.get_previous(now);
   }
+  return NULL;
+}
 
-  void increment()
+uint32_t TimerCounter::get_interval_ms(int index)
+{
+  switch (index)
   {
-     current_value++;
-     update_values(five_second, current_value);
-     update_values(five_minute, current_value);
+    case 1: return five_second.get_interval_ms();
+    case 2: return five_minute.get_interval_ms();
+    case 3: return five_minute.get_interval_ms();
   }
+  return 0;
+}
 
-  void decrement()
+void TimerCounter::update_values(CurrentAndPrevious<SNMP::ContinuousStatistics>& data, uint32_t sample, timespec now)
+{
+  SNMP::ContinuousStatistics* current_data = data.get_current(now);
+
+  TRC_DEBUG("Accumulating sample %uui into continuous accumulator statistic", sample);
+
+  // Compute the updated sum and sqsum based on the previous values, dependent on
+  // how long since an update happened. Additionally update the sum of squares as a
+  // rolling total, and update the time of the last update. Also maintain a
+  // current value held, that can be used if the period ends.
+
+  uint64_t time_since_last_update = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
+    - (current_data->time_last_update_ms.load());
+  uint32_t current_value = current_data->current_value.load();
+
+  current_data->time_last_update_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
+  current_data->sum += current_value * time_since_last_update;
+  current_data->sqsum += current_value * current_value * time_since_last_update;
+  current_data->current_value = sample;
+
+  // Update the low- and high-water marks.  In each case, we get the current
+  // value, decide whether a change is required and then atomically swap it
+  // if so, repeating if it was changed in the meantime.  Note that
+  // compare_exchange_weak loads the current value into the expected value
+  // parameter (lwm or hwm below) if the compare fails.
+  uint_fast64_t lwm = current_data->lwm.load();
+  while ((sample < lwm) &&
+         (!current_data->lwm.compare_exchange_weak(lwm, sample)))
   {
-     current_value++;
-     update_values(five_second, current_value);
-     update_values(five_minute, current_value);
+    // Do nothing.
   }
-
-  get_values()
+  uint_fast64_t hwm = current_data->hwm.load();
+  while ((sample > hwm) &&
+         (!current_data->hwm.compare_exchange_weak(hwm, sample)))
   {
-
+    // Do nothing.
   }
-
-  CurrentAndPrevious<ContinuousStatistics> five_second;
-  CurrentAndPrevious<ContinuousStatistics> five_minute;
-  uint32_t current_value;
-
-private:
-  void update_values(CurrentAndPrevious<ContinuousStatistics>& data, uint32_t sample)
-  {
-    struct timespec now;
-    clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
-    ContinuousStatistics* current_data = data.get_current(now);
-
-    TRC_DEBUG("Accumulating sample %uui into continuous accumulator statistic", sample);
-
-    // Compute the updated sum and sqsum based on the previous values, dependent on
-    // how long since an update happened. Additionally update the sum of squares as a
-    // rolling total, and update the time of the last update. Also maintain a
-    // current value held, that can be used if the period ends.
-
-    uint64_t time_since_last_update = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
-                                     - (current_data->time_last_update_ms.load());
-    uint32_t current_value = current_data->current_value.load();
-
-    current_data->time_last_update_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
-    current_data->sum += current_value * time_since_last_update;
-    current_data->sqsum += current_value * current_value * time_since_last_update;
-    current_data->current_value = sample;
-
-    // Update the low- and high-water marks.  In each case, we get the current
-    // value, decide whether a change is required and then atomically swap it
-    // if so, repeating if it was changed in the meantime.  Note that
-    // compare_exchange_weak loads the current value into the expected value
-    // parameter (lwm or hwm below) if the compare fails.
-    uint_fast64_t lwm = current_data->lwm.load();
-    while ((sample < lwm) &&
-           (!current_data->lwm.compare_exchange_weak(lwm, sample)))
-    {
-      // Do nothing.
-    }
-    uint_fast64_t hwm = current_data->hwm.load();
-    while ((sample > hwm) &&
-           (!current_data->hwm.compare_exchange_weak(hwm, sample)))
-    {
-      // Do nothing.
-    }
-  };
 }
