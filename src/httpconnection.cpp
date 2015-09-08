@@ -328,7 +328,14 @@ HTTPCode HttpConnection::send_put(const std::string& path,
 {
   std::string unused_response;
   std::map<std::string, std::string> unused_headers;
-  return HttpConnection::send_put(path, unused_headers, unused_response, body, trail, username);
+  std::vector<std::string> extra_req_headers;
+  return HttpConnection::send_put(path,
+                                  unused_headers,
+                                  unused_response,
+                                  body,
+                                  extra_req_headers,
+                                  trail,
+                                  username);
 }
 
 HTTPCode HttpConnection::send_put(const std::string& path,
@@ -338,7 +345,14 @@ HTTPCode HttpConnection::send_put(const std::string& path,
                                   const std::string& username)
 {
   std::map<std::string, std::string> unused_headers;
-  return HttpConnection::send_put(path, unused_headers, response, body, trail, username);
+  std::vector<std::string> extra_req_headers;
+  return HttpConnection::send_put(path,
+                                  unused_headers,
+                                  response,
+                                  body,
+                                  extra_req_headers,
+                                  trail,
+                                  username);
 }
 
 HTTPCode HttpConnection::send_put(const std::string& path,
@@ -348,13 +362,21 @@ HTTPCode HttpConnection::send_put(const std::string& path,
                                   const std::string& username)
 {
   std::string unused_response;
-  return HttpConnection::send_put(path, headers, unused_response, body, trail, username);
+  std::vector<std::string> extra_req_headers;
+  return HttpConnection::send_put(path,
+                                  headers,
+                                  unused_response,
+                                  body,
+                                  extra_req_headers,
+                                  trail,
+                                  username);
 }
 
 HTTPCode HttpConnection::send_put(const std::string& path,                     //< Absolute path to request from server - must start with "/"
                                   std::map<std::string, std::string>& headers, //< Map of headers from the response
                                   std::string& response,                       //< Retrieved document
                                   const std::string& body,                     //< Body to send in request
+                                  const std::vector<std::string>& extra_req_headers, //< Extra headers to add to the request.
                                   SAS::TrailId trail,                          //< SAS trail
                                   const std::string& username)                 //< Username to assert (if assertUser was true, else ignored)
 {
@@ -363,8 +385,14 @@ HTTPCode HttpConnection::send_put(const std::string& path,                     /
   curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
   curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
-  std::vector<std::string> unused_extra_headers;
-  HTTPCode status = send_request(path, body, response, "", trail, "PUT", unused_extra_headers, curl);
+  HTTPCode status = send_request(path,
+                                 body,
+                                 response,
+                                 "",
+                                 trail,
+                                 "PUT",
+                                 extra_req_headers,
+                                 curl);
 
   return status;
 }

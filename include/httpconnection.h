@@ -99,11 +99,11 @@ public:
                         std::string& response,
                         const std::string& username,
                         SAS::TrailId trail);
-  virtual long send_get(const std::string& path,                     
-                        std::map<std::string, std::string>& headers, 
-                        std::string& response,                       
-                        const std::string& username,                 
-                        SAS::TrailId trail);                         
+  virtual long send_get(const std::string& path,
+                        std::map<std::string, std::string>& headers,
+                        std::string& response,
+                        const std::string& username,
+                        SAS::TrailId trail);
   virtual long send_get(const std::string& path,                     //< Absolute path to request from server - must start with "/"
                         std::map<std::string, std::string>& headers, //< Map of headers from the response
                         std::string& response,                       //< Retrieved document
@@ -147,6 +147,7 @@ public:
                         std::map<std::string, std::string>& headers, //< Map of headers from the response
                         std::string& response,                       //< Retrieved document
                         const std::string& body,                     //< Body to send in request
+                        const std::vector<std::string>& extra_req_headers, //< Extra headers to add to the request.
                         SAS::TrailId trail,                          //< SAS trail
                         const std::string& username = "");           //< Username to assert (if assertUser was true, else ignored)
 
