@@ -52,7 +52,8 @@ Stack::Stack() : _initialized(false),
                  _exception_handler(NULL),
                  _comm_monitor(NULL),
                  _realm_counter(NULL),
-                 _host_counter(NULL)
+                 _host_counter(NULL),
+                 _peer_count(-1)
 {
   pthread_mutex_init(&_peers_lock, NULL);
 }
@@ -288,6 +289,8 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
   }
   else
   {
+    TRC_DEBUG("Callback (type %d) from freeDiameter: %s", type, peer->info.pi_diamid);
+
     DiamId_t host = peer->info.pi_diamid;
     DiamId_t realm = peer->info.runtime.pir_realm;
     pthread_mutex_lock(&_peers_lock);
@@ -329,6 +332,7 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
             stack_peer->listener()->connection_failed(stack_peer);
           }
         }
+        found = true;
         break;
       }
     }
@@ -567,6 +571,7 @@ void Stack::wait_stopped()
     }
     fd_log_handler_unregister();
     _initialized = false;
+    _peer_count = -1;
   }
 }
 
@@ -617,13 +622,21 @@ void Stack::set_trail_id(struct msg* fd_msg, SAS::TrailId trail)
 
 void Stack::send(struct msg* fd_msg, SAS::TrailId trail)
 {
+  // Log any suspicious peer state for context in case the send fails
+  sas_log_peer_state(trail);
+
   set_trail_id(fd_msg, trail);
   fd_msg_send(&fd_msg, NULL, NULL);
 }
 
 void Stack::send(struct msg* fd_msg, Transaction* tsx)
 {
-  set_trail_id(fd_msg, tsx->trail());
+  SAS::TrailId trail = tsx->trail();
+
+  // Log any suspicious peer state for context in case the send fails
+  sas_log_peer_state(trail);
+
+  set_trail_id(fd_msg, trail);
   fd_msg_send(&fd_msg, Transaction::on_response, tsx);
 }
 
@@ -637,7 +650,12 @@ void Stack::send(struct msg* fd_msg, Transaction* tsx, unsigned int timeout_ms)
   timeout_ts.tv_sec += timeout_ms / 1000 + timeout_ts.tv_nsec / (1000 * 1000 * 1000);
   timeout_ts.tv_nsec = timeout_ts.tv_nsec % (1000 * 1000 * 1000);
 
-  set_trail_id(fd_msg, tsx->trail());
+  SAS::TrailId trail = tsx->trail();
+
+  // Log any suspicious peer state for context in case the send fails
+  sas_log_peer_state(trail);
+
+  set_trail_id(fd_msg, trail);
   fd_msg_send_timeout(&fd_msg, Transaction::on_response, tsx, Transaction::on_timeout, &timeout_ts);
 }
 
@@ -769,8 +787,64 @@ void Stack::remove_int(Peer* peer)
   {
     _peers.erase(ii);
   }
+  else
+  {
+    TRC_WARNING("Peer %s was not in our list", peer->host().c_str());
+  }
   std::string host = peer->host();
   fd_peer_remove((char*)host.c_str(), host.length());
+}
+
+void Stack::peer_count(int count)
+{
+  pthread_mutex_lock(&_peers_lock);
+  _peer_count = count;
+
+  if (_peer_count == 0)
+  {
+    TRC_ERROR("No Diameter peers have been found");
+  }
+
+  pthread_mutex_unlock(&_peers_lock);
+}
+
+// The following function makes a SAS log if either of the following conditions
+// holds:
+//
+// - the number of managed peers is zero (suggesting a configuration or DNS problem).
+// - the number of currently connected peers is zero.
+//
+// We use the count explicitly passed to us by the upstream manager
+// to make the "managed peers zero" determination.  The "currently connected
+// zero" condition is determined by checking the size of our own peer list,
+// since we take peers out of our list if they subsequently failed to connect
+// or fail realm identification checks.
+//
+// We don't bother looking at peers for whom connected() returns "false" as
+// these are peers that have recently been started, and for which
+// initial connectivity is still ongoing (so they should be considered "good"
+// peers until we determine otherwise)
+//
+// The SAS logs won't appear if hss_hostname has been configured (rather than
+// hss_realm) as we have no visibility of the connectedness of the single
+// peer in this case (there is always exactly one peer and freeDiameter
+// automatically retries connection failures on our behalf).
+void Stack::sas_log_peer_state(SAS::TrailId trail)
+{
+  bool no_peers;
+  bool no_connected_peers;
+  pthread_mutex_lock(&_peers_lock);
+
+  no_peers = (_peer_count == 0);
+  no_connected_peers = (_peers.size() == 0);
+
+  pthread_mutex_unlock(&_peers_lock);
+
+  if (no_peers || no_connected_peers)
+  {
+    SAS::Event event(trail, (no_peers) ? SASEvent::DIAMETER_NO_PEERS : SASEvent::DIAMETER_NO_CONNECTED_PEERS, 0);
+    SAS::report_event(event);
+  }
 }
 
 void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
