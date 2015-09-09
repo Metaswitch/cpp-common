@@ -332,7 +332,6 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
             stack_peer->listener()->connection_failed(stack_peer);
           }
         }
-        found = true;
         break;
       }
     }
