@@ -41,8 +41,8 @@
 
 #include "logger.h"
 
-#ifndef SNMP_INFINITE_TIMER_TABLE_H
-#define SNMP_INFINITE_TIMER_TABLE_H
+#ifndef SNMP_INFINITE_TIMER_COUNT_TABLE_H
+#define SNMP_INFINITE_TIMER_COUNT_TABLE_H
 
 namespace SNMP
 {
@@ -50,16 +50,13 @@ namespace SNMP
 class InfiniteTimerCountTable
 {
 public:
+  InfiniteTimerCountTable() {};
   virtual ~InfiniteTimerCountTable() {};
 
   static InfiniteTimerCountTable* create(std::string name, std::string oid);
 
   virtual void increment(std::string) = 0;
   virtual void decrement(std::string) = 0;
-
-protected:
-//  InfiniteTimerCountTable() {};
-
 };
 }
 

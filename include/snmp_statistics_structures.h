@@ -84,6 +84,43 @@ struct ContinuousStatistics
   std::atomic_uint_fast64_t hwm;
   std::atomic_uint_fast64_t lwm;
 
+  ContinuousStatistics()
+  {
+    count = 0;
+    current_value = 0;
+    time_last_update_ms = 0;
+    time_period_start_ms = 0;
+    sum = 0;
+    sqsum = 0;
+    hwm = 0;
+    lwm = 0;
+  }
+
+  ContinuousStatistics(const ContinuousStatistics &other)
+  {
+    count.store(other.count.load());
+    current_value.store(other.current_value.load());
+    time_last_update_ms.store(other.time_last_update_ms.load());
+    time_period_start_ms.store(other.time_period_start_ms.load());
+    sum.store(other.sum.load());
+    sqsum.store(other.sqsum.load());
+    hwm.store(other.hwm.load());
+    lwm.store(other.lwm.load());
+  }
+
+/*  ContinuousStatistics& operator=(const ContinuousStatistics& other)
+  {
+    count.store(other.count.load());
+    current_value.store(other.current_value.load());
+    time_last_update_ms.store(other.time_last_update_ms.load());
+    time_period_start_ms.store(other.time_period_start_ms.load());
+    sum.store(other.sum.load());
+    sqsum.store(other.sqsum.load());
+    hwm.store(other.hwm.load());
+    lwm.store(other.lwm.load());
+    return *this;
+  }*/
+
   void reset(uint64_t periodstart_ms, ContinuousStatistics* previous = NULL)
   {
     struct timespec now;
@@ -131,5 +168,13 @@ struct ContinuousStatistics
   }
 };
 
+struct SimpleStatistics
+{
+  uint64_t average = 0;
+  uint64_t variance = 0;
+  uint32_t hwm = 0;
+  uint32_t lwm = 0;
+  uint32_t count = 0;
+};
 }
 #endif
