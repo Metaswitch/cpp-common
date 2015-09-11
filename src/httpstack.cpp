@@ -214,7 +214,8 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
   }
 
   if ((local_bind_address != full_bind_address) &&
-      ((full_bind_address != "0.0.0.0") || (full_bind_address != "::")))
+      (full_bind_address != "0.0.0.0")          &&
+      (full_bind_address != "ipv6:::"))
   {
     // Listen on the local address as well as the main address (so long as the
     // main address isn't all)
