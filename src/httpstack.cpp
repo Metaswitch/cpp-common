@@ -213,7 +213,11 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
     throw Exception("evhtp_bind_socket", rc); // LCOV_EXCL_LINE
   }
 
-  if (local_bind_address != full_bind_address) {
+  if ((local_bind_address != full_bind_address) &&
+      (full_bind_address != "0.0.0.0") || (full_bind_address != "::"))
+  {
+    // Listen on the local address as well as the main address (so long as the
+    // main address isn't all)
     rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), _bind_port, 1024);
     if (rc != 0)
     {
