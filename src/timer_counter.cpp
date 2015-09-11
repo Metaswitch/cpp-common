@@ -86,16 +86,19 @@ void TimerCounter::get_values(int index, timespec now, SNMP::SimpleStatistics* s
                                  current_value,
                                  now,
                                  stats);
+            break;
     case 2: update_values(five_minute.get_current(now),
                                  five_minute.get_interval_ms(),
                                  current_value,
                                  now,
                                  stats);
+            break;
     case 3: update_values(five_minute.get_previous(now),
                                  five_minute.get_interval_ms(),
                                  current_value,
                                  now,
                                  stats);
+            break;
   }
 }
 

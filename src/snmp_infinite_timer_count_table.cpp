@@ -232,11 +232,6 @@ namespace SNMP
                        std::string* tag,
                        std::vector<int>* identifier)
     {
-      for (int ii = 0; ii<(int)(oid_len); ii++)
-      {
-        TRC_INFO("Element at %d is %u", ii, *(oid+ii));
-      }
-
       for (int ii = 0; ii<(int)(ROOT_OID_LEN); ii++)
       {
         *new_oid_p = *oid;
