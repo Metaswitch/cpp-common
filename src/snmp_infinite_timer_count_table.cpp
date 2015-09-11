@@ -103,6 +103,7 @@ namespace SNMP
     int ROOT_OID_LEN = 7; // Currently "1.2.826.0.1.1578918.999";
     unsigned long new_oid[128];
     unsigned long* new_oid_p = &new_oid[0];
+    unsigned long new_oid_len;
     netsnmp_handler_registration* _handler_reg;
   private:
     // netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
@@ -126,8 +127,6 @@ namespace SNMP
     {
       TRC_INFO("Starting handling batch of SNMP requests");
 
-      unsigned long new_oid_len = 0;
-
       for (; requests != NULL; requests = requests->next)
       {
         snprint_objid(buf, sizeof(buf),
@@ -147,6 +146,7 @@ namespace SNMP
         SimpleStatistics stats;
         int request_type = reqinfo->mode;
         netsnmp_variable_list* var = requests->requestvb;
+        new_oid_len = 0;
         Value result;
 
         // Get the time we will process this request at
