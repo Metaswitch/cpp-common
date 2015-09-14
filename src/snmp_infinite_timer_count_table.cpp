@@ -35,6 +35,7 @@
  */
 
 #include <string>
+#include <algorithm>
 
 #include "snmp_statistics_structures.h"
 #include "snmp_infinite_timer_count_table.h"
@@ -104,7 +105,7 @@ namespace SNMP
     unsigned long new_oid[128];
     unsigned long* new_oid_p;
     unsigned long new_oid_len;
-    int ROOT_OID_LEN; // Currently "1.2.826.0.1.1578918.999";
+    int ROOT_OID_LEN;
     netsnmp_handler_registration* _handler_reg;
   private:
     // netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
@@ -197,7 +198,7 @@ namespace SNMP
 
 
         // Update and obtain the relevants statistics structure
-        _timer_counters[tag].get_values(identifier.back(), now, &stats);
+        _timer_counters[tag].get_statistics(identifier.back(), now, &stats);
 
         TRC_DEBUG("Have got statistics structure");
 
@@ -310,19 +311,29 @@ namespace SNMP
         {
           identifier->resize(2);
         }
-        identifier->at(1)++;
-        if (identifier->at(1) > 3)
-        {
-          identifier->at(0)++;
-          identifier->at(1) = 1;
-        }
+
         if (identifier->at(0) < 2)
+        // If identifier is before the start of the values, just jump to the
+        // first element
         {
           identifier->at(0) = 2;
+          identifier->at(1) = 1;
         }
-        if (identifier->at(0) > 5)
+
+        else
         {
-          return false;
+        // Increment with overflow on elements. If we exceed the 5th column,
+        // we've gone past the end of the table, so false
+          identifier->at(1)++;
+          if (identifier->at(1) > 3)
+          {
+            identifier->at(0)++;
+            identifier->at(1) = 1;
+          }
+          if (identifier->at(0) > 5)
+          {
+            return false;
+          }
         }
         break;
 

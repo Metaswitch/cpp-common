@@ -40,67 +40,70 @@
 
 TimerCounter::TimerCounter():
   five_second(5000),
-  five_minute(300000) {}
+  five_minute(300000)
+{
+  timespec now;
+  clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+  write_statistics(five_second.get_current(now), 0);
+  write_statistics(five_second.get_previous(now), 0);
+  write_statistics(five_minute.get_current(now), 0);
+  write_statistics(five_minute.get_previous(now), 0);
+}
 
 
 TimerCounter::~TimerCounter() {}
 
 void TimerCounter::increment()
 {
-  accumulate_difference(1);
+  timespec now;
+  clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+  refresh_statistics(five_second.get_current(now), now, five_second.get_interval_ms());
+  write_statistics(five_second.get_current(now), 1);
+
+  refresh_statistics(five_minute.get_current(now), now, five_minute.get_interval_ms());
+  write_statistics(five_minute.get_current(now), 1);
 }
 
 void TimerCounter::decrement()
 {
-  accumulate_difference(-1);
-}
-
-
-void TimerCounter::get_values(int index, timespec now, SNMP::SimpleStatistics* stats)
-{
-  switch (index)
-  {
-    case 1: update_values(five_second.get_previous(now),
-                          five_second.get_interval_ms(),
-                          now,
-                          stats);
-            break;
-    case 2: update_values(five_minute.get_current(now),
-                          five_minute.get_interval_ms(),
-                          now,
-                          stats);
-            break;
-    case 3: update_values(five_minute.get_previous(now),
-                          five_minute.get_interval_ms(),
-                          now,
-                          stats);
-            break;
-  }
-}
-
-void TimerCounter::accumulate_difference(int difference) {
-  struct timespec now;
+  timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
-  SNMP::SimpleStatistics stats;
+  refresh_statistics(five_second.get_current(now), now, five_second.get_interval_ms());
+  write_statistics(five_second.get_current(now), -1);
 
-  update_values(five_second.get_current(now),
-                five_second.get_interval_ms(),
-                now,
-                &stats);
-  five_second.get_current(now)->current_value += difference;
-
-  update_values(five_minute.get_current(now),
-                five_minute.get_interval_ms(),
-                now,
-                &stats);
-  five_minute.get_current(now)->current_value += difference;
+  refresh_statistics(five_minute.get_current(now), now, five_minute.get_interval_ms());
+  write_statistics(five_minute.get_current(now), -1);
 }
 
-void TimerCounter::update_values(SNMP::ContinuousStatistics* data,
-                                                       uint32_t interval_ms,
-                                                       timespec now,
-                                                       SNMP::SimpleStatistics* new_data)
+void TimerCounter::get_statistics(int index, timespec now, SNMP::SimpleStatistics* stats)
+{
+  SNMP::ContinuousStatistics* data = NULL;
+  uint32_t interval_ms = 0;
+  switch (index)
+  {
+    case 1:
+      data = five_second.get_previous(now);
+      interval_ms = five_second.get_interval_ms();
+      break;
+    case 2:
+      data = five_minute.get_current(now);
+      interval_ms = five_minute.get_interval_ms();
+      break;
+    case 3:
+      data = five_minute.get_previous(now);
+      interval_ms = five_minute.get_interval_ms();
+      break;
+  }
+
+  refresh_statistics(data, now, interval_ms);
+  read_statistics(data, stats, now, interval_ms);
+}
+
+
+void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec now, uint32_t interval_ms)
 {
   TRC_DEBUG("Bringing the statistics up to date");
 
@@ -109,13 +112,11 @@ void TimerCounter::update_values(SNMP::ContinuousStatistics* data,
   // rolling total, and update the time of the last update. Also maintain a
   // current value held, that can be used if the period ends.
 
-  uint64_t time_since_last_update = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
-                                    - (data->time_last_update_ms.load());
   uint64_t time_period_start_ms = data->time_period_start_ms.load();
   uint64_t time_period_end_ms = ((time_period_start_ms + interval_ms) / interval_ms) * interval_ms;
   uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
   uint64_t time_comes_first_ms = std::min(time_period_end_ms, time_now_ms);
-  uint64_t period_count = (time_comes_first_ms - time_period_start_ms);
+  uint64_t time_since_last_update = time_comes_first_ms - data->time_last_update_ms.load();
 
   uint64_t current_value = data->current_value.load();
   uint64_t sum = data->sum.load();
@@ -126,7 +127,11 @@ void TimerCounter::update_values(SNMP::ContinuousStatistics* data,
 
   data->sum.store(sum);
   data->sqsum.store(sqsum);
-  data->time_last_update_ms.store(time_now_ms);
+  data->time_last_update_ms.store(time_comes_first_ms);
+}
+
+void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_delta)
+{
 
   // Update the low- and high-water marks.  In each case, we get the current
   // value, decide whether a change is required and then atomically swap it
@@ -134,33 +139,52 @@ void TimerCounter::update_values(SNMP::ContinuousStatistics* data,
   // compare_exchange_weak loads the current value into the expected value
   // parameter (lwm or hwm below) if the compare fails.
 
+  uint64_t new_value = data->current_value.load() + value_delta;
+
   uint_fast64_t lwm = data->lwm.load();
-  while ((current_value < lwm) &&
-         (!data->lwm.compare_exchange_weak(lwm, current_value)))
-  {
-    // Do nothing.
-  }
-  uint_fast64_t hwm = data->hwm.load();
-  while ((current_value > hwm) &&
-         (!data->hwm.compare_exchange_weak(hwm, current_value)))
+  while ((new_value < lwm) &&
+         (!data->lwm.compare_exchange_weak(lwm, new_value)))
   {
     // Do nothing.
   }
 
-  TRC_DEBUG("sum: %u", sum);
-  TRC_DEBUG("sqsum: %u", sqsum);
-  TRC_DEBUG("current_value: %u", current_value);
-  TRC_DEBUG("lwm: %u", lwm);
-  TRC_DEBUG("hwm: %u", hwm);
+  uint_fast64_t hwm = data->hwm.load();
+  while ((new_value > hwm) &&
+         (!data->hwm.compare_exchange_weak(hwm, new_value)))
+  {
+    // Do nothing.
+  }
+
+  data->current_value.store(new_value);
+}
+
+void TimerCounter::read_statistics(SNMP::ContinuousStatistics* data,
+                                   SNMP::SimpleStatistics* new_data,
+                                   timespec now,
+                                   uint32_t interval_ms)
+{
+  uint64_t hwm = data->hwm.load();
+  uint64_t lwm = data->lwm.load();
+  uint64_t sum = data->sum.load();
+  uint64_t sqsum = data->sqsum.load();
+  uint64_t current_value = data->current_value.load();
+
+  uint64_t time_period_start_ms = data->time_period_start_ms.load();
+  uint64_t time_period_end_ms = ((time_period_start_ms + interval_ms) / interval_ms) * interval_ms;
+  uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
+  uint64_t time_comes_first_ms = std::min(time_period_end_ms, time_now_ms);
+  uint64_t period_count = (time_comes_first_ms - time_period_start_ms);
 
   // Save off the data in the stats parameter
+  new_data->average = current_value;
+
   if (period_count > 0)
   {
-    new_data->average = sum / period_count;
-    new_data->variance = ((sqsum * period_count) - (sum * sum)) /
-                          (period_count * period_count);
+    uint64_t average = sum / period_count;
+    new_data->average = average;
+    new_data->variance = (sqsum / period_count) - (average * average);
   }
   new_data->current_value = current_value;
   new_data->hwm = hwm;
-  new_data->lwm = lwm == ULONG_MAX ? 0 : lwm;
+  new_data->lwm = (lwm == ULONG_MAX) ? 0 : lwm;
 }

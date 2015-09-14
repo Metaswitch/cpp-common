@@ -68,7 +68,7 @@ public:
   static int get_count_size() { return 1; }
 };
 
-class SingleCountByNodeTypeTableImpl: public CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow>, public SingleCountByNodeTypeTable
+class SingleCountByNodeTypeTableImpl: public CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow, SingleCount>, public SingleCountByNodeTypeTable
 {
 public:
   SingleCountByNodeTypeTableImpl(std::string name,

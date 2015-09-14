@@ -55,19 +55,20 @@ public:
 
   void increment();
   void decrement();
-
-  void get_values(int index, timespec now, SNMP::SimpleStatistics* stats);
-  uint32_t get_interval_ms(int index);
+  void get_statistics(int index, timespec now, SNMP::SimpleStatistics* stats);
 
   CurrentAndPrevious<SNMP::ContinuousStatistics> five_second;
   CurrentAndPrevious<SNMP::ContinuousStatistics> five_minute;
 
 private:
-  void accumulate_difference(int difference);
-  void update_values(SNMP::ContinuousStatistics* current_data,
-                     uint32_t interval_ms,
-                     timespec now,
-                     SNMP::SimpleStatistics* stats);
+  void refresh_statistics(SNMP::ContinuousStatistics* current_data,
+                          timespec now,
+                          uint32_t interval_ms);
+  void write_statistics(SNMP::ContinuousStatistics* current_data, int value_delta);
+  void read_statistics(SNMP::ContinuousStatistics* current_data,
+                       SNMP::SimpleStatistics* return_data,
+                       timespec now,
+                       uint32_t interval_ms);
 };
 
 #endif

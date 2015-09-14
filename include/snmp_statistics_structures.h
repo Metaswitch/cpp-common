@@ -172,10 +172,10 @@ struct SimpleStatistics
 {
   uint64_t average = 0;
   uint64_t variance = 0;
-  uint32_t current_value = 0;
-  uint32_t hwm = 0;
-  uint32_t lwm = 0;
-  uint32_t count = 0;
+  uint64_t current_value = 0;
+  uint64_t hwm = 0;
+  uint64_t lwm = ULONG_MAX;
+  uint64_t count = 0;
 };
 }
 #endif

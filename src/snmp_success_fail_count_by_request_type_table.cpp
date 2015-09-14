@@ -37,7 +37,7 @@
 #include "snmp_success_fail_count_by_request_type_table.h"
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_internal/snmp_counts_by_other_type_table.h"
-#include "success_fail_count.h"
+#include "snmp_statistics_structures.h"
 #include "snmp_sip_request_types.h"
 #include "logger.h"
 

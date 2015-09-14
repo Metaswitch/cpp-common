@@ -44,7 +44,7 @@ namespace SNMP
 {
 
 // The Diameter base protocol result codes as documented in RFC 6733.
-static std::vector<int> base_result_codes = 
+static std::vector<int> base_result_codes =
 {
   1001,
   2001, 2002,
@@ -55,10 +55,10 @@ static std::vector<int> base_result_codes =
 };
 
 // The 3GPP specific result codes as documented in ETSI TS 129 229.
-static std::vector<int> _3gpp_result_codes = 
+static std::vector<int> _3gpp_result_codes =
 {
   2001, 2002, 2003, 2004,
-  5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009, 5011 
+  5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009, 5011
 };
 
 
@@ -123,12 +123,12 @@ public:
 
     create_and_add_rows(DiameterAppId::TIMEOUT, 0);
   }
-  
+
   void create_and_add_rows(DiameterAppId app_id, int code)
   {
-    std::map<int, CxCounterRow::CurrentAndPrevious*>* five_second;
-    std::map<int, CxCounterRow::CurrentAndPrevious*>* five_minute;
-    
+    std::map<int, CurrentAndPrevious<SingleCount>*>* five_second;
+    std::map<int, CurrentAndPrevious<SingleCount>*>* five_minute;
+
     switch (app_id)
     {
       case BASE:
@@ -145,8 +145,8 @@ public:
         break;
     }
 
-    (*five_second)[code] = new CxCounterRow::CurrentAndPrevious(5000);
-    (*five_minute)[code] = new CxCounterRow::CurrentAndPrevious(300000);
+    (*five_second)[code] = new CurrentAndPrevious<SingleCount>(5000);
+    (*five_minute)[code] = new CurrentAndPrevious<SingleCount>(300000);
     this->add(n++, new CxCounterRow(TimePeriodIndexes::scopePrevious5SecondPeriod,
                                     app_id,
                                     code,
@@ -182,41 +182,41 @@ public:
 
   ~CxCounterTableImpl()
   {
-    for (std::map<int, CxCounterRow::CurrentAndPrevious*>::iterator type = base_five_second.begin();
+    for (std::map<int, CurrentAndPrevious<SingleCount>*>::iterator type = base_five_second.begin();
          type != base_five_second.end();
          type++)
     {  delete type->second; }
-    for (std::map<int, CxCounterRow::CurrentAndPrevious*>::iterator type = base_five_minute.begin();
+    for (std::map<int, CurrentAndPrevious<SingleCount>*>::iterator type = base_five_minute.begin();
          type != base_five_minute.end();
          type++)
     {  delete type->second; }
-    
-    for (std::map<int, CxCounterRow::CurrentAndPrevious*>::iterator type = _3gpp_five_second.begin();
+
+    for (std::map<int, CurrentAndPrevious<SingleCount>*>::iterator type = _3gpp_five_second.begin();
          type != _3gpp_five_second.end();
          type++)
     {  delete type->second; }
-    for (std::map<int, CxCounterRow::CurrentAndPrevious*>::iterator type = _3gpp_five_minute.begin();
+    for (std::map<int, CurrentAndPrevious<SingleCount>*>::iterator type = _3gpp_five_minute.begin();
          type != _3gpp_five_minute.end();
          type++)
     {  delete type->second; }
-    
+
     delete timeout_five_second.begin()->second;
     delete timeout_five_minute.begin()->second;
-  } 
+  }
 private:
- 
+
   CxCounterRow* new_row(int indexes) { return NULL;};
 
   int n;
 
-  std::map<int, CxCounterRow::CurrentAndPrevious*> base_five_second;
-  std::map<int, CxCounterRow::CurrentAndPrevious*> base_five_minute;
-  
-  std::map<int, CxCounterRow::CurrentAndPrevious*> _3gpp_five_second;
-  std::map<int, CxCounterRow::CurrentAndPrevious*> _3gpp_five_minute;
-  
-  std::map<int, CxCounterRow::CurrentAndPrevious*> timeout_five_second;
-  std::map<int, CxCounterRow::CurrentAndPrevious*> timeout_five_minute;
+  std::map<int, CurrentAndPrevious<SingleCount>*> base_five_second;
+  std::map<int, CurrentAndPrevious<SingleCount>*> base_five_minute;
+
+  std::map<int, CurrentAndPrevious<SingleCount>*> _3gpp_five_second;
+  std::map<int, CurrentAndPrevious<SingleCount>*> _3gpp_five_minute;
+
+  std::map<int, CurrentAndPrevious<SingleCount>*> timeout_five_second;
+  std::map<int, CurrentAndPrevious<SingleCount>*> timeout_five_minute;
 };
 
 CxCounterTable* CxCounterTable::create(std::string name,

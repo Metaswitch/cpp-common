@@ -37,7 +37,7 @@
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_internal/snmp_time_period_table.h"
 #include "snmp_success_fail_count_table.h"
-#include "success_fail_count.h"
+#include "snmp_statistics_structures.h"
 #include "logger.h"
 
 namespace SNMP

@@ -101,7 +101,6 @@ private:
   {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
-    accumulate_internal(data, sample, now)
 
     ContinuousStatistics* current_data = data.get_current(now);
 
