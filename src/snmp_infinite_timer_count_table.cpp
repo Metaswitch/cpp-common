@@ -58,6 +58,7 @@ namespace SNMP
       _handler_reg(NULL)
     {
       read_objid(tbl_oid.c_str(), _tbl_oid, &_oidlen);
+      ROOT_OID_LEN = std::count(tbl_oid.begin(), tbl_oid.end(), '.');
 
 
       TRC_INFO("Registering SNMP table %s", _name.c_str());
@@ -100,10 +101,10 @@ namespace SNMP
     oid _tbl_oid[64];
     char buf[64];
     size_t _oidlen;
-    int ROOT_OID_LEN = 7; // Currently "1.2.826.0.1.1578918.999";
     unsigned long new_oid[128];
-    unsigned long* new_oid_p = &new_oid[0];
+    unsigned long* new_oid_p;
     unsigned long new_oid_len;
+    int ROOT_OID_LEN; // Currently "1.2.826.0.1.1578918.999";
     netsnmp_handler_registration* _handler_reg;
   private:
     // netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
@@ -138,7 +139,8 @@ namespace SNMP
           continue;
         }
 
-
+        new_oid_p = &new_oid[0];
+        new_oid_len = 0;
 
         // We have a request that we need to parse
         std::string tag;
@@ -146,7 +148,8 @@ namespace SNMP
         SimpleStatistics stats;
         int request_type = reqinfo->mode;
         netsnmp_variable_list* var = requests->requestvb;
-        new_oid_len = 0;
+
+
         Value result;
 
         // Get the time we will process this request at
@@ -155,9 +158,13 @@ namespace SNMP
 
         // Populate the values for tag and identifier - e.g. tag = "CALL",
         // identifier = <2, 1>
-        parse_request(requests->requestvb->name, requests->requestvb->name_length, &tag, &identifier);
+        parse_request(requests->requestvb->name,
+                      requests->requestvb->name_length,
+                      &tag,
+                      &identifier);
 
         TRC_DEBUG("Parse request with tag: %s", tag.c_str());
+        TRC_DEBUG("The current length of the new oid is: %u", new_oid_len);
 
         // Update the identifier based on the request type, this gives us a
         // valid, logical OID that we will query
@@ -216,6 +223,11 @@ namespace SNMP
                            new_oid_p,
                            new_oid_len);
 
+        char buf1[64];
+        snprint_objid(buf1, sizeof(buf1),
+                      var->name, var->name_length);
+        TRC_INFO("Returning SNMP request for OID %s", buf1);
+
         snmp_set_var_typed_value(var,
                                  result.type,
                                  result.value,
@@ -223,7 +235,6 @@ namespace SNMP
       }
 
       TRC_INFO("Finished handling batch of SNMP requests");
-      new_oid_len = 0;
       return SNMP_ERR_NOERROR;
     }
 
@@ -234,12 +245,14 @@ namespace SNMP
     {
       for (int ii = 0; ii<(int)(ROOT_OID_LEN); ii++)
       {
+        TRC_DEBUG("Constructing new oid: %d is %u", ii, *oid);
         *new_oid_p = *oid;
         oid++;
         new_oid_p++;
         new_oid_len++;
       }
       int length_of_tag = *oid;
+      TRC_DEBUG("Constructing new oid: %d is %u", ROOT_OID_LEN, *oid);
       *new_oid_p = *oid;
       oid++;
       new_oid_p++;
@@ -250,6 +263,7 @@ namespace SNMP
       for (int ii = 0; ii < length_of_tag; ii++)
       {
         tag_buff[ii] = *oid;
+        TRC_DEBUG("Constructing new oid: %d is %u", ii, *oid);
         *new_oid_p = *oid;
         oid++;
         new_oid_p++;
