@@ -102,10 +102,9 @@ namespace SNMP
     oid _tbl_oid[64];
     char buf[64];
     size_t _oidlen;
-    unsigned long new_oid[128];
-    unsigned long* new_oid_p;
+    unsigned long* new_oid;
     unsigned long new_oid_len;
-    int ROOT_OID_LEN;
+    uint32_t ROOT_OID_LEN;
     netsnmp_handler_registration* _handler_reg;
   private:
     // netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
@@ -140,7 +139,6 @@ namespace SNMP
           continue;
         }
 
-        new_oid_p = &new_oid[0];
         new_oid_len = 0;
 
         // We have a request that we need to parse
@@ -149,8 +147,7 @@ namespace SNMP
         SimpleStatistics stats;
         int request_type = reqinfo->mode;
         netsnmp_variable_list* var = requests->requestvb;
-
-
+        oid* oid = requests->requestvb->name;
         Value result;
 
         // Get the time we will process this request at
@@ -159,7 +156,7 @@ namespace SNMP
 
         // Populate the values for tag and identifier - e.g. tag = "CALL",
         // identifier = <2, 1>
-        parse_request(requests->requestvb->name,
+        parse_request(oid,
                       requests->requestvb->name_length,
                       &tag,
                       &identifier);
@@ -170,6 +167,9 @@ namespace SNMP
         // Update the identifier based on the request type, this gives us a
         // valid, logical OID that we will query
         bool found = update_identifier(request_type, &identifier);
+        new_oid_len += 2;
+        new_oid[ROOT_OID_LEN + 1 + tag.length()] = identifier.at(0);
+        new_oid[ROOT_OID_LEN + 2 + tag.length()] = identifier.at(1);
 
         if (!found && request_type == MODE_GET)
         {
@@ -180,22 +180,8 @@ namespace SNMP
         if (!found && request_type == MODE_GETNEXT)
         {
           TRC_INFO("This request goes beyond the table");
-          // new_oid variable is pointing to the space after the tag
-          new_oid_p--;
-          *new_oid_p = *(new_oid_p) + 1;
-          new_oid_p++;
-          snmp_set_var_objid(var,
-                             new_oid_p,
-                             new_oid_len);
-
-          snmp_set_var_typed_value(var,
-                                   result.type,
-                                   result.value,
-                                   result.size);
-
           return SNMP_ERR_NOERROR;
         }
-
 
         // Update and obtain the relevants statistics structure
         _timer_counters[tag].get_statistics(identifier.back(), now, &stats);
@@ -208,26 +194,16 @@ namespace SNMP
         if (*result.value == -1)
         {
           TRC_INFO("Failed to get value from the structure");
+          snmp_set_var_typed_value(var,
+                                   result.type,
+                                   result.value,
+                                   result.size);
           return SNMP_ERR_NOSUCHNAME;
         }
 
-        for (int i = 0; i < (int)(identifier.size()); i++)
-        {
-          *new_oid_p = (unsigned long)(identifier.at(i));
-          new_oid_p++;
-          new_oid_len++;
-        }
-
-        new_oid_p -= new_oid_len;
-
         snmp_set_var_objid(var,
-                           new_oid_p,
+                           new_oid,
                            new_oid_len);
-
-        char buf1[64];
-        snprint_objid(buf1, sizeof(buf1),
-                      var->name, var->name_length);
-        TRC_INFO("Returning SNMP request for OID %s", buf1);
 
         snmp_set_var_typed_value(var,
                                  result.type,
@@ -244,42 +220,49 @@ namespace SNMP
                        std::string* tag,
                        std::vector<int>* identifier)
     {
-      for (int ii = 0; ii<(int)(ROOT_OID_LEN); ii++)
+      if (oid_len < ROOT_OID_LEN + 1)
       {
-        TRC_DEBUG("Constructing new oid: %d is %u", ii, *oid);
-        *new_oid_p = *oid;
-        oid++;
-        new_oid_p++;
-        new_oid_len++;
+        return;
       }
-      int length_of_tag = *oid;
-      TRC_DEBUG("Constructing new oid: %d is %u", ROOT_OID_LEN, *oid);
-      *new_oid_p = *oid;
-      oid++;
-      new_oid_p++;
-      new_oid_len++;
 
       char tag_buff[128];
+      int length_of_tag = 0;
 
-      for (int ii = 0; ii < length_of_tag; ii++)
+      TRC_DEBUG("oid_len: %u", oid_len);
+      TRC_DEBUG("root_oid_len: %u", ROOT_OID_LEN);
+
+      for (uint32_t ii = 0; ii < oid_len; ii++)
       {
-        tag_buff[ii] = *oid;
-        TRC_DEBUG("Constructing new oid: %d is %u", ii, *oid);
-        *new_oid_p = *oid;
-        oid++;
-        new_oid_p++;
-        new_oid_len++;
+        if (ii < ROOT_OID_LEN)
+        {
+          // Build up root oid on new oid
+          new_oid[ii] = oid[ii];
+          new_oid_len++;
+          TRC_DEBUG("Building up root oid at: %u", ii);
+        }
+        else if (ii < ROOT_OID_LEN + 1)
+        {
+          // Get tag length
+          new_oid[ii] = oid[ii];
+          new_oid_len++;
+          length_of_tag = oid[ii];;
+          TRC_DEBUG("Got tag lengt of %d", length_of_tag);
+        }
+        else if (ii < ROOT_OID_LEN + length_of_tag + 1)
+        {
+          // Get tag
+          new_oid[ii] = oid[ii];
+          new_oid_len++;
+          tag_buff[ii - ROOT_OID_LEN - 1] = oid[ii];
+          TRC_DEBUG("Found letter of : %c", tag_buff[ii-ROOT_OID_LEN-1]);
+        }
+        else {
+          // Anything else is an identifier
+          identifier->push_back(oid[ii]);
+        }
       }
       tag_buff[length_of_tag] = '\0';
       *tag = std::string(tag_buff);
-
-      int remainining_steps = oid_len - ROOT_OID_LEN - length_of_tag - 1;
-
-      for (int ii = 0; ii < remainining_steps; ii++)
-      {
-        identifier->push_back(*oid);
-        oid++;
-      }
     }
 
     bool update_identifier(int request_type, std::vector<int>* identifier)
