@@ -322,3 +322,8 @@ bool Utils::split_host_port(const std::string& host_port,
 
   return true;
 }
+
+bool Utils::overflow_less_than(uint32_t a, uint32_t b)
+{
+    return ((a - b) > ((uint32_t)(1) << 31));
+}
