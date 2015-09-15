@@ -197,6 +197,8 @@ namespace SNMP
                       new_oid_p, new_oid_len);
           TRC_INFO("Returning SNMP request for OID %s", buf2);
 
+          result = Value::uint(0);
+
           snmp_set_var_objid(var,
                              new_oid_p,
                              new_oid_len);
@@ -326,6 +328,7 @@ namespace SNMP
           identifier->at(0) = 2;
           identifier->at(1) = 1;
           new_oid_p[ROOT_OID_LEN + tag.length()]++;
+          return true;
         }
 
         if (identifier->at(0) < 2)
