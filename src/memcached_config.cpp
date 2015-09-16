@@ -42,7 +42,7 @@
 #include "memcached_config.h"
 
 /// The default lifetime (in seconds) of tombstones written to memcached.
-static const int DEFAULT_TOMBSTONE_LIFETIME = 0;
+static const int DEFAULT_TOMBSTONE_LIFETIME = 30 * 60;
 
 MemcachedConfig::MemcachedConfig() :
   servers(), new_servers(), tombstone_lifetime(DEFAULT_TOMBSTONE_LIFETIME)
@@ -121,17 +121,10 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
         }
         else if (key == "tombstone_lifetime")
         {
-          // Read the tombstone lifetime from the config file. Check it is
-          // actually a valid integer before committing to the member variable
-          // (atoi stops when it reaches non-numeric characters).
-          config.tombstone_lifetime = atoi(value.c_str());
-
-          if (std::to_string(config.tombstone_lifetime) != value)
-          {
-            TRC_ERROR("Config contained an invalid tombstone_lifetime line:\n%s",
-                      line.c_str());
-            return false;
-          }
+          // We no longer support this key being configurable.
+          TRC_ERROR("Config file had key 'tombstone_lifetime', which is no " \
+                    "longer supported");
+          return false;
         }
         else
         {
