@@ -712,7 +712,6 @@ private:
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
 
   void set_trail_id(struct msg* fd_msg, SAS::TrailId trail);
-  void sas_log_peer_state(SAS::TrailId trail);
   static void fd_sas_log_diameter_message(enum fd_hook_type type,
                                           struct msg * msg,
                                           struct peer_hdr * peer,
