@@ -119,13 +119,6 @@ bool MemcachedConfigFileReader::read_config(MemcachedConfig& config)
           // Found line defining new servers.
           Utils::split_string(value, ',', config.new_servers, 0, true);
         }
-        else if (key == "tombstone_lifetime")
-        {
-          // We no longer support this key being configurable.
-          TRC_ERROR("Config file had key 'tombstone_lifetime', which is no " \
-                    "longer supported");
-          return false;
-        }
         else
         {
           TRC_ERROR("Malformed config file (got bad line: '%s')",
