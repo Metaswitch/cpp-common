@@ -147,8 +147,9 @@ namespace SNMP
         SimpleStatistics stats;
         int request_type = reqinfo->mode;
         netsnmp_variable_list* var = requests->requestvb;
-        oid* oid = requests->requestvb->name;
-        Value result;
+
+        // We can set a default value of 0 unless we find a valid result
+        Value result = Value::uint(0);
 
         // Get the time we will process this request at
         struct timespec now;
@@ -166,10 +167,15 @@ namespace SNMP
 
         // Update the identifier based on the request type, this gives us a
         // valid, logical OID that we will query
-        bool found = update_identifier(request_type, &identifier);
+        bool found = update_identifier(request_type, tag, &identifier);
         new_oid_len += 2;
-        new_oid[ROOT_OID_LEN + 1 + tag.length()] = identifier.at(0);
-        new_oid[ROOT_OID_LEN + 2 + tag.length()] = identifier.at(1);
+        new_oid_p[ROOT_OID_LEN + 1 + tag.length()] = identifier.at(0);
+        new_oid_p[ROOT_OID_LEN + 2 + tag.length()] = identifier.at(1);
+
+        char buf1[64];
+        snprint_objid(buf1, sizeof(buf1),
+                      new_oid, new_oid_len);
+        TRC_INFO("Returning SNMP request for OID %s", buf1);
 
         if (!found && request_type == MODE_GET)
         {
@@ -180,6 +186,24 @@ namespace SNMP
         if (!found && request_type == MODE_GETNEXT)
         {
           TRC_INFO("This request goes beyond the table");
+          new_oid_p[ROOT_OID_LEN + tag.length()]++;
+          new_oid_p[ROOT_OID_LEN + tag.length() + 1] = 2;
+          new_oid_p[ROOT_OID_LEN + tag.length() + 2] = 1;
+
+          char buf2[64];
+          snprint_objid(buf2, sizeof(buf2),
+                      new_oid_p, new_oid_len);
+          TRC_INFO("Returning SNMP request for OID %s", buf2);
+
+          snmp_set_var_objid(var,
+                             new_oid_p,
+                             new_oid_len);
+
+          snmp_set_var_typed_value(var,
+                                   result.type,
+                                   result.value,
+                                   result.size);
+
           return SNMP_ERR_NOERROR;
         }
 
@@ -220,17 +244,8 @@ namespace SNMP
                        std::string* tag,
                        std::vector<int>* identifier)
     {
-      if (oid_len < ROOT_OID_LEN + 1)
-      {
-        return;
-      }
-
-      char tag_buff[128];
       int length_of_tag = 0;
-
-      TRC_DEBUG("oid_len: %u", oid_len);
-      TRC_DEBUG("root_oid_len: %u", ROOT_OID_LEN);
-
+      char tag_buff[64];
       for (uint32_t ii = 0; ii < oid_len; ii++)
       {
         if (ii < ROOT_OID_LEN)
@@ -242,7 +257,7 @@ namespace SNMP
         }
         else if (ii < ROOT_OID_LEN + 1)
         {
-          // Get tag length
+         // Get tag length
           new_oid[ii] = oid[ii];
           new_oid_len++;
           length_of_tag = oid[ii];;
@@ -256,16 +271,26 @@ namespace SNMP
           tag_buff[ii - ROOT_OID_LEN - 1] = oid[ii];
           TRC_DEBUG("Found letter of : %c", tag_buff[ii-ROOT_OID_LEN-1]);
         }
+        else if (ii < ROOT_OID_LEN + length_of_tag + 2)
+        {
+          if (oid[ii] == ULONG_MAX)
+          {
+            tag_buff[length_of_tag - 1]++;
+          }
+          identifier->push_back(oid[ii]);
+        }
         else {
           // Anything else is an identifier
           identifier->push_back(oid[ii]);
         }
-      }
-      tag_buff[length_of_tag] = '\0';
-      *tag = std::string(tag_buff);
+       }
+       tag_buff[length_of_tag] = '\0';
+       *tag = std::string(tag_buff);
     }
 
-    bool update_identifier(int request_type, std::vector<int>* identifier)
+    bool update_identifier(int request_type,
+                           std::string tag,
+                           std::vector<int>* identifier)
     {
       TRC_INFO("Validating identifier");
       switch (request_type)
@@ -293,6 +318,14 @@ namespace SNMP
         if (identifier->size() > 2)
         {
           identifier->resize(2);
+        }
+
+        if (identifier->at(0) == ULONG_MAX)
+        {
+          identifier->at(0) = 2;
+          identifier->at(1) = 1;
+          new_oid_p[ROOT_OID_LEN + tag.length()]++;
+          return true;
         }
 
         if (identifier->at(0) < 2)
