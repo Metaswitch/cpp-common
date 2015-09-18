@@ -199,6 +199,7 @@ ColumnData ContinuousAccumulatorRow::get_columns()
     accumulated->sqsum.store(sqsum);
     avg = sum / period_count;
     variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
+//    variance = sqsum / period_count - (sum * sum);
   }
 
   // Construct and return a ColumnData with the appropriate values

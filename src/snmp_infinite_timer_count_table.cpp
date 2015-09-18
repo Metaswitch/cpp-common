@@ -102,8 +102,6 @@ namespace SNMP
     oid _tbl_oid[64];
     char buf[64];
     size_t _oidlen;
-    unsigned long* new_oid;
-    unsigned long new_oid_len;
     uint32_t ROOT_OID_LEN;
     netsnmp_handler_registration* _handler_reg;
   private:
@@ -139,7 +137,9 @@ namespace SNMP
           continue;
         }
 
-        new_oid_len = 0;
+        unsigned long new_oid_a[64];
+        unsigned long* new_oid = new_oid_a;
+        uint32_t new_oid_len = 0;
 
         // We have a request that we need to parse
         std::string tag;
@@ -157,20 +157,22 @@ namespace SNMP
 
         // Populate the values for tag and identifier - e.g. tag = "CALL",
         // identifier = <2, 1>
-        parse_request(oid,
+        parse_request(requests->requestvb->name,
                       requests->requestvb->name_length,
                       &tag,
-                      &identifier);
+                      &identifier,
+                      new_oid,
+                      new_oid_len);
 
         TRC_DEBUG("Parse request with tag: %s", tag.c_str());
         TRC_DEBUG("The current length of the new oid is: %u", new_oid_len);
 
         // Update the identifier based on the request type, this gives us a
         // valid, logical OID that we will query
-        bool found = update_identifier(request_type, tag, &identifier);
+        bool found = update_identifier(request_type, tag, &identifier, new_oid, new_oid_len);
         new_oid_len += 2;
-        new_oid_p[ROOT_OID_LEN + 1 + tag.length()] = identifier.at(0);
-        new_oid_p[ROOT_OID_LEN + 2 + tag.length()] = identifier.at(1);
+        new_oid[ROOT_OID_LEN + 1 + tag.length()] = identifier.at(0);
+        new_oid[ROOT_OID_LEN + 2 + tag.length()] = identifier.at(1);
 
         char buf1[64];
         snprint_objid(buf1, sizeof(buf1),
@@ -186,17 +188,12 @@ namespace SNMP
         if (!found && request_type == MODE_GETNEXT)
         {
           TRC_INFO("This request goes beyond the table");
-          new_oid_p[ROOT_OID_LEN + tag.length()]++;
-          new_oid_p[ROOT_OID_LEN + tag.length() + 1] = 2;
-          new_oid_p[ROOT_OID_LEN + tag.length() + 2] = 1;
-
-          char buf2[64];
-          snprint_objid(buf2, sizeof(buf2),
-                      new_oid_p, new_oid_len);
-          TRC_INFO("Returning SNMP request for OID %s", buf2);
+          new_oid[ROOT_OID_LEN + tag.length()]++;
+          new_oid[ROOT_OID_LEN + tag.length() + 1] = 2;
+          new_oid[ROOT_OID_LEN + tag.length() + 2] = 1;
 
           snmp_set_var_objid(var,
-                             new_oid_p,
+                             new_oid,
                              new_oid_len);
 
           snmp_set_var_typed_value(var,
@@ -242,7 +239,9 @@ namespace SNMP
     void parse_request(oid* oid,
                        unsigned long oid_len,
                        std::string* tag,
-                       std::vector<int>* identifier)
+                       std::vector<int>* identifier,
+                       unsigned long* new_oid,
+                       uint32_t &new_oid_len)
     {
       int length_of_tag = 0;
       char tag_buff[64];
@@ -290,7 +289,9 @@ namespace SNMP
 
     bool update_identifier(int request_type,
                            std::string tag,
-                           std::vector<int>* identifier)
+                           std::vector<int>* identifier,
+                           unsigned long* new_oid,
+                           uint32_t &new_oid_len)
     {
       TRC_INFO("Validating identifier");
       switch (request_type)
@@ -324,7 +325,7 @@ namespace SNMP
         {
           identifier->at(0) = 2;
           identifier->at(1) = 1;
-          new_oid_p[ROOT_OID_LEN + tag.length()]++;
+          new_oid[ROOT_OID_LEN + tag.length()]++;
           return true;
         }
 
