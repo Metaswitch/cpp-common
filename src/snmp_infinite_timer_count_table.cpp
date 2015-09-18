@@ -150,8 +150,8 @@ namespace SNMP
         int request_type = reqinfo->mode;
         netsnmp_variable_list* var = requests->requestvb;
 
-
-        Value result;
+        // We can set a default value of 0 unless we find a valid result
+        Value result = Value::uint(0);
 
         // Get the time we will process this request at
         struct timespec now;
@@ -196,8 +196,6 @@ namespace SNMP
           snprint_objid(buf2, sizeof(buf2),
                       new_oid_p, new_oid_len);
           TRC_INFO("Returning SNMP request for OID %s", buf2);
-
-          result = Value::uint(0);
 
           snmp_set_var_objid(var,
                              new_oid_p,
