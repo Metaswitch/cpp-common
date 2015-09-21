@@ -161,21 +161,31 @@ public:
                                     new CxCounterRow::PreviousView((*five_minute)[code])));
   }
 
+  /// Helper function to increment the current counter for this code if we have a bucket for it.
+  /// We don't have a bucket for all counters, so we need to check first.
+  void safe_increment_current(std::map<int, CxCounterRow::CurrentAndPrevious*>& map, int code)
+  {
+    if (map.count(code) != 0)
+    {
+      map[code]->get_current()->count++;
+    }
+  }
+
   void increment(DiameterAppId app_id, int result_code)
   {
     switch (app_id)
     {
       case BASE:
-        base_five_second[result_code]->get_current()->count++;
-        base_five_minute[result_code]->get_current()->count++;
+        safe_increment_current(base_five_second, result_code);
+        safe_increment_current(base_five_minute, result_code);
         break;
       case _3GPP:
-        _3gpp_five_second[result_code]->get_current()->count++;
-        _3gpp_five_minute[result_code]->get_current()->count++;
+        safe_increment_current(_3gpp_five_second, result_code);
+        safe_increment_current(_3gpp_five_minute, result_code);
         break;
       case TIMEOUT:
-        timeout_five_second[result_code]->get_current()->count++;
-        timeout_five_minute[result_code]->get_current()->count++;
+        safe_increment_current(timeout_five_second, result_code);
+        safe_increment_current(timeout_five_minute, result_code);
         break;
     }
   }
