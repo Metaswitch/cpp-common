@@ -256,11 +256,11 @@ namespace SNMP
         }
         else if (ii < ROOT_OID_LEN + 1)
         {
-         // Get tag length
+          // Get tag length
           new_oid[ii] = oid[ii];
           new_oid_len++;
           length_of_tag = oid[ii];;
-          TRC_DEBUG("Got tag lengt of %d", length_of_tag);
+          TRC_DEBUG("Got tag length of %d", length_of_tag);
         }
         else if (ii < ROOT_OID_LEN + length_of_tag + 1)
         {
@@ -278,13 +278,14 @@ namespace SNMP
           }
           identifier->push_back(oid[ii]);
         }
-        else {
+        else
+        {
           // Anything else is an identifier
           identifier->push_back(oid[ii]);
         }
-       }
-       tag_buff[length_of_tag] = '\0';
-       *tag = std::string(tag_buff);
+      }
+      tag_buff[length_of_tag] = '\0';
+      *tag = std::string(tag_buff);
     }
 
     bool update_identifier(int request_type,
