@@ -175,6 +175,14 @@ void RealmManager::thread_function()
 //    we have _max_peers connections. The only exception to this is
 //    when resolve contains fewer than _max_peers entries which means we
 //    sure we should have fewer than _max_peers connections.
+// 6. Tell the stack the number of peers we are aware of, as, if the list
+//    of peers is empty, any diameter requests issued through the
+//    stack are going to have nowhere to go and will fail.  Inform the stack of
+//    this situation so that it can make appropriate SAS logs on the call path
+//    (the stack cannot make this determination itself by looking at its own
+//    copy of the peer list as this is expected to be empty at other times -
+//    only the Realm Manager knows if the underlying reason is that there were
+//    no valid DNS records for the realm and no existing connected peers).
 //
 // On the first run through this function, a lot of this processing is
 // irrelevant since we just get a list of targets and try to connect to
@@ -237,6 +245,7 @@ void RealmManager::manage_connections(int& ttl)
   }
 
   // 5.
+  int zombies = 0;
   for (std::vector<AddrInfo>::iterator ii = targets.begin();
        ii != targets.end();
        ii++)
@@ -270,7 +279,20 @@ void RealmManager::manage_connections(int& ttl)
       {
         TRC_DEBUG("Peer already exists: %s", peer->host().c_str());
         delete peer;
+
+        // If the add failed, it means that, while RealmManager and
+        // DiameterStack don't have this peer in their list, it still exists in
+        // freeDiameter.  This can happen for "zombie" peers whose garbage
+        // collection hasn't happened yet.
+        //
+        // Increment our "zombie" count.
+        zombies++;
       }
     }
   }
+
+  // 6. Set the number of peers in our configuration (plus any peers we are
+  // waiting to be able to add, but can't because of delayed zombie
+  // cleanup in freeDiameter).
+  _stack->peer_count(_peers.size() + zombies);
 }
