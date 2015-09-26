@@ -163,7 +163,7 @@ public:
 
   /// Helper function to increment the current counter for this code if we have a bucket for it.
   /// We don't have a bucket for all counters, so we need to check first.
-  void safe_increment_current(std::map<int, CxCounterRow::CurrentAndPrevious*>& map, int code)
+  void safe_increment_current(std::map<int, CurrentAndPrevious<SingleCount>*>& map, int code)
   {
     if (map.count(code) != 0)
     {
