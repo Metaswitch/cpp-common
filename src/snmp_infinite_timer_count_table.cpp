@@ -124,17 +124,28 @@ namespace SNMP
                                  netsnmp_agent_request_info *reqinfo,
                                  netsnmp_request_info *requests)
     {
-      TRC_INFO("Starting handling batch of SNMP requests");
+      TRC_DEBUG("Starting handling batch of SNMP requests");
 
       for (; requests != NULL; requests = requests->next)
       {
-        snprint_objid(buf, sizeof(buf),
-                      requests->requestvb->name, requests->requestvb->name_length);
-        TRC_INFO("Handling SNMP request for OID %s", buf);
+        oid* input_oid = requests->requestvb->name;
+        unsigned long input_oid_len = requests->requestvb->name_length;
+        int request_type = reqinfo->mode;
+
+        snprint_objid(buf, sizeof(buf), input_oid, input_oid_len);
+        TRC_DEBUG("Handling SNMP request for OID %s", buf);
 
         if (requests->processed)
         {
           continue;
+        }
+
+        if ((snmp_oid_compare(input_oid, input_oid_len, _tbl_oid, _oidlen) < 0) &&
+            (request_type == MODE_GETNEXT))
+        {
+          TRC_DEBUG("OID precedes table and mode is GETNEXT - move to start of table");
+          input_oid = _tbl_oid;
+          input_oid_len = _oidlen;
         }
 
         unsigned long new_oid_a[64];
@@ -145,7 +156,6 @@ namespace SNMP
         std::string tag;
         std::vector<int> identifier;
         SimpleStatistics stats;
-        int request_type = reqinfo->mode;
         netsnmp_variable_list* var = requests->requestvb;
 
         // We can set a default value of 0 unless we find a valid result
@@ -157,15 +167,12 @@ namespace SNMP
 
         // Populate the values for tag and identifier - e.g. tag = "CALL",
         // identifier = <2, 1>
-        parse_request(requests->requestvb->name,
-                      requests->requestvb->name_length,
+        parse_request(input_oid,
+                      input_oid_len,
                       &tag,
                       &identifier,
                       new_oid,
                       new_oid_len);
-
-        TRC_DEBUG("Parse request with tag: %s", tag.c_str());
-        TRC_DEBUG("The current length of the new oid is: %u", new_oid_len);
 
         // Update the identifier based on the request type, this gives us a
         // valid, logical OID that we will query
@@ -177,17 +184,18 @@ namespace SNMP
         char buf1[64];
         snprint_objid(buf1, sizeof(buf1),
                       new_oid, new_oid_len);
-        TRC_INFO("Returning SNMP request for OID %s", buf1);
+        TRC_DEBUG("Parsed SNMP request to OID %s with tag %s and identifier <%d, %d>",
+                  buf1, tag.c_str(), identifier.at(0), identifier.at(1));
 
         if (!found && request_type == MODE_GET)
         {
-          TRC_INFO("Invalid GET request");
+          TRC_DEBUG("Invalid GET request");
           return SNMP_ERR_NOSUCHNAME;
         }
 
         if (!found && request_type == MODE_GETNEXT)
         {
-          TRC_INFO("This request goes beyond the table");
+          TRC_DEBUG("This request goes beyond the table");
           new_oid[ROOT_OID_LEN + tag.length()]++;
           new_oid[ROOT_OID_LEN + tag.length() + 1] = 2;
           new_oid[ROOT_OID_LEN + tag.length() + 2] = 1;
@@ -207,20 +215,22 @@ namespace SNMP
         // Update and obtain the relevants statistics structure
         _timer_counters[tag].get_statistics(identifier.back(), now, &stats);
 
-        TRC_DEBUG("Have got statistics structure");
-
         // Calculate the appropriate value - i.e. avg, var, hwm or lwm
         result = get_value(&stats, tag, identifier, now);
 
         if (*result.value == -1)
         {
-          TRC_INFO("Failed to get value from the structure");
+          TRC_DEBUG("No value for tag %s, identifier <%d, %d>",
+                    tag.c_str(), identifier.at(0), identifier.at(1));
           snmp_set_var_typed_value(var,
                                    result.type,
                                    result.value,
                                    result.size);
           return SNMP_ERR_NOSUCHNAME;
         }
+
+        TRC_DEBUG("Got value %u for tag %s, identifier <%d, %d>",
+                  *result.value, tag.c_str(), identifier.at(0), identifier.at(1));
 
         snmp_set_var_objid(var,
                            new_oid,
@@ -232,7 +242,8 @@ namespace SNMP
                                  result.size);
       }
 
-      TRC_INFO("Finished handling batch of SNMP requests");
+      TRC_DEBUG("Finished handling batch of SNMP requests");
+
       return SNMP_ERR_NOERROR;
     }
 
@@ -252,7 +263,6 @@ namespace SNMP
           // Build up root oid on new oid
           new_oid[ii] = oid[ii];
           new_oid_len++;
-          TRC_DEBUG("Building up root oid at: %u", ii);
         }
         else if (ii < ROOT_OID_LEN + 1)
         {
@@ -260,7 +270,6 @@ namespace SNMP
           new_oid[ii] = oid[ii];
           new_oid_len++;
           length_of_tag = oid[ii];;
-          TRC_DEBUG("Got tag length of %d", length_of_tag);
         }
         else if (ii < ROOT_OID_LEN + length_of_tag + 1)
         {
@@ -268,7 +277,6 @@ namespace SNMP
           new_oid[ii] = oid[ii];
           new_oid_len++;
           tag_buff[ii - ROOT_OID_LEN - 1] = oid[ii];
-          TRC_DEBUG("Found letter of : %c", tag_buff[ii-ROOT_OID_LEN-1]);
         }
         else if (ii < ROOT_OID_LEN + length_of_tag + 2)
         {
@@ -294,7 +302,6 @@ namespace SNMP
                            unsigned long* new_oid,
                            uint32_t &new_oid_len)
     {
-      TRC_INFO("Validating identifier");
       switch (request_type)
       {
       case MODE_GET:
@@ -359,7 +366,7 @@ namespace SNMP
         snmp_log(LOG_ERR, "problem encountered in Clearwater handler: unsupported mode %d", request_type);
         return false;
       }
-      TRC_INFO("It now has a valid form: <%d, %d>", identifier->at(0), identifier->at(1));
+      TRC_DEBUG("Identifier updated to valid form: <%d, %d>", identifier->at(0), identifier->at(1));
       return true;
     }
 
