@@ -1,5 +1,5 @@
 /**
- * @file success_fail_count.h
+ * @file snmp_infinite_timer_count_table.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -28,33 +28,36 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
+ * software and licensed und er the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SUCCESS_FAIL_COUNT_H
-#define SUCCESS_FAIL_COUNT_H
+#include <vector>
+#include <map>
+#include <string>
+#include <atomic>
 
-// This file contains a struct for storing a count of attempts, successes and failures.
+#include "logger.h"
+
+#ifndef SNMP_INFINITE_TIMER_COUNT_TABLE_H
+#define SNMP_INFINITE_TIMER_COUNT_TABLE_H
 
 namespace SNMP
 {
 
-struct SuccessFailCount
+class InfiniteTimerCountTable
 {
-  std::atomic_uint_fast64_t attempts;
-  std::atomic_uint_fast64_t successes;
-  std::atomic_uint_fast64_t failures;
+public:
+  InfiniteTimerCountTable() {};
+  virtual ~InfiniteTimerCountTable() {};
 
-  void reset(uint64_t time_periodstart, SuccessFailCount* previous = NULL)
-  {
-    attempts = 0;
-    successes = 0;
-    failures = 0;
-  }
+  static InfiniteTimerCountTable* create(std::string name, std::string oid);
+
+  virtual void increment(std::string) = 0;
+  virtual void decrement(std::string) = 0;
 };
-
 }
+
 #endif

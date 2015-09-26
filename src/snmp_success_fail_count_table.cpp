@@ -37,7 +37,7 @@
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_internal/snmp_time_period_table.h"
 #include "snmp_success_fail_count_table.h"
-#include "success_fail_count.h"
+#include "snmp_statistics_structures.h"
 #include "logger.h"
 
 namespace SNMP
@@ -129,8 +129,8 @@ private:
     return new SuccessFailCountRow(index, view);
   }
 
-  SuccessFailCountRow::CurrentAndPrevious five_second;
-  SuccessFailCountRow::CurrentAndPrevious five_minute;
+  CurrentAndPrevious<SuccessFailCount> five_second;
+  CurrentAndPrevious<SuccessFailCount> five_minute;
 };
 
 SuccessFailCountTable* SuccessFailCountTable::create(std::string name, std::string oid)

@@ -37,7 +37,7 @@
 #include "snmp_success_fail_count_by_request_type_table.h"
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_internal/snmp_counts_by_other_type_table.h"
-#include "success_fail_count.h"
+#include "snmp_statistics_structures.h"
 #include "snmp_sip_request_types.h"
 #include "logger.h"
 
@@ -91,15 +91,16 @@ static std::vector<int> request_types =
   SIPRequestTypes::OTHER
 };
 
-class SuccessFailCountByRequestTypeTableImpl: public CountsByOtherTypeTableImpl<SuccessFailCountByRequestTypeRow>,
+class SuccessFailCountByRequestTypeTableImpl: public CountsByOtherTypeTableImpl<SuccessFailCountByRequestTypeRow, SuccessFailCount>,
   public SuccessFailCountByRequestTypeTable
 {
 public:
   SuccessFailCountByRequestTypeTableImpl(std::string name,
                                          std::string tbl_oid):
-    CountsByOtherTypeTableImpl<SuccessFailCountByRequestTypeRow>(name,
-                                                                 tbl_oid,
-                                                                 request_types)
+    CountsByOtherTypeTableImpl<SuccessFailCountByRequestTypeRow,
+                               SuccessFailCount>(name,
+                                                 tbl_oid,
+                                                 request_types)
   {}
 
   void increment_attempts(SIPRequestTypes type)

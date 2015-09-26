@@ -35,21 +35,13 @@
  */
 
 #include "snmp_counter_table.h"
+#include "snmp_statistics_structures.h"
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_internal/snmp_time_period_table.h"
 #include "logger.h"
 
 namespace SNMP
 {
-
-// Storage for the underlying data
-struct SingleCount
-{
-  uint64_t count;
-
-  void reset(uint32_t periodstart, SingleCount* previous = NULL) { count = 0; };
-};
-
 
 // Just a TimeBasedRow that maps the data from SingleCount into the right column.
 class CounterRow: public TimeBasedRow<SingleCount>
@@ -118,8 +110,8 @@ private:
     return new CounterRow(index, view);
   }
 
-  CounterRow::CurrentAndPrevious five_second;
-  CounterRow::CurrentAndPrevious five_minute;
+  CurrentAndPrevious<SingleCount> five_second;
+  CurrentAndPrevious<SingleCount> five_minute;
 };
 
 CounterTable* CounterTable::create(std::string name, std::string oid)

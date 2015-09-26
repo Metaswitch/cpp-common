@@ -35,6 +35,7 @@
  */
 
 #include "snmp_single_count_by_node_type_table.h"
+#include "snmp_statistics_structures.h"
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_internal/snmp_counts_by_other_type_table.h"
 #include "snmp_node_types.h"
@@ -42,13 +43,6 @@
 
 namespace SNMP
 {
-
-// Storage for the underlying data
-struct SingleCount
-{
-  uint64_t count;
-  void reset(uint64_t time_periodstart, SingleCount* previous = NULL) { count = 0; };
-};
 
 // Time and Node Based Row that maps the data from SingleCount into the right column.
 class SingleCountByNodeTypeRow: public TimeAndOtherTypeBasedRow<SingleCount>
@@ -74,12 +68,12 @@ public:
   static int get_count_size() { return 1; }
 };
 
-class SingleCountByNodeTypeTableImpl: public CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow>, public SingleCountByNodeTypeTable
+class SingleCountByNodeTypeTableImpl: public CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow, SingleCount>, public SingleCountByNodeTypeTable
 {
 public:
   SingleCountByNodeTypeTableImpl(std::string name,
                                  std::string tbl_oid,
-                                 std::vector<int> node_types): CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow>(name, tbl_oid, node_types)
+                                 std::vector<int> node_types): CountsByOtherTypeTableImpl<SingleCountByNodeTypeRow, SingleCount>(name, tbl_oid, node_types)
   {}
 
   void increment(NodeTypes type)

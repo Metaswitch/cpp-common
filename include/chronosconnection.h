@@ -60,34 +60,40 @@ public:
                             uint32_t repeat_for,
                             const std::string& callback_uri,
                             const std::string& opaque_data,
-                            SAS::TrailId trail);
+                            SAS::TrailId trail,
+                            const std::vector<std::string>& tags = EMPTY_TAGS);
   virtual HTTPCode send_post(std::string& post_identity,
                              uint32_t timer_interval,
                              uint32_t repeat_for,
                              const std::string& callback_uri,
                              const std::string& opaque_data,
-                             SAS::TrailId trail);
+                             SAS::TrailId trail,
+                             const std::vector<std::string>& tags = EMPTY_TAGS);
 
   // Versions without repeat_for (i.e. timers that only fire once)
   virtual HTTPCode send_put(std::string& put_identity,
                             uint32_t timer_interval,
                             const std::string& callback_uri,
                             const std::string& opaque_data,
-                            SAS::TrailId trail);
+                            SAS::TrailId trail,
+                            const std::vector<std::string>& tags = EMPTY_TAGS);
   virtual HTTPCode send_post(std::string& post_identity,
                              uint32_t timer_interval,
                              const std::string& callback_uri,
                              const std::string& opaque_data,
-                             SAS::TrailId trail);
+                             SAS::TrailId trail,
+                             const std::vector<std::string>& tags = EMPTY_TAGS);
   std::string _callback_host;
 
 private:
   std::string create_body(uint32_t expires,
                           uint32_t repeat_for,
                           const std::string& callback_uri,
-                          const std::string& opaque_data);
+                          const std::string& opaque_data,
+                          const std::vector<std::string>& tags);
   std::string get_location_header(std::map<std::string, std::string> headers);
   HttpConnection* _http;
+  static const std::vector<std::string> EMPTY_TAGS;
 };
 
 #endif
