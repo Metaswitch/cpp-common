@@ -638,7 +638,7 @@ public:
   virtual void initialize();
   virtual void register_peer_hook_hdlr();
   virtual void unregister_peer_hook_hdlr();
-  virtual void configure(std::string filename, 
+  virtual void configure(std::string filename,
                          ExceptionHandler* exception_handler,
                          BaseCommunicationMonitor* comm_monitor = NULL,
                          SNMP::CounterTable* realm_counter = NULL,
@@ -672,6 +672,7 @@ public:
 
   virtual bool add(Peer* peer);
   virtual void remove(Peer* peer);
+  virtual void peer_count(int);
 
   static int allow_connections(struct peer_info* info,
                                int* auth,
@@ -739,6 +740,17 @@ private:
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::CounterTable* _realm_counter;
   SNMP::CounterTable* _host_counter;
+
+  // "Managed" peer count.  This is the number of peers as discovered by the
+  // upstream manager.  Most of the time it will be the same as the size of
+  // _peers, but will differ during management cycles as peers are added and
+  // removed and the managed value is more useful for reporting purposes.
+  //
+  // The constructor initialises it at -1 (not 0) to reflect the fact that the
+  // managed number of peers is unknown until the manager tells us, and in
+  // instances where there is no upstream manager, it will remain at -1
+  // indefinitely.
+  int _peer_count;
 
   // Map of Vendor->AVP name->AVP dictionary
   std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>> _avp_map;
