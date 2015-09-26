@@ -61,9 +61,9 @@ public:
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
     uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
-     _tick = (now.tv_sec / (_interval_ms / 1000));
-      a.reset(time_now_ms, NULL);
-      b.reset(time_now_ms - _interval_ms, NULL);
+    _tick = (now.tv_sec / (_interval_ms / 1000));
+    a.reset(time_now_ms, NULL);
+    b.reset(time_now_ms - _interval_ms, NULL);
   }
 
   // Rolls the current period over into the previous period if necessary.

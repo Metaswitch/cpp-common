@@ -34,7 +34,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "snmp_internal/current_and_previous.h"
+#include "current_and_previous.h"
 #include "timer_counter.h"
 #include "limits.h"
 

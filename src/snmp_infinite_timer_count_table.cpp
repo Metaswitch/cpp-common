@@ -48,7 +48,6 @@
 
 namespace SNMP
 {
-
   class InfiniteTimerCountTableImpl : public InfiniteTimerCountTable
   {
   public:
@@ -60,7 +59,6 @@ namespace SNMP
     {
       read_objid(tbl_oid.c_str(), _tbl_oid, &_oidlen);
       ROOT_OID_LEN = std::count(tbl_oid.begin(), tbl_oid.end(), '.');
-
 
       TRC_INFO("Registering SNMP table %s", _name.c_str());
       _handler_reg = netsnmp_create_handler_registration(_name.c_str(),
@@ -81,10 +79,6 @@ namespace SNMP
       }
     }
 
-    /********************************/
-    /*  Methods for TimerHandler    */
-    /********************************/
-
     void increment(std::string tag)
     {
       _timer_counters[tag].increment();
@@ -95,8 +89,6 @@ namespace SNMP
       _timer_counters[tag].decrement();
     }
 
-    std::map<std::string, TimerCounter> _timer_counters;
-
   protected:
     std::string _name;
     oid _tbl_oid[64];
@@ -104,6 +96,8 @@ namespace SNMP
     size_t _oidlen;
     uint32_t ROOT_OID_LEN;
     netsnmp_handler_registration* _handler_reg;
+    std::map<std::string, TimerCounter> _timer_counters;
+
   private:
     // netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
     // and maps the row and column to a value.
@@ -217,18 +211,6 @@ namespace SNMP
 
         // Calculate the appropriate value - i.e. avg, var, hwm or lwm
         result = get_value(&stats, tag, identifier, now);
-
-        if (*result.value == -1)
-        {
-          TRC_DEBUG("No value for tag %s, identifier <%d, %d>",
-                    tag.c_str(), identifier.at(0), identifier.at(1));
-          snmp_set_var_typed_value(var,
-                                   result.type,
-                                   result.value,
-                                   result.size);
-          return SNMP_ERR_NOSUCHNAME;
-        }
-
         TRC_DEBUG("Got value %u for tag %s, identifier <%d, %d>",
                   *result.value, tag.c_str(), identifier.at(0), identifier.at(1));
 
@@ -322,11 +304,14 @@ namespace SNMP
       case MODE_GETNEXT:
         // As it is a GETNEXT, we update the identifier with the next logical
         // value
-        identifier->push_back(0);
-        identifier->push_back(0);
-        if (identifier->size() > 2)
+        if (identifier->size() == 0)
         {
-          identifier->resize(2);
+          identifier->push_back(0);
+          identifier->push_back(0);
+        }
+        else if (identifier->size() == 1)
+        {
+          identifier->push_back(0);
         }
 
         if (identifier->at(0) == ULONG_MAX)
@@ -363,7 +348,7 @@ namespace SNMP
         break;
 
       default:
-        snmp_log(LOG_ERR, "problem encountered in Clearwater handler: unsupported mode %d", request_type);
+        TRC_ERROR("Problem encountered in Clearwater handler: unsupported mode %d", request_type);
         return false;
       }
       TRC_DEBUG("Identifier updated to valid form: <%d, %d>", identifier->at(0), identifier->at(1));
@@ -389,8 +374,12 @@ namespace SNMP
         case 5:
           // Get the LWM
           return Value::uint(data->lwm);
+        default:
+          // This should never happen - update_identifier should police this.
+          TRC_ERROR("Internal MIB error - identifier <%d, %d> is out of bounds (benign)",
+                    identifier.at(0), identifier.at(1));
+          return Value::uint(0);
       }
-      return Value::integer(-1);
     }
 
   };

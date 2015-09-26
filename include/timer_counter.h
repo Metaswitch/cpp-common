@@ -37,7 +37,7 @@
 #ifndef TIMER_COUNTER_H
 #define TIMER_COUNTER_H
 
-#include "snmp_internal/current_and_previous.h"
+#include "current_and_previous.h"
 #include "snmp_statistics_structures.h"
 
 #include <vector>
