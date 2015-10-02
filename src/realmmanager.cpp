@@ -36,6 +36,7 @@
 
 #include "realmmanager.h"
 #include "utils.h"
+#include "cpp_common_pd_definitions.h"
 
 #include <boost/algorithm/string/replace.hpp>
 
@@ -61,8 +62,14 @@ RealmManager::RealmManager(Diameter::Stack* stack,
 
 void RealmManager::start()
 {
+  using namespace std::placeholders;
+
   pthread_create(&_thread, NULL, thread_function, this);
-  _stack->register_peer_hook_hdlr();
+  _stack->register_peer_hook_hdlr(std::bind(&RealmManager::peer_connection_cb,
+                                            this,
+                                            _1,
+                                            _2,
+                                            _3));
 }
 
 RealmManager::~RealmManager()
@@ -81,25 +88,64 @@ void RealmManager::stop()
   _stack->unregister_peer_hook_hdlr();
 }
 
-void RealmManager::connection_succeeded(Diameter::Peer* peer)
+void RealmManager::peer_connection_cb(bool connection_success,
+                                      const std::string& host,
+                                      const std::string& realm)
 {
-  TRC_INFO("Connected to peer %s", peer->host().c_str());
-}
-
-void RealmManager::connection_failed(Diameter::Peer* peer)
-{
-  TRC_ERROR("Failed to connect to peer %s", peer->host().c_str());
   pthread_mutex_lock(&_lock);
-  std::vector<Diameter::Peer*>::iterator ii = std::find(_peers.begin(), _peers.end(), peer);
-  if (ii != _peers.end())
+  std::vector<Diameter::Peer*>::iterator ii;
+  bool peer_found = false;
+  for (ii = _peers.begin();
+       ii != _peers.end();
+       ii++)
   {
-    _peers.erase(ii);
-  }
-  _resolver->blacklist(peer->addr_info());
-  delete peer;
+    if ((*ii)->host().compare(host) == 0)
+    {
+      peer_found = true;
+      if (connection_success)
+      {
+        if ((*ii)->realm().empty() || ((*ii)->realm().compare(realm) == 0))
+        {
+          TRC_INFO("Successfully connected to %s in realm %s",
+                   host.c_str(),
+                   realm.c_str());
+          (*ii)->set_connected();
+        }
+        else
+        {
+          TRC_ERROR("Connected to %s in wrong realm (expected %s, got %s), disconnect",
+                    host.c_str(),
+                    (*ii)->realm().c_str(),
+                    realm.c_str());
+          Diameter::Peer* stack_peer = *ii;
+          _stack->remove(stack_peer);
+          _resolver->blacklist((*ii)->addr_info());
+          delete (*ii);
+          _peers.erase(ii);
+        }
+      }
+      else
+      {
+        CL_DIAMETER_CONN_ERR.log(host.c_str());
+        TRC_ERROR("Failed to connect to %s", host.c_str());
+        _resolver->blacklist((*ii)->addr_info());
+        delete (*ii);
+        _peers.erase(ii);
 
-  pthread_cond_signal(&_cond);
+        pthread_cond_signal(&_cond);
+      }
+      break;
+    }
+  }
+
+  if (!peer_found)
+  {
+    TRC_ERROR("Unexpected host on peer connection callback from freeDiameter: %s",
+              host.c_str());
+  }
+
   pthread_mutex_unlock(&_lock);
+  return;
 }
 
 void* RealmManager::thread_function(void* realm_manager_ptr)
@@ -175,14 +221,9 @@ void RealmManager::thread_function()
 //    we have _max_peers connections. The only exception to this is
 //    when resolve contains fewer than _max_peers entries which means we
 //    sure we should have fewer than _max_peers connections.
-// 6. Tell the stack the number of peers we are aware of, as, if the list
-//    of peers is empty, any diameter requests issued through the
-//    stack are going to have nowhere to go and will fail.  Inform the stack of
-//    this situation so that it can make appropriate SAS logs on the call path
-//    (the stack cannot make this determination itself by looking at its own
-//    copy of the peer list as this is expected to be empty at other times -
-//    only the Realm Manager knows if the underlying reason is that there were
-//    no valid DNS records for the realm and no existing connected peers).
+// 6. Tell the stack the number of peers we are aware of, and the number of
+//    peers we're connected to. This is so that the stack can raise appropriate
+//    logs when we have no connections and routing messages inevitably fails.
 //
 // On the first run through this function, a lot of this processing is
 // irrelevant since we just get a list of targets and try to connect to
@@ -268,7 +309,7 @@ void RealmManager::manage_connections(int& ttl)
     // If it isn't, add it.
     if (!found)
     {
-      Diameter::Peer* peer = new Diameter::Peer(*ii, hostname, _realm, 0, this);
+      Diameter::Peer* peer = new Diameter::Peer(*ii, hostname, _realm, 0);
       TRC_DEBUG("Adding peer: %s", peer->host().c_str());
       ret = _stack->add(peer);
       if (ret)
@@ -291,8 +332,9 @@ void RealmManager::manage_connections(int& ttl)
     }
   }
 
-  // 6. Set the number of peers in our configuration (plus any peers we are
-  // waiting to be able to add, but can't because of delayed zombie
-  // cleanup in freeDiameter).
-  _stack->peer_count(_peers.size() + zombies);
+  // 6. Tell the stack the number of peers we're currently managing (including
+  // any peers we are waiting to be able to add, but can't because of delayed
+  // zombie cleanup in freeDiameter), and the number of peers we're actually
+  // connected to.
+  _stack->peer_count(_peers.size() + zombies, connected_peers.size());
 }

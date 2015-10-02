@@ -48,10 +48,15 @@
 #include "utils.h"
 #include "sas.h"
 #include "baseresolver.h"
+#include "realmmanager.h"
 #include "communicationmonitor.h"
 #include "exception_handler.h"
 #include "counter.h"
 #include "snmp_counter_table.h"
+
+typedef std::function<void(bool, const std::string&, const std::string&)> PeerConnectionCB;
+
+class RealmManager;
 
 namespace Diameter
 {
@@ -59,7 +64,6 @@ class Stack;
 class Transaction;
 class AVP;
 class Message;
-class PeerListener;
 
 class Dictionary
 {
@@ -556,26 +560,22 @@ class Peer
 public:
   Peer(const std::string& host,
        const std::string& realm = "",
-       uint32_t idle_time = 0,
-       PeerListener* listener = NULL) :
+       uint32_t idle_time = 0) :
        _addr_info_specified(false),
        _host(host),
        _realm(realm),
        _idle_time(idle_time),
-       _listener(listener),
        _connected(false) {}
 
   Peer(AddrInfo addr_info,
        const std::string& host,
        const std::string& realm = "",
-       uint32_t idle_time = 0,
-       PeerListener* listener = NULL) :
+       uint32_t idle_time = 0) :
        _addr_info(addr_info),
        _addr_info_specified(true),
        _host(host),
        _realm(realm),
        _idle_time(idle_time),
-       _listener(listener),
        _connected(false) {}
 
   inline const AddrInfo& addr_info() const {return _addr_info;}
@@ -583,7 +583,6 @@ public:
   inline const std::string& host() const {return _host;}
   inline const std::string& realm() const {return _realm;}
   inline uint32_t idle_time() const {return _idle_time;}
-  inline PeerListener* listener() const {return _listener;}
   inline const bool& connected() const {return _connected;}
   inline void set_connected() {_connected = true;}
 
@@ -593,15 +592,7 @@ private:
   std::string _host;
   std::string _realm;
   uint32_t _idle_time;
-  PeerListener* _listener;
   bool _connected;
-};
-
-class PeerListener
-{
-public:
-  virtual void connection_succeeded(Peer* peer) = 0;
-  virtual void connection_failed(Peer* peer) = 0;
 };
 
 class Stack
@@ -636,7 +627,7 @@ public:
 
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
-  virtual void register_peer_hook_hdlr();
+  virtual void register_peer_hook_hdlr(PeerConnectionCB peer_connection_cb);
   virtual void unregister_peer_hook_hdlr();
   virtual void configure(std::string filename,
                          ExceptionHandler* exception_handler,
@@ -672,7 +663,7 @@ public:
 
   virtual bool add(Peer* peer);
   virtual void remove(Peer* peer);
-  virtual void peer_count(int);
+  virtual void peer_count(int peer_count, int connected_peer_count);
 
   static int allow_connections(struct peer_info* info,
                                int* auth,
@@ -705,8 +696,9 @@ private:
 
   static void fd_null_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd, void* user_data);
 
-  void fd_peer_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
+  void fd_peer_hook_cb(enum fd_hook_type type, struct peer_hdr* peer);
   static void fd_peer_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
+  std::vector<PeerConnectionCB*> _peer_connection_cbs;
 
   void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
@@ -734,23 +726,24 @@ private:
   // registered, it stores the handles statically, and there is no way to
   // unregister them.
   static struct fd_hook_data_hdl* _sas_cb_data_hdl;
-  std::vector<Peer*> _peers;
-  pthread_mutex_t _peers_lock;
   ExceptionHandler* _exception_handler;
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::CounterTable* _realm_counter;
   SNMP::CounterTable* _host_counter;
 
-  // "Managed" peer count.  This is the number of peers as discovered by the
-  // upstream manager.  Most of the time it will be the same as the size of
-  // _peers, but will differ during management cycles as peers are added and
-  // removed and the managed value is more useful for reporting purposes.
+  // Number of peers the upstream RealmManager is currently either connected to
+  // or is trying to connect to, or has recently tried to connect to, and the
+  // number of peers the RealmManager is actually connected to. Used for raising
+  // appropriate SAS logs when Diameter message routing fails and we have no
+  // connected peers.
   //
   // The constructor initialises it at -1 (not 0) to reflect the fact that the
-  // managed number of peers is unknown until the manager tells us, and in
-  // instances where there is no upstream manager, it will remain at -1
+  // these counts are unknown until the RealmManager tells us, and in
+  // instances where there is no upstream RealmManager, it will remain at -1
   // indefinitely.
+  pthread_mutex_t _peer_counts_lock;
   int _peer_count;
+  int _connected_peer_count;
 
   // Map of Vendor->AVP name->AVP dictionary
   std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>> _avp_map;
@@ -759,7 +752,6 @@ private:
   void populate_vendor_map(const std::string& vendor_name,
                            struct dict_object* vendor_dict);
 
-  void remove_int(Peer* peer);
 };
 
 /// @class SpawningHandler

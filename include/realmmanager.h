@@ -42,7 +42,13 @@
 #include "diameterstack.h"
 #include "diameterresolver.h"
 
-class RealmManager : public Diameter::PeerListener
+namespace Diameter
+{
+class Stack;
+class Peer;
+}
+
+class RealmManager
 {
 public:
   RealmManager(Diameter::Stack* stack,
@@ -55,8 +61,9 @@ public:
   void start();
   void stop();
 
-  void connection_succeeded(Diameter::Peer* peer);
-  void connection_failed(Diameter::Peer* peer);
+  void peer_connection_cb(bool connection_success,
+                          const std::string& host,
+                          const std::string& realm);
 
   static const int DEFAULT_BLACKLIST_DURATION;
 
@@ -75,7 +82,6 @@ private:
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
   std::vector<Diameter::Peer*> _peers;
-  std::vector<Diameter::Peer*> _connected_peers;
   volatile bool _terminating;
 };
 
