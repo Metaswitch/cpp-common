@@ -81,7 +81,7 @@ private:
   pthread_mutex_t _lock;
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
-  std::vector<Diameter::Peer*> _peers;
+  std::map<std::string, Diameter::Peer*> _peers;
   volatile bool _terminating;
 };
 

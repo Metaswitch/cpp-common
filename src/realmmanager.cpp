@@ -93,52 +93,43 @@ void RealmManager::peer_connection_cb(bool connection_success,
                                       const std::string& realm)
 {
   pthread_mutex_lock(&_lock);
-  std::vector<Diameter::Peer*>::iterator ii;
-  bool peer_found = false;
-  for (ii = _peers.begin();
-       ii != _peers.end();
-       ii++)
+  std::map<std::string, Diameter::Peer*>::iterator ii = _peers.find(host);
+  if (ii != _peers.end())
   {
-    if ((*ii)->host().compare(host) == 0)
+    Diameter::Peer* peer = ii->second;
+    if (connection_success)
     {
-      peer_found = true;
-      if (connection_success)
+      if (peer->realm().empty() || (peer->realm().compare(realm) == 0))
       {
-        if ((*ii)->realm().empty() || ((*ii)->realm().compare(realm) == 0))
-        {
-          TRC_INFO("Successfully connected to %s in realm %s",
-                   host.c_str(),
-                   realm.c_str());
-          (*ii)->set_connected();
-        }
-        else
-        {
-          TRC_ERROR("Connected to %s in wrong realm (expected %s, got %s), disconnect",
-                    host.c_str(),
-                    (*ii)->realm().c_str(),
-                    realm.c_str());
-          Diameter::Peer* stack_peer = *ii;
-          _stack->remove(stack_peer);
-          _resolver->blacklist((*ii)->addr_info());
-          delete (*ii);
-          _peers.erase(ii);
-        }
+        TRC_INFO("Successfully connected to %s in realm %s",
+                 host.c_str(),
+                 realm.c_str());
+        peer->set_connected();
       }
       else
       {
-        CL_DIAMETER_CONN_ERR.log(host.c_str());
-        TRC_ERROR("Failed to connect to %s", host.c_str());
-        _resolver->blacklist((*ii)->addr_info());
-        delete (*ii);
+        TRC_ERROR("Connected to %s in wrong realm (expected %s, got %s), disconnect",
+                  host.c_str(),
+                  peer->realm().c_str(),
+                  realm.c_str());
+        _stack->remove(peer);
+        _resolver->blacklist(peer->addr_info());
+        delete peer;
         _peers.erase(ii);
-
-        pthread_cond_signal(&_cond);
       }
-      break;
+    }
+    else
+    {
+      CL_DIAMETER_CONN_ERR.log(host.c_str());
+      TRC_ERROR("Failed to connect to %s", host.c_str());
+      _resolver->blacklist(peer->addr_info());
+      delete peer;
+      _peers.erase(ii);
+
+      pthread_cond_signal(&_cond);
     }
   }
-
-  if (!peer_found)
+  else
   {
     TRC_ERROR("Unexpected host on peer connection callback from freeDiameter: %s",
               host.c_str());
@@ -180,15 +171,15 @@ void RealmManager::thread_function()
   } while (!_terminating);
 
   // Terminating so remove all peers and tidy up.
-  for (std::vector<Diameter::Peer*>::iterator ii = _peers.begin();
+  for (std::map<std::string, Diameter::Peer*>::iterator ii = _peers.begin();
        ii != _peers.end();
        ii++)
   {
-    _stack->remove(*ii);
-    delete (*ii);
+    _stack->remove(ii->second);
+    delete (ii->second);
   }
 
-  // This _peers vector contains rubbish at this point, don't use it.
+  // This _peers map contains rubbish at this point, don't use it.
   _peers.clear();
 
   pthread_mutex_unlock(&_lock);
@@ -251,13 +242,13 @@ void RealmManager::manage_connections(int& ttl)
   }
 
   // 3.
-  for (std::vector<Diameter::Peer*>::iterator ii = _peers.begin();
+  for (std::map<std::string, Diameter::Peer*>::iterator ii = _peers.begin();
        ii != _peers.end();
        ii++)
   {
-    if ((*ii)->connected())
+    if ((ii->second)->connected())
     {
-      connected_peers.push_back(*ii);
+      connected_peers.push_back(ii->second);
     }
   }
 
@@ -271,13 +262,13 @@ void RealmManager::manage_connections(int& ttl)
       Diameter::Peer* peer = *ii;
       TRC_DEBUG("Removing peer: %s", peer->host().c_str());
       ii = connected_peers.erase(ii);
-      std::vector<Diameter::Peer*>::iterator jj = std::find(_peers.begin(), _peers.end(), peer);
+      std::map<std::string, Diameter::Peer*>::iterator jj = _peers.find(peer->host());
       if (jj != _peers.end())
       {
         _peers.erase(jj);
       }
       _stack->remove(peer);
-      delete (peer);
+      delete peer;
     }
     else
     {
@@ -295,30 +286,25 @@ void RealmManager::manage_connections(int& ttl)
     bool found = false;
 
     // Check whether this new target is already in our list of _peers.
-    for (std::vector<Diameter::Peer*>::iterator jj = _peers.begin();
-         jj != _peers.end();
-         ++jj)
+    std::map<std::string, Diameter::Peer*>::iterator jj = _peers.find(hostname);
+    if (jj != _peers.end())
     {
-      if ((*jj)->host() == hostname)
-      {
-        found = true;
-        break;
-      }
+      found = true;
     }
 
     // If it isn't, add it.
     if (!found)
     {
       Diameter::Peer* peer = new Diameter::Peer(*ii, hostname, _realm, 0);
-      TRC_DEBUG("Adding peer: %s", peer->host().c_str());
+      TRC_DEBUG("Adding peer: %s", hostname.c_str());
       ret = _stack->add(peer);
       if (ret)
       {
-        _peers.push_back(peer);
+        _peers[hostname] = peer;
       }
       else
       {
-        TRC_DEBUG("Peer already exists: %s", peer->host().c_str());
+        TRC_DEBUG("Peer already exists: %s", hostname.c_str());
         delete peer;
 
         // If the add failed, it means that, while RealmManager and
