@@ -65,6 +65,8 @@ public:
                           const std::string& host,
                           const std::string& realm);
 
+  void srv_priority_cb(struct fd_list* candidates);
+
   static const int DEFAULT_BLACKLIST_DURATION;
 
 private:

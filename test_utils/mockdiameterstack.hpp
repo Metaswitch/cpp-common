@@ -48,8 +48,10 @@ public:
   MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
   MOCK_METHOD3(register_handler, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, HandlerInterface*));
   MOCK_METHOD1(register_fallback_handler, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD1(register_peer_hook_hdlr, void(PeerConnectionCB));
-  MOCK_METHOD0(unregister_peer_hook_hdlr, void());
+  MOCK_METHOD2(register_peer_hook_hdlr, void(std::string, PeerConnectionCB));
+  MOCK_METHOD1(unregister_peer_hook_hdlr, void(std::string));
+  MOCK_METHOD2(register_rt_out_cb, void(std::string, RtOutCB));
+  MOCK_METHOD1(unregister_rt_out_cb, void(std::string));
   MOCK_METHOD0(start, void());
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());

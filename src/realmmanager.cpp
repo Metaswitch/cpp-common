@@ -65,11 +65,16 @@ void RealmManager::start()
   using namespace std::placeholders;
 
   pthread_create(&_thread, NULL, thread_function, this);
-  _stack->register_peer_hook_hdlr(std::bind(&RealmManager::peer_connection_cb,
+  _stack->register_peer_hook_hdlr("realmmanager",
+                                  std::bind(&RealmManager::peer_connection_cb,
                                             this,
                                             _1,
                                             _2,
                                             _3));
+  _stack->register_rt_out_cb("realmmanager",
+                             std::bind(&RealmManager::srv_priority_cb,
+                                       this,
+                                       _1));
 }
 
 RealmManager::~RealmManager()
@@ -85,7 +90,8 @@ void RealmManager::stop()
   pthread_cond_signal(&_cond);
   pthread_mutex_unlock(&_lock);
   pthread_join(_thread, NULL);
-  _stack->unregister_peer_hook_hdlr();
+  _stack->unregister_peer_hook_hdlr("realmmanager");
+  _stack->unregister_rt_out_cb("realmmanager");
 }
 
 void RealmManager::peer_connection_cb(bool connection_success,
@@ -136,6 +142,30 @@ void RealmManager::peer_connection_cb(bool connection_success,
   }
 
   pthread_mutex_unlock(&_lock);
+  return;
+}
+
+void RealmManager::srv_priority_cb(struct fd_list* candidates)
+{
+  // Run through the list of candidates adjusting their score based on their SRV
+  // priority.
+  for (struct fd_list* li = candidates->next; li != candidates; li = li->next)
+  {
+    struct rtd_candidate* candidate = (struct rtd_candidate*)li;
+    std::map<std::string, Diameter::Peer*>::iterator ii =
+      _peers.find(candidate->cfg_diamid);
+    if (ii != _peers.end())
+    {
+      // The lower the priority value, the higher the priority of the result, so
+      // take away the priority value from the score.
+      candidate->score -= (ii->second)->addr_info().priority;
+    }
+    else
+    {
+      TRC_WARNING("Unexpected candidate peer %s for Diameter message routing",
+                  candidate->cfg_diamid);
+    }
+  }
   return;
 }
 

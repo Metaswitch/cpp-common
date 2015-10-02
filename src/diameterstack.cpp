@@ -119,7 +119,8 @@ void Stack::initialize()
   }
 }
 
-void Stack::register_peer_hook_hdlr(PeerConnectionCB peer_connection_cb)
+void Stack::register_peer_hook_hdlr(std::string listener_id,
+                                    PeerConnectionCB peer_connection_cb)
 {
   if (_peer_connection_cbs.empty())
   {
@@ -135,14 +136,39 @@ void Stack::register_peer_hook_hdlr(PeerConnectionCB peer_connection_cb)
     }
   }
 
-  _peer_connection_cbs.push_back(&peer_connection_cb);
+  _peer_connection_cbs[listener_id] = peer_connection_cb;
 }
 
-void Stack::unregister_peer_hook_hdlr()
+void Stack::unregister_peer_hook_hdlr(std::string listener_id)
 {
-  if (_peer_cb_hdlr)
+  _peer_connection_cbs.erase(listener_id);
+  if (_peer_cb_hdlr && _peer_connection_cbs.empty())
   {
     fd_hook_unregister(_peer_cb_hdlr);
+  }
+}
+
+void Stack::register_rt_out_cb(std::string listener_id,
+                               RtOutCB rt_out_cb)
+{
+  if (_rt_out_cbs.empty())
+  {
+    int rc = fd_rt_out_register(fd_rt_out_cb, this, 10, &_rt_out_cb_hdlr);
+
+    if (rc != 0)
+    {
+      throw Exception("fd_rt_out_register", rc); // LCOV_EXCL_LINE
+    }
+  }
+   _rt_out_cbs[listener_id] = rt_out_cb;
+}
+
+void Stack::unregister_rt_out_cb(std::string listener_id)
+{
+  _rt_out_cbs.erase(listener_id);
+  if (_rt_out_cb_hdlr && _rt_out_cbs.empty())
+  {
+    fd_rt_out_unregister(_rt_out_cb_hdlr, NULL);
   }
 }
 
@@ -333,14 +359,31 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
     std::string host = peer->info.pi_diamid;
     std::string realm = peer->info.runtime.pir_realm;
 
-    for (std::vector<PeerConnectionCB*>::const_iterator cb = _peer_connection_cbs.begin();
+    for (std::map<std::string, PeerConnectionCB>::const_iterator cb = _peer_connection_cbs.begin();
          cb != _peer_connection_cbs.end();
          ++cb)
     {
-      (**cb)((type == HOOK_PEER_CONNECT_SUCCESS) ? true : false, host, realm);
+      (cb->second)((type == HOOK_PEER_CONNECT_SUCCESS) ? true : false, host, realm);
     }
   }
   return;
+}
+
+int Stack::fd_rt_out_cb(void* stack_ptr, struct msg** pmsg, struct fd_list* candidates)
+{
+  ((Diameter::Stack*)stack_ptr)->fd_rt_out_cb(candidates);
+  return 0;
+}
+
+void Stack::fd_rt_out_cb(struct fd_list* candidates)
+{
+  TRC_DEBUG("Routing out callback from freeDiameter");
+  for (std::map<std::string, RtOutCB>::const_iterator cb = _rt_out_cbs.begin();
+       cb != _rt_out_cbs.end();
+       ++cb)
+  {
+    (cb->second)(candidates);
+  }
 }
 
 void Stack::configure(std::string filename,
@@ -527,6 +570,11 @@ void Stack::stop()
     if (_peer_cb_hdlr)
     {
       fd_hook_unregister(_peer_cb_hdlr);
+    }
+
+    if (_rt_out_cb_hdlr)
+    {
+      fd_rt_out_unregister(_rt_out_cb_hdlr, NULL);
     }
 
     if (_error_cb_hdlr)

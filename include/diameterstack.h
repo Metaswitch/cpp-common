@@ -55,6 +55,7 @@
 #include "snmp_counter_table.h"
 
 typedef std::function<void(bool, const std::string&, const std::string&)> PeerConnectionCB;
+typedef std::function<void(struct fd_list*)> RtOutCB;
 
 class RealmManager;
 
@@ -627,8 +628,12 @@ public:
 
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
-  virtual void register_peer_hook_hdlr(PeerConnectionCB peer_connection_cb);
-  virtual void unregister_peer_hook_hdlr();
+  virtual void register_peer_hook_hdlr(std::string listener_id,
+                                       PeerConnectionCB peer_connection_cb);
+  virtual void unregister_peer_hook_hdlr(std::string listener_id);
+  virtual void register_rt_out_cb(std::string listener_id,
+                                  RtOutCB peer_connection_cb);
+  virtual void unregister_rt_out_cb(std::string listener_id);
   virtual void configure(std::string filename,
                          ExceptionHandler* exception_handler,
                          BaseCommunicationMonitor* comm_monitor = NULL,
@@ -698,7 +703,11 @@ private:
 
   void fd_peer_hook_cb(enum fd_hook_type type, struct peer_hdr* peer);
   static void fd_peer_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
-  std::vector<PeerConnectionCB*> _peer_connection_cbs;
+  std::map<std::string, PeerConnectionCB> _peer_connection_cbs;
+
+  void fd_rt_out_cb(struct fd_list* candidates);
+  static int fd_rt_out_cb(void* stack_ptr, struct msg** pmsg, struct fd_list* candidates);
+  std::map<std::string, RtOutCB> _rt_out_cbs;
 
   void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
@@ -716,6 +725,7 @@ private:
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
   struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
+  struct fd_rt_out_hdl* _rt_out_cb_hdlr; /* Handler for the callback registered for routing messages out */
   struct fd_hook_hdl* _error_cb_hdlr; /* Handler for the callback
                                        * registered for routing errors */
   struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
