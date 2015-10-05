@@ -48,19 +48,16 @@
 #include "utils.h"
 #include "sas.h"
 #include "baseresolver.h"
-#include "realmmanager.h"
 #include "communicationmonitor.h"
 #include "exception_handler.h"
 #include "counter.h"
 #include "snmp_counter_table.h"
 
+namespace Diameter
+{
 typedef std::function<void(bool, const std::string&, const std::string&)> PeerConnectionCB;
 typedef std::function<void(struct fd_list*)> RtOutCB;
 
-class RealmManager;
-
-namespace Diameter
-{
 class Stack;
 class Transaction;
 class AVP;
@@ -704,10 +701,12 @@ private:
   void fd_peer_hook_cb(enum fd_hook_type type, struct peer_hdr* peer);
   static void fd_peer_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
   std::map<std::string, PeerConnectionCB> _peer_connection_cbs;
+  pthread_rwlock_t _peer_connection_cbs_lock;
 
   void fd_rt_out_cb(struct fd_list* candidates);
   static int fd_rt_out_cb(void* stack_ptr, struct msg** pmsg, struct fd_list* candidates);
   std::map<std::string, RtOutCB> _rt_out_cbs;
+  pthread_rwlock_t _rt_out_cbs_lock;
 
   void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
@@ -741,15 +740,14 @@ private:
   SNMP::CounterTable* _realm_counter;
   SNMP::CounterTable* _host_counter;
 
-  // Number of peers the upstream RealmManager is currently either connected to
-  // or is trying to connect to, or has recently tried to connect to, and the
-  // number of peers the RealmManager is actually connected to. Used for raising
-  // appropriate SAS logs when Diameter message routing fails and we have no
-  // connected peers.
+  // Number of peers we're currently either connected to or trying to connect
+  // to, or have recently tried to connect to, and the number of peers we're
+  // actually connected to. Used for raising appropriate SAS logs when Diameter
+  // message routing fails and we have no connected peers.
   //
-  // The constructor initialises it at -1 (not 0) to reflect the fact that the
-  // these counts are unknown until the RealmManager tells us, and in
-  // instances where there is no upstream RealmManager, it will remain at -1
+  // The constructor initialises it at -1 (not 0) to reflect the fact that these
+  // counts are unknown until an upstream application tells us, and in instances
+  // where there are no upstream applications, it will remain at -1
   // indefinitely.
   pthread_mutex_t _peer_counts_lock;
   int _peer_count;

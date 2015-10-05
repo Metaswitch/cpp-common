@@ -54,9 +54,19 @@ Stack::Stack() : _initialized(false),
                  _realm_counter(NULL),
                  _host_counter(NULL),
                  _peer_count(-1),
-                 _connected_peer_count(-1) {}
+                 _connected_peer_count(-1)
+{
+  pthread_mutex_init(&_peer_counts_lock, NULL);
+  pthread_rwlock_init(&_peer_connection_cbs_lock, NULL);
+  pthread_rwlock_init(&_rt_out_cbs_lock, NULL);
+}
 
-Stack::~Stack(){}
+Stack::~Stack()
+{
+  pthread_mutex_destroy(&_peer_counts_lock);
+  pthread_rwlock_destroy(&_peer_connection_cbs_lock);
+  pthread_rwlock_destroy(&_rt_out_cbs_lock);
+}
 
 void Stack::initialize()
 {
@@ -122,6 +132,7 @@ void Stack::initialize()
 void Stack::register_peer_hook_hdlr(std::string listener_id,
                                     PeerConnectionCB peer_connection_cb)
 {
+  pthread_rwlock_wrlock(&_peer_connection_cbs_lock);
   if (_peer_connection_cbs.empty())
   {
     int rc = fd_hook_register(HOOK_MASK(HOOK_PEER_CONNECT_SUCCESS,
@@ -137,20 +148,24 @@ void Stack::register_peer_hook_hdlr(std::string listener_id,
   }
 
   _peer_connection_cbs[listener_id] = peer_connection_cb;
+  pthread_rwlock_unlock(&_peer_connection_cbs_lock);
 }
 
 void Stack::unregister_peer_hook_hdlr(std::string listener_id)
 {
+  pthread_rwlock_wrlock(&_peer_connection_cbs_lock);
   _peer_connection_cbs.erase(listener_id);
   if (_peer_cb_hdlr && _peer_connection_cbs.empty())
   {
     fd_hook_unregister(_peer_cb_hdlr);
   }
+  pthread_rwlock_unlock(&_peer_connection_cbs_lock);
 }
 
 void Stack::register_rt_out_cb(std::string listener_id,
                                RtOutCB rt_out_cb)
 {
+  pthread_rwlock_wrlock(&_rt_out_cbs_lock);
   if (_rt_out_cbs.empty())
   {
     int rc = fd_rt_out_register(fd_rt_out_cb, this, 10, &_rt_out_cb_hdlr);
@@ -160,16 +175,19 @@ void Stack::register_rt_out_cb(std::string listener_id,
       throw Exception("fd_rt_out_register", rc); // LCOV_EXCL_LINE
     }
   }
-   _rt_out_cbs[listener_id] = rt_out_cb;
+  _rt_out_cbs[listener_id] = rt_out_cb;
+  pthread_rwlock_unlock(&_rt_out_cbs_lock);
 }
 
 void Stack::unregister_rt_out_cb(std::string listener_id)
 {
+  pthread_rwlock_wrlock(&_rt_out_cbs_lock);
   _rt_out_cbs.erase(listener_id);
   if (_rt_out_cb_hdlr && _rt_out_cbs.empty())
   {
     fd_rt_out_unregister(_rt_out_cb_hdlr, NULL);
   }
+  pthread_rwlock_unlock(&_rt_out_cbs_lock);
 }
 
 void Stack::populate_avp_map()
@@ -295,11 +313,7 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
   // of these reasons), but we check explicitly below to ensure that no SAS
   // log is made if we don't know the reason why.
   //
-  // We use counts given to us by the upstream RealmManager, if it exists. The
-  // SAS logs won't appear if hss_hostname has been configured (rather than
-  // hss_realm) as we have no visibility of the connectedness of the single
-  // peer in this case (there is always exactly one peer and freeDiameter
-  // automatically retries connection failures on our behalf).
+  // We use counts given to us by upstream applications, if any exist.
   bool no_peers;
   bool no_connected_peers;
   pthread_mutex_lock(&_peer_counts_lock);
@@ -359,12 +373,14 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
     std::string host = peer->info.pi_diamid;
     std::string realm = peer->info.runtime.pir_realm;
 
+    pthread_rwlock_rdlock(&_peer_connection_cbs_lock);
     for (std::map<std::string, PeerConnectionCB>::const_iterator cb = _peer_connection_cbs.begin();
          cb != _peer_connection_cbs.end();
          ++cb)
     {
       (cb->second)((type == HOOK_PEER_CONNECT_SUCCESS) ? true : false, host, realm);
     }
+    pthread_rwlock_unlock(&_peer_connection_cbs_lock);
   }
   return;
 }
@@ -378,12 +394,14 @@ int Stack::fd_rt_out_cb(void* stack_ptr, struct msg** pmsg, struct fd_list* cand
 void Stack::fd_rt_out_cb(struct fd_list* candidates)
 {
   TRC_DEBUG("Routing out callback from freeDiameter");
+  pthread_rwlock_rdlock(&_rt_out_cbs_lock);
   for (std::map<std::string, RtOutCB>::const_iterator cb = _rt_out_cbs.begin();
        cb != _rt_out_cbs.end();
        ++cb)
   {
     (cb->second)(candidates);
   }
+  pthread_rwlock_unlock(&_rt_out_cbs_lock);
 }
 
 void Stack::configure(std::string filename,
@@ -569,11 +587,27 @@ void Stack::stop()
 
     if (_peer_cb_hdlr)
     {
+      pthread_rwlock_rdlock(&_peer_connection_cbs_lock);
+      if (!_peer_connection_cbs.empty())
+      {
+        TRC_WARNING("Diameter Stack is shutting down, but %s still has registered peer connection callback",
+                    _peer_connection_cbs.begin()->first.c_str());
+      }
+      pthread_rwlock_unlock(&_peer_connection_cbs_lock);
+
       fd_hook_unregister(_peer_cb_hdlr);
     }
 
     if (_rt_out_cb_hdlr)
     {
+      pthread_rwlock_rdlock(&_rt_out_cbs_lock);
+      if (!_rt_out_cbs.empty())
+      {
+        TRC_WARNING("Diameter Stack is shutting down, but %s still has registered message routing callback",
+                    _rt_out_cbs.begin()->first.c_str());
+      }
+      pthread_rwlock_unlock(&_rt_out_cbs_lock);
+
       fd_rt_out_unregister(_rt_out_cb_hdlr, NULL);
     }
 

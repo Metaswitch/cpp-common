@@ -42,12 +42,6 @@
 #include "diameterstack.h"
 #include "diameterresolver.h"
 
-namespace Diameter
-{
-class Stack;
-class Peer;
-}
-
 class RealmManager
 {
 public:
@@ -75,12 +69,24 @@ private:
 
   void manage_connections(int& ttl);
 
+  // We use a read/write lock to read and update the _peers map (defined below).
+  // However, we read this map on every single Diameter message, so we want to
+  // minimise blocking. Therefore we only grab the write lock when we are ready
+  // to write to _peers. This means we may first grab the read lock (to work
+  // out what write we want to do). However, we can't upgrade a read lock to a
+  // write lock, and we don't want somebody else to write to the peers map
+  // whilst in between reading and writing. Therefore a function that wishes to
+  // write to the peers map MUST ALSO HAVE HOLD OF THE MAIN THREAD LOCK. This is
+  // not policed anywhere (in fact, we can't police it), but that's how these
+  // locks should be used.
+  pthread_mutex_t _main_thread_lock;
+  pthread_rwlock_t _peers_lock;
+
   Diameter::Stack* _stack;
   std::string _realm;
   std::string _host;
   int _max_peers;
   pthread_t _thread;
-  pthread_mutex_t _lock;
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
   std::map<std::string, Diameter::Peer*> _peers;
