@@ -184,6 +184,11 @@ ResultCode Store::connection_test()
     TRC_ERROR("Store caught NotFoundException: %s", nfe.what());
     rc = NOT_FOUND;
   }
+  catch(InvalidRequestException ire)
+  {
+    TRC_ERROR("Store caught InvalidRequestException: %s", ire.why.c_str());
+    rc = INVALID_REQUEST;
+  }
   catch(...)
   {
     TRC_ERROR("Store caught unknown exception!");
