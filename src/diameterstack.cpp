@@ -371,14 +371,15 @@ void Stack::fd_peer_hook_cb(enum fd_hook_type type,
     TRC_DEBUG("Callback (type %d) from freeDiameter: %s", type, peer->info.pi_diamid);
 
     std::string host = peer->info.pi_diamid;
-    std::string realm = peer->info.runtime.pir_realm;
 
     pthread_rwlock_rdlock(&_peer_connection_cbs_lock);
     for (std::map<std::string, PeerConnectionCB>::const_iterator cb = _peer_connection_cbs.begin();
          cb != _peer_connection_cbs.end();
          ++cb)
     {
-      (cb->second)((type == HOOK_PEER_CONNECT_SUCCESS) ? true : false, host, realm);
+      (cb->second)((type == HOOK_PEER_CONNECT_SUCCESS) ? true : false,
+                   host,
+                   (type == HOOK_PEER_CONNECT_SUCCESS) ? peer->info.runtime.pir_realm : "");
     }
     pthread_rwlock_unlock(&_peer_connection_cbs_lock);
   }
