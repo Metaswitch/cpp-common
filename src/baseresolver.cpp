@@ -247,6 +247,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
              ++ii)
         {
           ai.port = srvs[ii]->port;
+          ai.priority = srvs[ii]->priority;
+          ai.weight = srvs[ii]->weight;
 
           if (!active_addr[ii].empty())
           {

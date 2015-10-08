@@ -55,11 +55,13 @@
 
 namespace Diameter
 {
+typedef std::function<void(bool, const std::string&, const std::string&)> PeerConnectionCB;
+typedef std::function<void(struct fd_list*)> RtOutCB;
+
 class Stack;
 class Transaction;
 class AVP;
 class Message;
-class PeerListener;
 
 class Dictionary
 {
@@ -556,26 +558,22 @@ class Peer
 public:
   Peer(const std::string& host,
        const std::string& realm = "",
-       uint32_t idle_time = 0,
-       PeerListener* listener = NULL) :
+       uint32_t idle_time = 0) :
        _addr_info_specified(false),
        _host(host),
        _realm(realm),
        _idle_time(idle_time),
-       _listener(listener),
        _connected(false) {}
 
   Peer(AddrInfo addr_info,
        const std::string& host,
        const std::string& realm = "",
-       uint32_t idle_time = 0,
-       PeerListener* listener = NULL) :
+       uint32_t idle_time = 0) :
        _addr_info(addr_info),
        _addr_info_specified(true),
        _host(host),
        _realm(realm),
        _idle_time(idle_time),
-       _listener(listener),
        _connected(false) {}
 
   inline const AddrInfo& addr_info() const {return _addr_info;}
@@ -583,9 +581,13 @@ public:
   inline const std::string& host() const {return _host;}
   inline const std::string& realm() const {return _realm;}
   inline uint32_t idle_time() const {return _idle_time;}
-  inline PeerListener* listener() const {return _listener;}
   inline const bool& connected() const {return _connected;}
   inline void set_connected() {_connected = true;}
+
+  inline void set_srv_priority(int priority)
+  {
+    _addr_info.priority = priority;
+  }
 
 private:
   AddrInfo _addr_info;
@@ -593,15 +595,7 @@ private:
   std::string _host;
   std::string _realm;
   uint32_t _idle_time;
-  PeerListener* _listener;
   bool _connected;
-};
-
-class PeerListener
-{
-public:
-  virtual void connection_succeeded(Peer* peer) = 0;
-  virtual void connection_failed(Peer* peer) = 0;
 };
 
 class Stack
@@ -636,8 +630,12 @@ public:
 
   static inline Stack* get_instance() {return INSTANCE;};
   virtual void initialize();
-  virtual void register_peer_hook_hdlr();
-  virtual void unregister_peer_hook_hdlr();
+  virtual void register_peer_hook_hdlr(std::string listener_id,
+                                       PeerConnectionCB peer_connection_cb);
+  virtual void unregister_peer_hook_hdlr(std::string listener_id);
+  virtual void register_rt_out_cb(std::string listener_id,
+                                  RtOutCB peer_connection_cb);
+  virtual void unregister_rt_out_cb(std::string listener_id);
   virtual void configure(std::string filename,
                          ExceptionHandler* exception_handler,
                          BaseCommunicationMonitor* comm_monitor = NULL,
@@ -672,7 +670,7 @@ public:
 
   virtual bool add(Peer* peer);
   virtual void remove(Peer* peer);
-  virtual void peer_count(int);
+  virtual void peer_count(int peer_count, int connected_peer_count);
 
   static int allow_connections(struct peer_info* info,
                                int* auth,
@@ -705,8 +703,15 @@ private:
 
   static void fd_null_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd, void* user_data);
 
-  void fd_peer_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
+  void fd_peer_hook_cb(enum fd_hook_type type, struct peer_hdr* peer);
   static void fd_peer_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
+  std::map<std::string, PeerConnectionCB> _peer_connection_cbs;
+  pthread_rwlock_t _peer_connection_cbs_lock;
+
+  void fd_rt_out_cb(struct fd_list* candidates);
+  static int fd_rt_out_cb(void* stack_ptr, struct msg** pmsg, struct fd_list* candidates);
+  std::map<std::string, RtOutCB> _rt_out_cbs;
+  pthread_rwlock_t _rt_out_cbs_lock;
 
   void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void *other, struct fd_hook_permsgdata* pmd);
   static void fd_error_hook_cb(enum fd_hook_type type, struct msg* msg, struct peer_hdr* peer, void* other, struct fd_hook_permsgdata* pmd, void* stack_ptr);
@@ -724,6 +729,7 @@ private:
   struct disp_hdl* _callback_handler; /* Handler for requests callback */
   struct disp_hdl* _callback_fallback_handler; /* Handler for unexpected messages callback */
   struct fd_hook_hdl* _peer_cb_hdlr; /* Handler for the callback registered for connections to peers */
+  struct fd_rt_out_hdl* _rt_out_cb_hdlr; /* Handler for the callback registered for routing messages out */
   struct fd_hook_hdl* _error_cb_hdlr; /* Handler for the callback
                                        * registered for routing errors */
   struct fd_hook_hdl* _null_cb_hdlr; /* Handler for the NULL callback registered to overload the default hook handlers */
@@ -734,23 +740,23 @@ private:
   // registered, it stores the handles statically, and there is no way to
   // unregister them.
   static struct fd_hook_data_hdl* _sas_cb_data_hdl;
-  std::vector<Peer*> _peers;
-  pthread_mutex_t _peers_lock;
   ExceptionHandler* _exception_handler;
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::CounterTable* _realm_counter;
   SNMP::CounterTable* _host_counter;
 
-  // "Managed" peer count.  This is the number of peers as discovered by the
-  // upstream manager.  Most of the time it will be the same as the size of
-  // _peers, but will differ during management cycles as peers are added and
-  // removed and the managed value is more useful for reporting purposes.
+  // Number of peers we're currently either connected to or trying to connect
+  // to, or have recently tried to connect to, and the number of peers we're
+  // actually connected to. Used for raising appropriate SAS logs when Diameter
+  // message routing fails and we have no connected peers.
   //
-  // The constructor initialises it at -1 (not 0) to reflect the fact that the
-  // managed number of peers is unknown until the manager tells us, and in
-  // instances where there is no upstream manager, it will remain at -1
+  // The constructor initialises it at -1 (not 0) to reflect the fact that these
+  // counts are unknown until an upstream application tells us, and in instances
+  // where there are no upstream applications, it will remain at -1
   // indefinitely.
+  pthread_mutex_t _peer_counts_lock;
   int _peer_count;
+  int _connected_peer_count;
 
   // Map of Vendor->AVP name->AVP dictionary
   std::unordered_map<std::string, std::unordered_map<std::string, struct dict_object*>> _avp_map;
@@ -759,7 +765,6 @@ private:
   void populate_vendor_map(const std::string& vendor_name,
                            struct dict_object* vendor_dict);
 
-  void remove_int(Peer* peer);
 };
 
 /// @class SpawningHandler
