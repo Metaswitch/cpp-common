@@ -370,6 +370,10 @@ void RealmManager::manage_connections(int& ttl)
         zombies++;
       }
     }
+    else
+    {
+      jj->second->set_srv_priority(ii->priority);
+    }
   }
 
   // 6. Tell the stack the number of peers we're currently managing (including

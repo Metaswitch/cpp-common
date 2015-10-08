@@ -584,6 +584,11 @@ public:
   inline const bool& connected() const {return _connected;}
   inline void set_connected() {_connected = true;}
 
+  inline void set_srv_priority(int priority)
+  {
+    _addr_info.priority = priority;
+  }
+
 private:
   AddrInfo _addr_info;
   bool _addr_info_specified;
