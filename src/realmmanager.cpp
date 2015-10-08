@@ -250,7 +250,10 @@ void RealmManager::thread_function()
 // 3. _peers contains a list of the Diameter::Peer objects which
 //    represent peers that we have either connected to, or which
 //    we are currently trying to connect to. Filter this list on
-//    existing connections into connected_peers.
+//    existing connections into connected_peers. Note that we don't edit _peers
+//    directly at this point. Instead we create a local copy of it and save it
+//    off in step 7. This is so that we minimise the amount of time we're
+//    holding the write lock on it.
 // 4. If we have too many connected_peers (i.e. more than _max_peers),
 //    remove some connections. We only remove connections to peers
 //    that haven't been returned by the resolve function on this run
@@ -264,6 +267,7 @@ void RealmManager::thread_function()
 // 6. Tell the stack the number of peers we are aware of, and the number of
 //    peers we're connected to. This is so that the stack can raise appropriate
 //    logs when we have no connections and routing messages inevitably fails.
+// 7. Update _peers.
 //
 // On the first run through this function, a lot of this processing is
 // irrelevant since we just get a list of targets and try to connect to
@@ -275,6 +279,10 @@ void RealmManager::manage_connections(int& ttl)
   std::vector<Diameter::Peer*> connected_peers;
   bool ret;
 
+  // Save a local copy of the current list of peers. We want other functions to
+  // still be able to read this list, which is why we don't take the write lock
+  // yet. We know that nobody else is editing _peers because we're protected by
+  // the _main_thread_lock.
   pthread_rwlock_rdlock(&_peers_lock);
   std::map<std::string, Diameter::Peer*> locked_peers = _peers;
   pthread_rwlock_unlock(&_peers_lock);
@@ -382,6 +390,7 @@ void RealmManager::manage_connections(int& ttl)
   // connected to.
   _stack->peer_count(locked_peers.size() + zombies, connected_peers.size());
 
+  // 7. Update the stored _peers map.
   pthread_rwlock_wrlock(&_peers_lock);
   _peers = locked_peers;
   pthread_rwlock_unlock(&_peers_lock);
