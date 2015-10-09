@@ -1,8 +1,8 @@
 /**
- * @file mockcommunicationmonitor.h Mock CommunicationMonitor.
+ * @file mockhttpconnection.h Mock httpconnection.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
