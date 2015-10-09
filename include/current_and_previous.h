@@ -70,13 +70,11 @@ public:
   // Rolls the current period over into the previous period if necessary.
   void update_time(struct timespec now)
   {
-    TRC_DEBUG("calling Current_and_Previous func update_time");
     // Count of how many _interval periods have passed since the epoch
     uint64_t new_tick = (now.tv_sec / (_interval_ms / 1000));
 
     // Count of how many _interval periods have passed since the last change
     uint32_t tick_difference = new_tick - _tick;
-    TRC_DEBUG("Tick difference = %u ", tick_difference);
     _tick = new_tick;
 
     if (tick_difference == 1)
