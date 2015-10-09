@@ -1,5 +1,5 @@
 /**
- * @file mockhttpconnection.h Mock httpconnection.
+ * @file mockhttpconnection.cpp Mock httpconnection.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015  Metaswitch Networks Ltd
@@ -34,22 +34,14 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKHTTPCONNECTION_H__
-#define MOCKHTTPCONNECTION_H__
+#include "mockhttpconnection.h"
 
-#include "gmock/gmock.h"
-#include "httpconnection.h"
+MockHttpConnection::MockHttpConnection() :
+    HttpConnection("localhost",
+                   true,
+                   NULL,
+                   SASEvent::HttpLogLevel::PROTOCOL,
+                   NULL)
+  {}
 
-class MockHttpConnection : public HttpConnection
-{
-public:
-  MockHttpConnection();
-  ~MockHttpConnection();
-  MOCK_METHOD5(send_post, long(const std::string& path,
-                               std::map<std::string, std::string>& headers,
-                               const std::string& body,
-                               SAS::TrailId trail,
-                               const std::string& username));
-};
-
-#endif
+MockHttpConnection::~MockHttpConnection() {}
