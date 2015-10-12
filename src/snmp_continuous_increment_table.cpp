@@ -73,9 +73,7 @@ public:
   {
     TRC_DEBUG("Received request to increment by %u", value);
     //pass value as increment through to value adjusting structure.
-    //TRC_DEBUG("Passing to count_internal with CurrentAndPrevious = five_second");
     count_internal(five_second, value, TRUE);
-    //TRC_DEBUG("Passing to count_internal with CurrentAndPrevious = five_minute");
     count_internal(five_minute, value, TRUE);
   }
 
@@ -83,9 +81,7 @@ public:
   {
     TRC_DEBUG("Received request to decrement by %uui", value);
     //pass value as decrement through to value adjusting structure.
-    //TRC_DEBUG("Passing to count_internal with CurrentAndPrevious = five_second");
     count_internal(five_second, value, FALSE);
-    //TRC_DEBUG("Passing to count_internal with CurrentAndPrevious = five_minute");
     count_internal(five_minute, value, FALSE);
   }
 
@@ -119,12 +115,10 @@ private:
 
     if(increment_total)
       {
-        //TRC_DEBUG("Count_internal Incrementing value");
         total+=value;
       }
     else
       {
-        //TRC_DEBUG("Count_internal decrementing value");
         total-=value;
         //check to ensure the value to accumulate is not negative
         if(value<0)
@@ -140,7 +134,6 @@ private:
   void accumulate_internal(ContinuousStatistics* current_data, uint32_t sample, const struct timespec& now)
   {
 
-    //TRC_DEBUG("Accumulating sample %uui into continuous accumulator statistic", sample);
 
     current_data->count++;
 
@@ -157,7 +150,6 @@ private:
     current_data->sum += current_value * time_since_last_update;
     current_data->sqsum += current_value * current_value * time_since_last_update;
     current_data->current_value = sample;
-    //TRC_DEBUG("Setting time since last update, sum, sqsum and current value");
 
     // Update the low- and high-water marks.  In each case, we get the current
     // value, decide whether a change is required and then atomically swap it
@@ -165,14 +157,12 @@ private:
     // compare_exchange_weak loads the current value into the expected value
     // parameter (lwm or hwm below) if the compare fails.
     uint_fast64_t lwm = current_data->lwm.load();
-    //TRC_DEBUG("comparing recorded LWM %u to the passed in sample %u", lwm, sample);
     while ((sample < lwm) &&
            (!current_data->lwm.compare_exchange_weak(lwm, sample)))
     {
       // Do nothing.
     }
     uint_fast64_t hwm = current_data->hwm.load();
-    //TRC_DEBUG("comparing recorded HWM %u to the passed in sample %u", hwm, sample);
     while ((sample > hwm) &&
            (!current_data->hwm.compare_exchange_weak(hwm, sample)))
     {
@@ -190,7 +180,6 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   struct timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
-  //TRC_DEBUG("calling ColumnData ContinuousAccumulatorRow::get_columns()");
   ContinuousStatistics* accumulated = _view->get_data(now);
   uint32_t interval_ms = _view->get_interval_ms();
 
