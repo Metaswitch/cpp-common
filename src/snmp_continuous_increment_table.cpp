@@ -71,7 +71,6 @@ public:
 
   void increment(uint32_t value)
   {
-    TRC_DEBUG("Received request to increment by %u", value);
     //pass value as increment through to value adjusting structure.
     count_internal(five_second, value, TRUE);
     count_internal(five_minute, value, TRUE);
@@ -79,7 +78,6 @@ public:
 
   void decrement(uint32_t value)
   {
-    TRC_DEBUG("Received request to decrement by %uui", value);
     //pass value as decrement through to value adjusting structure.
     count_internal(five_second, value, FALSE);
     count_internal(five_minute, value, FALSE);
