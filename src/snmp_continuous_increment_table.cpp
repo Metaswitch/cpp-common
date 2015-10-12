@@ -111,20 +111,24 @@ private:
     ContinuousStatistics* current_data = data.get_current(now);
     uint32_t total = current_data->current_value;
 
-    if(increment_total)
-      {
-        total+=value;
-      }
+    if (increment_total)
+    {
+      total += value;
+    }
     else
+    {
+      //check to ensure the value to accumulate will not be negative,
+      //and then set to 0 or decrement appropriately.
+      if (total < value)
       {
-        total-=value;
-        //check to ensure the value to accumulate is not negative
-        if(value<0)
-        {
-          value=0;
-        }
+        total = 0;
       }
-      accumulate_internal(current_data, total, now);
+      else
+      {
+        total -= value;
+      }
+    }
+    accumulate_internal(current_data, total, now);
   }
 
 
