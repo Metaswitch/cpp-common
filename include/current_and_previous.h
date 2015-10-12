@@ -42,7 +42,6 @@
 #include <string>
 #include <atomic>
 #include "logger.h"
-#include "log.h"
 
 template <class T> class CurrentAndPrevious
 {
