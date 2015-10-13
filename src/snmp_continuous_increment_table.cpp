@@ -131,11 +131,8 @@ private:
     accumulate_internal(current_data, total, now);
   }
 
-
-
   void accumulate_internal(ContinuousStatistics* current_data, uint32_t sample, const struct timespec& now)
   {
-
 
     current_data->count++;
 
@@ -171,7 +168,6 @@ private:
       // Do nothing.
     }
   };
-
 
   CurrentAndPrevious<ContinuousStatistics> five_second;
   CurrentAndPrevious<ContinuousStatistics> five_minute;
@@ -247,6 +243,5 @@ ColumnData ContinuousAccumulatorRow::get_columns()
 ContinuousIncrementTable* ContinuousIncrementTable::create(std::string name, std::string oid)
 {
   return new ContinuousIncrementTableImpl(name, oid);
-
 }
 }
