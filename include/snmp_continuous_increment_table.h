@@ -46,7 +46,7 @@
 
 // This file contains the interface for tables which:
 //   - are indexed by time period
-//   - accumulate data samples over time
+//   - adjust data by means of incrementing or decrementing the current running total
 //   - report a count of samples, high-water-mark and low-water-mark
 //   - report mean sample rate and variance as weighted by the proportion
 //         of time active within the time period
@@ -55,30 +55,25 @@
 // The thing sampled should be a continiuous data set, i.e. valued across a
 // time period.
 //
-// To create an accumulator table, simply create one, and call `accumulate` on it as data comes in,
+// To create an increment table, simply create one, and call `increment` or 
+// 'decrement' on it as data comes in,
 // e.g.:
 //
-// ContinuousAccumulatorTable* token_rate_table = ContinuousAccumulatorTable::create("token_rate", ".1.2.3");
-// token_rate_table->accumulate(2000);
+// ContinuousIncrementTable* token_rate_table = ContinuousIncrementTable::create("token_rate", ".1.2.3");
+// token_rate_table->increment(1);
 
 namespace SNMP
 {
-
 class ContinuousIncrementTable
 {
 public:
   ContinuousIncrementTable() {};
   virtual ~ContinuousIncrementTable() {};
-
   static ContinuousIncrementTable* create(std::string name, std::string oid);
 
-  // Accumulate a sample into the underlying statistics.
+  // Increment or decrement the underlying statistics.
   virtual void increment (uint32_t value) = 0;
   virtual void decrement (uint32_t value) = 0;
-
-
 };
-
 }
-
 #endif
