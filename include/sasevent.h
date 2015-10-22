@@ -139,6 +139,7 @@ namespace SASEvent {
   const int CASS_CONNECT_FAIL = COMMON_BASE + 0x0300;
 
   const int QUORUM_FAILURE = COMMON_BASE + 0x0400;
+  const int TWO_FAILURE = COMMON_BASE + 0x0401;
 
 } // namespace SASEvent
 
