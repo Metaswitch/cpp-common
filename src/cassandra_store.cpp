@@ -676,23 +676,14 @@ enum class Quorum_Consistency_Levels
 // -  The arguments for the underlying get method.
 //
 // It works as follows:
-// -  Call the underlying method with a consistency level of LOCAL_QUORUM.
+// -  Call the underlying method with a consistency level of TWO.
 //    If successful, this indicates that we've managed to find multiple nodes
 //    with the same data, and so we can trust the response (if we're wrong, it
 //    will be because several local nodes failed or were down simultaneously
 //    which we can consider a non-mainline failure case for which some level of
-//    service impact is acceptable)
-// -  If this raises an UnavailableException (in other words, we couldn't
-//    contact a quorum of servers in the local datacenter), try again with a
-//    consistency level of QUORUM.  This is going to attempt to get a quorum of
-//    responses from BOTH sites in a GR system, so is inevitably slower than
-//    LOCAL_QUORUM.  However, we cannot just drop straight through to the ONE
-//    level as this is the expected behaviour in a 2+2 GR system when we are
-//    restarting one of the nodes (e.g. thanks to an upgrade) and we can't
-//    run the risk that the ONE read might hit another recently restarted
-//    node that is still out of date.
-// -  If this *also* fails with UnavailableException, perform a ONE read.  In
-//    this case at least half of the servers in the cluster are down, and so
+//    service impact is acceptable).
+// -  If this fails with UnavailableException, perform a ONE read.  In
+//    this case at least half of the replicas in the cluster are down, and so
 //    we are already in error recovery mode in which some service impact is not
 //    unexpected, so the risk that we might return out of date data is
 //    acceptable.
@@ -700,29 +691,17 @@ enum class Quorum_Consistency_Levels
 #define HA(METHOD, TRAIL_ID, ...)                                            \
         try                                                                  \
         {                                                                    \
-          METHOD(__VA_ARGS__, ConsistencyLevel::LOCAL_QUORUM);               \
+          METHOD(__VA_ARGS__, ConsistencyLevel::TWO);                        \
         }                                                                    \
         catch(UnavailableException& ue)                                      \
         {                                                                    \
-          TRC_DEBUG("Failed ONE read for %s. Try QUORUM", #METHOD);          \
+          TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
           int event_id = SASEvent::QUORUM_FAILURE;                           \
           SAS::Event event(TRAIL_ID, event_id, 0);                           \
           event.add_static_param(                                            \
-            static_cast<uint32_t>(Quorum_Consistency_Levels::LOCAL_QUORUM)); \
+            static_cast<uint32_t>(ConsistencyLevel::TWO));                   \
           SAS::report_event(event);                                          \
-          try                                                                \
-          {                                                                  \
-            METHOD(__VA_ARGS__, ConsistencyLevel::QUORUM);                   \
-          }                                                                  \
-          catch(UnavailableException& ue)                                    \
-          {                                                                  \
-            int event_id = SASEvent::QUORUM_FAILURE;                         \
-            SAS::Event event(TRAIL_ID, event_id, 0);                         \
-            event.add_static_param(                                          \
-              static_cast<uint32_t>(Quorum_Consistency_Levels::QUORUM));     \
-            SAS::report_event(event);                                        \
-            METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                      \
-          }                                                                  \
+          METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
         }
 
 
