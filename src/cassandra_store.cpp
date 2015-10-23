@@ -666,7 +666,8 @@ put_columns(const std::vector<RowColumns>& to_put,
 enum class Quorum_Consistency_Levels
 {
   LOCAL_QUORUM = ::cass::ConsistencyLevel::LOCAL_QUORUM,
-  QUORUM = ::cass::ConsistencyLevel::QUORUM
+  QUORUM = ::cass::ConsistencyLevel::QUORUM,
+  TWO = ::cass::ConsistencyLevel::TWO
 };
 
 // Macro to turn an underlying (non-HA) get method into an HA one.
@@ -679,14 +680,12 @@ enum class Quorum_Consistency_Levels
 // -  Call the underlying method with a consistency level of TWO.
 //    If successful, this indicates that we've managed to find multiple nodes
 //    with the same data, and so we can trust the response (if we're wrong, it
-//    will be because several local nodes failed or were down simultaneously
+//    will be because at least two local nodes failed or were down simultaneously
 //    which we can consider a non-mainline failure case for which some level of
 //    service impact is acceptable).
 // -  If this fails with UnavailableException, perform a ONE read.  In
-//    this case at least half of the replicas in the cluster are down, and so
-//    we are already in error recovery mode in which some service impact is not
-//    unexpected, so the risk that we might return out of date data is
-//    acceptable.
+//    this case at most one of the replicas for the data is still up, so we
+//    can't do any better.
 //
 #define HA(METHOD, TRAIL_ID, ...)                                            \
         try                                                                  \
@@ -696,8 +695,10 @@ enum class Quorum_Consistency_Levels
         catch(UnavailableException& ue)                                      \
         {                                                                    \
           TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
-          int event_id = SASEvent::TWO_FAILURE;                              \
+          int event_id = SASEvent::QUORUM_FAILURE;                           \
           SAS::Event event(TRAIL_ID, event_id, 0);                           \
+          event.add_static_param(                                            \
+            static_cast<uint32_t>(Quorum_Consistency_Levels::TWO));          \
           SAS::report_event(event);                                          \
           METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
         }
