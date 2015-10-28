@@ -171,15 +171,6 @@ namespace SNMP
         // Update the identifier based on the request type, this gives us a
         // valid, logical OID that we will query
         bool found = update_identifier(request_type, tag, &identifier, new_oid, new_oid_len);
-        new_oid_len += 2;
-        new_oid[ROOT_OID_LEN + 1 + tag.length()] = identifier.at(0);
-        new_oid[ROOT_OID_LEN + 2 + tag.length()] = identifier.at(1);
-
-        char buf1[64];
-        snprint_objid(buf1, sizeof(buf1),
-                      new_oid, new_oid_len);
-        TRC_DEBUG("Parsed SNMP request to OID %s with tag %s and identifier <%d, %d>",
-                  buf1, tag.c_str(), identifier.at(0), identifier.at(1));
 
         if (!found && request_type == MODE_GET)
         {
@@ -205,6 +196,16 @@ namespace SNMP
 
           return SNMP_ERR_NOERROR;
         }
+
+        new_oid_len += 2;
+        new_oid[ROOT_OID_LEN + 1 + tag.length()] = identifier.at(0);
+        new_oid[ROOT_OID_LEN + 2 + tag.length()] = identifier.at(1);
+
+        char buf1[64];
+        snprint_objid(buf1, sizeof(buf1),
+                      new_oid, new_oid_len);
+        TRC_DEBUG("Parsed SNMP request to OID %s with tag %s and identifier <%d, %d>",
+                  buf1, tag.c_str(), identifier.at(0), identifier.at(1));
 
         // Update and obtain the relevants statistics structure
         _timer_counters[tag].get_statistics(identifier.back(), now, &stats);
