@@ -41,7 +41,6 @@
 
 namespace SNMP
 {
-
 // Just a TimeBasedRow that maps the data from ContinuousStatistics into the right five columns.
 class ContinuousAccumulatorRow: public TimeBasedRow<ContinuousStatistics>
 {
@@ -50,12 +49,14 @@ public:
   ColumnData get_columns();
 };
 
-class ContinuousIncrementTableImpl: public ManagedTable<ContinuousAccumulatorRow, int>, public ContinuousIncrementTable
+class ContinuousIncrementTableImpl: public ManagedTable<ContinuousAccumulatorRow, int>,
+                                    public ContinuousIncrementTable
 {
 public:
   ContinuousIncrementTableImpl(std::string name,
-                       std::string tbl_oid):
-    ManagedTable<ContinuousAccumulatorRow, int>(name,
+                               std::string tbl_oid):
+                               ManagedTable<ContinuousAccumulatorRow, int>
+                                     (name,
                                       tbl_oid,
                                       2,
                                       6, // Columns 2-6 should be visible
@@ -71,14 +72,14 @@ public:
 
   void increment(uint32_t value)
   {
-    //pass value as increment through to value adjusting structure.
+    // Pass value as increment through to value adjusting structure.
     count_internal(five_second, value, TRUE);
     count_internal(five_minute, value, TRUE);
   }
 
   void decrement(uint32_t value)
   {
-    //pass value as decrement through to value adjusting structure.
+    // Pass value as decrement through to value adjusting structure.
     count_internal(five_second, value, FALSE);
     count_internal(five_minute, value, FALSE);
   }
@@ -117,8 +118,8 @@ private:
     }
     else
     {
-      //check to ensure the value to accumulate will not be negative,
-      //and then set to 0 or decrement appropriately.
+      // Check to ensure the value to accumulate will not be negative,
+      // and then set to 0 or decrement appropriately.
       if (total < value)
       {
         total = 0;
@@ -131,9 +132,10 @@ private:
     accumulate_internal(current_data, total, now);
   }
 
-  void accumulate_internal(ContinuousStatistics* current_data, uint32_t sample, const struct timespec& now)
+  void accumulate_internal(ContinuousStatistics* current_data,
+                           uint32_t sample,
+                           const struct timespec& now)
   {
-
     current_data->count++;
 
     // Compute the updated sum and sqsum based on the previous values, dependent on
@@ -218,7 +220,7 @@ ColumnData ContinuousAccumulatorRow::get_columns()
 
   if (period_count > 0)
   {
-    // Calculate the average and the variance from the stored average/time of last upadted
+    // Calculate the average and the variance from the stored average/time of last updated
     // and sum-of-squares.
     sum += time_since_last_update_ms * current_value;
     accumulated->sum.store(sum);
@@ -226,7 +228,6 @@ ColumnData ContinuousAccumulatorRow::get_columns()
     accumulated->sqsum.store(sqsum);
     avg = sum / period_count;
     variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
-//    variance = sqsum / period_count - (sum * sum);
   }
 
   // Construct and return a ColumnData with the appropriate values
@@ -240,7 +241,8 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   return ret;
 }
 
-ContinuousIncrementTable* ContinuousIncrementTable::create(std::string name, std::string oid)
+ContinuousIncrementTable* ContinuousIncrementTable::create(std::string name,
+                                                           std::string oid)
 {
   return new ContinuousIncrementTableImpl(name, oid);
 }

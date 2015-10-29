@@ -41,7 +41,6 @@
 
 namespace SNMP
 {
-
 // Just a TimeBasedRow that maps the data from ContinuousStatistics into the right five columns.
 class ContinuousAccumulatorRow: public TimeBasedRow<ContinuousStatistics>
 {
@@ -50,16 +49,18 @@ public:
   ColumnData get_columns();
 };
 
-class ContinuousAccumulatorTableImpl: public ManagedTable<ContinuousAccumulatorRow, int>, public ContinuousAccumulatorTable
+class ContinuousAccumulatorTableImpl: public ManagedTable<ContinuousAccumulatorRow, int>,
+                                      public ContinuousAccumulatorTable
 {
 public:
   ContinuousAccumulatorTableImpl(std::string name,
-                       std::string tbl_oid):
-    ManagedTable<ContinuousAccumulatorRow, int>(name,
-                                      tbl_oid,
-                                      2,
-                                      6, // Columns 2-6 should be visible
-                                      { ASN_INTEGER }), // Type of the index column
+                                 std::string tbl_oid):
+                                 ManagedTable<ContinuousAccumulatorRow,int>
+                                       (name,
+                                        tbl_oid,
+                                        2,
+                                        6, // Columns 2-6 should be visible
+                                        { ASN_INTEGER }), // Type of the index column
     five_second(5000),
     five_minute(300000)
   {
@@ -191,7 +192,7 @@ ColumnData ContinuousAccumulatorRow::get_columns()
 
   if (period_count > 0)
   {
-    // Calculate the average and the variance from the stored average/time of last upadted
+    // Calculate the average and the variance from the stored average/time of last updated
     // and sum-of-squares.
     sum += time_since_last_update_ms * current_value;
     accumulated->sum.store(sum);
@@ -199,7 +200,6 @@ ColumnData ContinuousAccumulatorRow::get_columns()
     accumulated->sqsum.store(sqsum);
     avg = sum / period_count;
     variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
-//    variance = sqsum / period_count - (sum * sum);
   }
 
   // Construct and return a ColumnData with the appropriate values
@@ -213,9 +213,9 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   return ret;
 }
 
-ContinuousAccumulatorTable* ContinuousAccumulatorTable::create(std::string name, std::string oid)
+ContinuousAccumulatorTable* ContinuousAccumulatorTable::create(std::string name,
+                                                               std::string oid)
 {
   return new ContinuousAccumulatorTableImpl(name, oid);
-
 }
 }
