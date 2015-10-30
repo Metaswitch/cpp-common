@@ -142,7 +142,6 @@ private:
     // how long since an update happened. Additionally update the sum of squares as a
     // rolling total, and update the time of the last update. Also maintain a
     // current value held, that can be used if the period ends.
-
     uint64_t time_since_last_update = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
                                      - (current_data->time_last_update_ms.load());
     uint32_t current_value = current_data->current_value.load();
