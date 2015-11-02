@@ -44,7 +44,9 @@
 
 using namespace std;
 
-typedef size_t (*datafn_ty)(char* ptr, size_t size, size_t nmemb, void* userdata);
+typedef map<string,string>* headerdata_ty;
+typedef size_t (*datafn_ty)(void* ptr, size_t size, size_t nmemb, void* userdata);
+typedef size_t (*headerfn_ty)(void* ptr, size_t size, size_t nmemb, headerdata_ty headers);
 typedef int (*debug_callback_t)(CURL *handle,
                                 curl_infotype type,
                                 char *data,
@@ -73,8 +75,8 @@ public:
   datafn_ty _writefn;
   void* _writedata; //^ user data; not owned by this object
 
-  datafn_ty _hdrfn;
-  void* _hdrdata; //^ user data; not owned by this object
+  headerfn_ty _hdrfn;
+  headerdata_ty _hdrdata; //^ user data; not owned by this object
 
   void* _private;
 
@@ -346,12 +348,12 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
   break;
   case CURLOPT_HEADERFUNCTION:
   {
-    curl->_hdrfn = va_arg(args, datafn_ty);
+    curl->_hdrfn = va_arg(args, headerfn_ty);
   }
   break;
   case CURLOPT_WRITEHEADER:
   {
-    curl->_hdrdata = va_arg(args, void*);
+    curl->_hdrdata = va_arg(args, headerdata_ty);
   }
   break;
   case CURLOPT_POSTFIELDS:

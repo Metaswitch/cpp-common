@@ -54,6 +54,8 @@ struct AddrInfo
   IP46Address address;
   int port;
   int transport;
+  int priority;
+  int weight;
 
   bool operator<(const AddrInfo& rhs) const
   {

@@ -1,8 +1,8 @@
 /**
- * @file mockdiameterstack.h Mock HTTP stack.
+ * @file mockhttpconnection.h Mock httpconnection.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,35 +34,22 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKDIAMETERSTACK_H__
-#define MOCKDIAMETERSTACK_H__
+#ifndef MOCKHTTPCONNECTION_H__
+#define MOCKHTTPCONNECTION_H__
 
 #include "gmock/gmock.h"
-#include "diameterstack.h"
+#include "httpconnection.h"
 
-class MockDiameterStack : public Diameter::Stack
+class MockHttpConnection : public HttpConnection
 {
 public:
-  MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD3(register_handler, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, HandlerInterface*));
-  MOCK_METHOD1(register_fallback_handler, void(const Diameter::Dictionary::Application&));
-  MOCK_METHOD2(register_peer_hook_hdlr, void(std::string, Diameter::PeerConnectionCB));
-  MOCK_METHOD1(unregister_peer_hook_hdlr, void(std::string));
-  MOCK_METHOD2(register_rt_out_cb, void(std::string, Diameter::RtOutCB));
-  MOCK_METHOD1(unregister_rt_out_cb, void(std::string));
-  MOCK_METHOD0(start, void());
-  MOCK_METHOD0(stop, void());
-  MOCK_METHOD0(wait_stopped, void());
-  MOCK_METHOD2(send, void(struct msg*, SAS::TrailId));
-  MOCK_METHOD2(send, void(struct msg*, Diameter::Transaction*));
-  MOCK_METHOD3(send, void(struct msg*, Diameter::Transaction*, unsigned int timeout_ms));
-  MOCK_METHOD1(add, bool(Diameter::Peer*));
-  MOCK_METHOD1(remove, void(Diameter::Peer*));
-  MOCK_METHOD0(set_allow_connections, void());
-  MOCK_METHOD0(close_connections, void());
-  MOCK_METHOD2(peer_count, void(int, int));
+  MockHttpConnection();
+  ~MockHttpConnection();
+  MOCK_METHOD5(send_post, long(const std::string& path,
+                               std::map<std::string, std::string>& headers,
+                               const std::string& body,
+                               SAS::TrailId trail,
+                               const std::string& username));
 };
 
 #endif
