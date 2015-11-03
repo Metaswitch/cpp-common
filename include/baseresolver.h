@@ -57,6 +57,10 @@ struct AddrInfo
   int priority;
   int weight;
 
+  AddrInfo():
+    priority(1),
+    weight(1) {};
+
   bool operator<(const AddrInfo& rhs) const
   {
     int addr_cmp = address.compare(rhs.address);
