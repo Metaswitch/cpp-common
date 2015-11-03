@@ -175,7 +175,27 @@ void RealmManager::srv_priority_cb(struct fd_list* candidates)
     {
       // The lower the priority value, the higher the priority of the result, so
       // take away the priority value from the score.
-      candidate->score -= (ii->second)->addr_info().priority;
+      if (candidate->score > 0)
+      {
+        int new_score = candidate->score - (ii->second)->addr_info().priority;
+
+        // Very high priority values shouldn't cause us to go negative - we'll be ignored by
+        // freeDiameter
+        new_score = std::max(new_score, 1);
+        TRC_DEBUG("freeDiameter routing score for candidate %.*s is changing from %d to %d",
+                  candidate->cfg_diamidlen,
+                  candidate->cfg_diamid,
+                  candidate->score,
+                  new_score);
+        candidate->score = new_score;
+      }
+      else
+      {
+        TRC_DEBUG("freeDiameter routing score for candidate %.*s is negative (%d) - not changing",
+                  candidate->cfg_diamidlen,
+                  candidate->cfg_diamid,
+                  candidate->score);
+      }
     }
     else
     {
