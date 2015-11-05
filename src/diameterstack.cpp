@@ -869,14 +869,15 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
   SAS::TrailId trail;
   Stack* stack = (Stack*)stack_ptr;
 
-  // Don't log the message if we don't have a peer (this must be an initial
-  // CER/CEA exchange which is not logged).
-  if (peer == NULL)
+  fd_msg_hdr(msg, &hdr);
+
+  // Don't log connection management requests.
+  if ((hdr->msg_code == CC_CAPABILITIES_EXCHANGE) ||
+      (hdr->msg_code == CC_DEVICE_WATCHDOG) ||
+      (hdr->msg_code == CC_DISCONNECT_PEER))
   {
     return;
   }
-
-  fd_msg_hdr(msg, &hdr);
 
   // Get the trail ID we should be logging on.
   if (type == HOOK_MESSAGE_RECEIVED)
