@@ -107,7 +107,13 @@ namespace HttpStackUtils
       _req(req), _trail(trail)
     {}
 
-    virtual ~Task() {}
+    virtual ~Task()
+    {
+      // Now the task is complete we should flush the trail to ensure it
+      // appears promptly in SAS.
+      SAS::Marker flush_marker(_trail, MARKED_ID_FLUSH);
+      SAS::report_marker(flush_marker);
+    }
 
     /// Process the request associated with this task. Subclasses of this
     /// class should implement it with their specific business logic.
@@ -195,7 +201,7 @@ namespace HttpStackUtils
       SAS::TrailId trail;
     };
 
-  public:  
+  public:
     static void exception_callback(RequestParams* work)
     {
       // Respond with a 500

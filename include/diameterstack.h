@@ -825,7 +825,14 @@ public:
               SAS::TrailId trail) :
     _msg(dict, *fd_msg, Stack::get_instance()), _trail(trail)
   {}
-  virtual ~Task() {}
+
+  virtual ~Task()
+  {
+    // Now the task is complete we should flush the trail to ensure it appears
+    // promptly in SAS.
+    SAS::Marker flush_marker(_trail, MARKED_ID_FLUSH);
+    SAS::report_marker(flush_marker);
+  }
 
   virtual void run() = 0;
 
