@@ -125,7 +125,10 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
   target_latency = init_target_latency;
   smoothed_latency = init_target_latency;
   adjust_count = 0;
-  clock_gettime(CLOCK_MONOTONIC_COARSE, &last_adjustment_time);
+
+  timespec current_time;
+  clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
+  last_adjustment_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_nsec / 1000);
   min_token_rate = init_min_token_rate;
 
   // As this statistics reporting is continuous, we should
@@ -192,9 +195,8 @@ void LoadMonitor::request_complete(int latency)
     // fluctuate wildly if latency spikes for a few milliseconds
     timespec current_time;
     clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
-    if ((current_time.tv_sec > (last_adjustment_time.tv_sec + SECONDS_BEFORE_ADJUSTMENT)) ||
-        ((current_time.tv_sec == (last_adjustment_time.tv_sec + SECONDS_BEFORE_ADJUSTMENT)) &&
-         (current_time.tv_nsec >= (last_adjustment_time.tv_nsec))))
+    unsigned long current_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_nsec / 1000);
+    if (current_time_ms >= (last_adjustment_time_ms + (SECONDS_BEFORE_ADJUSTMENT * 1000)))
     {
       // This algorithm is based on the Welsh and Culler "Adaptive Overload
       // Control for Busy Internet Servers" paper, although based on a smoothed
@@ -228,13 +230,33 @@ void LoadMonitor::request_complete(int latency)
       }
       else if (err < INCREASE_THRESHOLD)
       {
-        float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
-        bucket.update_rate(new_rate);
-        TRC_STATUS("Maximum incoming request rate/second increased to %f "
-                   "(based on a smoothed mean latency of %d and %d upstream overload responses)",
-                   bucket.rate,
-                   smoothed_latency,
-                   penalties);
+        // Our latency is below the threshold, so increasing our permitted request rate would be
+        // sensible. Before doing that, we check that we're using a significant proportion of our
+        // current rate - if we're allowing 100 requests/sec, and we get 1 request/sec because it's
+        // a quiet period, then it's going to be handled quickly, but that's not sufficient evidence
+        // to increase our rate.
+        float maximum_permitted_requests = bucket.rate * (current_time_ms - last_adjustment_time_ms) / 1000;
+
+        // Arbitrary threshold - require 50% of our current permitted rate to be used
+        float minimum_threshold = maximum_permitted_requests * 0.5;
+
+        if (accepted > minimum_threshold)
+        {
+          float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
+          bucket.update_rate(new_rate);
+          TRC_STATUS("Maximum incoming request rate/second increased to %f "
+                     "(based on a smoothed mean latency of %d and %d upstream overload responses)",
+                     bucket.rate,
+                     smoothed_latency,
+                     penalties);
+        }
+        else
+        {
+          TRC_STATUS("Maximum incoming request rate/second unchanged - only handled %d requests"
+                     " recently, minimum threshold for a change is %f",
+                     accepted,
+                     minimum_threshold);
+        }
       }
       else
       {
@@ -245,7 +267,7 @@ void LoadMonitor::request_complete(int latency)
       update_statistics();
 
       // Reset counts
-      last_adjustment_time = current_time;
+      last_adjustment_time_ms = current_time_ms;
       adjust_count = 0;
       accepted = 0;
       rejected = 0;

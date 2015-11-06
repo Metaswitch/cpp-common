@@ -100,7 +100,7 @@ class LoadMonitor
     int target_latency;
     int smoothed_latency;
     int adjust_count;
-    timespec last_adjustment_time;
+    unsigned long last_adjustment_time_ms;
     float min_token_rate;
     TokenBucket bucket;
     SNMP::ContinuousAccumulatorTable* _token_rate_table;
