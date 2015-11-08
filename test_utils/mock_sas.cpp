@@ -106,7 +106,8 @@ int SAS::init(const std::string& system_name,
               const std::string& system_type,
               const std::string& resource_identifier,
               const std::string& sas_address,
-              sas_log_callback_t* log_callback)
+              sas_log_callback_t* log_callback,
+              create_socket_callback_t* socket_callback)
 {
   return 0;
 }
