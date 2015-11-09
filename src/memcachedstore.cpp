@@ -107,6 +107,43 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   }
 }
 
+BaseMemcachedStore::BaseMemcachedStore(BaseCommunicationMonitor* comm_monitor) :
+  _binary(true),
+  _updater(NULL),
+  _replicas(1),
+  _vbuckets(1),
+  _options(),
+  _view_number(0),
+  _servers(),
+  _max_connect_latency_ms(50),
+  _read_replicas(_vbuckets),
+  _write_replicas(_vbuckets),
+  _comm_monitor(comm_monitor),
+  _vbucket_comm_state(_vbuckets),
+  _vbucket_comm_fail_count(0),
+  _vbucket_alarm(NULL),
+  _tombstone_lifetime(200),
+  _config_reader(NULL)
+{
+  // Create the thread local key for the per thread data.
+  pthread_key_create(&_thread_local, BaseMemcachedStore::cleanup_connection);
+
+  // Create the lock for protecting the current view.
+  pthread_rwlock_init(&_view_lock, NULL);
+
+  // Create the mutex for protecting vbucket comm state.
+  pthread_mutex_init(&_vbucket_comm_lock, NULL);
+
+  // Set up the fixed options for memcached.  We use a very short connect
+  // timeout because libmemcached tries to connect to all servers sequentially
+  // during start-up, and if any are not up we don't want to wait for any
+  // significant length of time.
+  _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS --POLL-TIMEOUT=250";
+  _options += (_binary) ? " --BINARY-PROTOCOL" : "";
+
+  _servers.push_back("127.0.0.1");
+}
+
 
 BaseMemcachedStore::~BaseMemcachedStore()
 {
@@ -1040,5 +1077,10 @@ MemcachedStore::MemcachedStore(bool binary,
                      comm_monitor,
                      vbucket_alarm)
 {}
+
+MemcachedStore::MemcachedStore(BaseCommunicationMonitor* comm_monitor) :
+  BaseMemcachedStore(comm_monitor)
+{}
+
 
 // LCOV_EXCL_STOP

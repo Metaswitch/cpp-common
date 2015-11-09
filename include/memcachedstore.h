@@ -114,6 +114,7 @@ protected:
                      MemcachedConfigReader* config_reader,
                      BaseCommunicationMonitor* comm_monitor,
                      Alarm* vbucket_alarm);
+  BaseMemcachedStore(BaseCommunicationMonitor* comm_monitor);
 
 private:
   // A copy of this structure is maintained for each worker thread, as
@@ -300,6 +301,12 @@ public:
                  MemcachedConfigReader* config_reader,
                  BaseCommunicationMonitor* comm_monitor = NULL,
                  Alarm* vbucket_alarm = NULL);
+
+  /// Construct a MemcachedStore that only talks to the memcached proxy on localhost.
+  ///
+  /// @param comm_monitor  - Object tracking memcached communications.
+  MemcachedStore(BaseCommunicationMonitor* comm_monitor = NULL);
+
 };
 
 #endif
