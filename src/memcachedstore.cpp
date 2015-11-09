@@ -113,11 +113,14 @@ BaseMemcachedStore::BaseMemcachedStore(BaseCommunicationMonitor* comm_monitor) :
   _replicas(1),
   _vbuckets(1),
   _options(),
-  _view_number(0),
-  _servers(),
+  // Set the view number to 1 - we're starting with a fixed localhost-only view
+  _view_number(1),
+
+  // Use the local memcached proxy as the only server and the only replica
+  _servers(1, "127.0.0.1:11211"),
   _max_connect_latency_ms(50),
-  _read_replicas(_vbuckets),
-  _write_replicas(_vbuckets),
+  _read_replicas(1, {"127.0.0.1:11211"}),
+  _write_replicas(1, {"127.0.0.1:11211"}),
   _comm_monitor(comm_monitor),
   _vbucket_comm_state(_vbuckets),
   _vbucket_comm_fail_count(0),
@@ -140,8 +143,6 @@ BaseMemcachedStore::BaseMemcachedStore(BaseCommunicationMonitor* comm_monitor) :
   // significant length of time.
   _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS --POLL-TIMEOUT=250";
   _options += (_binary) ? " --BINARY-PROTOCOL" : "";
-
-  _servers.push_back("127.0.0.1");
 }
 
 
