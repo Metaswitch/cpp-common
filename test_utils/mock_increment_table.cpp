@@ -1,5 +1,5 @@
 /**
- * @file mock_increment_table.h
+ * @file mock_increment_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015  Metaswitch Networks Ltd
