@@ -1,5 +1,5 @@
 /**
- * @file snmp_continuous_accumulator_table.cpp
+ * @file snmp_continuous_increment_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -36,7 +36,7 @@
 
 #include "snmp_statistics_structures.h"
 #include "snmp_internal/snmp_time_period_table.h"
-#include "snmp_continuous_accumulator_table.h"
+#include "snmp_continuous_increment_table.h"
 #include "limits.h"
 
 namespace SNMP
@@ -49,18 +49,18 @@ public:
   ColumnData get_columns();
 };
 
-class ContinuousAccumulatorTableImpl: public ManagedTable<ContinuousAccumulatorRow, int>,
-                                      public ContinuousAccumulatorTable
+class ContinuousIncrementTableImpl: public ManagedTable<ContinuousAccumulatorRow, int>,
+                                    public ContinuousIncrementTable
 {
 public:
-  ContinuousAccumulatorTableImpl(std::string name,
-                                 std::string tbl_oid):
-                                 ManagedTable<ContinuousAccumulatorRow,int>
-                                       (name,
-                                        tbl_oid,
-                                        2,
-                                        6, // Columns 2-6 should be visible
-                                        { ASN_INTEGER }), // Type of the index column
+  ContinuousIncrementTableImpl(std::string name,
+                               std::string tbl_oid):
+                               ManagedTable<ContinuousAccumulatorRow, int>
+                                     (name,
+                                      tbl_oid,
+                                      2,
+                                      6, // Columns 2-6 should be visible
+                                      { ASN_INTEGER }), // Type of the index column
     five_second(5000),
     five_minute(300000)
   {
@@ -70,12 +70,18 @@ public:
     add(TimePeriodIndexes::scopePrevious5MinutePeriod);
   }
 
-  // Accumulate a sample into the underlying statistics.
-  void accumulate(uint32_t sample)
+  void increment(uint32_t value)
   {
-    // Pass samples through to the underlying data structures
-    accumulate_internal(five_second, sample);
-    accumulate_internal(five_minute, sample);
+    // Pass value as increment through to value adjusting structure.
+    count_internal(five_second, value, TRUE);
+    count_internal(five_minute, value, TRUE);
+  }
+
+  void decrement(uint32_t value)
+  {
+    // Pass value as decrement through to value adjusting structure.
+    count_internal(five_second, value, FALSE);
+    count_internal(five_minute, value, FALSE);
   }
 
 private:
@@ -98,22 +104,44 @@ private:
     return new ContinuousAccumulatorRow(index, view);
   }
 
-  void accumulate_internal(CurrentAndPrevious<ContinuousStatistics>& data, uint32_t sample)
+  void count_internal(CurrentAndPrevious<ContinuousStatistics>& data, uint32_t value, bool increment_total)
   {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
     ContinuousStatistics* current_data = data.get_current(now);
+    uint32_t total = current_data->current_value;
 
-    TRC_DEBUG("Accumulating sample %uui into continuous accumulator statistic", sample);
+    if (increment_total)
+    {
+      total += value;
+    }
+    else
+    {
+      // Check to ensure the value to accumulate will not be negative,
+      // and then set to 0 or decrement appropriately.
+      if (total < value)
+      {
+        total = 0;
+      }
+      else
+      {
+        total -= value;
+      }
+    }
+    accumulate_internal(current_data, total, now);
+  }
 
+  void accumulate_internal(ContinuousStatistics* current_data,
+                           uint32_t sample,
+                           const struct timespec& now)
+  {
     current_data->count++;
 
     // Compute the updated sum and sqsum based on the previous values, dependent on
     // how long since an update happened. Additionally update the sum of squares as a
     // rolling total, and update the time of the last update. Also maintain a
     // current value held, that can be used if the period ends.
-
     uint64_t time_since_last_update = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
                                      - (current_data->time_last_update_ms.load());
     uint32_t current_value = current_data->current_value.load();
@@ -141,7 +169,6 @@ private:
       // Do nothing.
     }
   };
-
 
   CurrentAndPrevious<ContinuousStatistics> five_second;
   CurrentAndPrevious<ContinuousStatistics> five_minute;
@@ -213,9 +240,9 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   return ret;
 }
 
-ContinuousAccumulatorTable* ContinuousAccumulatorTable::create(std::string name,
-                                                               std::string oid)
+ContinuousIncrementTable* ContinuousIncrementTable::create(std::string name,
+                                                           std::string oid)
 {
-  return new ContinuousAccumulatorTableImpl(name, oid);
+  return new ContinuousIncrementTableImpl(name, oid);
 }
 }
