@@ -332,7 +332,7 @@ bool Utils::overflow_less_than(uint32_t a, uint32_t b)
     return ((a - b) > ((uint32_t)(1) << 31));
 }
 
-int Utils::safe_pidfile(std::string filename)
+int Utils::lock_and_write_pidfile(std::string filename)
 {
   std::string lockfilename = filename + ".lock";
   int lockfd = open(lockfilename.c_str(), O_WRONLY);
