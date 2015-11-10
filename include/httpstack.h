@@ -434,12 +434,14 @@ public:
   static DefaultSasLogger DEFAULT_SAS_LOGGER;
   static NullSasLogger NULL_SAS_LOGGER;
 
+protected:
+  HttpStack();
+  virtual ~HttpStack() {}
+
 private:
   static HttpStack* INSTANCE;
   static HttpStack DEFAULT_INSTANCE;
 
-  HttpStack();
-  virtual ~HttpStack() {}
   virtual void send_reply_internal(Request& req, int rc, SAS::TrailId trail);
   static void handler_callback_fn(evhtp_request_t* req, void* handler);
   static void* event_base_thread_fn(void* http_stack_ptr);

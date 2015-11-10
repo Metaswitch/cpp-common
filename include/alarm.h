@@ -103,7 +103,7 @@ public:
   virtual bool alarmed() {return _alarmed.load();}
 
   /// Returns the index of this alarm.
-  virtual const int index() const {return _index;}
+  virtual int index() const {return _index;}
 
 private:
   const int _index;
