@@ -46,6 +46,10 @@
 #include <string>
 #include <arpa/inet.h>
 
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/file.h>
+
 #include "utils.h"
 
 #define REPLACE(CHAR1, CHAR2, RESULT) if ((s[(ii+1)] == CHAR1) && (s[(ii+2)] == CHAR2)) { r.append(RESULT); ii = ii+2; continue; }
@@ -326,4 +330,22 @@ bool Utils::split_host_port(const std::string& host_port,
 bool Utils::overflow_less_than(uint32_t a, uint32_t b)
 {
     return ((a - b) > ((uint32_t)(1) << 31));
+}
+
+int Utils::safe_pidfile(std::string filename)
+{
+  std::string lockfilename = filename + ".lock";
+  int lockfd = open(lockfilename.c_str(), O_WRONLY);
+  int rc = flock(lockfd, LOCK_EX | LOCK_NB);
+  if (rc == -1)
+  {
+    close(lockfd);
+    return -1;
+  }
+
+  FILE* fd = fopen(filename.c_str(), "w");
+  fprintf(fd, "%d\n", getpid());
+  fclose(fd);
+  
+  return lockfd;
 }
