@@ -37,6 +37,7 @@
 #include <string>
 #include <algorithm>
 #include <assert.h>
+#include <memory>
 
 #include "snmp_statistics_structures.h"
 #include "snmp_infinite_timer_count_table.h"
@@ -151,9 +152,6 @@ namespace SNMP
           req_oid_len = _tbl_oid_len;
         }
 
-        oid* fixed_oid = NULL;
-        uint32_t fixed_oid_len = 0;
-
         // We have a request that we need to parse
         SimpleStatistics stats;
         netsnmp_variable_list* var = requests->requestvb;
@@ -165,15 +163,19 @@ namespace SNMP
         struct timespec now;
         clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
+        // Fix up the reqested pointer to resolve GET_NEXT requests (or to normalize
+        // GET requests) and store the result in `fixed_oid`.
+        std::unique_ptr<oid[]> fixed_oid(nullptr);
+        uint32_t fixed_oid_len = 0;
         if (request_type == MODE_GET)
         {
           // Copy requested OID to the OID we'll lookup
           fixed_oid_len = req_oid_len;
-          fixed_oid = new oid[fixed_oid_len];
-          memcpy(fixed_oid, req_oid, fixed_oid_len * sizeof(oid));
+          fixed_oid = std::unique_ptr<oid[]>(new oid[fixed_oid_len]);
+          memcpy(fixed_oid.get(), req_oid, fixed_oid_len * sizeof(oid));
 
           // Check that the requested OID is a valid entry in the table.
-          if (!validate_oid(fixed_oid, fixed_oid_len))
+          if (!validate_oid(fixed_oid.get(), fixed_oid_len))
           {
             TRC_DEBUG("Invalid GET request");
             return SNMP_ERR_NOSUCHNAME;
@@ -188,12 +190,12 @@ namespace SNMP
                         fixed_oid,
                         fixed_oid_len);
 
-          if (!validate_oid(fixed_oid, fixed_oid_len))
+          if (!validate_oid(fixed_oid.get(), fixed_oid_len))
           {
             TRC_DEBUG("This request goes beyond the table");
 
             snmp_set_var_objid(var,
-                               fixed_oid,
+                               fixed_oid.get(),
                                fixed_oid_len);
 
             snmp_set_var_typed_value(var,
@@ -209,9 +211,9 @@ namespace SNMP
         std::string tag;
         uint32_t row;
         uint32_t column;
-        parse_oid(fixed_oid, fixed_oid_len, tag, row, column);
+        parse_oid(fixed_oid.get(), fixed_oid_len, tag, row, column);
 
-        snprint_objid(buf, sizeof(buf), fixed_oid, fixed_oid_len);
+        snprint_objid(buf, sizeof(buf), fixed_oid.get(), fixed_oid_len);
         TRC_DEBUG("Parsed SNMP request to OID %s with tag %s and cell (%d, %d)",
                   buf, tag.c_str(), row, column);
 
@@ -224,7 +226,7 @@ namespace SNMP
                   *result.value, tag.c_str(), row, column);
 
         snmp_set_var_objid(var,
-                           fixed_oid,
+                           fixed_oid.get(),
                            fixed_oid_len);
 
         snmp_set_var_typed_value(var,
@@ -238,21 +240,28 @@ namespace SNMP
       return SNMP_ERR_NOERROR;
     }
 
-    // Check that a given OID points directly to a valid cell
-    // in the table.  An OID that passes this function can be
-    // safely parsed by parse_oid().
+    // Check that a given OID points directly to a valid cell in the table.  An
+    // OID that passes this function can be safely parsed by parse_oid().
+    //
+    // OID structure is:
+    //
+    // <TABLEROOT>.TAGLEN.<TAG>.COLUMN.ROW
+    //
+    // Where TABLEROOT is the fixed OID of the infinite table, TAGLEN is in the
+    // range 1-16 inclusive, TAG is a string of length TAGLEN made up of A-Z
+    // characters, COLUMN is in the range 2..5 and row is in the range 1..3.
     bool validate_oid(const oid* oid,
                       const uint32_t oid_len)
     {
-      if (oid_len < ROOT_OID_LEN + 1)
-      {
-        TRC_DEBUG("Not enough room for the ROOT and the length field");
-        return false;
-      }
-
       if (netsnmp_oid_equals(oid, ROOT_OID_LEN, _tbl_oid, ROOT_OID_LEN) != 0)
       {
         TRC_DEBUG("Requested OID is not under the table's root");
+        return false;
+      }
+
+      if (oid_len < ROOT_OID_LEN + 1)
+      {
+        TRC_DEBUG("Not enough room for the ROOT and the length field");
         return false;
       }
 
@@ -296,13 +305,11 @@ namespace SNMP
                    uint32_t& row,
                    uint32_t& column)
     {
-      uint32_t length_of_tag = 0;
-
       // Check there's a length field
       assert(oid_len >= ROOT_OID_LEN + 1);
 
       // Get tag length
-      length_of_tag = oid[ROOT_OID_LEN];
+      uint32_t length_of_tag = oid[ROOT_OID_LEN];
 
       // Check we have space for root + tag_len + tag + column + row
       assert(oid_len == ROOT_OID_LEN + 1 + length_of_tag + 2);
@@ -312,7 +319,8 @@ namespace SNMP
 
       for (unsigned int ii = 0; ii < length_of_tag; ++ii)
       {
-        assert(oid[ROOT_OID_LEN + 1 + ii] <= 0xff);
+        assert(oid[ROOT_OID_LEN + 1 + ii] >= 'A');
+        assert(oid[ROOT_OID_LEN + 1 + ii] <= 'Z');
         tag.push_back((char)oid[ROOT_OID_LEN + 1 + ii]);
       }
 
@@ -325,24 +333,19 @@ namespace SNMP
     // a GET_NEXT operation).  This may return an OID outside the table,
     // but otherwise will always return a valid OID.
     //
-    // This function allocates `new_oid` using new[] and the calling code
-    // must delete it with delete[].
-    //
-    // This function assumes that `req_oid` is a sub-OID of _tbl_oid.
-    //
     // Overall strategy is to work through the sections of the OID, jumping
     // forwards if we're provably below a valid OID, or tweaking the input and
-    // restarting if we're provably above.
+    // restarting if we're provably above any valid child of the current tree.
     void find_next_oid(const oid* req_oid,
                        const uint32_t& req_oid_len,
-                       oid*& new_oid,
+                       std::unique_ptr<oid[]>& new_oid,
                        uint32_t& new_oid_len)
     {
       // Save off a working copy of the requested OID so we can maniplute
       // it to implement backtracking.
       uint32_t tmp_oid_len = req_oid_len;
-      oid* tmp_oid = new oid[tmp_oid_len];
-      memcpy(tmp_oid, req_oid, tmp_oid_len * sizeof(oid));
+      std::unique_ptr<oid[]> tmp_oid(new oid[tmp_oid_len]);
+      memcpy(tmp_oid.get(), req_oid, tmp_oid_len * sizeof(oid));
 
       // Rather than recursing if we hit an error, we sit in an infinite
       // loop.  Each time we pass through, we'll either build a valid
@@ -351,7 +354,7 @@ namespace SNMP
       while (true)
       {
         char tmp_buf[64];
-        snprint_objid(tmp_buf, sizeof(tmp_buf), tmp_oid, tmp_oid_len);
+        snprint_objid(tmp_buf, sizeof(tmp_buf), tmp_oid.get(), tmp_oid_len);
         TRC_DEBUG("Finding OID after %s", tmp_buf);
 
         // See if we have a non-zero length field.
@@ -360,8 +363,8 @@ namespace SNMP
         {
           TRC_DEBUG("Tag length not provided (or 0), start at tag A");
           new_oid_len = ROOT_OID_LEN + 4;
-          new_oid = new oid[new_oid_len];
-          memcpy(new_oid, _tbl_oid, ROOT_OID_LEN * sizeof(oid));
+          new_oid = std::unique_ptr<oid[]>(new oid[new_oid_len]);
+          memcpy(new_oid.get(), _tbl_oid, ROOT_OID_LEN * sizeof(oid));
           new_oid[ROOT_OID_LEN + 0] = 1;   // tag length
           new_oid[ROOT_OID_LEN + 1] = 'A'; // first tag
           new_oid[ROOT_OID_LEN + 2] = 2;   // first (non-index) column
@@ -375,8 +378,8 @@ namespace SNMP
           // Build the first OID in the next table.
           TRC_DEBUG("Tag length is too high, leaving table");
           new_oid_len = ROOT_OID_LEN;
-          new_oid = new oid[new_oid_len];
-          memcpy(new_oid, _tbl_oid, ROOT_OID_LEN * sizeof(oid));
+          new_oid = std::unique_ptr<oid[]>(new oid[new_oid_len]);
+          memcpy(new_oid.get(), _tbl_oid, ROOT_OID_LEN * sizeof(oid));
           new_oid[ROOT_OID_LEN - 1]++;
           break;
         }
@@ -416,8 +419,8 @@ namespace SNMP
             // to the first cell.
             TRC_DEBUG("Tag contains character before 'A', filling tag with 'A's");
             new_oid_len = ROOT_OID_LEN + 1 + tag_len + 2;
-            new_oid = new oid[new_oid_len];
-            memcpy(new_oid, tmp_oid, (ROOT_OID_LEN + 1 + ii) * sizeof(oid));
+            new_oid = std::unique_ptr<oid[]>(new oid[new_oid_len]);
+            memcpy(new_oid.get(), tmp_oid.get(), (ROOT_OID_LEN + 1 + ii) * sizeof(oid));
             for (; ii < tag_len; ++ii)
             {
               new_oid[ROOT_OID_LEN + 1 + ii] = 'A';      // Fill out the tag
@@ -439,8 +442,8 @@ namespace SNMP
           // 'A' and go to the first cell.
           TRC_DEBUG("Tag incomplete, filling with 'A's");
           new_oid_len = ROOT_OID_LEN + 1 + tag_len + 2;
-          new_oid = new oid[new_oid_len];
-          memcpy(new_oid, tmp_oid, tmp_oid_len * sizeof(oid));
+          new_oid = std::unique_ptr<oid[]>(new oid[new_oid_len]);
+          memcpy(new_oid.get(), tmp_oid.get(), tmp_oid_len * sizeof(oid));
           for (uint32_t ii = tmp_oid_len; ii < ROOT_OID_LEN + 1 + tag_len; ++ii)
           {
             new_oid[ii] = 'A';      // Fill out the tag
@@ -455,8 +458,8 @@ namespace SNMP
         {
           TRC_DEBUG("No column provided, assuming first non-index one");
           new_oid_len = ROOT_OID_LEN + 1 + tag_len + 2;
-          new_oid = new oid[new_oid_len];
-          memcpy(new_oid, tmp_oid, tmp_oid_len * sizeof(oid));
+          new_oid = std::unique_ptr<oid[]>(new oid[new_oid_len]);
+          memcpy(new_oid.get(), tmp_oid.get(), tmp_oid_len * sizeof(oid));
           new_oid[ROOT_OID_LEN + 1 + tag_len] = 2;     // Column
           new_oid[ROOT_OID_LEN + 1 + tag_len + 1] = 1; // Row
           break;
@@ -476,8 +479,8 @@ namespace SNMP
         {
           TRC_DEBUG("No row provided, assuming first one");
           new_oid_len = ROOT_OID_LEN + 1 + tag_len + 2;
-          new_oid = new oid[new_oid_len];
-          memcpy(new_oid, tmp_oid, tmp_oid_len * sizeof(oid));
+          new_oid = std::unique_ptr<oid[]>(new oid[new_oid_len]);
+          memcpy(new_oid.get(), tmp_oid.get(), tmp_oid_len * sizeof(oid));
           new_oid[ROOT_OID_LEN + 1 + tag_len + 1] = 1; // Row
           break;
         }
@@ -497,8 +500,8 @@ namespace SNMP
         // some valid tag and it's safe to increment the row number.
         TRC_DEBUG("Incrementing row to find next OID");
         new_oid_len = ROOT_OID_LEN + 1 + tag_len + 2;
-        new_oid = new oid[new_oid_len];
-        memcpy(new_oid, tmp_oid, (ROOT_OID_LEN + 1 + tag_len + 1) * sizeof(oid));
+        new_oid = std::unique_ptr<oid[]>(new oid[new_oid_len]);
+        memcpy(new_oid.get(), tmp_oid.get(), (ROOT_OID_LEN + 1 + tag_len + 1) * sizeof(oid));
         new_oid[ROOT_OID_LEN + 1 + tag_len + 1] = tmp_oid[ROOT_OID_LEN + 1 + tag_len + 1] + 1;
         break;
       }
@@ -506,7 +509,7 @@ namespace SNMP
       char buf[64];
       char buf2[64];
       snprint_objid(buf, sizeof(buf), req_oid, req_oid_len);
-      snprint_objid(buf2, sizeof(buf2), new_oid, new_oid_len);
+      snprint_objid(buf2, sizeof(buf2), new_oid.get(), new_oid_len);
       TRC_DEBUG("Found next OID, %s -> %s", buf, buf2);
       return;
     }
