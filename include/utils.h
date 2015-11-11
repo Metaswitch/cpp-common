@@ -119,6 +119,8 @@ namespace Utils
 
   void hashToHex(unsigned char *hash_char, unsigned char *hex_char);
 
+  bool parse_http_url(const std::string& url, std::string& server, std::string& path);
+
   std::string url_unescape(const std::string& s);
   std::string url_escape(const std::string& s);
 
