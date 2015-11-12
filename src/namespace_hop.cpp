@@ -72,7 +72,7 @@ static int recv_file_descriptor(int socket)
   if (res <= 0)
   {
     TRC_WARNING("Failed to retrieve cross-namespace socket - recvmsg returned %d (%d %s)\n", res, errno, strerror(errno));
-    return res;
+    return -1;
   }
 
   // Iterate through control message to find if there is a SCM_RIGHTS entry containing file descriptors
