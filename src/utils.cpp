@@ -51,7 +51,7 @@
 bool Utils::parse_http_url(const std::string& url, std::string& server, std::string& path)
 {
   size_t colon_pos = url.find(':');
-  if (colon_pos == std::string::npos || url.substr(0, colon_pos) != "http")
+  if ((colon_pos == std::string::npos) || (url.substr(0, colon_pos) != "http"))
   {
     // Not HTTP.
     return false;
@@ -71,7 +71,7 @@ bool Utils::parse_http_url(const std::string& url, std::string& server, std::str
   }
   else
   {
-    server = url.substr(slash_slash_pos + 2, slash_pos - slash_slash_pos - 2);
+    server = url.substr(slash_slash_pos + 2, slash_pos - (slash_slash_pos + 2));
     path = url.substr(slash_pos);
   }
   return true;
