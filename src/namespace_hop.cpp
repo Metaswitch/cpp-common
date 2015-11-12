@@ -53,7 +53,7 @@ static int recv_file_descriptor(int socket)
   // Buffer to hold the dummy "actual data" we receive
   char data[1] = {0};
 
-  struct iovec iov[1];
+  struct iovec iov[1] = {0};
   iov[0].iov_base = data;
   iov[0].iov_len = sizeof(data);
 
@@ -78,7 +78,6 @@ static int recv_file_descriptor(int socket)
 
   // Iterate through control message to find if there is a SCM_RIGHTS entry containing file descriptors
   struct cmsghdr *control_message = NULL;
-
   for (control_message = CMSG_FIRSTHDR(&message);
        control_message != NULL;
        control_message = CMSG_NXTHDR(&message, control_message))
