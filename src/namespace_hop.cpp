@@ -58,7 +58,6 @@ static int recv_file_descriptor(int socket)
   iov[0].iov_len = sizeof(data);
 
   // Buffer to hold the control messages we receive
-  struct cmsghdr *control_message = NULL;
   char ctrl_buf[CMSG_SPACE(sizeof(int))] = {0};
 
   // Message struct wrapping both buffers.
@@ -78,6 +77,8 @@ static int recv_file_descriptor(int socket)
   }
 
   // Iterate through control message to find if there is a SCM_RIGHTS entry containing file descriptors
+  struct cmsghdr *control_message = NULL;
+
   for (control_message = CMSG_FIRSTHDR(&message);
        control_message != NULL;
        control_message = CMSG_NXTHDR(&message, control_message))
