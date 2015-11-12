@@ -52,11 +52,12 @@ static int recv_file_descriptor(int socket)
 {
   // Buffer to hold the dummy "actual data" we receive
   char data[1] = {0};
-  struct iovec iov = {.iov_base = data,
-                      .iov_len = sizeof(data)};
+
+  struct iovec iov[1] = {0};
+  iov[0].iov_base = data;
+  iov[0].iov_len = sizeof(data);
 
   // Buffer to hold the control messages we receive
-  struct cmsghdr *control_message = NULL;
   char ctrl_buf[CMSG_SPACE(sizeof(int))] = {0};
 
   // Message struct wrapping both buffers.
@@ -65,17 +66,18 @@ static int recv_file_descriptor(int socket)
   message.msg_namelen = 0;
   message.msg_control = ctrl_buf;
   message.msg_controllen = CMSG_SPACE(sizeof(int));
-  message.msg_iov = &iov;
+  message.msg_iov = iov;
   message.msg_iovlen = 1;
 
-  int res = recvmsg(socket, &message, 0);
+  int res = ::recvmsg(socket, &message, 0);
   if (res <= 0)
   {
     TRC_WARNING("Failed to retrieve cross-namespace socket - recvmsg returned %d (%d %s)\n", res, errno, strerror(errno));
-    return res;
+    return -1;
   }
 
   // Iterate through control message to find if there is a SCM_RIGHTS entry containing file descriptors
+  struct cmsghdr *control_message = NULL;
   for (control_message = CMSG_FIRSTHDR(&message);
        control_message != NULL;
        control_message = CMSG_NXTHDR(&message, control_message))
