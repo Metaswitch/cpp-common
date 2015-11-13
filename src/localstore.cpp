@@ -49,8 +49,8 @@
 
 LocalStore::LocalStore() :
   _db_lock(PTHREAD_MUTEX_INITIALIZER),
-  _db()
-  TEST_DATA_CONTENTION;
+  _db(),
+  TEST_DATA_CONTENTION(false)
 {
   TRC_DEBUG("Created local store");
 }
@@ -86,9 +86,9 @@ Store::Status LocalStore::get_data(const std::string& table,
   std::map<std::string, Record> _db_in_use;
   if (TEST_DATA_CONTENTION == true) {
     TEST_DATA_CONTENTION = false;
-    db_in_use = _old_db;
+    _db_in_use = _old_db;
   } else {
-    db_in_use = _db;
+    _db_in_use = _db;
   }
   Store::Status status = Store::Status::NOT_FOUND;
 
