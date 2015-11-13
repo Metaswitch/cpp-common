@@ -119,6 +119,14 @@ namespace Utils
 
   void hashToHex(unsigned char *hash_char, unsigned char *hex_char);
 
+  /// Splits a URL of the form "http://<servername>[/<path>]" into
+  /// servername and path.
+  ///
+  /// Returns true iff the URL is in the corrects form, and sets the server
+  /// and path arguments to the URL components.  If the path in the URL is
+  /// missing, it defaults to "/".
+  bool parse_http_url(const std::string& url, std::string& server, std::string& path);
+
   std::string url_unescape(const std::string& s);
   std::string url_escape(const std::string& s);
 

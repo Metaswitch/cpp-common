@@ -48,6 +48,35 @@
 
 #include "utils.h"
 
+bool Utils::parse_http_url(const std::string& url, std::string& server, std::string& path)
+{
+  size_t colon_pos = url.find(':');
+  if ((colon_pos == std::string::npos) || (url.substr(0, colon_pos) != "http"))
+  {
+    // Not HTTP.
+    return false;
+  }
+  size_t slash_slash_pos = url.find("//", colon_pos + 1);
+  if (slash_slash_pos != colon_pos + 1)
+  {
+    // Not full URL.
+    return false;
+  }
+  size_t slash_pos = url.find('/', slash_slash_pos + 2);
+  if (slash_pos == std::string::npos)
+  {
+    // No path.
+    server = url.substr(slash_slash_pos + 2);
+    path = "/";
+  }
+  else
+  {
+    server = url.substr(slash_slash_pos + 2, slash_pos - (slash_slash_pos + 2));
+    path = url.substr(slash_pos);
+  }
+  return true;
+}
+
 #define REPLACE(CHAR1, CHAR2, RESULT) if ((s[(ii+1)] == CHAR1) && (s[(ii+2)] == CHAR2)) { r.append(RESULT); ii = ii+2; continue; }
 
 std::string Utils::url_unescape(const std::string& s)
