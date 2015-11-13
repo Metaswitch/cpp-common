@@ -74,7 +74,7 @@ private:
   bool TEST_DATA_CONTENTION;
   pthread_mutex_t _db_lock;
   std::map<std::string, Record> _db;
-  std::map<std::string, Record> _old_db:
+  std::map<std::string, Record> _old_db;
 };
 
 

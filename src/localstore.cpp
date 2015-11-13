@@ -47,10 +47,10 @@
 #include "localstore.h"
 
 
-:LocalStore::LocalStore() :
+LocalStore::LocalStore() :
   _db_lock(PTHREAD_MUTEX_INITIALIZER),
   _db()
-  TEST_DATA_CONTENION;
+  TEST_DATA_CONTENTION;
 {
   TRC_DEBUG("Created local store");
 }
@@ -73,7 +73,7 @@ void LocalStore::flush_all()
 
 void LocalStore::force_contention()
 {
-  TEST_DATA_CONNECTION = true;
+  TEST_DATA_CONNTENTION = true;
 }
 
 Store::Status LocalStore::get_data(const std::string& table,
