@@ -47,11 +47,10 @@
 #include "localstore.h"
 
 
-LocalStore::LocalStore() :
+:LocalStore::LocalStore() :
   _db_lock(PTHREAD_MUTEX_INITIALIZER),
   _db()
   TEST_DATA_CONTENION;
-  oldkey;
 {
   TRC_DEBUG("Created local store");
 }
@@ -75,7 +74,6 @@ void LocalStore::flush_all()
 void LocalStore::force_contention()
 {
   TEST_DATA_CONNECTION = true;
-  oldkey = "empty";
 }
 
 Store::Status LocalStore::get_data(const std::string& table,
@@ -85,7 +83,13 @@ Store::Status LocalStore::get_data(const std::string& table,
                                    SAS::TrailId trail)
 {
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
-
+  std::map<std::string, Record> _db_in_use;
+  if (TEST_DATA_CONTENTION == true) {
+    TEST_DATA_CONTENTION = false;
+    db_in_use = _old_db;
+  } else {
+    db_in_use = _db;
+  }
   Store::Status status = Store::Status::NOT_FOUND;
 
   // Calculate the fully qualified key.
@@ -135,10 +139,6 @@ Store::Status LocalStore::set_data(const std::string& table,
                                    int expiry,
                                    SAS::TrailId trail)
 {
-  if (TEST_DATA_CONTENTION == true) {
-    TEST_DATA_CONTENTION = false;
-    return STORE::Status::DATA_CONTENTION;
-  }
   TRC_DEBUG("set_data table=%s key=%s CAS=%ld expiry=%d",
             table.c_str(), key.c_str(), cas, expiry);
 
@@ -168,6 +168,7 @@ Store::Status LocalStore::set_data(const std::string& table,
       // Supplied CAS is consistent (either because record hasn't expired and
       // CAS matches, or record has expired and CAS is zero) so update the
       // record.
+      _old_db[fqkey] = r;
       r.data = data;
       r.cas = ++cas;
       r.expiry = (uint32_t)expiry + now;
@@ -189,15 +190,6 @@ Store::Status LocalStore::set_data(const std::string& table,
   }
 
   pthread_mutex_unlock(&_db_lock);
-  if (oldkey != "empty")
-  {
-    std::map<std::string, Record>::iterator j = _old_db.find(oldkey);
-    Record& s = j->second;
-    s.data = r.data;
-    s.cas = r.cas;
-    s.expiry = r.expiry;
-  }
-  oldkey = fqkey;
   return status;
 }
 
