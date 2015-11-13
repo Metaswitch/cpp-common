@@ -36,7 +36,6 @@
 
 #include <string>
 #include <algorithm>
-#include <assert.h>
 #include <memory>
 
 #include "snmp_statistics_structures.h"
@@ -56,7 +55,7 @@ namespace SNMP
     InfiniteTimerCountTableImpl(std::string name, // Name of this table, for logging
                                 std::string tbl_oid):  // Root OID of this table
       _name(name),
-      _tbl_oid_len(64),
+      _tbl_oid_len(SCRATCH_BUF_LEN),
       _handler_reg(NULL)
     {
       read_objid(tbl_oid.c_str(), _tbl_oid, &_tbl_oid_len);
@@ -91,9 +90,15 @@ namespace SNMP
       _timer_counters[tag].decrement();
     }
 
+  private:
+    static const uint32_t MAX_ROW = 3; // Matching TimerCounter
+    static const uint32_t MAX_COLUMN = 5; // Matching SimpleStatistics
+    static const uint32_t MAX_TAG_LEN = 16;
+    static const ssize_t SCRATCH_BUF_LEN = 128;
+
   protected:
     std::string _name;
-    oid _tbl_oid[64];
+    oid _tbl_oid[SCRATCH_BUF_LEN];
     size_t _tbl_oid_len;
     uint32_t ROOT_OID_LEN;
     netsnmp_handler_registration* _handler_reg;
@@ -114,10 +119,6 @@ namespace SNMP
 
     }
 
-    static const uint32_t MAX_ROW = 3; // Matching TimerCounter
-    static const uint32_t MAX_COLUMN = 5; // Matching SimpleStatistics
-    static const uint32_t MAX_TAG_LEN = 16;
-
     int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
                                  netsnmp_handler_registration *reginfo,
                                  netsnmp_agent_request_info *reqinfo,
@@ -126,113 +127,121 @@ namespace SNMP
       TRC_DEBUG("Starting handling batch of SNMP requests");
 
       // Scratch space for logging.
-      char buf[64];
+      char buf[SCRATCH_BUF_LEN];
 
       for (; requests != NULL; requests = requests->next)
       {
-        oid* req_oid = requests->requestvb->name;
-        unsigned long req_oid_len = requests->requestvb->name_length;
-        int request_type = reqinfo->mode;
-
-        snprint_objid(buf, sizeof(buf), req_oid, req_oid_len);
-        TRC_DEBUG("Handling SNMP %s for OID %s",
-                  request_type == MODE_GET ? "GET" : "GET_NEXT",
-                  buf);
-
-        if (requests->processed)
+        try
         {
-          continue;
-        }
+          oid* req_oid = requests->requestvb->name;
+          unsigned long req_oid_len = requests->requestvb->name_length;
+          int request_type = reqinfo->mode;
 
-        if ((snmp_oid_compare(req_oid, req_oid_len, _tbl_oid, _tbl_oid_len) < 0) &&
-            (request_type == MODE_GETNEXT))
-        {
-          TRC_DEBUG("OID precedes table and mode is GETNEXT - move to start of table");
-          req_oid = _tbl_oid;
-          req_oid_len = _tbl_oid_len;
-        }
+          snprint_objid(buf, sizeof(buf), req_oid, req_oid_len);
+          TRC_DEBUG("Handling SNMP %s for OID %s",
+                    request_type == MODE_GET ? "GET" : "GET_NEXT",
+                    buf);
 
-        // We have a request that we need to parse
-        SimpleStatistics stats;
-        netsnmp_variable_list* var = requests->requestvb;
-
-        // We can set a default value of 0 unless we find a valid result
-        Value result = Value::uint(0);
-
-        // Get the time we will process this request at
-        struct timespec now;
-        clock_gettime(CLOCK_REALTIME_COARSE, &now);
-
-        // Fix up the reqested pointer to resolve GET_NEXT requests (or to normalize
-        // GET requests) and store the result in `fixed_oid`.
-        std::unique_ptr<oid[]> fixed_oid(nullptr);
-        uint32_t fixed_oid_len = 0;
-        if (request_type == MODE_GET)
-        {
-          // Copy requested OID to the OID we'll lookup
-          fixed_oid_len = req_oid_len;
-          fixed_oid = std::unique_ptr<oid[]>(new oid[fixed_oid_len]);
-          memcpy(fixed_oid.get(), req_oid, fixed_oid_len * sizeof(oid));
-
-          // Check that the requested OID is a valid entry in the table.
-          if (!validate_oid(fixed_oid.get(), fixed_oid_len))
+          if (requests->processed)
           {
-            TRC_DEBUG("Invalid GET request");
-            return SNMP_ERR_NOSUCHNAME;
+            continue;
           }
-        }
-        else if (request_type == MODE_GETNEXT)
-        {
-          // Update the identifier to the next valid one.  This may result in an OID
-          // that is beyond the end of the table which we then handle.
-          find_next_oid(req_oid,
-                        req_oid_len,
-                        fixed_oid,
-                        fixed_oid_len);
 
-          if (!validate_oid(fixed_oid.get(), fixed_oid_len))
+          if ((snmp_oid_compare(req_oid, req_oid_len, _tbl_oid, _tbl_oid_len) < 0) &&
+              (request_type == MODE_GETNEXT))
           {
-            TRC_DEBUG("This request goes beyond the table");
-
-            snmp_set_var_objid(var,
-                               fixed_oid.get(),
-                               fixed_oid_len);
-
-            snmp_set_var_typed_value(var,
-                                     result.type,
-                                     result.value,
-                                     result.size);
-
-            return SNMP_ERR_NOERROR;
+            TRC_DEBUG("OID precedes table and mode is GETNEXT - move to start of table");
+            req_oid = _tbl_oid;
+            req_oid_len = _tbl_oid_len;
           }
+
+          // We have a request that we need to parse
+          SimpleStatistics stats;
+          netsnmp_variable_list* var = requests->requestvb;
+
+          // We can set a default value of 0 unless we find a valid result
+          Value result = Value::uint(0);
+
+          // Get the time we will process this request at
+          struct timespec now;
+          clock_gettime(CLOCK_REALTIME_COARSE, &now);
+
+          // Fix up the reqested pointer to resolve GET_NEXT requests (or to normalize
+          // GET requests) and store the result in `fixed_oid`.
+          std::unique_ptr<oid[]> fixed_oid(nullptr);
+          uint32_t fixed_oid_len = 0;
+          if (request_type == MODE_GET)
+          {
+            // Copy requested OID to the OID we'll lookup
+            fixed_oid_len = req_oid_len;
+            fixed_oid = std::unique_ptr<oid[]>(new oid[fixed_oid_len]);
+            memcpy(fixed_oid.get(), req_oid, fixed_oid_len * sizeof(oid));
+
+            // Check that the requested OID is a valid entry in the table.
+            if (!validate_oid(fixed_oid.get(), fixed_oid_len))
+            {
+              TRC_DEBUG("Invalid OID for GET request");
+              return SNMP_ERR_NOSUCHNAME;
+            }
+          }
+          else if (request_type == MODE_GETNEXT)
+          {
+            // Update the identifier to the next valid one.  This may result in an OID
+            // that is beyond the end of the table which we then handle.
+            find_next_oid(req_oid,
+                          req_oid_len,
+                          fixed_oid,
+                          fixed_oid_len);
+
+            if (!validate_oid(fixed_oid.get(), fixed_oid_len))
+            {
+              TRC_DEBUG("This request goes beyond the table");
+
+              snmp_set_var_objid(var,
+                                 fixed_oid.get(),
+                                 fixed_oid_len);
+
+              snmp_set_var_typed_value(var,
+                                       result.type,
+                                       result.value,
+                                       result.size);
+
+              return SNMP_ERR_NOERROR;
+            }
+          }
+
+          // Now we've got a valid OID in the table, extract the tag and row/column
+          std::string tag;
+          uint32_t row;
+          uint32_t column;
+          parse_oid(fixed_oid.get(), fixed_oid_len, tag, row, column);
+
+          snprint_objid(buf, sizeof(buf), fixed_oid.get(), fixed_oid_len);
+          TRC_DEBUG("Parsed SNMP request to OID %s with tag %s and cell (%d, %d)",
+                    buf, tag.c_str(), row, column);
+
+          // Update and obtain the relevants statistics structure
+          _timer_counters[tag].get_statistics(row, now, &stats);
+
+          // Calculate the appropriate value - i.e. avg, var, hwm or lwm
+          result = get_value(&stats, tag, column, now);
+          TRC_DEBUG("Got value %u for tag %s cell (%d, %d)",
+                    *result.value, tag.c_str(), row, column);
+
+          snmp_set_var_objid(var,
+                             fixed_oid.get(),
+                             fixed_oid_len);
+
+          snmp_set_var_typed_value(var,
+                                   result.type,
+                                   result.value,
+                                   result.size);
         }
-
-        // Now we've got a valid OID in the table, extract the tag and row/column
-        std::string tag;
-        uint32_t row;
-        uint32_t column;
-        parse_oid(fixed_oid.get(), fixed_oid_len, tag, row, column);
-
-        snprint_objid(buf, sizeof(buf), fixed_oid.get(), fixed_oid_len);
-        TRC_DEBUG("Parsed SNMP request to OID %s with tag %s and cell (%d, %d)",
-                  buf, tag.c_str(), row, column);
-
-        // Update and obtain the relevants statistics structure
-        _timer_counters[tag].get_statistics(row, now, &stats);
-
-        // Calculate the appropriate value - i.e. avg, var, hwm or lwm
-        result = get_value(&stats, tag, column, now);
-        TRC_DEBUG("Got value %u for tag %s cell (%d, %d)",
-                  *result.value, tag.c_str(), row, column);
-
-        snmp_set_var_objid(var,
-                           fixed_oid.get(),
-                           fixed_oid_len);
-
-        snmp_set_var_typed_value(var,
-                                 result.type,
-                                 result.value,
-                                 result.size);
+        catch (std::exception& e)
+        {
+          TRC_ERROR("Exception while handling SNMP request: %s", e.what());
+          return SNMP_ERR_GENERR;
+        }
       }
 
       TRC_DEBUG("Finished handling batch of SNMP requests");
@@ -296,7 +305,7 @@ namespace SNMP
       return true;
     }
 
-    // Parse a valid OID, this function calls assert() on errors so
+    // Parse a valid OID, this function throws exceptions on errors so
     // ensure you have a valid OID before calling it (validate_oid()
     // provides sufficient proof).
     void parse_oid(const oid* oid,
@@ -306,21 +315,31 @@ namespace SNMP
                    uint32_t& column)
     {
       // Check there's a length field
-      assert(oid_len >= ROOT_OID_LEN + 1);
+      if (oid_len < ROOT_OID_LEN + 1)
+      {
+        throw std::invalid_argument("OID is too short to hold table root and tag length");
+      }
 
       // Get tag length
       uint32_t length_of_tag = oid[ROOT_OID_LEN];
 
       // Check we have space for root + tag_len + tag + column + row
-      assert(oid_len == ROOT_OID_LEN + 1 + length_of_tag + 2);
+      if (oid_len != ROOT_OID_LEN + 1 + length_of_tag + 2)
+      {
+        throw std::invalid_argument("OID is invalid length");
+      }
 
       // Parse out the tag string
       tag.reserve(length_of_tag);
 
       for (unsigned int ii = 0; ii < length_of_tag; ++ii)
       {
-        assert(oid[ROOT_OID_LEN + 1 + ii] >= 'A');
-        assert(oid[ROOT_OID_LEN + 1 + ii] <= 'Z');
+        if ((oid[ROOT_OID_LEN + 1 + ii] < 'A') ||
+            (oid[ROOT_OID_LEN + 1 + ii] > 'Z'))
+        {
+          throw std::invalid_argument("OID tag contains invalid character");
+        }
+
         tag.push_back((char)oid[ROOT_OID_LEN + 1 + ii]);
       }
 
@@ -353,7 +372,7 @@ namespace SNMP
       // this loop will eventually terminate.
       while (true)
       {
-        char tmp_buf[64];
+        char tmp_buf[SCRATCH_BUF_LEN];
         snprint_objid(tmp_buf, sizeof(tmp_buf), tmp_oid.get(), tmp_oid_len);
         TRC_DEBUG("Finding OID after %s", tmp_buf);
 
@@ -506,8 +525,8 @@ namespace SNMP
         break;
       }
 
-      char buf[64];
-      char buf2[64];
+      char buf[SCRATCH_BUF_LEN];
+      char buf2[SCRATCH_BUF_LEN];
       snprint_objid(buf, sizeof(buf), req_oid, req_oid_len);
       snprint_objid(buf2, sizeof(buf2), new_oid.get(), new_oid_len);
       TRC_DEBUG("Found next OID, %s -> %s", buf, buf2);
@@ -535,7 +554,7 @@ namespace SNMP
           return Value::uint(data->lwm);
         default:
           // This should never happen - find_next_oid should police this.
-          TRC_ERROR("Internal MIB error - column %d is out of bounds (benign)",
+          TRC_DEBUG("Internal MIB error - column %d is out of bounds",
                     column);
           return Value::uint(0);
       }
