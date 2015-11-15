@@ -46,6 +46,10 @@
 #include <string>
 #include <arpa/inet.h>
 
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/file.h>
+
 #include "utils.h"
 
 bool Utils::parse_http_url(const std::string& url, std::string& server, std::string& path)
@@ -355,4 +359,22 @@ bool Utils::split_host_port(const std::string& host_port,
 bool Utils::overflow_less_than(uint32_t a, uint32_t b)
 {
     return ((a - b) > ((uint32_t)(1) << 31));
+}
+
+int Utils::lock_and_write_pidfile(std::string filename)
+{
+  std::string lockfilename = filename + ".lock";
+  int lockfd = open(lockfilename.c_str(), O_WRONLY | O_CREAT);
+  int rc = flock(lockfd, LOCK_EX | LOCK_NB);
+  if (rc == -1)
+  {
+    close(lockfd);
+    return -1;
+  }
+
+  FILE* fd = fopen(filename.c_str(), "w");
+  fprintf(fd, "%d\n", getpid());
+  fclose(fd);
+  
+  return lockfd;
 }

@@ -446,6 +446,8 @@ namespace Utils
   // Compares two 32 bit numbers and returns if a < b.
   // This also returns true if b hasoverflown, and hence looks like b < a
   bool overflow_less_than(uint32_t a, uint32_t b);
+  
+  int lock_and_write_pidfile(std::string filename);
 
 } // namespace Utils
 
