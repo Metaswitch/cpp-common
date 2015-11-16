@@ -1,5 +1,5 @@
 /**
- * @file mock_chronos_connection.h
+ * @file mock_chronos_connection.cpp
  *
  * Project Clearwater - IMS in the cloud.
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -34,29 +34,33 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCK_CHRONOS_CONNECTION_H__
-#define MOCK_CHRONOS_CONNECTION_H__
+#include "mock_chronos_connection.h"
 
-#include "gmock/gmock.h"
-#include "chronosconnection.h"
+MockChronosConnection::MockChronosConnection() :
+  ChronosConnection("chronos", "localhost:10888", NULL, NULL)
+{}
 
-using ::testing::_;
-using ::testing::SetArgReferee;
-using ::testing::DoAll;
-using ::testing::AnyNumber;
-using ::testing::Return;
-
-class MockChronosConnection : public ChronosConnection
+// This mock accepts any post/put/delete and returns 200 OK
+MockChronosConnection::MockChronosConnection(const std::string& chronos) :
+  ChronosConnection(chronos, "localhost:10888", NULL, NULL)
 {
-public:
-  MockChronosConnection();
-  MockChronosConnection(const std::string& chronos);
-
-  MOCK_METHOD2(send_delete, HTTPCode(const std::string&, SAS::TrailId));
-  MOCK_METHOD7(send_put, HTTPCode(std::string&, uint32_t, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::vector<std::string>&));
-  MOCK_METHOD7(send_post, HTTPCode(std::string&, uint32_t, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::vector<std::string>&));
-  MOCK_METHOD6(send_put, HTTPCode(std::string&, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::vector<std::string>&));
-  MOCK_METHOD6(send_post, HTTPCode(std::string&, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::vector<std::string>&));
-};
-
-#endif
+  ON_CALL(*this, send_post(_, _, _, _, _, _, _)).
+    WillByDefault(DoAll(SetArgReferee<0>("TIMER_ID"),
+          Return(HTTP_OK)));
+  ON_CALL(*this, send_post(_, _, _, _, _, _)).
+    WillByDefault(DoAll(SetArgReferee<0>("TIMER_ID"),
+          Return(HTTP_OK)));
+  ON_CALL(*this, send_put(_, _, _, _, _, _, _)).
+    WillByDefault(DoAll(SetArgReferee<0>("TIMER_ID"),
+          Return(HTTP_OK)));
+  ON_CALL(*this, send_put(_, _, _, _, _, _)).
+    WillByDefault(DoAll(SetArgReferee<0>("TIMER_ID"),
+          Return(HTTP_OK)));
+  ON_CALL(*this, send_delete("TIMER_ID", _)).
+    WillByDefault(Return(HTTP_OK));
+  EXPECT_CALL(*this, send_post(_,_,_,_,_,_,_)).Times(AnyNumber());
+  EXPECT_CALL(*this, send_post(_,_,_,_,_,_)).Times(AnyNumber());
+  EXPECT_CALL(*this, send_put(_,_,_,_,_,_,_)).Times(AnyNumber());
+  EXPECT_CALL(*this, send_put(_,_,_,_,_,_)).Times(AnyNumber());
+  EXPECT_CALL(*this, send_delete(_,_)).Times(AnyNumber());
+}
