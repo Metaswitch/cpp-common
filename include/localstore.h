@@ -49,6 +49,7 @@ public:
   virtual ~LocalStore();
 
   void flush_all();
+  void force_contention();
 
   Store::Status get_data(const std::string& table,
                          const std::string& key,
