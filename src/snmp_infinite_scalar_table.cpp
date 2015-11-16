@@ -1,5 +1,5 @@
 /**
- * @file snmp_infinite_timer_count_table.cpp
+ * @file snmp_infinite_scalar_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015 Metaswitch Networks Ltd
@@ -39,7 +39,7 @@
 #include <memory>
 
 #include "snmp_statistics_structures.h"
-#include "snmp_infinite_timer_count_table.h"
+#include "snmp_infinite_scalar_table.h"
 #include "timer_counter.h"
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_row.h"
@@ -50,29 +50,33 @@
 
 namespace SNMP
 {
-  class InfiniteTimerCountTableImpl : public InfiniteTimerCountTable, public InfiniteBaseTable
+  class InfiniteScalarTableImpl : public InfiniteScalarTable, public InfiniteBaseTable
   {
   public:
-    InfiniteTimerCountTableImpl(std::string name, // Name of this table, for logging
+    InfiniteScalarTableImpl(std::string name, // Name of this table, for logging
                                 std::string tbl_oid):// Root OID of this table
     InfiniteBaseTable(name, tbl_oid, max_row, max_column){}
 
-    virtual ~InfiniteTimerCountTableImpl(){};
+    virtual ~InfiniteScalarTableImpl(){};
     
     void increment(std::string tag)
     {
-      _timer_counters[tag].increment();
+      _scalar_counters[tag]++;
     }
 
     void decrement(std::string tag)
     {
-      _timer_counters[tag].decrement();
+      // Ensure scalar value does not become negative
+      if (_scalar_counters[tag]>0)
+        _scalar_counters[tag]--;
+      else
+        _scalar_counters[tag] = 0;
     }
 
   protected:
-    static const uint32_t max_row = 3;
-    static const uint32_t max_column = 5;
-    std::map<std::string, TimerCounter> _timer_counters;
+    static const uint32_t max_row = 1;
+    static const uint32_t max_column = 2;
+    std::map<std::string, int> _scalar_counters;
 
   private:
     Value get_value(std::string tag,
@@ -80,50 +84,31 @@ namespace SNMP
                     uint32_t row,
                     timespec now)
     {
-      SimpleStatistics stats;
       Value result = Value::uint(0);
-      // Update and obtain the relevants statistics structure
-      _timer_counters[tag].get_statistics(row, now, &stats);
-      
-      // Calculate the appropriate value - i.e. avg, var, hwm or lwm
-      result = read_column(&stats, tag, column, now);
-      TRC_DEBUG("Got value %u for tag %s cell (%d, %d)",
-                *result.value, tag.c_str(), row, column);
+
+      if (column !=2 && row != 1)
+      {
+        // This should never happen - find_next_oid should police this.
+        TRC_DEBUG("Internal MIB error - column %d is out of bounds",
+                  column);
+        return Value::uint(0);
+      }
+
+      if (_scalar_counters.count(tag) > 0)
+      {
+        result = Value::integer(_scalar_counters[tag]);
+
+        TRC_DEBUG("Got value %u for tag %s cell (%d, %d)",
+                  *result.value, tag.c_str(), row, column);
+
+      }
 
       return result;
     }
-
-    Value read_column(SimpleStatistics* data,
-                       std::string tag,
-                       uint32_t column,
-                       timespec now)
-    {
-      switch (column)
-      {
-        case 2:
-          // Calculate the average
-          return Value::uint(data->average);
-        case 3:
-          // Calculate the variance
-          return Value::uint(data->variance);
-        case 4:
-          // Get the HWM
-          return Value::uint(data->hwm);
-        case 5:
-          // Get the LWM
-          return Value::uint(data->lwm);
-        default:
-          // This should never happen - find_next_oid should police this.
-          TRC_DEBUG("Internal MIB error - column %d is out of bounds",
-                    column);
-          return Value::uint(0);
-      }
-    }
-
   };
 
-  InfiniteTimerCountTable* InfiniteTimerCountTable::create(std::string name, std::string oid)
+  InfiniteScalarTable* InfiniteScalarTable::create(std::string name, std::string oid)
   {
-    return new InfiniteTimerCountTableImpl(name, oid);
+    return new InfiniteScalarTableImpl(name, oid);
   };
 }
