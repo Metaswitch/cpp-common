@@ -71,7 +71,7 @@ private:
     uint32_t expiry;
     uint64_t cas;
   } Record;
-  bool TEST_DATA_CONTENTION;
+  bool _data_contention_flag;
   pthread_mutex_t _db_lock;
   std::map<std::string, Record> _db;
   std::map<std::string, Record> _old_db;

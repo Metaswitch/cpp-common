@@ -48,9 +48,10 @@
 
 
 LocalStore::LocalStore() :
+  _data_contention_flag(false),
   _db_lock(PTHREAD_MUTEX_INITIALIZER),
   _db(),
-  TEST_DATA_CONTENTION(false)
+  _old_db()
 {
   TRC_DEBUG("Created local store");
 }
@@ -73,7 +74,7 @@ void LocalStore::flush_all()
 
 void LocalStore::force_contention()
 {
-  TEST_DATA_CONNTENTION = true;
+  _data_contention_flag = true;
 }
 
 Store::Status LocalStore::get_data(const std::string& table,
@@ -84,8 +85,8 @@ Store::Status LocalStore::get_data(const std::string& table,
 {
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
   std::map<std::string, Record> _db_in_use;
-  if (TEST_DATA_CONTENTION == true) {
-    TEST_DATA_CONTENTION = false;
+  if (_data_contention_flag == true) {
+    _data_contention_flag = false;
     _db_in_use = _old_db;
   } else {
     _db_in_use = _db;
