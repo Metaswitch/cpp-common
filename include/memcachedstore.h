@@ -110,11 +110,27 @@ public:
 protected:
   // Constructor. This is protected to prevent the BaseMemcachedStore from being
   // instantiated directly.
-  BaseMemcachedStore(bool binary,
+  BaseMemcachedStore(int replicas,
+                     int vbuckets,
+                     bool binary,
                      MemcachedConfigReader* config_reader,
                      BaseCommunicationMonitor* comm_monitor,
                      Alarm* vbucket_alarm);
-  BaseMemcachedStore(BaseCommunicationMonitor* comm_monitor);
+
+  // The current global view number.  Note that this is not protected by the
+  // _view_lock.
+  uint64_t _view_number;
+
+  // The lock used to protect the view parameters below (_servers,
+  // _read_replicas and _write_replicas).
+  pthread_rwlock_t _view_lock;
+
+  // The list of servers in this view.
+  std::vector<std::string> _servers;
+
+  // The set of read and write replicas for each vbucket.
+  std::vector<std::vector<std::string> > _read_replicas;
+  std::vector<std::vector<std::string> > _write_replicas;
 
 private:
   // A copy of this structure is maintained for each worker thread, as
@@ -209,25 +225,10 @@ private:
   // current view.
   std::string _options;
 
-  // The current global view number.  Note that this is not protected by the
-  // _view_lock.
-  uint64_t _view_number;
-
-  // The lock used to protect the view parameters below (_servers,
-  // _read_replicas and _write_replicas).
-  pthread_rwlock_t _view_lock;
-
-  // The list of servers in this view.
-  std::vector<std::string> _servers;
-
   // The time to wait before timing out a connection to memcached.
   // (This is only used during normal running - at start-of-day we use
   // a fixed 10ms time, to start up as quickly as possible).
   unsigned int _max_connect_latency_ms;
-
-  // The set of read and write replicas for each vbucket.
-  std::vector<std::vector<std::string> > _read_replicas;
-  std::vector<std::vector<std::string> > _write_replicas;
 
   // The maximum expiration delta that memcached expects.  Any expiration
   // value larger than this is assumed to be an absolute rather than relative
@@ -267,10 +268,11 @@ private:
 };
 
 
-/// @class MemcachedStore
+/// @class TopologyAwareMemcachedStore
 ///
-/// A memcached-based implementation of the Store class.
-class MemcachedStore : public BaseMemcachedStore
+/// A memcached-based implementation of the Store class, which knows about the full cross-site
+/// topology of the cluster and places keys on exactly the right memcached.
+class TopologyAwareMemcachedStore : public BaseMemcachedStore
 {
 public:
   /// Construct a MemcachedStore that reads its config from a file.
@@ -281,10 +283,10 @@ public:
   /// @param comm_monitor  - Object tracking memcached communications.
   /// @param vbucket_alarm - Alarm object to kick if a vbucket is
   ///                        uncontactable.
-  MemcachedStore(bool binary,
-                 const std::string& config_file,
-                 BaseCommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL);
+  TopologyAwareMemcachedStore(bool binary,
+                              const std::string& config_file,
+                              BaseCommunicationMonitor* comm_monitor = NULL,
+                              Alarm* vbucket_alarm = NULL);
 
   /// Construct a MemcachedStore that reads its config from a user-supplied
   /// object.
@@ -297,16 +299,29 @@ public:
   /// @param comm_monitor  - Object tracking memcached communications.
   /// @param vbucket_alarm - Alarm object to kick if a vbucket is
   ///                        uncontactable.
-  MemcachedStore(bool binary,
-                 MemcachedConfigReader* config_reader,
-                 BaseCommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL);
-
-  /// Construct a MemcachedStore that only talks to the memcached proxy on localhost.
-  ///
-  /// @param comm_monitor  - Object tracking memcached communications.
-  MemcachedStore(BaseCommunicationMonitor* comm_monitor = NULL);
+  TopologyAwareMemcachedStore(bool binary,
+                              MemcachedConfigReader* config_reader,
+                              BaseCommunicationMonitor* comm_monitor = NULL,
+                              Alarm* vbucket_alarm = NULL);
 
 };
+
+/// @class TopologyNeutralMemcachedStore
+///
+/// A memcached-based implementation of the Store class, which does not know about the full cross-site
+/// topology of the cluster and relies on a topology-aware memcached proxy.
+class TopologyNeutralMemcachedStore : public BaseMemcachedStore
+{
+public:
+  /// Construct a MemcachedStore talking to localhost.
+  ///
+  /// @param comm_monitor  - Object tracking memcached communications.
+  TopologyNeutralMemcachedStore(BaseCommunicationMonitor* comm_monitor = NULL);
+private:
+  void set_fixed_server(std::string server);
+};
+
+// Preserve the old name for backwards compatibility
+typedef TopologyAwareMemcachedStore MemcachedStore;
 
 #endif

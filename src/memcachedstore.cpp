@@ -60,20 +60,22 @@
 /// The data used in memcached to represent a tombstone.
 static const std::string TOMBSTONE = "";
 
-BaseMemcachedStore::BaseMemcachedStore(bool binary,
+BaseMemcachedStore::BaseMemcachedStore(int replicas,
+                                       int vbuckets,
+                                       bool binary,
                                        MemcachedConfigReader* config_reader,
                                        BaseCommunicationMonitor* comm_monitor,
                                        Alarm* vbucket_alarm) :
-  _binary(binary),
-  _updater(NULL),
-  _replicas(2),
-  _vbuckets(128),
-  _options(),
   _view_number(0),
   _servers(),
-  _max_connect_latency_ms(50),
   _read_replicas(_vbuckets),
   _write_replicas(_vbuckets),
+  _binary(binary),
+  _updater(NULL),
+  _replicas(replicas),
+  _vbuckets(vbuckets),
+  _options(),
+  _max_connect_latency_ms(50),
   _comm_monitor(comm_monitor),
   _vbucket_comm_state(_vbuckets),
   _vbucket_comm_fail_count(0),
@@ -97,8 +99,11 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS --POLL-TIMEOUT=250";
   _options += (_binary) ? " --BINARY-PROTOCOL" : "";
 
-  // Create an updater to keep the store configured appropriately.
-  _updater = new Updater<void, BaseMemcachedStore>(this, std::mem_fun(&BaseMemcachedStore::update_config));
+  if (config_reader != NULL)
+  {
+    // Create an updater to keep the store configured appropriately.
+    _updater = new Updater<void, BaseMemcachedStore>(this, std::mem_fun(&BaseMemcachedStore::update_config));
+  }
 
   // Initialize vbucket comm state
   for (int ii = 0; ii < _vbuckets; ++ii)
@@ -106,45 +111,6 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
     _vbucket_comm_state[ii] = OK;
   }
 }
-
-BaseMemcachedStore::BaseMemcachedStore(BaseCommunicationMonitor* comm_monitor) :
-  _binary(true),
-  _updater(NULL),
-  _replicas(1),
-  _vbuckets(1),
-  _options(),
-  // Set the view number to 1 - we're starting with a fixed localhost-only view
-  _view_number(1),
-
-  // Use the local memcached proxy as the only server and the only replica
-  _servers(1, "127.0.0.1:11211"),
-  _max_connect_latency_ms(50),
-  _read_replicas(1, {"127.0.0.1:11211"}),
-  _write_replicas(1, {"127.0.0.1:11211"}),
-  _comm_monitor(comm_monitor),
-  _vbucket_comm_state(_vbuckets),
-  _vbucket_comm_fail_count(0),
-  _vbucket_alarm(NULL),
-  _tombstone_lifetime(200),
-  _config_reader(NULL)
-{
-  // Create the thread local key for the per thread data.
-  pthread_key_create(&_thread_local, BaseMemcachedStore::cleanup_connection);
-
-  // Create the lock for protecting the current view.
-  pthread_rwlock_init(&_view_lock, NULL);
-
-  // Create the mutex for protecting vbucket comm state.
-  pthread_mutex_init(&_vbucket_comm_lock, NULL);
-
-  // Set up the fixed options for memcached.  We use a very short connect
-  // timeout because libmemcached tries to connect to all servers sequentially
-  // during start-up, and if any are not up we don't want to wait for any
-  // significant length of time.
-  _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS --POLL-TIMEOUT=250";
-  _options += (_binary) ? " --BINARY-PROTOCOL" : "";
-}
-
 
 BaseMemcachedStore::~BaseMemcachedStore()
 {
@@ -1059,29 +1025,48 @@ void BaseMemcachedStore::log_delete_failure(const std::string& fqkey,
 }
 
 
-MemcachedStore::MemcachedStore(bool binary,
-                               const std::string& config_file,
-                               BaseCommunicationMonitor* comm_monitor,
-                               Alarm* vbucket_alarm) :
-  BaseMemcachedStore(binary,
+TopologyAwareMemcachedStore::TopologyAwareMemcachedStore(bool binary,
+                                                         const std::string& config_file,
+                                                         BaseCommunicationMonitor* comm_monitor,
+                                                         Alarm* vbucket_alarm) :
+  BaseMemcachedStore(2,
+                     128,
+                     binary,
                      new MemcachedConfigFileReader(config_file),
                      comm_monitor,
                      vbucket_alarm)
 {}
 
-MemcachedStore::MemcachedStore(bool binary,
-                               MemcachedConfigReader* config_reader,
-                               BaseCommunicationMonitor* comm_monitor,
-                               Alarm* vbucket_alarm) :
-  BaseMemcachedStore(binary,
+TopologyAwareMemcachedStore::TopologyAwareMemcachedStore(bool binary,
+                                                         MemcachedConfigReader* config_reader,
+                                                         BaseCommunicationMonitor* comm_monitor,
+                                                         Alarm* vbucket_alarm) :
+  BaseMemcachedStore(2,
+                     128,
+                     binary,
                      config_reader,
                      comm_monitor,
                      vbucket_alarm)
 {}
 
-MemcachedStore::MemcachedStore(BaseCommunicationMonitor* comm_monitor) :
-  BaseMemcachedStore(comm_monitor)
-{}
+TopologyNeutralMemcachedStore::TopologyNeutralMemcachedStore(BaseCommunicationMonitor* comm_monitor) :
+  BaseMemcachedStore(1,
+                     1,
+                     true,
+                     NULL,
+                     comm_monitor,
+                     NULL)
+{
+  set_fixed_server("127.0.0.1:11211");
+}
+
+void TopologyNeutralMemcachedStore::set_fixed_server(std::string server)
+{
+  _view_number++;
+  _servers = {server};
+  _read_replicas = {{server}};
+  _write_replicas = {{server}};
+}
 
 
 // LCOV_EXCL_STOP
