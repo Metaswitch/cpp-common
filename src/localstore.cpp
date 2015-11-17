@@ -102,8 +102,8 @@ Store::Status LocalStore::get_data(const std::string& table,
 
   TRC_DEBUG("Search store for key %s", fqkey.c_str());
 
-  std::map<std::string, Record>::iterator i = _db.find(fqkey);
-  if (i != _db.end())
+  std::map<std::string, Record>::iterator i = _db_in_use.find(fqkey);
+  if (i != _db_in_use.end())
   {
     // Found an existing record, so check the expiry.
     Record& r = i->second;
@@ -112,7 +112,7 @@ Store::Status LocalStore::get_data(const std::string& table,
     {
       // Record has expired, so remove it from the map and return not found.
       TRC_DEBUG("Record has expired, remove it from store");
-      _db.erase(i);
+      _db_in_use.erase(i);
     }
     else
     {
