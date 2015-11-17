@@ -72,6 +72,10 @@ void LocalStore::flush_all()
   pthread_mutex_unlock(&_db_lock);
 }
 
+//This function sets a flag to true that tells the program to simulate data
+//contention for testing. We achieve this by creating an out-of-date database
+//(_old_db) in //set_data() and reading from this old database in get_data()
+// if the flag is true.
 void LocalStore::force_contention()
 {
   _data_contention_flag = true;
@@ -84,19 +88,23 @@ Store::Status LocalStore::get_data(const std::string& table,
                                    SAS::TrailId trail)
 {
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
-  std::map<std::string, Record> _db_in_use;
+    Store::Status status = Store::Status::NOT_FOUND;
+
+  // Calculate the fully qualified key.
+  std::string fqkey = table + "\\\\" + key;
+
+  pthread_mutex_lock(&_db_lock);
+  
+  // This is for the purposes of testing data contention. If the flag is set to
+  // true _db_in_use will become a reference to _old_db the out-of-date
+  // database we constructed in set_data().
+  std::map<std::string, Record>& _db_in_use;
   if (_data_contention_flag == true) {
     _data_contention_flag = false;
     _db_in_use = _old_db;
   } else {
     _db_in_use = _db;
   }
-  Store::Status status = Store::Status::NOT_FOUND;
-
-  // Calculate the fully qualified key.
-  std::string fqkey = table + "\\\\" + key;
-
-  pthread_mutex_lock(&_db_lock);
 
   uint32_t now = time(NULL);
 
@@ -169,7 +177,11 @@ Store::Status LocalStore::set_data(const std::string& table,
       // Supplied CAS is consistent (either because record hasn't expired and
       // CAS matches, or record has expired and CAS is zero) so update the
       // record.
+      
+      // This write data this is one update out-of-date to _old_db this is for
+      // the purposes of simulating data contention in Unit Testing.
       _old_db[fqkey] = r;
+      
       r.data = data;
       r.cas = ++cas;
       r.expiry = (uint32_t)expiry + now;
