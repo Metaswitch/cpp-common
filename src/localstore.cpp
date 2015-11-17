@@ -98,12 +98,10 @@ Store::Status LocalStore::get_data(const std::string& table,
   // This is for the purposes of testing data contention. If the flag is set to
   // true _db_in_use will become a reference to _old_db the out-of-date
   // database we constructed in set_data().
-  std::map<std::string, Record>& _db_in_use;
-  if (_data_contention_flag == true) {
+  std::map<std::string, Record>& _db_in_use = _data_contention_flag ? _old_db : _db;
+  if (_data_contention_flag == true)
+  {
     _data_contention_flag = false;
-    _db_in_use = _old_db;
-  } else {
-    _db_in_use = _db;
   }
 
   uint32_t now = time(NULL);
