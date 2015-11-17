@@ -285,12 +285,12 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     dest_realm = "unknown";
   };
 
-  TRC_INFO("Routing error: '%s' for message with "
-           "Command-Code %d, Destination-Host %s and Destination-Realm %s",
-           (char *)other,
-           msg2.command_code(),
-           dest_host.c_str(),
-           dest_realm.c_str());
+  TRC_ERROR("Routing error: '%s' for message with "
+            "Command-Code %d, Destination-Host %s and Destination-Realm %s",
+            (char *)other,
+            msg2.command_code(),
+            dest_host.c_str(),
+            dest_realm.c_str());
 
   // Increment routing error stats if they're supported
   if ((_realm_counter != NULL) &&
