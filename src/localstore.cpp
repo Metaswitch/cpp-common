@@ -48,8 +48,10 @@
 
 
 LocalStore::LocalStore() :
+  _data_contention_flag(false),
   _db_lock(PTHREAD_MUTEX_INITIALIZER),
-  _db()
+  _db(),
+  _old_db()
 {
   TRC_DEBUG("Created local store");
 }
@@ -70,6 +72,14 @@ void LocalStore::flush_all()
   pthread_mutex_unlock(&_db_lock);
 }
 
+//This function sets a flag to true that tells the program to simulate data
+//contention for testing. We achieve this by creating an out-of-date database
+//(_old_db) in //set_data() and reading from this old database in get_data()
+// if the flag is true.
+void LocalStore::force_contention()
+{
+  _data_contention_flag = true;
+}
 
 Store::Status LocalStore::get_data(const std::string& table,
                                    const std::string& key,
@@ -78,20 +88,28 @@ Store::Status LocalStore::get_data(const std::string& table,
                                    SAS::TrailId trail)
 {
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
-
   Store::Status status = Store::Status::NOT_FOUND;
 
   // Calculate the fully qualified key.
   std::string fqkey = table + "\\\\" + key;
 
   pthread_mutex_lock(&_db_lock);
+  
+  // This is for the purposes of testing data contention. If the flag is set to
+  // true _db_in_use will become a reference to _old_db the out-of-date
+  // database we constructed in set_data().
+  std::map<std::string, Record>& _db_in_use = _data_contention_flag ? _old_db : _db;
+  if (_data_contention_flag == true)
+  {
+    _data_contention_flag = false;
+  }
 
   uint32_t now = time(NULL);
 
   TRC_DEBUG("Search store for key %s", fqkey.c_str());
 
-  std::map<std::string, Record>::iterator i = _db.find(fqkey);
-  if (i != _db.end())
+  std::map<std::string, Record>::iterator i = _db_in_use.find(fqkey);
+  if (i != _db_in_use.end())
   {
     // Found an existing record, so check the expiry.
     Record& r = i->second;
@@ -100,7 +118,7 @@ Store::Status LocalStore::get_data(const std::string& table,
     {
       // Record has expired, so remove it from the map and return not found.
       TRC_DEBUG("Record has expired, remove it from store");
-      _db.erase(i);
+      _db_in_use.erase(i);
     }
     else
     {
@@ -157,6 +175,11 @@ Store::Status LocalStore::set_data(const std::string& table,
       // Supplied CAS is consistent (either because record hasn't expired and
       // CAS matches, or record has expired and CAS is zero) so update the
       // record.
+      
+      // This writes data this is one update out-of-date to _old_db. This is for
+      // the purposes of simulating data contention in Unit Testing.
+      _old_db[fqkey] = r;
+      
       r.data = data;
       r.cas = ++cas;
       r.expiry = (uint32_t)expiry + now;
@@ -178,7 +201,6 @@ Store::Status LocalStore::set_data(const std::string& table,
   }
 
   pthread_mutex_unlock(&_db_lock);
-
   return status;
 }
 

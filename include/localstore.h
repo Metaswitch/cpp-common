@@ -49,6 +49,7 @@ public:
   virtual ~LocalStore();
 
   void flush_all();
+  void force_contention();
 
   Store::Status get_data(const std::string& table,
                          const std::string& key,
@@ -71,9 +72,10 @@ private:
     uint32_t expiry;
     uint64_t cas;
   } Record;
-
+  bool _data_contention_flag;
   pthread_mutex_t _db_lock;
   std::map<std::string, Record> _db;
+  std::map<std::string, Record> _old_db;
 };
 
 
