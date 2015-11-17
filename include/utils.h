@@ -119,6 +119,14 @@ namespace Utils
 
   void hashToHex(unsigned char *hash_char, unsigned char *hex_char);
 
+  /// Splits a URL of the form "http://<servername>[/<path>]" into
+  /// servername and path.
+  ///
+  /// Returns true iff the URL is in the corrects form, and sets the server
+  /// and path arguments to the URL components.  If the path in the URL is
+  /// missing, it defaults to "/".
+  bool parse_http_url(const std::string& url, std::string& server, std::string& path);
+
   std::string url_unescape(const std::string& s);
   std::string url_escape(const std::string& s);
 
@@ -438,6 +446,8 @@ namespace Utils
   // Compares two 32 bit numbers and returns if a < b.
   // This also returns true if b hasoverflown, and hence looks like b < a
   bool overflow_less_than(uint32_t a, uint32_t b);
+  
+  int lock_and_write_pidfile(std::string filename);
 
 } // namespace Utils
 

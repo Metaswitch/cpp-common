@@ -46,7 +46,40 @@
 #include <string>
 #include <arpa/inet.h>
 
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/file.h>
+
 #include "utils.h"
+
+bool Utils::parse_http_url(const std::string& url, std::string& server, std::string& path)
+{
+  size_t colon_pos = url.find(':');
+  if ((colon_pos == std::string::npos) || (url.substr(0, colon_pos) != "http"))
+  {
+    // Not HTTP.
+    return false;
+  }
+  size_t slash_slash_pos = url.find("//", colon_pos + 1);
+  if (slash_slash_pos != colon_pos + 1)
+  {
+    // Not full URL.
+    return false;
+  }
+  size_t slash_pos = url.find('/', slash_slash_pos + 2);
+  if (slash_pos == std::string::npos)
+  {
+    // No path.
+    server = url.substr(slash_slash_pos + 2);
+    path = "/";
+  }
+  else
+  {
+    server = url.substr(slash_slash_pos + 2, slash_pos - (slash_slash_pos + 2));
+    path = url.substr(slash_pos);
+  }
+  return true;
+}
 
 #define REPLACE(CHAR1, CHAR2, RESULT) if ((s[(ii+1)] == CHAR1) && (s[(ii+2)] == CHAR2)) { r.append(RESULT); ii = ii+2; continue; }
 
@@ -326,4 +359,24 @@ bool Utils::split_host_port(const std::string& host_port,
 bool Utils::overflow_less_than(uint32_t a, uint32_t b)
 {
     return ((a - b) > ((uint32_t)(1) << 31));
+}
+
+int Utils::lock_and_write_pidfile(std::string filename)
+{
+  std::string lockfilename = filename + ".lock";
+  int lockfd = open(lockfilename.c_str(),
+                    O_WRONLY | O_CREAT,
+                    S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  int rc = flock(lockfd, LOCK_EX | LOCK_NB);
+  if (rc == -1)
+  {
+    close(lockfd);
+    return -1;
+  }
+
+  FILE* fd = fopen(filename.c_str(), "w");
+  fprintf(fd, "%d\n", getpid());
+  fclose(fd);
+  
+  return lockfd;
 }
