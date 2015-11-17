@@ -88,7 +88,7 @@ Store::Status LocalStore::get_data(const std::string& table,
                                    SAS::TrailId trail)
 {
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
-    Store::Status status = Store::Status::NOT_FOUND;
+  Store::Status status = Store::Status::NOT_FOUND;
 
   // Calculate the fully qualified key.
   std::string fqkey = table + "\\\\" + key;
@@ -178,7 +178,7 @@ Store::Status LocalStore::set_data(const std::string& table,
       // CAS matches, or record has expired and CAS is zero) so update the
       // record.
       
-      // This write data this is one update out-of-date to _old_db this is for
+      // This writes data this is one update out-of-date to _old_db. This is for
       // the purposes of simulating data contention in Unit Testing.
       _old_db[fqkey] = r;
       
