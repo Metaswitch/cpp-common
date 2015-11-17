@@ -40,27 +40,7 @@ MockChronosConnection::MockChronosConnection() :
   ChronosConnection("chronos", "localhost:10888", NULL, NULL)
 {}
 
-// This mock accepts any post/put/delete and returns 200 OK
 MockChronosConnection::MockChronosConnection(const std::string& chronos) :
   ChronosConnection(chronos, "localhost:10888", NULL, NULL)
 {
-  ON_CALL(*this, send_post(_, _, _, _, _, _, _)).
-    WillByDefault(DoAll(SetArgReferee<0>("TIMER_ID"),
-          Return(HTTP_OK)));
-  ON_CALL(*this, send_post(_, _, _, _, _, _)).
-    WillByDefault(DoAll(SetArgReferee<0>("TIMER_ID"),
-          Return(HTTP_OK)));
-  ON_CALL(*this, send_put(_, _, _, _, _, _, _)).
-    WillByDefault(DoAll(SetArgReferee<0>("TIMER_ID"),
-          Return(HTTP_OK)));
-  ON_CALL(*this, send_put(_, _, _, _, _, _)).
-    WillByDefault(DoAll(SetArgReferee<0>("TIMER_ID"),
-          Return(HTTP_OK)));
-  ON_CALL(*this, send_delete("TIMER_ID", _)).
-    WillByDefault(Return(HTTP_OK));
-  EXPECT_CALL(*this, send_post(_,_,_,_,_,_,_)).Times(AnyNumber());
-  EXPECT_CALL(*this, send_post(_,_,_,_,_,_)).Times(AnyNumber());
-  EXPECT_CALL(*this, send_put(_,_,_,_,_,_,_)).Times(AnyNumber());
-  EXPECT_CALL(*this, send_put(_,_,_,_,_,_)).Times(AnyNumber());
-  EXPECT_CALL(*this, send_delete(_,_)).Times(AnyNumber());
 }
