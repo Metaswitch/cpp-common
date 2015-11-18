@@ -53,8 +53,8 @@ namespace SNMP
   {
   public:
     InfiniteTimerCountTableImpl(std::string name, // Name of this table, for logging
-                                std::string tbl_oid):// Root OID of this table
-    InfiniteBaseTable(name, tbl_oid, max_row, max_column){}
+                                std::string tbl_oid) : // Root OID of this table
+                                InfiniteBaseTable(name, tbl_oid, max_row, max_column){}
 
     virtual ~InfiniteTimerCountTableImpl(){};
     
