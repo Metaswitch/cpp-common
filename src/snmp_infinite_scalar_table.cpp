@@ -93,7 +93,7 @@ namespace SNMP
 
       if (_scalar_counters.count(tag) > 0)
       {
-        result = Value::integer(_scalar_counters[tag]);
+        result = Value::uint(_scalar_counters[tag]);
 
         TRC_DEBUG("Got value %u for tag %s cell (%d, %d)",
                   *result.value, tag.c_str(), row, column);
