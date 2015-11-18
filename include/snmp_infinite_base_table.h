@@ -53,7 +53,11 @@ namespace SNMP
 class InfiniteBaseTable
 {
 public:
-  InfiniteBaseTable(std::string name, std::string oid, uint32_t max_row, uint32_t max_column);
+  InfiniteBaseTable(std::string name,
+                    std::string oid,
+                    uint32_t max_row,
+                    uint32_t max_column);
+
   virtual ~InfiniteBaseTable();
   virtual Value get_value(std::string, uint32_t, uint32_t, timespec) = 0;
 
@@ -73,9 +77,9 @@ protected:
 private:
 
   static int static_netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
-                                      netsnmp_handler_registration *reginfo,
-                                      netsnmp_agent_request_info *reqinfo,
-                                      netsnmp_request_info *requests);
+                                             netsnmp_handler_registration *reginfo,
+                                             netsnmp_agent_request_info *reqinfo,
+                                             netsnmp_request_info *requests);
 
   int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
                                netsnmp_handler_registration *reginfo,

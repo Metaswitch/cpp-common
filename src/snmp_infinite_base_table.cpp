@@ -47,11 +47,10 @@
 
 namespace SNMP
 {
-//public:
-InfiniteBaseTable::InfiniteBaseTable(std::string name, // Name of this table, for logging
-                       std::string tbl_oid, // Root OID of this table
-                       uint32_t max_row,
-                       uint32_t max_column):
+InfiniteBaseTable::InfiniteBaseTable(std::string name,
+                                     std::string tbl_oid,
+                                     uint32_t max_row,
+                                     uint32_t max_column):
   _name(name),
   _tbl_oid_len(SCRATCH_BUF_LEN),
   _max_row(max_row),
@@ -80,33 +79,17 @@ InfiniteBaseTable::~InfiniteBaseTable()
   }
 }
 
-/*private:
-  const uint32_t _max_row;
-  const uint32_t _max_column;
-  static const uint32_t MAX_TAG_LEN = 16;
-  static const ssize_t SCRATCH_BUF_LEN = 128;
-
-protected:
-  std::string _name;
-  oid _tbl_oid[SCRATCH_BUF_LEN];
-  size_t _tbl_oid_len;
-  uint32_t ROOT_OID_LEN;
-  netsnmp_handler_registration* _handler_reg;
-  std::map<std::string, TimerCounter> _timer_counters;
-
-private:*/
-  // netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
-  // and maps the row and column to a value.
+// netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
+// and maps the row and column to a value.
 int InfiniteBaseTable::static_netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
-                                                              netsnmp_handler_registration *reginfo,
-                                                              netsnmp_agent_request_info *reqinfo,
-                                                              netsnmp_request_info *requests)
+                                                       netsnmp_handler_registration *reginfo,
+                                                       netsnmp_agent_request_info *reqinfo,
+                                                       netsnmp_request_info *requests)
 {
   return (static_cast<InfiniteBaseTable*>(handler->myvoid))->InfiniteBaseTable::netsnmp_table_handler_fn(handler,
                                                                                                          reginfo,
                                                                                                          reqinfo,
                                                                                                          requests);
-
 }
 
 int InfiniteBaseTable::netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
@@ -208,13 +191,6 @@ int InfiniteBaseTable::netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
       snprint_objid(buf, sizeof(buf), fixed_oid.get(), fixed_oid_len);
       TRC_DEBUG("Parsed SNMP request to OID %s with tag %s and cell (%d, %d)",
                 buf, tag.c_str(), row, column);
-
-/*        virtual Value get_value(std::string tag,
-                              uint32_t column,
-                              uint32_t row,
-                              timespec now)
-*/
-//        Value result = Value::uint(0);
 
       result = get_value(tag, column, row, now);
 
@@ -522,5 +498,4 @@ void InfiniteBaseTable::find_next_oid(const oid* req_oid,
   TRC_DEBUG("Found next OID, %s -> %s", buf, buf2);
   return;
 }
-
 }
