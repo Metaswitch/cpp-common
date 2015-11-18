@@ -95,7 +95,7 @@ int snmp_setup(const char* name)
 {
   // Make sure we start as a subagent, not a master agent.
   netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_ROLE, 1);
-  netsnmp_ds_set_string(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_X_SOCKET, "tcp:localhost:705");
+//  netsnmp_ds_set_string(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_X_SOCKET, "tcp:localhost:705");
 
 
   // Use callback-based logging, and integrate it with the Clearwater logger
