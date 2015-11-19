@@ -60,26 +60,25 @@
 /// The data used in memcached to represent a tombstone.
 static const std::string TOMBSTONE = "";
 
-BaseMemcachedStore::BaseMemcachedStore(bool binary,
-                                       MemcachedConfigReader* config_reader,
+BaseMemcachedStore::BaseMemcachedStore(int replicas,
+                                       int vbuckets,
+                                       bool binary,
                                        BaseCommunicationMonitor* comm_monitor,
                                        Alarm* vbucket_alarm) :
-  _binary(binary),
-  _updater(NULL),
-  _replicas(2),
-  _vbuckets(128),
-  _options(),
+  _vbuckets(vbuckets),
+  _replicas(replicas),
   _view_number(0),
   _servers(),
-  _max_connect_latency_ms(50),
   _read_replicas(_vbuckets),
   _write_replicas(_vbuckets),
+  _binary(binary),
+  _options(),
+  _max_connect_latency_ms(50),
   _comm_monitor(comm_monitor),
   _vbucket_comm_state(_vbuckets),
   _vbucket_comm_fail_count(0),
   _vbucket_alarm(vbucket_alarm),
-  _tombstone_lifetime(0),
-  _config_reader(config_reader)
+  _tombstone_lifetime(200)
 {
   // Create the thread local key for the per thread data.
   pthread_key_create(&_thread_local, BaseMemcachedStore::cleanup_connection);
@@ -97,9 +96,6 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS --POLL-TIMEOUT=250";
   _options += (_binary) ? " --BINARY-PROTOCOL" : "";
 
-  // Create an updater to keep the store configured appropriately.
-  _updater = new Updater<void, BaseMemcachedStore>(this, std::mem_fun(&BaseMemcachedStore::update_config));
-
   // Initialize vbucket comm state
   for (int ii = 0; ii < _vbuckets; ++ii)
   {
@@ -107,13 +103,8 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   }
 }
 
-
 BaseMemcachedStore::~BaseMemcachedStore()
 {
-  // Destroy the updater (if it was created) and the config reader.
-  delete _updater; _updater = NULL;
-  delete _config_reader; _config_reader = NULL;
-
   // Clean up this thread's connection now, rather than waiting for
   // pthread_exit.  This is to support use by single-threaded code
   // (e.g., UTs), where pthread_exit is never called.
@@ -137,55 +128,6 @@ void BaseMemcachedStore::set_max_connect_latency(unsigned int ms)
 {
   _max_connect_latency_ms = ms;
 }
-
-/// Set up a new view of the memcached cluster(s).  The view determines
-/// how data is distributed around the cluster.
-void BaseMemcachedStore::new_view(const MemcachedConfig& config)
-{
-  TRC_STATUS("Updating memcached store configuration");
-
-  // Create a new view with the new server lists.
-  MemcachedStoreView view(_vbuckets, _replicas);
-  view.update(config);
-
-  // Now copy the view so it can be accessed by the worker threads.
-  pthread_rwlock_wrlock(&_view_lock);
-
-  // Get the list of servers from the view.
-  _servers = view.servers();
-
-  // For each vbucket, get the list of read replicas and write replicas.
-  for (int ii = 0; ii < _vbuckets; ++ii)
-  {
-    _read_replicas[ii] = view.read_replicas(ii);
-    _write_replicas[ii] = view.write_replicas(ii);
-  }
-
-  // Update the view number as the last thing here, otherwise we could stall
-  // other threads waiting for the lock.
-  TRC_STATUS("Finished preparing new view, so flag that workers should switch to it");
-  ++_view_number;
-
-  pthread_rwlock_unlock(&_view_lock);
-}
-
-
-void BaseMemcachedStore::update_config()
-{
-  MemcachedConfig cfg;
-
-  if (_config_reader->read_config(cfg))
-  {
-    new_view(cfg);
-    _tombstone_lifetime = cfg.tombstone_lifetime;
-  }
-  else
-  {
-    TRC_ERROR("Failed to read config, keeping previous settings");
-  }
-}
-
-
 /// Returns the vbucket for a specified key
 int BaseMemcachedStore::vbucket_for_key(const std::string& key)
 {
@@ -1020,25 +962,100 @@ void BaseMemcachedStore::log_delete_failure(const std::string& fqkey,
   }
 }
 
-
-MemcachedStore::MemcachedStore(bool binary,
-                               const std::string& config_file,
-                               BaseCommunicationMonitor* comm_monitor,
-                               Alarm* vbucket_alarm) :
-  BaseMemcachedStore(binary,
-                     new MemcachedConfigFileReader(config_file),
+TopologyAwareMemcachedStore::TopologyAwareMemcachedStore(bool binary,
+                                                         MemcachedConfigReader* config_reader,
+                                                         BaseCommunicationMonitor* comm_monitor,
+                                                         Alarm* vbucket_alarm) :
+  BaseMemcachedStore(2,
+                     128,
+                     binary,
                      comm_monitor,
-                     vbucket_alarm)
-{}
+                     vbucket_alarm),
+  _config_reader(config_reader),
+  _updater(NULL)
+{
+  if (config_reader != NULL)
+  {
+    // Create an updater to keep the store configured appropriately.
+    _updater = new Updater<void, TopologyAwareMemcachedStore>(
+                       this,
+                       std::mem_fun(&TopologyAwareMemcachedStore::update_config));
+  }
+}
 
-MemcachedStore::MemcachedStore(bool binary,
-                               MemcachedConfigReader* config_reader,
-                               BaseCommunicationMonitor* comm_monitor,
-                               Alarm* vbucket_alarm) :
-  BaseMemcachedStore(binary,
-                     config_reader,
+TopologyAwareMemcachedStore::~TopologyAwareMemcachedStore()
+{
+  // Destroy the updater (if it was created) and the config reader.
+  delete _updater; _updater = NULL;
+  delete _config_reader; _config_reader = NULL;
+}
+
+TopologyNeutralMemcachedStore::TopologyNeutralMemcachedStore(BaseCommunicationMonitor* comm_monitor) :
+  BaseMemcachedStore(1,
+                     1,
+                     true,
                      comm_monitor,
-                     vbucket_alarm)
-{}
+                     NULL)
+{
+  set_fixed_server("127.0.0.1:11211");
+}
+
+/// Set up a new view of the memcached cluster(s).  The view determines
+/// how data is distributed around the cluster.
+void TopologyAwareMemcachedStore::new_view(const MemcachedConfig& config)
+{
+  TRC_STATUS("Updating memcached store configuration");
+
+  // Create a new view with the new server lists.
+  MemcachedStoreView view(_vbuckets, _replicas);
+  view.update(config);
+
+  // Now copy the view so it can be accessed by the worker threads.
+  pthread_rwlock_wrlock(&_view_lock);
+
+  // Get the list of servers from the view.
+  _servers = view.servers();
+
+  // For each vbucket, get the list of read replicas and write replicas.
+  for (int ii = 0; ii < _vbuckets; ++ii)
+  {
+    _read_replicas[ii] = view.read_replicas(ii);
+    _write_replicas[ii] = view.write_replicas(ii);
+  }
+
+  // Update the view number as the last thing here, otherwise we could stall
+  // other threads waiting for the lock.
+  TRC_STATUS("Finished preparing new view, so flag that workers should switch to it");
+  ++_view_number;
+
+  pthread_rwlock_unlock(&_view_lock);
+}
+
+
+void TopologyAwareMemcachedStore::update_config()
+{
+  MemcachedConfig cfg;
+
+  if (_config_reader->read_config(cfg))
+  {
+    new_view(cfg);
+  }
+  else
+  {
+    TRC_ERROR("Failed to read config, keeping previous settings");
+  }
+}
+
+
+
+
+void TopologyNeutralMemcachedStore::set_fixed_server(std::string server)
+{
+  _view_number++;
+  _servers = {server};
+  _read_replicas = {{server}};
+  _write_replicas = {{server}};
+}
+
 
 // LCOV_EXCL_STOP
