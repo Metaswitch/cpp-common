@@ -52,7 +52,7 @@ namespace SNMP
 
 class InfiniteBaseTable
 {
-public:
+protected:
   InfiniteBaseTable(std::string name,
                     std::string oid,
                     uint32_t max_row,
@@ -65,7 +65,6 @@ private:
   static const uint32_t MAX_TAG_LEN = 16;
   static const ssize_t SCRATCH_BUF_LEN = 128;
 
-protected:
   std::string _name;
   oid _tbl_oid[SCRATCH_BUF_LEN];
   size_t _tbl_oid_len;
@@ -73,8 +72,6 @@ protected:
   const uint32_t _max_column;
   netsnmp_handler_registration* _handler_reg;
   uint32_t ROOT_OID_LEN;
-
-private:
 
   static int static_netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
                                              netsnmp_handler_registration *reginfo,
@@ -100,6 +97,7 @@ private:
                      std::unique_ptr<oid[]>& new_oid,
                      uint32_t& new_oid_len);
 };
+
 }
 
 #endif
