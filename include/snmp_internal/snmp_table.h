@@ -131,9 +131,9 @@ private:
   // netsnmp handler function (of type Netsnmp_Node_Handler). Called for each SNMP request on a table,
   // and maps the row and column to a value.
   static int netsnmp_table_handler_fn(netsnmp_mib_handler *handler,
-                               netsnmp_handler_registration *reginfo,
-                               netsnmp_agent_request_info *reqinfo,
-                               netsnmp_request_info *requests)
+                                      netsnmp_handler_registration *reginfo,
+                                      netsnmp_agent_request_info *reqinfo,
+                                      netsnmp_request_info *requests)
   {
     std::map<netsnmp_tdata_row*, SNMP::ColumnData> cache;
     char buf[64];
