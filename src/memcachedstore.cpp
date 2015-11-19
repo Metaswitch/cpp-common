@@ -118,7 +118,7 @@ BaseMemcachedStore::~BaseMemcachedStore()
   pthread_mutex_destroy(&_vbucket_comm_lock);
 
   pthread_rwlock_destroy(&_view_lock);
-  
+
   pthread_key_delete(_thread_local);
 }
 
@@ -997,7 +997,7 @@ TopologyNeutralMemcachedStore::TopologyNeutralMemcachedStore(BaseCommunicationMo
                      comm_monitor,
                      NULL)
 {
-  set_fixed_server("127.0.0.1:11211");
+  set_fixed_server("127.0.0.1:11311");
 }
 
 /// Set up a new view of the memcached cluster(s).  The view determines
