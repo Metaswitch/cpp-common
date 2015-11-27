@@ -312,6 +312,8 @@ HTTPCode HttpConnection::send_delete(const std::string& path,
 
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
   curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
+  curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
   std::vector<std::string> unused_extra_headers;
   HTTPCode status = send_request(path, body, response, username, trail, "DELETE", unused_extra_headers, curl);
@@ -470,6 +472,8 @@ HTTPCode HttpConnection::send_get(const std::string& path,                     /
 {
   CURL *curl = get_curl_handle();
   curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
+  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
+  curl_easy_setopt(curl, CURLOPT_WRITEHEADER, &headers);
 
   return send_request(path, "", response, username, trail, "GET", headers_to_add, curl);
 }
