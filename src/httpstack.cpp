@@ -146,7 +146,7 @@ void HttpStack::configure(const std::string& bind_address,
   _stats = stats;
 }
 
-void HttpStack::register_handler(char* path,
+void HttpStack::register_handler(const char* path,
                                  HttpStack::HandlerInterface* handler)
 {
   evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp,
