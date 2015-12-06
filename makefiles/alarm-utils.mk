@@ -4,4 +4,4 @@ ${BUILD_DIR}/bin/alarm_header : ../modules/cpp-common/src/json_alarms.cpp \
                                 ../modules/cpp-common/src/alarm_header.cpp \
                                 ../modules/cpp-common/src/alarmdefinition.cpp \
                                 ../modules/cpp-common/makefiles/alarms-header.mk
-	${MAKE} -f ../modules/cpp-common/makefiles/alarms-header.mk
+	ROOT=${ROOT} ${MAKE} -f ../modules/cpp-common/makefiles/alarms-header.mk
