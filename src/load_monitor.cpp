@@ -128,7 +128,7 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
 
   timespec current_time;
   clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
-  last_adjustment_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_nsec / 1000);
+  last_adjustment_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_nsec / 1000000);
   min_token_rate = init_min_token_rate;
 
   // As this statistics reporting is continuous, we should
@@ -195,7 +195,7 @@ void LoadMonitor::request_complete(int latency)
     // fluctuate wildly if latency spikes for a few milliseconds
     timespec current_time;
     clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
-    unsigned long current_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_nsec / 1000);
+    unsigned long current_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_nsec / 1000000);
     if (current_time_ms >= (last_adjustment_time_ms + (SECONDS_BEFORE_ADJUSTMENT * 1000)))
     {
       // This algorithm is based on the Welsh and Culler "Adaptive Overload
@@ -235,7 +235,8 @@ void LoadMonitor::request_complete(int latency)
         // current rate - if we're allowing 100 requests/sec, and we get 1 request/sec because it's
         // a quiet period, then it's going to be handled quickly, but that's not sufficient evidence
         // to increase our rate.
-        float maximum_permitted_requests = bucket.rate * (current_time_ms - last_adjustment_time_ms) / 1000;
+        int ms_passed = (current_time_ms - last_adjustment_time_ms);
+        float maximum_permitted_requests = bucket.rate * ms_passed / 1000;
 
         // Arbitrary threshold - require 50% of our current permitted rate to be used
         float minimum_threshold = maximum_permitted_requests * 0.5;
@@ -253,8 +254,9 @@ void LoadMonitor::request_complete(int latency)
         else
         {
           TRC_STATUS("Maximum incoming request rate/second unchanged - only handled %d requests"
-                     " recently, minimum threshold for a change is %f",
+                     " in last %dms, minimum threshold for a change is %f",
                      accepted,
+                     ms_passed,
                      minimum_threshold);
         }
       }
