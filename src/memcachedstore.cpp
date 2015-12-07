@@ -599,7 +599,8 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
       TRC_DEBUG("Conditional write succeeded to replica %d", replica_idx);
       break;
     }
-    else if ((rc == MEMCACHED_NOTSTORED) ||
+    else if ((rc == MEMCACHED_NOTFOUND) ||
+             (rc == MEMCACHED_NOTSTORED) ||
              (rc == MEMCACHED_DATA_EXISTS))
     {
       if (trail != 0)
@@ -640,6 +641,7 @@ Store::Status BaseMemcachedStore::set_data(const std::string& table,
   }
 
   if ((!memcached_success(rc)) &&
+      (rc != MEMCACHED_NOTFOUND) &&
       (rc != MEMCACHED_NOTSTORED) &&
       (rc != MEMCACHED_DATA_EXISTS))
   {
