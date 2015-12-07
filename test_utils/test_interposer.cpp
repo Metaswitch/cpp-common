@@ -43,6 +43,8 @@
 
 #include <map>
 #include <string>
+#include <cstdio>
+#include <cerrno>
 
 #include "log.h"
 #include "test_interposer.hpp"

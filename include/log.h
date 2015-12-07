@@ -39,6 +39,7 @@
 #define LOG_H__
 
 #include "logger.h"
+#include <cstdarg>
 
 #define TRC_ERROR(...) if (Log::enabled(Log::ERROR_LEVEL)) Log::write(Log::ERROR_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
 #define TRC_WARNING(...) if (Log::enabled(Log::WARNING_LEVEL)) Log::write(Log::WARNING_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
