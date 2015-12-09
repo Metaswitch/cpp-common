@@ -94,7 +94,7 @@ public:
 
   MOCK_METHOD0(initialize, void());
   MOCK_METHOD7(configure, void(const std::string&, unsigned short, int, ExceptionHandler*, AccessLogger*, LoadMonitor*, StatsInterface*));
-  MOCK_METHOD2(register_handler, void(char*, HandlerInterface*));
+  MOCK_METHOD2(register_handler, void(const char*, HandlerInterface*));
   MOCK_METHOD1(start, void(evhtp_thread_init_cb));
   MOCK_METHOD0(stop, void());
   MOCK_METHOD0(wait_stopped, void());
