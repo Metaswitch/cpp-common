@@ -1042,7 +1042,7 @@ void TopologyAwareMemcachedStore::log_delete_failure(const std::string& fqkey,
 
   if (trail != 0)
   {
-    SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILURE, instance);
+    SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILED_TO_PROXY, instance);
     event.add_var_param(fqkey);
     event.add_static_param(replica_ix);
     event.add_static_param(replica_count);
@@ -1063,7 +1063,7 @@ TopologyNeutralMemcachedStore(const std::string& target_domain,
   BaseMemcachedStore(true, comm_monitor),
   _target_domain(target_domain),
   _resolver(resolver),
-  _retries(2),
+  _attempts(2),
   _conn_pool_lock(PTHREAD_MUTEX_INITIALIZER)
 {}
 
@@ -1191,6 +1191,432 @@ void TopologyNeutralMemcachedStore::release_connection(Connection* conn)
   }
 
   pthread_mutex_unlock(&_conn_pool_lock);
+}
+
+
+Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
+                                                      const std::string& key,
+                                                      std::string& data,
+                                                      uint64_t& cas,
+                                                      SAS::TrailId trail)
+{
+  Store::Status status;
+  std::vector<AddrInfo> targets;
+  memcached_return_t rc;
+
+  TRC_DEBUG("Start GET from table %s for key %s", table.c_str(), key.c_str());
+
+  // Construct the fully qualified key.
+  std::string fqkey = table + "\\\\" + key;
+  const char* key_ptr = fqkey.data();
+  const size_t key_len = fqkey.length();
+
+  if (trail != 0)
+  {
+    SAS::Event start(trail, SASEvent::MEMCACHED_GET_START, 0);
+    start.add_var_param(fqkey);
+    SAS::report_event(start);
+  }
+
+  // Resolve the Astaire domain into a list of potential targets. Give up if
+  // there aren't any.
+  _resolver->resolve(_target_domain, _attempts, targets, trail);
+  TRC_DEBUG("Found %d targets for %s", targets.size(), _target_domain.c_str());
+
+  if (targets.empty())
+  {
+    TRC_DEBUG("No targets in domain - give up");
+    return Store::ERROR;
+  }
+
+  // Always try at least twice even if there is only one target.  This is
+  // because if we have a connection for which the server is no longer working,
+  // libmemcached will fail the request and only fixes the connection up
+  // asynchronously.
+  size_t tries = std::max(2LU, targets.size());
+
+  for (size_t ii = 0; ii < tries; ++ii)
+  {
+    size_t target_ix = (ii % targets.size());
+    AddrInfo& target = targets[target_ix];
+    TRC_DEBUG("Try server IP %s, port %d",
+              target.address.to_string().c_str(),
+              target.port);
+
+    Connection* conn = get_connection(target);
+
+    rc = get_from_replica(conn->st, key_ptr, key_len, data, cas);
+    TRC_DEBUG("libmemcached returned %d", rc);
+
+    release_connection(conn);
+
+    if (memcached_success(rc))
+    {
+      // Success - nothing more to do.
+      break;
+    }
+    else if (!can_retry_memcached_rc(rc))
+    {
+      // This return code means it is not worth retrying to another server.
+      TRC_DEBUG("Return code means the request should not be retried");
+      break;
+    }
+  }
+
+  if (memcached_success(rc))
+  {
+    if (data != TOMBSTONE)
+    {
+      if (trail != 0)
+      {
+        SAS::Event got_data(trail, SASEvent::MEMCACHED_GET_SUCCESS, 0);
+        got_data.add_var_param(fqkey);
+        got_data.add_var_param(data);
+        got_data.add_static_param(cas);
+        SAS::report_event(got_data);
+      }
+
+      TRC_DEBUG("Read %d bytes from table %s key %s, CAS = %ld",
+                data.length(), table.c_str(), key.c_str(), cas);
+      status = Store::OK;
+    }
+    else
+    {
+      if (trail != 0)
+      {
+        SAS::Event got_tombstone(trail, SASEvent::MEMCACHED_GET_TOMBSTONE, 0);
+        got_tombstone.add_var_param(fqkey);
+        got_tombstone.add_static_param(cas);
+        SAS::report_event(got_tombstone);
+      }
+
+      // We have read a tombstone. Return NOT_FOUND to the caller, and also
+      // zero out the CAS (returning a zero CAS makes the interface cleaner).
+      TRC_DEBUG("Read tombstone from table %s key %s, CAS = %ld",
+                table.c_str(), key.c_str(), cas);
+      cas = 0;
+      status = Store::NOT_FOUND;
+    }
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
+  }
+  else if (rc == MEMCACHED_NOTFOUND)
+  {
+    TRC_DEBUG("Key not found");
+
+    if (trail != 0)
+    {
+      SAS::Event not_found(trail, SASEvent::MEMCACHED_GET_NOT_FOUND, 0);
+      not_found.add_var_param(fqkey);
+      SAS::report_event(not_found);
+    }
+
+    status = Store::Status::NOT_FOUND;
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
+  }
+  else
+  {
+    if (trail != 0)
+    {
+      SAS::Event err(trail, SASEvent::MEMCACHED_GET_ERROR, 0);
+      err.add_var_param(fqkey);
+      SAS::report_event(err);
+    }
+
+    TRC_DEBUG("Failed to read data");
+    status = Store::Status::ERROR;
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_failure();
+    }
+  }
+
+  return status;
+}
+
+
+Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
+                                                      const std::string& key,
+                                                      const std::string& data,
+                                                      uint64_t cas,
+                                                      int expiry,
+                                                      SAS::TrailId trail)
+{
+  Store::Status status = Store::Status::OK;
+  std::vector<AddrInfo> targets;
+  memcached_return_t rc;
+
+  TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
+            data.length(), table.c_str(), key.c_str(), cas, expiry);
+
+  // Construct the fully qualified key.
+  std::string fqkey = table + "\\\\" + key;
+  const char* key_ptr = fqkey.data();
+  const size_t key_len = fqkey.length();
+
+  if (trail != 0)
+  {
+    SAS::Event start(trail, SASEvent::MEMCACHED_SET_START, 0);
+    start.add_var_param(fqkey);
+    start.add_var_param(data);
+    start.add_static_param(cas);
+    start.add_static_param(expiry);
+    SAS::report_event(start);
+  }
+
+  // Memcached uses a flexible mechanism for specifying expiration.
+  // - 0 indicates never expire.
+  // - <= MEMCACHED_EXPIRATION_MAXDELTA indicates a relative (delta) time.
+  // - > MEMCACHED_EXPIRATION_MAXDELTA indicates an absolute time.
+  // Absolute time is the only way to force immediate expiry.  Unfortunately,
+  // it's not reliable - see https://github.com/Metaswitch/cpp-common/issues/160
+  // for details.  Instead, we use relative time for future times (expiry > 0)
+  // and the earliest absolute time for immediate expiry (expiry == 0).
+  time_t memcached_expiration =
+    (time_t)((expiry > 0) ? expiry : MEMCACHED_EXPIRATION_MAXDELTA + 1);
+
+  // Resolve the Astaire domain into a list of potential targets.
+  _resolver->resolve(_target_domain, _attempts, targets, trail);
+  TRC_DEBUG("Found %d targets for %s", targets.size(), _target_domain.c_str());
+
+  if (targets.empty())
+  {
+    TRC_DEBUG("No targets in domain - give up");
+    return Store::ERROR;
+  }
+
+  // Always try at least twice even if there is only one target.  This is
+  // because if we have a connection for which the server is no longer working,
+  // libmemcached will fail the request and only fixes the connection up
+  // asynchronously.
+  size_t tries = std::max(2LU, targets.size());
+
+  for (size_t ii = 0; ii < tries; ++ii)
+  {
+    size_t target_ix = (ii % targets.size());
+    AddrInfo& target = targets[target_ix];
+    TRC_DEBUG("Try server IP %s, port %d",
+              target.address.to_string().c_str(),
+              target.port);
+
+    Connection* conn = get_connection(target);
+
+    if (cas == 0)
+    {
+      // New record, so attempt to add (but overwrite any tombstones we
+      // encounter).  This will fail if someone else got there first and some
+      // data already exists in memcached for this key.
+      rc = add_overwriting_tombstone(conn->st,
+                                     key_ptr,
+                                     key_len,
+                                     0,
+                                     data,
+                                     memcached_expiration,
+                                     0,
+                                     trail);
+    }
+    else
+    {
+      // This is an update to an existing record, so use memcached_cas
+      // to make sure it is atomic.
+      rc = memcached_cas_vb(conn->st,
+                            key_ptr,
+                            key_len,
+                            0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            0,
+                            cas);
+    }
+
+    TRC_DEBUG("libmemcached returned %d", rc);
+
+    release_connection(conn);
+
+    if (memcached_success(rc))
+    {
+      // Success - nothing more to do.
+      break;
+    }
+    else if (!can_retry_memcached_rc(rc))
+    {
+      // This return code means it is not worth retrying to another server.
+      TRC_DEBUG("Return code means the request should not be retried");
+      break;
+    }
+  }
+
+  if (memcached_success(rc))
+  {
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
+
+    TRC_DEBUG("Write successful");
+    status = Store::OK;
+  }
+  else if ((rc == MEMCACHED_NOTFOUND) ||
+           (rc == MEMCACHED_NOTSTORED) ||
+           (rc == MEMCACHED_DATA_EXISTS))
+  {
+    if (trail != 0)
+    {
+      SAS::Event err(trail, SASEvent::MEMCACHED_SET_CONTENTION, 0);
+      err.add_var_param(fqkey);
+      SAS::report_event(err);
+    }
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
+
+    TRC_DEBUG("Contention writing data for %s to store", fqkey.c_str());
+    status = Store::Status::DATA_CONTENTION;
+  }
+  else
+  {
+    if (trail != 0)
+    {
+      SAS::Event err(trail, SASEvent::MEMCACHED_SET_FAILED, 0);
+      err.add_var_param(fqkey);
+      SAS::report_event(err);
+    }
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_failure();
+    }
+
+    TRC_DEBUG("Failed to write data for %s to store", fqkey.c_str());
+    status = Store::Status::ERROR;
+  }
+
+  return status;
+}
+
+
+Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& table,
+                                                         const std::string& key,
+                                                         SAS::TrailId trail)
+{
+  std::vector<AddrInfo> targets;
+  memcached_return_t rc;
+
+  TRC_DEBUG("Deleting key %s from table %s", key.c_str(), table.c_str());
+
+  // Construct the fully qualified key.
+  std::string fqkey = table + "\\\\" + key;
+  const char* key_ptr = fqkey.data();
+  const size_t key_len = fqkey.length();
+
+  if (_tombstone_lifetime == 0)
+  {
+    SAS::Event event(trail, SASEvent::MEMCACHED_DELETE, 0);
+    event.add_var_param(fqkey);
+    SAS::report_event(event);
+  }
+  else
+  {
+    SAS::Event event(trail, SASEvent::MEMCACHED_DELETE, 0);
+    event.add_var_param(fqkey);
+    event.add_static_param(_tombstone_lifetime);
+    SAS::report_event(event);
+  }
+
+  // Resolve the Astaire domain into a list of potential targets.
+  _resolver->resolve(_target_domain, _attempts, targets, trail);
+  TRC_DEBUG("Found %d targets for %s", targets.size(), _target_domain.c_str());
+
+  if (targets.empty())
+  {
+    TRC_DEBUG("No targets in domain - give up");
+    return Store::ERROR;
+  }
+
+  // Always try at least twice even if there is only one target.  This is
+  // because if we have a connection for which the server is no longer working,
+  // libmemcached will fail the request and only fixes the connection up
+  // asynchronously.
+  size_t tries = std::max(2LU, targets.size());
+
+  for (size_t ii = 0; ii < tries; ++ii)
+  {
+    size_t target_ix = (ii % targets.size());
+    AddrInfo& target = targets[target_ix];
+    TRC_DEBUG("Try server IP %s, port %d",
+              target.address.to_string().c_str(),
+              target.port);
+
+    Connection* conn = get_connection(target);
+
+    if (_tombstone_lifetime == 0)
+    {
+      rc = memcached_delete(conn->st, key_ptr, key_len, 0);
+    }
+    else
+    {
+      rc = memcached_set_vb(conn->st,
+                            key_ptr,
+                            key_len,
+                            0,
+                            TOMBSTONE.data(),
+                            TOMBSTONE.length(),
+                            _tombstone_lifetime,
+                            0);
+    }
+
+    TRC_DEBUG("libmemcached returned %d", rc);
+
+    release_connection(conn);
+
+    if (memcached_success(rc))
+    {
+      // Success - nothing more to do.
+      break;
+    }
+    else if (!can_retry_memcached_rc(rc))
+    {
+      // This return code means it is not worth retrying to another server.
+      TRC_DEBUG("Return code means the request should not be retried");
+      break;
+    }
+  }
+
+  if (!memcached_success(rc))
+  {
+    if (trail != 0)
+    {
+      SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILED_TO_PROXY, 0);
+      event.add_var_param(fqkey);
+      event.add_static_param(_attempts);
+      SAS::report_event(event);
+    }
+
+    TRC_DEBUG("Delete failed");
+  }
+
+  return Status::OK;
+}
+
+
+bool TopologyNeutralMemcachedStore::can_retry_memcached_rc(memcached_return_t rc)
+{
+  return (!memcached_success(rc) &&
+          (rc != MEMCACHED_NOTFOUND) &&
+          (rc != MEMCACHED_NOTSTORED) &&
+          (rc != MEMCACHED_DATA_EXISTS) &&
+          (rc != MEMCACHED_E2BIG));
 }
 
 

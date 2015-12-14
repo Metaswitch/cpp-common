@@ -345,7 +345,7 @@ protected:
   AstaireResolver* _resolver;
 
   // How many time to retry a memcached operation.
-  const int _retries;
+  const size_t _attempts;
 
   struct Connection
   {
@@ -391,6 +391,10 @@ protected:
 
   // Release the specified connection back to the pool.
   void release_connection(Connection* conn);
+
+  // Determine if for a given memcached return code it is worth retrying a
+  // request to a different server in the domain.
+  static bool can_retry_memcached_rc(memcached_return_t rc);
 };
 
 // Preserve the old name for backwards compatibility
