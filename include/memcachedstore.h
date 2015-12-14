@@ -55,6 +55,7 @@ extern "C" {
 #include "sas.h"
 #include "sasevent.h"
 #include "communicationmonitor.h"
+#include "astaire_resolver.h"
 
 class BaseMemcachedStore : public Store
 {
@@ -298,15 +299,98 @@ private:
 
 /// @class TopologyNeutralMemcachedStore
 ///
-/// A memcached-based implementation of the Store class, which does not know about the full cross-site
-/// topology of the cluster and relies on a topology-aware memcached proxy.
+/// A memcached-based implementation of the Store class, which does not know
+/// about the full cross-site topology of the cluster and relies on a
+/// topology-aware memcached proxy.
 class TopologyNeutralMemcachedStore : public BaseMemcachedStore
 {
 public:
   /// Construct a MemcachedStore talking to localhost.
   ///
+  /// @param target_domain - The domain name for the topology aware proxies.
+  /// @param resolver      - The resolver to use to lookup targets in the
+  ///                        specified domain.
   /// @param comm_monitor  - Object tracking memcached communications.
-  TopologyNeutralMemcachedStore(BaseCommunicationMonitor* comm_monitor = NULL);
+  TopologyNeutralMemcachedStore(const std::string& target_domain,
+                                AstaireResolver* resolver,
+                                BaseCommunicationMonitor* comm_monitor = NULL);
+
+  ~TopologyNeutralMemcachedStore();
+
+  /// Gets the data for the specified table and key.
+  Store::Status get_data(const std::string& table,
+                         const std::string& key,
+                         std::string& data,
+                         uint64_t& cas,
+                         SAS::TrailId trail = 0);
+
+  /// Sets the data for the specified table and key.
+  Store::Status set_data(const std::string& table,
+                         const std::string& key,
+                         const std::string& data,
+                         uint64_t cas,
+                         int expiry,
+                         SAS::TrailId trail = 0);
+
+  /// Deletes the data for the specified table and key.
+  Store::Status delete_data(const std::string& table,
+                            const std::string& key,
+                            SAS::TrailId trail = 0);
+
+protected:
+  // The domain name for the memcached proxies.
+  std::string _target_domain;
+
+  // Object that can be used to resolve the above domain.
+  AstaireResolver* _resolver;
+
+  // How many time to retry a memcached operation.
+  const int _retries;
+
+  struct Connection
+  {
+    // Constructor.
+    //
+    // @param target_param - The target that this connection is to.
+    // @param st_param -     An initialized memcached_st object.
+    Connection(AddrInfo& target_param, memcached_st* st_param);
+
+    ~Connection();
+
+    // Underlying libmemcached object for the connection.
+    memcached_st* st;
+
+    // The address of the remote host.
+    AddrInfo target;
+
+    // The time (in seconds since the epoch) at which the connection was last
+    // used. Used to close idle connections.
+    int64_t last_used_time_s;
+
+    // The length of time (in seconds) that a connection can remain idle
+    // before it is automatically closed.
+    const static int64_t MAX_IDLE_TIME_S = 60;
+  };
+
+  // A pool of connections that are available for use. Connections are stored
+  // in "slots", with each distinct target having its own slot.
+  //
+  // Threads that need a connection to a particular host check a connection out
+  // of this pool (creating one if necessary) and replace it when they are done.
+  // Connections are checked in/out at the back of the slot, so least active
+  // connection is always at he front of the slot.
+  //
+  // The associated lock must be held when accessing this pool.
+  typedef std::deque<Connection*> ConnectionPoolSlot;
+  typedef std::map<AddrInfo, ConnectionPoolSlot> ConnectionPool;
+  ConnectionPool _conn_pool;
+  pthread_mutex_t _conn_pool_lock;
+
+  // Get a connection to the specified target.
+  Connection* get_connection(AddrInfo& target);
+
+  // Release the specified connection back to the pool.
+  void release_connection(Connection* conn);
 };
 
 // Preserve the old name for backwards compatibility

@@ -1051,4 +1051,161 @@ void TopologyAwareMemcachedStore::log_delete_failure(const std::string& fqkey,
 }
 
 
+//
+// TopologyNeutralMemcachedStore methods
+//
+
+TopologyNeutralMemcachedStore::
+TopologyNeutralMemcachedStore(const std::string& target_domain,
+                              AstaireResolver* resolver,
+                              BaseCommunicationMonitor* comm_monitor) :
+  // Always use binary, as this is all Astaire supports.
+  BaseMemcachedStore(true, comm_monitor),
+  _target_domain(target_domain),
+  _resolver(resolver),
+  _retries(2),
+  _conn_pool_lock(PTHREAD_MUTEX_INITIALIZER)
+{}
+
+
+TopologyNeutralMemcachedStore::~TopologyNeutralMemcachedStore()
+{
+  pthread_mutex_lock(&_conn_pool_lock);
+
+  for(ConnectionPool::iterator slot_it = _conn_pool.begin();
+      slot_it != _conn_pool.end();
+      ++slot_it)
+  {
+    for(std::deque<Connection*>::iterator conn_it = slot_it->second.begin();
+        conn_it != slot_it->second.end();
+        ++conn_it)
+    {
+      delete *conn_it; *conn_it = NULL;
+    }
+  }
+
+  pthread_mutex_unlock(&_conn_pool_lock);
+}
+
+
+TopologyNeutralMemcachedStore::Connection*
+TopologyNeutralMemcachedStore::get_connection(AddrInfo& target)
+{
+  Connection* conn;
+
+  TRC_DEBUG("Request for connection to IP: %s, port: %d",
+            target.address.to_string().c_str(),
+            target.port);
+
+  pthread_mutex_lock(&_conn_pool_lock);
+
+  ConnectionPool::iterator it = _conn_pool.find(target);
+
+  if ((it != _conn_pool.end()) && (!it->second.empty()))
+  {
+    conn = it->second.back();
+    it->second.pop_back();
+    TRC_DEBUG("Found existing connection %p in pool\n", conn);
+  }
+  else
+  {
+    TRC_DEBUG("No existing connection in pool, create one");
+    memcached_st* st = memcached(_options.c_str(), _options.length());
+    memcached_behavior_set(st,
+                           MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT,
+                           _max_connect_latency_ms);
+
+    memcached_server_add(st, target.address.to_string().c_str(), target.port);
+    conn = new Connection(target, st);
+
+    TRC_DEBUG("Created connection %p", conn);
+  }
+
+  pthread_mutex_unlock(&_conn_pool_lock);
+
+  return conn;
+}
+
+
+void TopologyNeutralMemcachedStore::release_connection(Connection* conn)
+{
+  TRC_DEBUG("Release connection to IP: %s, port: %d",
+            conn->target.address.to_string().c_str(),
+            conn->target.port);
+
+  // Get the current time, and mark the connection as having just been used.
+  struct timespec now;
+  clock_gettime(CLOCK_REALTIME, &now);
+  conn->last_used_time_s = now.tv_sec;
+
+  pthread_mutex_lock(&_conn_pool_lock);
+
+  // Put the connection back into the pool.
+  //
+  // Note that the slot for this target could have been removed while the
+  // connection was checked out, so try inserting a new empty slot first. If the
+  // slot already exists this will fail. Either way an iterator to the slot is
+  // returned.
+  std::pair<ConnectionPool::iterator, bool> result =
+    _conn_pool.emplace(conn->target, ConnectionPoolSlot());
+  ConnectionPool::iterator it = result.first;
+  it->second.push_back(conn); conn = NULL;
+
+  // Walk the pool looking for stale connections. If we find one, delete it and
+  // stop looking for any more (the goal is to prevent stale connections from
+  // accumulating, not to completely remove all of them in one go).
+  for(ConnectionPool::iterator slot_it = _conn_pool.begin();
+      slot_it != _conn_pool.end();
+      ++slot_it)
+  {
+    ConnectionPoolSlot& slot = slot_it->second;
+
+    if (!slot.empty())
+    {
+      // Connections are always checked in/out at the back of the slot, so the
+      // oldest one is at the front.
+      Connection* oldest = slot.front();
+
+      if (now.tv_sec > oldest->last_used_time_s + Connection::MAX_IDLE_TIME_S)
+      {
+        TRC_DEBUG("Free idle connection to IP: %s, port: %d (time now is %ld, last used %ld)",
+                  conn->target.address.to_string().c_str(),
+                  conn->target.port,
+                  now.tv_sec,
+                  conn->last_used_time_s);
+
+        // The connection is too old so delete it.
+        delete oldest; oldest = NULL;
+        slot.pop_front();
+
+        // If the slot is now empty, delete that too.
+        if (slot.empty())
+        {
+          _conn_pool.erase(slot_it);
+        }
+
+        // We've done enough cleanup work on this thread.
+        break;
+      }
+    }
+  }
+
+  pthread_mutex_unlock(&_conn_pool_lock);
+}
+
+
+TopologyNeutralMemcachedStore::Connection::Connection(AddrInfo& target_param,
+                                                      memcached_st* st_param) :
+  st(st_param),
+  target(target_param),
+  last_used_time_s(0)
+{}
+
+
+TopologyNeutralMemcachedStore::Connection::~Connection()
+{
+  memcached_free(st);
+}
+
+
 // LCOV_EXCL_STOP
