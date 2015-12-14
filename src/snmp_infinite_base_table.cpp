@@ -326,7 +326,7 @@ void InfiniteBaseTable::find_next_oid(const oid* req_oid,
                                       std::unique_ptr<oid[]>& new_oid,
                                       uint32_t& new_oid_len)
 {
-  // Save off a working copy of the requested OID so we can maniplute
+  // Save off a working copy of the requested OID so we can manipulate
   // it to implement backtracking.
   uint32_t tmp_oid_len = req_oid_len;
   std::unique_ptr<oid[]> tmp_oid(new oid[tmp_oid_len]);
@@ -342,18 +342,16 @@ void InfiniteBaseTable::find_next_oid(const oid* req_oid,
     snprint_objid(tmp_buf, sizeof(tmp_buf), tmp_oid.get(), tmp_oid_len);
     TRC_DEBUG("Finding OID after %s", tmp_buf);
 
-    // See if we have a non-zero length field.
+    // See if we have a non-zero length field. If so, skip the table to avoid users accidentally
+    // snmpwalking over all of it.
     if ((tmp_oid_len < ROOT_OID_LEN + 1) ||
         (tmp_oid[ROOT_OID_LEN] == 0))
     {
-      TRC_DEBUG("Tag length not provided (or 0), start at tag A");
-      new_oid_len = ROOT_OID_LEN + 4;
+      TRC_DEBUG("Tag length not provided (or 0), skip the table");
+      new_oid_len = ROOT_OID_LEN;
       new_oid = std::unique_ptr<oid[]>(new oid[new_oid_len]);
       memcpy(new_oid.get(), _tbl_oid, ROOT_OID_LEN * sizeof(oid));
-      new_oid[ROOT_OID_LEN + 0] = 1;   // tag length
-      new_oid[ROOT_OID_LEN + 1] = 'A'; // first tag
-      new_oid[ROOT_OID_LEN + 2] = 2;   // first (non-index) column
-      new_oid[ROOT_OID_LEN + 3] = 1;   // first row
+      new_oid[ROOT_OID_LEN - 1]++;
       break;
     }
 
