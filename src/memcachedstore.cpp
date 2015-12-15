@@ -1088,7 +1088,7 @@ TopologyNeutralMemcachedStore::~TopologyNeutralMemcachedStore()
 }
 
 
-TopologyNeutralMemcachedStore::Connection*
+TopologyNeutralMemcachedStore::ConnectionHandle
 TopologyNeutralMemcachedStore::get_connection(AddrInfo& target)
 {
   Connection* conn;
@@ -1123,7 +1123,7 @@ TopologyNeutralMemcachedStore::get_connection(AddrInfo& target)
 
   pthread_mutex_unlock(&_conn_pool_lock);
 
-  return conn;
+  return ConnectionHandle(conn, this);
 }
 
 
@@ -1243,12 +1243,10 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
               target.address.to_string().c_str(),
               target.port);
 
-    Connection* conn = get_connection(target);
+    ConnectionHandle conn = get_connection(target);
 
-    rc = get_from_replica(conn->st, key_ptr, key_len, data, cas);
+    rc = get_from_replica(conn.get()->st, key_ptr, key_len, data, cas);
     TRC_DEBUG("libmemcached returned %d", rc);
-
-    release_connection(conn);
 
     if (memcached_success(rc))
     {
@@ -1407,14 +1405,14 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
               target.address.to_string().c_str(),
               target.port);
 
-    Connection* conn = get_connection(target);
+    ConnectionHandle conn = get_connection(target);
 
     if (cas == 0)
     {
       // New record, so attempt to add (but overwrite any tombstones we
       // encounter).  This will fail if someone else got there first and some
       // data already exists in memcached for this key.
-      rc = add_overwriting_tombstone(conn->st,
+      rc = add_overwriting_tombstone(conn.get()->st,
                                      key_ptr,
                                      key_len,
                                      0,
@@ -1427,7 +1425,7 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
     {
       // This is an update to an existing record, so use memcached_cas
       // to make sure it is atomic.
-      rc = memcached_cas_vb(conn->st,
+      rc = memcached_cas_vb(conn.get()->st,
                             key_ptr,
                             key_len,
                             0,
@@ -1439,8 +1437,6 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
     }
 
     TRC_DEBUG("libmemcached returned %d", rc);
-
-    release_connection(conn);
 
     if (memcached_success(rc))
     {
@@ -1558,15 +1554,15 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
               target.address.to_string().c_str(),
               target.port);
 
-    Connection* conn = get_connection(target);
+    ConnectionHandle conn = get_connection(target);
 
     if (_tombstone_lifetime == 0)
     {
-      rc = memcached_delete(conn->st, key_ptr, key_len, 0);
+      rc = memcached_delete(conn.get()->st, key_ptr, key_len, 0);
     }
     else
     {
-      rc = memcached_set_vb(conn->st,
+      rc = memcached_set_vb(conn.get()->st,
                             key_ptr,
                             key_len,
                             0,
@@ -1577,8 +1573,6 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
     }
 
     TRC_DEBUG("libmemcached returned %d", rc);
-
-    release_connection(conn);
 
     if (memcached_success(rc))
     {
@@ -1633,5 +1627,36 @@ TopologyNeutralMemcachedStore::Connection::~Connection()
   memcached_free(st);
 }
 
+
+TopologyNeutralMemcachedStore::ConnectionHandle::
+ConnectionHandle(Connection* conn, TopologyNeutralMemcachedStore* store) :
+  _conn(conn),
+  _store(store)
+{}
+
+
+TopologyNeutralMemcachedStore::ConnectionHandle::
+ConnectionHandle(ConnectionHandle&& rhs) :
+  _conn(rhs._conn),
+  _store(rhs._store)
+{
+  rhs._conn = NULL;
+  rhs._store = NULL;
+}
+
+
+TopologyNeutralMemcachedStore::ConnectionHandle::~ConnectionHandle()
+{
+  if ((_store != NULL) && (_conn != NULL))
+  {
+    _store->release_connection(_conn);
+  }
+}
+
+TopologyNeutralMemcachedStore::Connection*
+TopologyNeutralMemcachedStore::ConnectionHandle::get()
+{
+  return _conn;
+}
 
 // LCOV_EXCL_STOP

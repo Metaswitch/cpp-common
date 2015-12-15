@@ -372,6 +372,37 @@ protected:
     const static int64_t MAX_IDLE_TIME_S = 60;
   };
 
+  // A handle to a connection object that has been retrieved from the pool.
+  // This prevents store code from checking out a connection and forgetting to
+  // check it back in again.
+  class ConnectionHandle
+  {
+  public:
+    // Constructor
+    //
+    // @param conn -  The connection that this object wraps.
+    // @param store - The store that owns the connection.
+    //
+    ConnectionHandle(Connection* conn, TopologyNeutralMemcachedStore* store);
+
+    // Move constructor.
+    ConnectionHandle(ConnectionHandle&& rhs);
+
+    // Destructor.
+    ~ConnectionHandle();
+
+    // Get the underlying connection.
+    Connection* get();
+
+  private:
+    // Delete the copy constructor to avoid having copies of the handle (which
+    // could cause the connection to get checked back in twice!)
+    ConnectionHandle(ConnectionHandle& rhs) = delete;
+
+    Connection* _conn;
+    TopologyNeutralMemcachedStore* _store;
+  };
+
   // A pool of connections that are available for use. Connections are stored
   // in "slots", with each distinct target having its own slot.
   //
@@ -387,7 +418,7 @@ protected:
   pthread_mutex_t _conn_pool_lock;
 
   // Get a connection to the specified target.
-  Connection* get_connection(AddrInfo& target);
+  ConnectionHandle get_connection(AddrInfo& target);
 
   // Release the specified connection back to the pool.
   void release_connection(Connection* conn);
