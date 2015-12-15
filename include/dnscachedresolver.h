@@ -78,7 +78,8 @@ class DnsCachedResolver
 public:
   DnsCachedResolver(const std::vector<IP46Address>& dns_servers);
   DnsCachedResolver(const std::vector<std::string>& dns_servers);
-  DnsCachedResolver(const std::string& dns_server);
+  DnsCachedResolver(const std::string& dns_server, int port);
+  DnsCachedResolver(const std::string& dns_server) : DnsCachedResolver(dns_server, 53) {};
   ~DnsCachedResolver();
 
   /// Queries a single DNS record.
@@ -186,6 +187,7 @@ private:
 
   struct ares_addr_node _ares_addrs[3];
   std::vector<IP46Address> _dns_servers;
+  int _port;
 
   // The thread-local store - used for storing DnsChannels.
   pthread_key_t _thread_local;
