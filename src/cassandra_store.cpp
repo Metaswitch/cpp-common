@@ -701,6 +701,16 @@ enum class Quorum_Consistency_Levels
             static_cast<uint32_t>(Quorum_Consistency_Levels::TWO));          \
           SAS::report_event(event);                                          \
           METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
+        }                                                                    \
+        catch(TimedOutException& te)                                         \
+        {                                                                    \
+          TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
+          int event_id = SASEvent::QUORUM_FAILURE;                           \
+          SAS::Event event(TRAIL_ID, event_id, 1);                           \
+          event.add_static_param(                                            \
+            static_cast<uint32_t>(Quorum_Consistency_Levels::TWO));          \
+          SAS::report_event(event);                                          \
+          METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
         }
 
 

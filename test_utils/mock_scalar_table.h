@@ -1,8 +1,8 @@
 /**
- * @file localstore.h Definitions for the LocalStore class
+ * @file mock_scalar_table.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,49 +34,21 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef LOCALSTORE_H__
-#define LOCALSTORE_H__
+#ifndef MOCK_SCALAR_TABLE_H_
+#define MOCK_SCALAR_TABLE_H_
 
-#include <map>
-#include <pthread.h>
+#include "gmock/gmock.h"
+#include "snmp_infinite_scalar_table.h"
 
-#include "store.h"
-
-class LocalStore : public Store
+class MockScalarTable : public SNMP::InfiniteScalarTable
 {
 public:
-  LocalStore();
-  virtual ~LocalStore();
+  MockScalarTable ();
 
-  void flush_all();
-  void force_contention();
+  ~MockScalarTable();
 
-  Store::Status get_data(const std::string& table,
-                         const std::string& key,
-                         std::string& data,
-                         uint64_t& cas,
-                         SAS::TrailId trail = 0);
-  Store::Status set_data(const std::string& table,
-                         const std::string& key,
-                         const std::string& data,
-                         uint64_t cas,
-                         int expiry,
-                         SAS::TrailId trail = 0);
-  Store::Status delete_data(const std::string& table,
-                            const std::string& key,
-                            SAS::TrailId trail = 0);
-private:
-  typedef struct record
-  {
-    std::string data;
-    uint32_t expiry;
-    uint64_t cas;
-  } Record;
-  bool _data_contention_flag;
-  pthread_mutex_t _db_lock;
-  std::map<std::string, Record> _db;
-  std::map<std::string, Record> _old_db;
+  MOCK_METHOD1(increment, void(std::string value));
+  MOCK_METHOD1(decrement, void(std::string value));
 };
-
 
 #endif

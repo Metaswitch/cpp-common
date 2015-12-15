@@ -416,7 +416,7 @@ public:
                          AccessLogger* access_logger = NULL,
                          LoadMonitor* load_monitor = NULL,
                          StatsInterface* stats = NULL);
-  virtual void register_handler(char* path, HandlerInterface* handler);
+  virtual void register_handler(const char* path, HandlerInterface* handler);
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
   virtual void wait_stopped();

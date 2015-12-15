@@ -1,8 +1,8 @@
 /**
- * @file localstore.h Definitions for the LocalStore class
+ * @file snmp_infinite_scalar_table.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2015 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -28,55 +28,36 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
+ * software and licensed und er the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef LOCALSTORE_H__
-#define LOCALSTORE_H__
-
+#include <vector>
 #include <map>
-#include <pthread.h>
+#include <string>
+#include <atomic>
 
-#include "store.h"
+#include "logger.h"
 
-class LocalStore : public Store
+#ifndef SNMP_INFINITE_SCALAR_TABLE_H
+#define SNMP_INFINITE_SCALAR_TABLE_H
+
+namespace SNMP
+{
+
+class InfiniteScalarTable
 {
 public:
-  LocalStore();
-  virtual ~LocalStore();
+  InfiniteScalarTable() {};
+  virtual ~InfiniteScalarTable() {};
 
-  void flush_all();
-  void force_contention();
+  static InfiniteScalarTable* create(std::string name, std::string oid);
 
-  Store::Status get_data(const std::string& table,
-                         const std::string& key,
-                         std::string& data,
-                         uint64_t& cas,
-                         SAS::TrailId trail = 0);
-  Store::Status set_data(const std::string& table,
-                         const std::string& key,
-                         const std::string& data,
-                         uint64_t cas,
-                         int expiry,
-                         SAS::TrailId trail = 0);
-  Store::Status delete_data(const std::string& table,
-                            const std::string& key,
-                            SAS::TrailId trail = 0);
-private:
-  typedef struct record
-  {
-    std::string data;
-    uint32_t expiry;
-    uint64_t cas;
-  } Record;
-  bool _data_contention_flag;
-  pthread_mutex_t _db_lock;
-  std::map<std::string, Record> _db;
-  std::map<std::string, Record> _old_db;
+  virtual void increment(std::string) = 0;
+  virtual void decrement(std::string) = 0;
 };
-
+}
 
 #endif

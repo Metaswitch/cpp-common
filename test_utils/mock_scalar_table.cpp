@@ -1,8 +1,8 @@
 /**
- * @file localstore.h Definitions for the LocalStore class
+ * @file mock_infinite_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,49 +34,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef LOCALSTORE_H__
-#define LOCALSTORE_H__
+#include "mock_scalar_table.h"
 
-#include <map>
-#include <pthread.h>
-
-#include "store.h"
-
-class LocalStore : public Store
-{
-public:
-  LocalStore();
-  virtual ~LocalStore();
-
-  void flush_all();
-  void force_contention();
-
-  Store::Status get_data(const std::string& table,
-                         const std::string& key,
-                         std::string& data,
-                         uint64_t& cas,
-                         SAS::TrailId trail = 0);
-  Store::Status set_data(const std::string& table,
-                         const std::string& key,
-                         const std::string& data,
-                         uint64_t cas,
-                         int expiry,
-                         SAS::TrailId trail = 0);
-  Store::Status delete_data(const std::string& table,
-                            const std::string& key,
-                            SAS::TrailId trail = 0);
-private:
-  typedef struct record
-  {
-    std::string data;
-    uint32_t expiry;
-    uint64_t cas;
-  } Record;
-  bool _data_contention_flag;
-  pthread_mutex_t _db_lock;
-  std::map<std::string, Record> _db;
-  std::map<std::string, Record> _old_db;
-};
-
-
-#endif
+MockScalarTable::MockScalarTable() {}
+MockScalarTable::~MockScalarTable() {}

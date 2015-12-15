@@ -173,18 +173,21 @@ void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns
 
 
 DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers) :
+  _port(53),
   _cache()
 {
   init(dns_servers);
 }
 
 DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
+  _port(53),
   _cache()
 {
   init_from_server_ips(dns_servers);
 }
 
-DnsCachedResolver::DnsCachedResolver(const std::string& dns_server) :
+DnsCachedResolver::DnsCachedResolver(const std::string& dns_server, int port) :
+  _port(port),
   _cache()
 {
   init_from_server_ips({dns_server});
@@ -800,6 +803,7 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     options.timeout = 1000;
     options.tries = server_count;
     options.ndots = 0;
+    options.udp_port = _port;
     // We must use ares_set_servers rather than setting it in the options for IPv6 support.
     options.servers = NULL;
     options.nservers = 0;
@@ -809,6 +813,7 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
                       ARES_OPT_TIMEOUTMS |
                       ARES_OPT_TRIES |
                       ARES_OPT_NDOTS |
+                      ARES_OPT_UDP_PORT |
                       ARES_OPT_SERVERS);
 
     // Convert our vector of IP46Addresses into the linked list of

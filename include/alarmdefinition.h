@@ -61,6 +61,7 @@ namespace AlarmDef {
   // Alarms 7000-7999 are reserved
   // Cluster-manager alarms: 8000->8499
   // Config-manager alarms: 8500->8999
+  // Queue-manager alarms: 9000->9500
 
   enum Severity {
     UNDEFINED_SEVERITY,

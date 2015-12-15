@@ -463,13 +463,11 @@ public:
   SliceDeletionMatcher(const std::string& key,
                        const std::string& table,
                        const std::string& start,
-                       const std::string& finish,
-                       int64_t timestamp) :
+                       const std::string& finish) :
     _expected_key(key),
     _expected_table(table),
     _expected_start(start),
-    _expected_finish(finish),
-    _expected_timestamp(timestamp)
+    _expected_finish(finish)
   {
   };
 
@@ -589,8 +587,6 @@ private:
   const std::string _expected_table;
   const std::string _expected_start;
   const std::string _expected_finish;
-  int64_t _expected_timestamp;
-  int32_t _expected_ttl;
 };
 
 
@@ -793,7 +789,6 @@ private:
   std::vector<std::string> _rows;
   std::map<std::string, std::pair<std::string, int32_t> > _columns;
   int64_t _timestamp;
-  int32_t _ttl;
 };
 
 
@@ -845,10 +840,9 @@ inline Matcher<const mutmap_t&>
 DeletionRange(const std::string& key,
               const std::string& table,
               const std::string& start,
-              const std::string& finish,
-              int64_t timestamp)
+              const std::string& finish)
 {
-  return MakeMatcher(new SliceDeletionMatcher(key, table, start, finish, timestamp));
+  return MakeMatcher(new SliceDeletionMatcher(key, table, start, finish));
 }
 
 // Matcher that check whether the argument is a ColumnPath that refers to a

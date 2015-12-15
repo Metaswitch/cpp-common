@@ -53,7 +53,7 @@ static int recv_file_descriptor(int socket)
   // Buffer to hold the dummy "actual data" we receive
   char data[1] = {0};
 
-  struct iovec iov[1] = {0};
+  struct iovec iov[1] = {{0}};
   iov[0].iov_base = data;
   iov[0].iov_len = sizeof(data);
 
