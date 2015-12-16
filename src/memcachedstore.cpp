@@ -978,7 +978,7 @@ void TopologyAwareMemcachedStore::delete_without_tombstone(const std::string& fq
 
     if (!memcached_success(rc))
     {
-      log_delete_failure(fqkey, ii, replicas.size(), trail, 0);
+      TRC_ERROR("Delete failed to replica %d", ii);
     }
   }
 }
@@ -1026,27 +1026,8 @@ void TopologyAwareMemcachedStore::delete_with_tombstone(const std::string& fqkey
 
     if (!memcached_success(rc))
     {
-      log_delete_failure(fqkey, ii, replicas.size(), trail, 1);
+      TRC_ERROR("Delete failed to replica %d", ii);
     }
-  }
-}
-
-
-void TopologyAwareMemcachedStore::log_delete_failure(const std::string& fqkey,
-                                                     int replica_ix,
-                                                     int replica_count,
-                                                     SAS::TrailId trail,
-                                                     uint32_t instance)
-{
-  TRC_ERROR("Delete failed to replica %d", replica_ix);
-
-  if (trail != 0)
-  {
-    SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILED_TO_PROXY, instance);
-    event.add_var_param(fqkey);
-    event.add_static_param(replica_ix);
-    event.add_static_param(replica_count);
-    SAS::report_event(event);
   }
 }
 
@@ -1218,30 +1199,22 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
     SAS::report_event(start);
   }
 
-  // Resolve the Astaire domain into a list of potential targets. Give up if
-  // there aren't any.
-  _resolver->resolve(_target_domain, _attempts, targets, trail);
-  TRC_DEBUG("Found %d targets for %s", targets.size(), _target_domain.c_str());
-
-  if (targets.empty())
+  if (!get_targets(targets, trail))
   {
-    TRC_DEBUG("No targets in domain - give up");
-    return Store::ERROR;
+    return ERROR;
   }
 
-  // Always try at least twice even if there is only one target.  This is
-  // because if we have a connection for which the server is no longer working,
-  // libmemcached will fail the request and only fixes the connection up
-  // asynchronously.
-  size_t tries = std::max(2LU, targets.size());
-
-  for (size_t ii = 0; ii < tries; ++ii)
+  for (size_t ii = 0; ii < targets.size(); ++ii)
   {
-    size_t target_ix = (ii % targets.size());
-    AddrInfo& target = targets[target_ix];
+    AddrInfo& target = targets[ii];
+
     TRC_DEBUG("Try server IP %s, port %d",
               target.address.to_string().c_str(),
               target.port);
+    SAS::Event attempt(trail, SASEvent::MEMCACHED_TRY_HOST, 0);
+    attempt.add_var_param(target.address.to_string());
+    attempt.add_static_param(target.port);
+    SAS::report_event(attempt);
 
     ConnectionHandle conn = get_connection(target);
 
@@ -1381,29 +1354,22 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
   time_t memcached_expiration =
     (time_t)((expiry > 0) ? expiry : MEMCACHED_EXPIRATION_MAXDELTA + 1);
 
-  // Resolve the Astaire domain into a list of potential targets.
-  _resolver->resolve(_target_domain, _attempts, targets, trail);
-  TRC_DEBUG("Found %d targets for %s", targets.size(), _target_domain.c_str());
-
-  if (targets.empty())
+  if (!get_targets(targets, trail))
   {
-    TRC_DEBUG("No targets in domain - give up");
-    return Store::ERROR;
+    return ERROR;
   }
 
-  // Always try at least twice even if there is only one target.  This is
-  // because if we have a connection for which the server is no longer working,
-  // libmemcached will fail the request and only fixes the connection up
-  // asynchronously.
-  size_t tries = std::max(2LU, targets.size());
-
-  for (size_t ii = 0; ii < tries; ++ii)
+  for (size_t ii = 0; ii < targets.size(); ++ii)
   {
-    size_t target_ix = (ii % targets.size());
-    AddrInfo& target = targets[target_ix];
+    AddrInfo& target = targets[ii];
+
     TRC_DEBUG("Try server IP %s, port %d",
               target.address.to_string().c_str(),
               target.port);
+    SAS::Event attempt(trail, SASEvent::MEMCACHED_TRY_HOST, 1);
+    attempt.add_var_param(target.address.to_string());
+    attempt.add_static_param(target.port);
+    SAS::report_event(attempt);
 
     ConnectionHandle conn = get_connection(target);
 
@@ -1506,6 +1472,7 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
                                                          const std::string& key,
                                                          SAS::TrailId trail)
 {
+  Store::Status status = ERROR;
   std::vector<AddrInfo> targets;
   memcached_return_t rc;
 
@@ -1530,29 +1497,22 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
     SAS::report_event(event);
   }
 
-  // Resolve the Astaire domain into a list of potential targets.
-  _resolver->resolve(_target_domain, _attempts, targets, trail);
-  TRC_DEBUG("Found %d targets for %s", targets.size(), _target_domain.c_str());
-
-  if (targets.empty())
+  if (!get_targets(targets, trail))
   {
-    TRC_DEBUG("No targets in domain - give up");
-    return Store::ERROR;
+    return ERROR;
   }
 
-  // Always try at least twice even if there is only one target.  This is
-  // because if we have a connection for which the server is no longer working,
-  // libmemcached will fail the request and only fixes the connection up
-  // asynchronously.
-  size_t tries = std::max(2LU, targets.size());
-
-  for (size_t ii = 0; ii < tries; ++ii)
+  for (size_t ii = 0; ii < targets.size(); ++ii)
   {
-    size_t target_ix = (ii % targets.size());
-    AddrInfo& target = targets[target_ix];
+    AddrInfo& target = targets[ii];
+
     TRC_DEBUG("Try server IP %s, port %d",
               target.address.to_string().c_str(),
               target.port);
+    SAS::Event attempt(trail, SASEvent::MEMCACHED_TRY_HOST, 2);
+    attempt.add_var_param(target.address.to_string());
+    attempt.add_static_param(target.port);
+    SAS::report_event(attempt);
 
     ConnectionHandle conn = get_connection(target);
 
@@ -1577,6 +1537,7 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
     if (memcached_success(rc))
     {
       // Success - nothing more to do.
+      status = OK;
       break;
     }
     else if (!can_retry_memcached_rc(rc))
@@ -1591,16 +1552,15 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
   {
     if (trail != 0)
     {
-      SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILED_TO_PROXY, 0);
+      SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILURE, 0);
       event.add_var_param(fqkey);
-      event.add_static_param(_attempts);
       SAS::report_event(event);
     }
 
     TRC_DEBUG("Delete failed");
   }
 
-  return Status::OK;
+  return status;
 }
 
 
@@ -1611,6 +1571,44 @@ bool TopologyNeutralMemcachedStore::can_retry_memcached_rc(memcached_return_t rc
           (rc != MEMCACHED_NOTSTORED) &&
           (rc != MEMCACHED_DATA_EXISTS) &&
           (rc != MEMCACHED_E2BIG));
+}
+
+
+bool TopologyNeutralMemcachedStore::get_targets(std::vector<AddrInfo>& targets,
+                                                SAS::TrailId trail)
+{
+  // Resolve the Astaire domain into a list of potential targets.
+  _resolver->resolve(_target_domain, _attempts, targets, trail);
+  TRC_DEBUG("Found %d targets for %s", targets.size(), _target_domain.c_str());
+
+  if (targets.empty())
+  {
+    TRC_DEBUG("No targets in domain - give up");
+    SAS::Event event(trail, SASEvent::MEMCACHED_NO_HOSTS, 0);
+    event.add_var_param(_target_domain);
+    SAS::report_event(event);
+
+    if (_comm_monitor != NULL)
+    {
+      _comm_monitor->inform_failure();
+    }
+
+    return false;
+  }
+
+  // Always try at least twice even if there is only one target.  This is
+  // because if we have a connection for which the server is no longer working,
+  // libmemcached will fail the request and only fixes the connection up
+  // asynchronously.
+  if (targets.size() == 1)
+  {
+    TRC_DEBUG("Duplicate target IP=%s, port= %d as it is the only target",
+              targets[0].address.to_string().c_str(),
+              targets[0].port);
+    targets.push_back(targets[0]);
+  }
+
+  return true;
 }
 
 

@@ -285,15 +285,6 @@ private:
   void delete_with_tombstone(const std::string& fqkey,
                              const std::vector<memcached_st*>& replicas,
                              SAS::TrailId trail);
-
-  // Utility method to log deletion failures. Called in both the tombstone and
-  // non-tombstone cases.
-  void log_delete_failure(const std::string& fqkey,
-                          int replica_ix,
-                          int replica_count,
-                          SAS::TrailId trail,
-                          uint32_t instance);
-
 };
 
 
@@ -426,6 +417,9 @@ protected:
   // Determine if for a given memcached return code it is worth retrying a
   // request to a different server in the domain.
   static bool can_retry_memcached_rc(memcached_return_t rc);
+
+  // Get the targets for the configured domain.
+  bool get_targets(std::vector<AddrInfo>& targets, SAS::TrailId trail);
 };
 
 // Preserve the old name for backwards compatibility
