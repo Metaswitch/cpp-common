@@ -1132,6 +1132,11 @@ void TopologyNeutralMemcachedStore::release_connection(Connection* conn)
   ConnectionPool::iterator it = result.first;
   it->second.push_back(conn); conn = NULL;
 
+  free_old_connection(now);
+}
+
+void TopologyNeutralMemcachedStore::free_old_connection(struct timespec now)
+{
   // Walk the pool looking for stale connections. If we find one, delete it and
   // stop looking for any more (the goal is to prevent stale connections from
   // accumulating, not to completely remove all of them in one go).
@@ -1150,10 +1155,10 @@ void TopologyNeutralMemcachedStore::release_connection(Connection* conn)
       if (now.tv_sec > oldest->last_used_time_s + Connection::MAX_IDLE_TIME_S)
       {
         TRC_DEBUG("Free idle connection to IP: %s, port: %d (time now is %ld, last used %ld)",
-                  conn->target.address.to_string().c_str(),
-                  conn->target.port,
+                  oldest->target.address.to_string().c_str(),
+                  oldest->target.port,
                   now.tv_sec,
-                  conn->last_used_time_s);
+                  oldest->last_used_time_s);
 
         // The connection is too old so delete it.
         delete oldest; oldest = NULL;
@@ -1617,7 +1622,9 @@ TopologyNeutralMemcachedStore::Connection::Connection(AddrInfo& target_param,
   st(st_param),
   target(target_param),
   last_used_time_s(0)
-{}
+{
+}
+
 
 
 TopologyNeutralMemcachedStore::Connection::~Connection()

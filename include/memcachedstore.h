@@ -414,6 +414,10 @@ protected:
   // Release the specified connection back to the pool.
   void release_connection(Connection* conn);
 
+  // Free at most one connection that has been idle sufficiently long to be
+  // aged out.
+  void free_old_connection(struct timespec now);
+
   // Determine if for a given memcached return code it is worth retrying a
   // request to a different server in the domain.
   static bool can_retry_memcached_rc(memcached_return_t rc);
