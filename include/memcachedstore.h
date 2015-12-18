@@ -118,6 +118,13 @@ protected:
                                                uint32_t flags,
                                                SAS::TrailId trail);
 
+  // Construct a fully qualified key from the specified table and key within
+  // that table.
+  static inline std::string get_fq_key(const std::string& table,
+                                       const std::string& key)
+  {
+    return table + "\\\\" + key;
+  }
 };
 
 
@@ -430,6 +437,41 @@ protected:
 
   // Get the targets for the configured domain.
   bool get_targets(std::vector<AddrInfo>& targets, SAS::TrailId trail);
+
+  // Call a particular subroutine on each target, stopping if any request gives
+  // a definitive result (i.e. a result which means it is not worth trying to a
+  // different target).
+  //
+  // The subroutine should take exactly one parameter - a `ConnectionHandle`
+  // which represents the connection to the current target.
+  //
+  // The following code shows an example of setting a value in memcached. Note
+  // that the lambda captures all the values it needs (`key` and `data`) by
+  // reference (the `[&]` part). This avoids them being copied, and allows them
+  // to be mutated from within the lambda (useful when performing get requests).
+  // The connection is not known when the lambda is created and is passed in as
+  // a parameter (the `(ConnectionHandle& conn)` part).
+  //
+  //     std::string key = "Kermit";
+  //     std::string data = "The Frog"
+  //
+  //     iterate_through_targets(targets, trail, [&](ConnectionHandle& conn) {
+  //        return memcached_set(conn.get()->st,
+  //                             key.data(),
+  //                             key.length(),
+  //                             data.data(),
+  //                             data.length(),
+  //                             0,
+  //                             0);
+  //     });
+  //
+  // @param targets - The vector of targets to try.
+  // @param trail   - SAS trail ID.
+  // @param fn      - The subroutine to call on each target.
+  memcached_return_t iterate_through_targets(
+    std::vector<AddrInfo>& targets,
+    SAS::TrailId trail,
+    std::function<memcached_return_t(ConnectionHandle&)> fn);
 };
 
 // Preserve the old name for backwards compatibility
