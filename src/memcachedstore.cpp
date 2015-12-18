@@ -1108,7 +1108,7 @@ TopologyNeutralMemcachedStore::get_connection(AddrInfo& target)
 }
 
 
-void TopologyNeutralMemcachedStore::release_connection(Connection* conn)
+void TopologyNeutralMemcachedStore::_release_connection(Connection* conn)
 {
   TRC_DEBUG("Release connection to IP: %s, port: %d",
             conn->target.address.to_string().c_str(),
@@ -1133,6 +1133,8 @@ void TopologyNeutralMemcachedStore::release_connection(Connection* conn)
   it->second.push_back(conn); conn = NULL;
 
   free_old_connection(now);
+
+  pthread_mutex_unlock(&_conn_pool_lock);
 }
 
 void TopologyNeutralMemcachedStore::free_old_connection(struct timespec now)
@@ -1175,8 +1177,6 @@ void TopologyNeutralMemcachedStore::free_old_connection(struct timespec now)
       }
     }
   }
-
-  pthread_mutex_unlock(&_conn_pool_lock);
 }
 
 
@@ -1654,7 +1654,7 @@ TopologyNeutralMemcachedStore::ConnectionHandle::~ConnectionHandle()
 {
   if ((_store != NULL) && (_conn != NULL))
   {
-    _store->release_connection(_conn);
+    _store->_release_connection(_conn);
   }
 }
 

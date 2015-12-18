@@ -412,10 +412,16 @@ protected:
   ConnectionHandle get_connection(AddrInfo& target);
 
   // Release the specified connection back to the pool.
-  void release_connection(Connection* conn);
+  //
+  // This function is called automatically when the `ConnectionHandle` object
+  // is destroyed. Other methods in the store should not call this method
+  // directly.
+  void _release_connection(Connection* conn);
 
   // Free at most one connection that has been idle sufficiently long to be
   // aged out.
+  //
+  // The connection pool lock MUST be held when this function is called.
   void free_old_connection(struct timespec now);
 
   // Determine if for a given memcached return code it is worth retrying a
