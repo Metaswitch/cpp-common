@@ -538,7 +538,7 @@ Store::Status TopologyAwareMemcachedStore::get_data(const std::string& table,
   Store::Status status;
 
   // Construct the fully qualified key.
-  std::string fqkey = table + "\\\\" + key;
+  std::string fqkey = get_fq_key(table, key);
   const char* key_ptr = fqkey.data();
   const size_t key_len = fqkey.length();
 
@@ -730,7 +730,7 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
             data.length(), table.c_str(), key.c_str(), cas, expiry);
 
   // Construct the fully qualified key.
-  std::string fqkey = table + "\\\\" + key;
+  std::string fqkey = get_fq_key(table, key);
   const char* key_ptr = fqkey.data();
   const size_t key_len = fqkey.length();
 
@@ -932,7 +932,7 @@ Store::Status TopologyAwareMemcachedStore::delete_data(const std::string& table,
   TRC_DEBUG("Deleting key %s from table %s", key.c_str(), table.c_str());
 
   // Construct the fully qualified key.
-  std::string fqkey = table + "\\\\" + key;
+  std::string fqkey = get_fq_key(table, key);
 
   // Delete from the read replicas - read replicas are a superset of the write replicas
   const std::vector<memcached_st*>& replicas = get_replicas(fqkey, Op::READ);
@@ -1180,34 +1180,12 @@ void TopologyNeutralMemcachedStore::free_old_connection(struct timespec now)
 }
 
 
-Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
-                                                      const std::string& key,
-                                                      std::string& data,
-                                                      uint64_t& cas,
-                                                      SAS::TrailId trail)
+memcached_return_t TopologyNeutralMemcachedStore::iterate_through_targets(
+    std::vector<AddrInfo>& targets,
+    SAS::TrailId trail,
+    std::function<memcached_return_t(ConnectionHandle&)> fn)
 {
-  Store::Status status;
-  std::vector<AddrInfo> targets;
   memcached_return_t rc;
-
-  TRC_DEBUG("Start GET from table %s for key %s", table.c_str(), key.c_str());
-
-  // Construct the fully qualified key.
-  std::string fqkey = table + "\\\\" + key;
-  const char* key_ptr = fqkey.data();
-  const size_t key_len = fqkey.length();
-
-  if (trail != 0)
-  {
-    SAS::Event start(trail, SASEvent::MEMCACHED_GET_START, 0);
-    start.add_var_param(fqkey);
-    SAS::report_event(start);
-  }
-
-  if (!get_targets(targets, trail))
-  {
-    return ERROR;
-  }
 
   for (size_t ii = 0; ii < targets.size(); ++ii)
   {
@@ -1223,7 +1201,9 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
 
     ConnectionHandle conn = get_connection(target);
 
-    rc = get_from_replica(conn.get()->st, key_ptr, key_len, data, cas);
+    // This is where we actually talk to memcached.
+    rc = fn(conn);
+
     TRC_DEBUG("libmemcached returned %d", rc);
 
     if (memcached_success(rc))
@@ -1238,6 +1218,48 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
       break;
     }
   }
+
+  return rc;
+}
+
+Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
+                                                      const std::string& key,
+                                                      std::string& data,
+                                                      uint64_t& cas,
+                                                      SAS::TrailId trail)
+{
+  Store::Status status;
+  std::vector<AddrInfo> targets;
+  memcached_return_t rc;
+
+  TRC_DEBUG("Start GET from table %s for key %s", table.c_str(), key.c_str());
+
+  std::string fqkey = get_fq_key(table, key);
+
+  if (trail != 0)
+  {
+    SAS::Event start(trail, SASEvent::MEMCACHED_GET_START, 0);
+    start.add_var_param(fqkey);
+    SAS::report_event(start);
+  }
+
+  if (!get_targets(targets, trail))
+  {
+    return ERROR;
+  }
+
+  // Do a GET to each target, stopping if we get a definitive success/failure
+  // response.
+  //
+  // The code that does the GET operation is passed as a lambda that captures
+  // all necessary variables by reference.
+  rc = iterate_through_targets(targets, trail, [&](ConnectionHandle& conn) {
+     return get_from_replica(conn.get()->st,
+                             fqkey.data(),
+                             fqkey.length(),
+                             data,
+                             cas);
+  });
 
   if (memcached_success(rc))
   {
@@ -1333,10 +1355,7 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
   TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
             data.length(), table.c_str(), key.c_str(), cas, expiry);
 
-  // Construct the fully qualified key.
-  std::string fqkey = table + "\\\\" + key;
-  const char* key_ptr = fqkey.data();
-  const size_t key_len = fqkey.length();
+  std::string fqkey = get_fq_key(table, key);
 
   if (trail != 0)
   {
@@ -1364,19 +1383,13 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
     return ERROR;
   }
 
-  for (size_t ii = 0; ii < targets.size(); ++ii)
-  {
-    AddrInfo& target = targets[ii];
-
-    TRC_DEBUG("Try server IP %s, port %d",
-              target.address.to_string().c_str(),
-              target.port);
-    SAS::Event attempt(trail, SASEvent::MEMCACHED_TRY_HOST, 1);
-    attempt.add_var_param(target.address.to_string());
-    attempt.add_static_param(target.port);
-    SAS::report_event(attempt);
-
-    ConnectionHandle conn = get_connection(target);
+  // Do a ADD/CAS to each replica (depending on the cas value), stopping if we
+  // get a definitive success/failure response.
+  //
+  // The code that does the operation is passed as a lambda that captures all
+  // necessary variables by reference.
+  rc = iterate_through_targets(targets, trail, [&](ConnectionHandle& conn) {
+    memcached_return_t rc;
 
     if (cas == 0)
     {
@@ -1384,8 +1397,8 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
       // encounter).  This will fail if someone else got there first and some
       // data already exists in memcached for this key.
       rc = add_overwriting_tombstone(conn.get()->st,
-                                     key_ptr,
-                                     key_len,
+                                     fqkey.data(),
+                                     fqkey.length(),
                                      0,
                                      data,
                                      memcached_expiration,
@@ -1397,8 +1410,8 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
       // This is an update to an existing record, so use memcached_cas
       // to make sure it is atomic.
       rc = memcached_cas_vb(conn.get()->st,
-                            key_ptr,
-                            key_len,
+                            fqkey.data(),
+                            fqkey.length(),
                             0,
                             data.data(),
                             data.length(),
@@ -1406,21 +1419,8 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
                             0,
                             cas);
     }
-
-    TRC_DEBUG("libmemcached returned %d", rc);
-
-    if (memcached_success(rc))
-    {
-      // Success - nothing more to do.
-      break;
-    }
-    else if (!can_retry_memcached_rc(rc))
-    {
-      // This return code means it is not worth retrying to another server.
-      TRC_DEBUG("Return code means the request should not be retried");
-      break;
-    }
-  }
+    return rc;
+  });
 
   if (memcached_success(rc))
   {
@@ -1483,10 +1483,7 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
 
   TRC_DEBUG("Deleting key %s from table %s", key.c_str(), table.c_str());
 
-  // Construct the fully qualified key.
-  std::string fqkey = table + "\\\\" + key;
-  const char* key_ptr = fqkey.data();
-  const size_t key_len = fqkey.length();
+  std::string fqkey = get_fq_key(table, key);
 
   if (_tombstone_lifetime == 0)
   {
@@ -1507,53 +1504,38 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
     return ERROR;
   }
 
-  for (size_t ii = 0; ii < targets.size(); ++ii)
-  {
-    AddrInfo& target = targets[ii];
-
-    TRC_DEBUG("Try server IP %s, port %d",
-              target.address.to_string().c_str(),
-              target.port);
-    SAS::Event attempt(trail, SASEvent::MEMCACHED_TRY_HOST, 2);
-    attempt.add_var_param(target.address.to_string());
-    attempt.add_static_param(target.port);
-    SAS::report_event(attempt);
-
-    ConnectionHandle conn = get_connection(target);
+  // Do a DELETE/SET to each target (depending on whether we should we writing
+  // tombstones or not), stopping if we get a definitive success/failure
+  // response.
+  //
+  // The code that does the operation is passed as a lambda that captures all
+  // necessary variables by reference.
+  rc = iterate_through_targets(targets, trail, [&](ConnectionHandle& conn) {
+    memcached_return_t rc;
 
     if (_tombstone_lifetime == 0)
     {
-      rc = memcached_delete(conn.get()->st, key_ptr, key_len, 0);
+      rc = memcached_delete(conn.get()->st, fqkey.data(), fqkey.length(), 0);
     }
     else
     {
       rc = memcached_set_vb(conn.get()->st,
-                            key_ptr,
-                            key_len,
+                            fqkey.data(),
+                            fqkey.length(),
                             0,
                             TOMBSTONE.data(),
                             TOMBSTONE.length(),
                             _tombstone_lifetime,
                             0);
     }
+    return rc;
+  });
 
-    TRC_DEBUG("libmemcached returned %d", rc);
-
-    if (memcached_success(rc))
-    {
-      // Success - nothing more to do.
-      status = OK;
-      break;
-    }
-    else if (!can_retry_memcached_rc(rc))
-    {
-      // This return code means it is not worth retrying to another server.
-      TRC_DEBUG("Return code means the request should not be retried");
-      break;
-    }
+  if (memcached_success(rc))
+  {
+    status = OK;
   }
-
-  if (!memcached_success(rc))
+  else
   {
     if (trail != 0)
     {
