@@ -420,6 +420,13 @@ void Stack::configure(std::string filename,
     throw Exception("fd_core_parseconf", rc); // LCOV_EXCL_LINE
   }
 
+  rc = fd_define_untrusted_avp_vendors(fd_g_config->cnf_untrusted_avp_vendors);
+
+  if (rc != 0)
+  {
+    throw Exception("fd_define_untrusted_avp_vendors", rc); // LCOV_EXCL_LINE
+  }
+
   // Configure a peer connection validator. This is calls when processing
   // a CER, and rejects it if the Diameter stack is not accepting connections.
   // This must be done after loading any extensions, as we want this
