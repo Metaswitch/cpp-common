@@ -136,6 +136,12 @@ namespace JSONAlarms
           std::string description;
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "severity", severity);
+          // Here we are reading severities from JSON files. 
+          // Alarms are stored in ITU Alarm Table using the severities below.
+          // Alarm Model Table stores alarms according to their state. The
+          // mapping between state and severity is described in RFC 3877
+          // section 5.4: https://tools.ietf.org/html/rfc3877#section-5.4
+          // The function AlarmTableDef::state() maps severities to states.
           AlarmDef::Severity e_severity = AlarmDef::severity_to_enum(severity);
           if (e_severity == AlarmDef::UNDEFINED_SEVERITY)
           {
