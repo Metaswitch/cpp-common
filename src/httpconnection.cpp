@@ -661,8 +661,10 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
       {
         CL_HTTP_COMM_ERR.log(url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
       }
-      else
+      else if (http_rc >= 500)
       {
+        // Only make an ENT log for 5XX (server) errors as client (4XX) errors are
+        // not relevant to ENT logs, which are intended to highlight indicate server-side problems.
         CL_HTTP_PROTOCOL_ERR.log(url.c_str(), remote_ip, http_rc);
       }
 
