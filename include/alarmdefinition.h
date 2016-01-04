@@ -81,12 +81,24 @@ namespace AlarmDef {
   };
 
   struct SeverityDetails {
-    Severity    _severity;
+    SeverityDetails() {}
+    SeverityDetails(Severity severity, std::string description, std::string details):
+    _severity(severity),
+    _description(description),
+    _details(details)
+    {}
+    Severity _severity;
     std::string _description;
     std::string _details;
   };
 
   struct AlarmDefinition {
+    AlarmDefinition() {}
+    AlarmDefinition(int index, Cause cause, std::vector<SeverityDetails> severity_details):
+    _index(index),
+    _cause(cause),
+    _severity_details(severity_details)
+    {}
     int _index;
     Cause _cause;
     std::vector<SeverityDetails> _severity_details;
