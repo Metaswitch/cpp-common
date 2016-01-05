@@ -171,7 +171,7 @@ namespace JSONAlarms
             return false;
           }
 
-          AlarmDef::SeverityDetails sd = {e_severity, description, details}; 
+          AlarmDef::SeverityDetails sd(e_severity, description, details); 
           severity_vec.push_back(sd);
         }
       
