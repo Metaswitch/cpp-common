@@ -32,6 +32,27 @@
  * * as those licenses appear in the file LICENSE-OPENSSL.
  * */
 
+
+#include "gtest/gtest.h"
+#include "gmock/gmock.h"
+#include "utils.h"
+
+#include "snmp_event_accumulator_table.h"
+#include "snmp_continuous_accumulator_table.h"
+#include "snmp_counter_table.h"
+#include "snmp_success_fail_count_table.h"
+#include "snmp_ip_count_table.h"
+#include "snmp_scalar.h"
+#include "test_interposer.hpp"
+#include "snmp_single_count_by_node_type_table.h"
+#include "snmp_success_fail_count_by_request_type_table.h"
+#include "snmp_cx_counter_table.h"
+
+
+#include "snmp_internal/snmp_includes.h"
+using ::testing::AnyOf;
+using ::testing::Contains;
+
 class SNMPTest : public ::testing::Test
 {
 public:
@@ -46,9 +67,12 @@ public:
 
   static void SetUpTestCase();
   static void TearDownTestCase();
+
 };
 
-static void* snmp_thread(void* data)
+pthread_t SNMPTest::thr;
+
+void* SNMPTest::snmp_thread(void* data)
 {
   while (1)
   {
@@ -57,7 +81,7 @@ static void* snmp_thread(void* data)
   return NULL;
 }
 
-static unsigned int snmp_get(std::string oid)
+unsigned int SNMPTest::snmp_get(std::string oid)
 {
   // Returns integer value found at that OID.
   std::string command = "snmpget -v2c -Ovq -c clearwater 127.0.0.1:16161 " + oid;
@@ -68,7 +92,7 @@ static unsigned int snmp_get(std::string oid)
   return atol(buf);
 }
 
-static std::vector<std::string> snmp_walk(std::string oid)
+std::vector<std::string> SNMPTest::snmp_walk(std::string oid)
 {
   // Returns the results of an snmpwalk performed at that oid as a list of
   // strings.
@@ -94,7 +118,7 @@ static std::vector<std::string> snmp_walk(std::string oid)
 }
 
 // Sets up an SNMP master agent on port 16161 for us to register tables with and query
-static void SetUpTestCase()
+void SNMPTest::SetUpTestCase()
 {
   // Configure SNMPd to use the fvtest.conf in the local directory
   char cwd[256];
@@ -114,7 +138,7 @@ static void SetUpTestCase()
   pthread_create(&thr, NULL, snmp_thread, NULL);
 }
 
-static void TearDownTestCase()
+void SNMPTest::TearDownTestCase()
 {
   pthread_cancel(thr);
   pthread_join(thr, NULL);
