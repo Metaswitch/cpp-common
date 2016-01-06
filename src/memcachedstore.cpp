@@ -1185,7 +1185,7 @@ memcached_return_t TopologyNeutralMemcachedStore::iterate_through_targets(
     SAS::TrailId trail,
     std::function<memcached_return_t(ConnectionHandle&)> fn)
 {
-  memcached_return_t rc;
+  memcached_return_t rc = MEMCACHED_SUCCESS;
 
   for (size_t ii = 0; ii < targets.size(); ++ii)
   {
