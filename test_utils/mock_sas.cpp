@@ -121,23 +121,24 @@ SAS::TrailId SAS::new_trail(uint32_t instance)
   return 0x123456789abcdef0;
 }
 
-SAS::Compressor::Compressor() {}
-SAS::Compressor::~Compressor() {}
-
-std::string SAS::Compressor::compress(const std::string& s, const Profile* profile)
+class FakeCompressor : public SAS::Compressor
 {
-  if (profile != NULL)
+public:
+  std::string compress(const std::string& s, std::string dictionary)
   {
-    return "compress(\"" + s + "\", \"" + profile->get_dictionary() + "\")";
+    if (!dictionary.empty())
+    {
+      return "compress(\"" + s + "\", \"" + dictionary + "\")";
+    }
+    else
+    {
+      return "compress(\"" + s + "\")";
+    }
   }
-  else
-  {
-    return "compress(\"" + s + "\")";
-  }
-}
+};
 
-SAS::Compressor _compressor;
-SAS::Compressor* SAS::Compressor::get()
+FakeCompressor _compressor;
+SAS::Compressor* SAS::Compressor::get(Profile::Algorithm algorithm)
 {
   return &_compressor;
 }
