@@ -60,6 +60,7 @@ public:
 
   static void* snmp_thread(void*);
   static unsigned int snmp_get(std::string);
+  static char* snmp_get_raw(std::string);
   static std::vector<std::string> snmp_walk(std::string);
 
   static pthread_t thr;
@@ -83,13 +84,18 @@ void* SNMPTest::snmp_thread(void* data)
 
 unsigned int SNMPTest::snmp_get(std::string oid)
 {
+  return atol(snmp_get_raw(oid));
+}
+
+char* SNMPTest::snmp_get_raw(std::string oid)
+{
   // Returns integer value found at that OID.
   std::string command = "snmpget -v2c -Ovq -c clearwater 127.0.0.1:16161 " + oid;
   std::string mode = "r";
   FILE* fd = popen(command.c_str(), mode.c_str());
-  char buf[1024];
-  fgets(buf, sizeof(buf), fd);
-  return atol(buf);
+  char* buf = new char[1024];
+  fgets(buf, 1024, fd);
+  return buf;
 }
 
 std::vector<std::string> SNMPTest::snmp_walk(std::string oid)
@@ -126,7 +132,7 @@ void SNMPTest::SetUpTestCase()
   netsnmp_ds_set_string(NETSNMP_DS_LIBRARY_ID,
                         NETSNMP_DS_LIB_CONFIGURATION_DIR,
                         cwd);
-
+  printf("Current working directory: %s", cwd);
   // Log SNMPd output to a file
   snmp_enable_filelog("fvtest-snmpd.out", 0);
 
