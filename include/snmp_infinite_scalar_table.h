@@ -55,8 +55,8 @@ public:
 
   static InfiniteScalarTable* create(std::string name, std::string oid);
 
-  virtual void increment(std::string) = 0;
-  virtual void decrement(std::string) = 0;
+  virtual void increment(std::string, uint32_t) = 0;
+  virtual void decrement(std::string, uint32_t) = 0;
 };
 }
 

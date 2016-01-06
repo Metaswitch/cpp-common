@@ -54,28 +54,46 @@ TimerCounter::TimerCounter():
 
 TimerCounter::~TimerCounter() {}
 
-void TimerCounter::increment()
+void TimerCounter::increment(uint32_t count)
 {
   timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
   refresh_statistics(five_second.get_current(now), now, five_second.get_interval_ms());
-  write_statistics(five_second.get_current(now), 1);
+  write_statistics(five_second.get_current(now), count);
 
   refresh_statistics(five_minute.get_current(now), now, five_minute.get_interval_ms());
-  write_statistics(five_minute.get_current(now), 1);
+  write_statistics(five_minute.get_current(now), count);
 }
 
-void TimerCounter::decrement()
+void TimerCounter::decrement(uint32_t count)
 {
   timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
+  // To protect against overflow, verify that the current value is greater
+  // than the decrement count. If it isn't, write to statistics decrementing
+  // by the current value instead.
+
   refresh_statistics(five_second.get_current(now), now, five_second.get_interval_ms());
-  write_statistics(five_second.get_current(now), -1);
+  if (five_second.get_current(now)->current_value.load() > count)
+  {
+    write_statistics(five_second.get_current(now), -count);
+  }
+  else
+  {
+    write_statistics(five_second.get_current(now), -(five_second.get_current(now)->current_value.load()));
+  }
 
   refresh_statistics(five_minute.get_current(now), now, five_minute.get_interval_ms());
-  write_statistics(five_minute.get_current(now), -1);
+  if (five_minute.get_current(now)->current_value.load() > count)
+  {
+    write_statistics(five_minute.get_current(now), -count);
+  }
+  else
+  {
+    write_statistics(five_minute.get_current(now), -(five_minute.get_current(now)->current_value.load()));
+  }
 }
 
 void TimerCounter::get_statistics(int index, timespec now, SNMP::SimpleStatistics* stats)
@@ -105,8 +123,6 @@ void TimerCounter::get_statistics(int index, timespec now, SNMP::SimpleStatistic
 
 void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec now, uint32_t interval_ms)
 {
-  TRC_DEBUG("Bringing the statistics up to date");
-
   // Compute the updated sum and sqsum based on the previous values, dependent on
   // how long since an update happened. Additionally update the sum of squares as a
   // rolling total, and update the time of the last update. Also maintain a
