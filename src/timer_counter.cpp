@@ -71,29 +71,11 @@ void TimerCounter::decrement(uint32_t count)
   timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
-  // To protect against overflow, verify that the current value is greater
-  // than the decrement count. If it isn't, write to statistics decrementing
-  // by the current value instead.
-
   refresh_statistics(five_second.get_current(now), now, five_second.get_interval_ms());
-  if (five_second.get_current(now)->current_value.load() > count)
-  {
-    write_statistics(five_second.get_current(now), -count);
-  }
-  else
-  {
-    write_statistics(five_second.get_current(now), -(five_second.get_current(now)->current_value.load()));
-  }
+  write_statistics(five_second.get_current(now), -count);
 
   refresh_statistics(five_minute.get_current(now), now, five_minute.get_interval_ms());
-  if (five_minute.get_current(now)->current_value.load() > count)
-  {
-    write_statistics(five_minute.get_current(now), -count);
-  }
-  else
-  {
-    write_statistics(five_minute.get_current(now), -(five_minute.get_current(now)->current_value.load()));
-  }
+  write_statistics(five_minute.get_current(now), -count);
 }
 
 void TimerCounter::get_statistics(int index, timespec now, SNMP::SimpleStatistics* stats)
@@ -148,6 +130,13 @@ void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec
 
 void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_delta)
 {
+  // First check that the value delta will not cause uint stats to overflow.
+  // If value_delta is negative, and larger than the current value, substitute
+  // it with the current value, made negative.
+  if ((value_delta < 0) && ((uint32_t)abs(value_delta) > data->current_value.load()))
+  {
+    value_delta = -(data->current_value.load());
+  }
 
   // Update the low- and high-water marks.  In each case, we get the current
   // value, decide whether a change is required and then atomically swap it
