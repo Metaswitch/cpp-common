@@ -113,11 +113,9 @@ std::vector<std::string> SNMPTest::snmp_walk(std::string oid)
   // fgets returns a null pointer when it reaches EOF.
   fgets_pointer = fgets(buf, sizeof(buf), fd);
   char empty[] = "No Such Object available on this agent at this OID";
-  // Checks if the table is empty.
-  if (!fgets_pointer || strstr(buf,empty))
-  {    
-    return res;
-  }
+  // Checks that the table is not empty.
+  if (fgets_pointer && !strstr(buf,empty))
+  {
   entry = buf;
   std::size_t end = entry.find("No more variables left in this MIB View");
   while (end == std::string::npos && fgets_pointer)
@@ -126,8 +124,8 @@ std::vector<std::string> SNMPTest::snmp_walk(std::string oid)
     fgets_pointer = fgets(buf, sizeof(buf), fd);
     entry = buf;
     end = entry.find("No more variables left in this MIB View");
+  }  
   }
-
   return res;
 }
 
@@ -146,6 +144,7 @@ void SNMPTest::SetUpTestCase()
   init_agent("fvtest");
   init_snmp("fvtest");
   init_master_agent();
+
 
   // Run a thread to handle SNMP requests
   pthread_create(&thr, NULL, snmp_thread, NULL);
