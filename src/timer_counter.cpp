@@ -130,12 +130,18 @@ void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec
 
 void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_delta)
 {
-  // First check that the value delta will not cause uint stats to overflow.
-  // If value_delta is negative, and larger than the current value, substitute
-  // it with the current value, made negative.
-  if ((value_delta < 0) && ((uint32_t)abs(value_delta) > data->current_value.load()))
+  // Pull the current value from the underlying data.
+  uint64_t current_value = data->current_value.load();
+
+  // Initialise a new value to be used. The new value defaults to 0, until we
+  // determine that the calculation will not lead to overflow.
+  uint64_t new_value = 0;
+
+  // Ensure value_delta is less than the current value if negative.
+  // If value_delta would cause new_value to underflow, leave new_value as 0.
+  if ((value_delta > 0) || ((uint64_t)abs(value_delta) < current_value))
   {
-    value_delta = -(data->current_value.load());
+    new_value = current_value + value_delta;
   }
 
   // Update the low- and high-water marks.  In each case, we get the current
@@ -143,8 +149,6 @@ void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_
   // if so, repeating if it was changed in the meantime.  Note that
   // compare_exchange_weak loads the current value into the expected value
   // parameter (lwm or hwm below) if the compare fails.
-
-  uint64_t new_value = data->current_value.load() + value_delta;
 
   uint_fast64_t lwm = data->lwm.load();
   while ((new_value < lwm) &&
