@@ -55,6 +55,8 @@ class CommunicationMonitor : public BaseCommunicationMonitor
 {
 public:
   CommunicationMonitor(Alarm* alarm,
+                       std::string sender,
+                       std::string receiver,
                        unsigned int clear_confirm_sec = 30,
                        unsigned int set_confirm_sec = 15);
 
@@ -65,9 +67,12 @@ private:
   unsigned long current_time_ms();
 
   Alarm* _alarm;
+  std::string _sender;
+  std::string _receiver;
   unsigned int _clear_confirm_ms;
   unsigned int _set_confirm_ms;
   unsigned long _next_check;
+  bool _error_state;
 };
 
 #endif

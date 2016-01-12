@@ -36,14 +36,20 @@
 
 #include "communicationmonitor.h"
 #include "log.h"
+#include "cpp_common_pd_definitions.h"
 
 CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
+                                           std::string sender,
+                                           std::string receiver,
                                            unsigned int clear_confirm_sec,
                                            unsigned int set_confirm_sec) :
   BaseCommunicationMonitor(),
   _alarm(alarm),
+  _sender(sender),
+  _receiver(receiver),
   _clear_confirm_ms(clear_confirm_sec * 1000),
-  _set_confirm_ms(set_confirm_sec * 1000)
+  _set_confirm_ms(set_confirm_sec * 1000),
+  _error_state(false)
 {
   _next_check = current_time_ms() + _set_confirm_ms;
 }
@@ -55,11 +61,6 @@ CommunicationMonitor::~CommunicationMonitor()
 
 void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
 {
-  if (_alarm == NULL)
-  {
-    return;
-  }
-
   now_ms = now_ms ? now_ms : current_time_ms();
 
   if (now_ms > _next_check)
@@ -75,39 +76,43 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
     if (now_ms > _next_check)
     {
       // Grab the current counts and reset them to zero in a lockless manner.
-      TRC_DEBUG("Check communication monitor state for alarm %d", _alarm->index());
       unsigned int succeeded = _succeeded.fetch_and(0);
       unsigned int failed = _failed.fetch_and(0);
+      TRC_DEBUG("Checking communication changes - successful attempts %d, failures %d",
+                succeeded, failed);
 
-      if (!_alarm->alarmed())
+      // Check if we need to raise any logs/alarms. We do so if:
+      //  - We're not currently errored, and we've seen no successes and
+      //    at least one error in the last 'clear_confirm' ms
+      //  - We're currently errored, and we've seen at least one success
+      //    in the last 'set_confirm' ms.
+      if ((!_error_state) && (succeeded == 0) && (failed != 0))
       {
-        // A communication alarm is not currently set so see if one needs to
-        // be. This will be the case if there were no successful comms over
-        // the interval, and at least one failed comm.
-        TRC_DEBUG("Alarm currently clear - successful attempts %d, failures %d",
-                  succeeded, failed);
-        if ((succeeded == 0) && (failed != 0))
+        CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
+                                     _receiver.c_str());
+
+        if ((_alarm != NULL) && (!_alarm->alarmed()))
         {
           TRC_STATUS("Setting alarm %d", _alarm->index());
           _alarm->set();
+          _error_state = true;
         }
       }
-      else
+      else if ((_error_state) && (succeeded != 0))
       {
-        // A communication alarm is currently set so see if it needs to be
-        // cleared. This will be the case if at lease one successful comm
-        // was reported over the interval.
-        TRC_DEBUG("Alarm currently set - successful attempts %d",
-                  succeeded);
-        if (succeeded != 0)
+        CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
+                                     _receiver.c_str());
+
+        if ((_alarm != NULL) && (_alarm->alarmed()))
         {
           TRC_STATUS("Clearing alarm %d", _alarm->index());
           _alarm->clear();
+          _error_state = false;
         }
       }
 
-      _next_check = (_alarm->alarmed()) ? now_ms + _clear_confirm_ms :
-                                             now_ms + _set_confirm_ms   ;
+      _next_check = _error_state ? now_ms + _clear_confirm_ms :
+                                   now_ms + _set_confirm_ms;
     }
 
     pthread_mutex_unlock(&_lock);

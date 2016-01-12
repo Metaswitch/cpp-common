@@ -657,15 +657,6 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     }
     else
     {
-      if (rc != CURLE_OK)
-      {
-        CL_HTTP_COMM_ERR.log(url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
-      }
-      else
-      {
-        CL_HTTP_PROTOCOL_ERR.log(url.c_str(), remote_ip, http_rc);
-      }
-
       // If we forced a new connection and we failed even to establish an HTTP
       // connection, blacklist this IP address.
       if (recycle_conn &&
