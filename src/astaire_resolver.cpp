@@ -71,19 +71,29 @@ void AstaireResolver::resolve(const std::string& host,
 
   targets.clear();
 
-  if (parse_ip_target(host, ai.address))
+  // Check if host contains a port. Otherwise use the default PORT.
+  std::string host_without_port = host;
+  int port = PORT;
+  size_t pos = host.find(":");
+  if (pos != std::string::npos)
+  {
+    host_without_port = host.substr(0, pos);
+    port = stoi(host.substr(pos+1));
+  }
+
+  if (parse_ip_target(host_without_port, ai.address))
   {
     // The name is already an IP address, so no DNS resolution is possible.
     TRC_DEBUG("Target is an IP address");
-    ai.port = PORT;
+    ai.port = port;
     ai.transport = TRANSPORT;
     targets.push_back(ai);
   }
   else
   {
-    a_resolve(host,
+    a_resolve(host_without_port,
               _address_family,
-              PORT,
+              port,
               TRANSPORT,
               max_targets,
               targets,
