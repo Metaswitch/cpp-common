@@ -56,18 +56,21 @@ using ::testing::Contains;
 class SNMPTest : public ::testing::Test
 {
 public:
-  SNMPTest() {};
+  SNMPTest() : alarm_address("16161") { }
+  SNMPTest(std::string address) : alarm_address(address) { }
 
   static void* snmp_thread(void*);
-  static unsigned int snmp_get(std::string);
-  static char* snmp_get_raw(std::string, char*, int);
-  static std::vector<std::string> snmp_walk(std::string);
+  unsigned int snmp_get(std::string);
+  char* snmp_get_raw(std::string, char*, int);
+  std::vector<std::string> snmp_walk(std::string);
 
   static pthread_t thr;
   std::string test_oid = ".1.2.2";
 
   static void SetUpTestCase();
   static void TearDownTestCase();
+private:
+  std::string alarm_address;
 
 };
 
@@ -91,7 +94,7 @@ unsigned int SNMPTest::snmp_get(std::string oid)
 char* SNMPTest::snmp_get_raw(std::string oid, char* buf, int size)
 {
   // Returns integer value found at that OID.
-  std::string command = "snmpget -v2c -Ovq -c clearwater 127.0.0.1:16161 " + oid;
+  std::string command = "snmpget -v2c -Ovq -c clearwater 127.0.0.1:" + alarm_address + " " + oid;
   std::string mode = "r";
   FILE* fd = popen(command.c_str(), mode.c_str());
   fgets(buf, size, fd);
@@ -105,7 +108,7 @@ std::vector<std::string> SNMPTest::snmp_walk(std::string oid)
   std::vector<std::string> res;
   std::string entry;
 
-  std::string command = "snmpwalk -v2c -OQn -c clearwater 127.0.0.1:16161 " + oid;
+  std::string command = "snmpwalk -v2c -OQn -c clearwater 127.0.0.1:" + alarm_address + " " + oid;
   std::string mode = "r";
   FILE* fd = popen(command.c_str(), mode.c_str());
   char buf[1024];
