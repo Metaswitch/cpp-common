@@ -63,6 +63,8 @@ void AstaireResolver::resolve(const std::string& host,
                               std::vector<AddrInfo>& targets,
                               SAS::TrailId trail)
 {
+  std::string host_without_port;
+  int port;
   AddrInfo ai;
   int dummy_ttl = 0;
 
@@ -71,19 +73,26 @@ void AstaireResolver::resolve(const std::string& host,
 
   targets.clear();
 
-  if (parse_ip_target(host, ai.address))
+  // Check if host contains a port. Otherwise use the default PORT.
+  if (!Utils::split_host_port(host, host_without_port, port))
+  {
+    host_without_port = host;
+    port = PORT;
+  }
+
+  if (parse_ip_target(host_without_port, ai.address))
   {
     // The name is already an IP address, so no DNS resolution is possible.
     TRC_DEBUG("Target is an IP address");
-    ai.port = PORT;
+    ai.port = port;
     ai.transport = TRANSPORT;
     targets.push_back(ai);
   }
   else
   {
-    a_resolve(host,
+    a_resolve(host_without_port,
               _address_family,
-              PORT,
+              port,
               TRANSPORT,
               max_targets,
               targets,
