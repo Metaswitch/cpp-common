@@ -63,6 +63,8 @@ void AstaireResolver::resolve(const std::string& host,
                               std::vector<AddrInfo>& targets,
                               SAS::TrailId trail)
 {
+  std::string host_without_port;
+  int port;
   AddrInfo ai;
   int dummy_ttl = 0;
 
@@ -72,13 +74,10 @@ void AstaireResolver::resolve(const std::string& host,
   targets.clear();
 
   // Check if host contains a port. Otherwise use the default PORT.
-  std::string host_without_port = host;
-  int port = PORT;
-  size_t pos = host.find(":");
-  if (pos != std::string::npos)
+  if (!Utils::split_host_port(host, host_without_port, port))
   {
-    host_without_port = host.substr(0, pos);
-    port = stoi(host.substr(pos+1));
+    host_without_port = host;
+    port = PORT;
   }
 
   if (parse_ip_target(host_without_port, ai.address))
