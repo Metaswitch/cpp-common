@@ -55,9 +55,9 @@ using ::testing::Contains;
 
 class SNMPTest : public ::testing::Test
 {
-  std::string alarm_address;
 public:
-  SNMPTest() {alarm_address = "16161";}
+  SNMPTest() : alarm_address("16161") { }
+  SNMPTest(std::string address) : alarm_address(address) { }
 
   static void* snmp_thread(void*);
   unsigned int snmp_get(std::string);
@@ -69,6 +69,8 @@ public:
 
   static void SetUpTestCase();
   static void TearDownTestCase();
+private:
+  std::string alarm_address;
 
 };
 
