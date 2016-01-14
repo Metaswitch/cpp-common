@@ -380,3 +380,90 @@ int Utils::lock_and_write_pidfile(std::string filename)
   
   return lockfd;
 }
+
+/// Parse a vector of strings of the form <site>=<store>. Use the name of the
+/// locate GR site to produce the location of the local site's store, and a
+/// vector of the locations of the remote sites' stores. If only one store is
+/// provided, it may not be identified by a site - we just assume it's the
+/// local_site.
+///
+/// @param stores_arg        - the input vector.
+/// @param local_site_name   - the input local site name.
+/// @local_store_location    - the output local store location.
+/// @remote_stores_locations - the output vector of remote store locations.
+/// @returns                 - true if the stores_arg vector contains a set of
+///                            valid values, false otherwise.
+bool Utils::parse_stores_arg(const std::vector<std::string>& stores_arg,
+                             const std::string& local_site_name,
+                             std::string& local_store_location,
+                             std::vector<std::string>& remote_stores_locations)
+{
+  if ((stores_arg.size() == 1) &&
+      (stores_arg.front().find("=") == std::string::npos))
+  {
+    // If only one store is provided then it may not be identified by a site -
+    // we just assume that it is the store in the single local site.
+    local_store_location = stores_arg.front();
+  }
+  else
+  {
+    // If multiple stores are provided and they should all be identified by a
+    // site. Save the local site's store off separately to the remote sites'
+    // stores.
+    for (std::vector<std::string>::const_iterator it = stores_arg.begin();
+         it != stores_arg.end();
+         ++it)
+    {
+      std::string site;
+      std::string store;
+      if (!split_site_store(*it, site, store))
+      {
+        // Expected <site_name>=<domain>.
+        return false;
+      }
+      else if (site == local_site_name)
+      {
+        // This is the local site's store.
+        local_store_location = store;
+      }
+      else
+      {
+        // A remote site store.
+        remote_stores_locations.push_back(store);
+      }
+    }
+  }
+
+  return true;
+}
+
+/// Split a string of the form <site>=<store> into the site and the store. If no
+/// site is specified then assume the whole string is the store, but return
+/// false.
+///
+/// @param site_store - the input string.
+/// @param site       - the output site (or the empty string if no site is
+///                     specified).
+/// @param store      - the output store.
+/// @return           - true if the store is identified by a site, false
+///                     otherwise.
+bool Utils::split_site_store(const std::string& site_store,
+                             std::string& site,
+                             std::string& store)
+{
+  size_t pos = site_store.find('=');
+  if (pos == std::string::npos)
+  {
+    // No site specified.
+    site = "";
+    store = site_store;
+    return false;
+  }
+  else
+  {
+    // Find the site and the store.
+    site = site_store.substr(0, pos);
+    store = site_store.substr(pos+1);
+    return true;
+  }
+}

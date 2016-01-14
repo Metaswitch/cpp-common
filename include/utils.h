@@ -468,6 +468,14 @@ namespace Utils
 
   int lock_and_write_pidfile(std::string filename);
 
+  bool parse_stores_arg(const std::vector<std::string>& stores_arg,
+                        const std::string& local_site_name,
+                        std::string& local_store_location,
+                        std::vector<std::string>& remote_stores_locations);
+
+  bool split_site_store(const std::string& site_store,
+                        std::string& site,
+                        std::string& store);
 } // namespace Utils
 
 #endif /* UTILS_H_ */
