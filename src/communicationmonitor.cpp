@@ -88,6 +88,7 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
       //    in the last 'set_confirm' ms.
       if ((!_error_state) && (succeeded == 0) && (failed != 0))
       {
+        _error_state = true;
         CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
                                      _receiver.c_str());
 
@@ -95,11 +96,11 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
         {
           TRC_STATUS("Setting alarm %d", _alarm->index());
           _alarm->set();
-          _error_state = true;
         }
       }
       else if ((_error_state) && (succeeded != 0))
       {
+        _error_state = false;
         CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                      _receiver.c_str());
 
@@ -107,7 +108,6 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
         {
           TRC_STATUS("Clearing alarm %d", _alarm->index());
           _alarm->clear();
-          _error_state = false;
         }
       }
 
