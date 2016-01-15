@@ -74,6 +74,8 @@ private:
   unsigned long _next_check;
   int _previous_state;
   int _new_state;
+  // Setup the possible error states
+  enum { NO_ERRORS, SOME_ERRORS, ONLY_ERRORS };
 };
 
 #endif

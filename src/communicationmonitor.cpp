@@ -53,8 +53,6 @@ CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
   _new_state(0)
 {
   _next_check = current_time_ms() + _set_confirm_ms;
-  // Setup the possible error states
-  enum { NO_ERRORS, SOME_ERRORS, ONLY_ERRORS };
 }
 
 CommunicationMonitor::~CommunicationMonitor()
@@ -118,7 +116,7 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
 
             case SOME_ERRORS:
               // Raise the partial error log
-              CL_CM_CONNECTION__PARTIAL_ERROR.log(_sender.c_str(),
+              CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
                                                   _receiver.c_str());
               break;
 
@@ -130,6 +128,7 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
               _alarm->set();
               break;
           }
+          break;
         case SOME_ERRORS:
           switch (_new_state)
           {
@@ -151,6 +150,7 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
               _alarm->set();
               break;
           }
+          break;
         case ONLY_ERRORS:
           switch (_new_state)
           {
@@ -174,6 +174,7 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
               // No change in state. Do nothing.
               break;
           }
+          break;
       }
 
       // Set the previous state to the new state, as operation is finished.
