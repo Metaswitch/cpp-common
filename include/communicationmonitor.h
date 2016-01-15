@@ -72,7 +72,8 @@ private:
   unsigned int _clear_confirm_ms;
   unsigned int _set_confirm_ms;
   unsigned long _next_check;
-  bool _error_state;
+  int _previous_state;
+  int _new_state;
 };
 
 #endif
