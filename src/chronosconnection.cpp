@@ -91,7 +91,7 @@ HTTPCode ChronosConnection::send_put(std::string& put_identity,
                                      const std::string& callback_uri,
                                      const std::string& opaque_data,
                                      SAS::TrailId trail,
-                                     const std::vector<std::string>& tags)
+                                     const std::map<std::string, uint32_t>& tags)
 {
   std::string path = "/timers/" +
                      Utils::url_escape(put_identity);
@@ -124,7 +124,7 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
                                       const std::string& callback_uri,
                                       const std::string& opaque_data,
                                       SAS::TrailId trail,
-                                      const std::vector<std::string>& tags)
+                                      const std::map<std::string, uint32_t>& tags)
 {
   std::string path = "/timers";
   std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data, tags);
@@ -155,7 +155,7 @@ HTTPCode ChronosConnection::send_put(std::string& put_identity,
                                      const std::string& callback_uri,
                                      const std::string& opaque_data,
                                      SAS::TrailId trail,
-                                     const std::vector<std::string>& tags)
+                                     const std::map<std::string, uint32_t>& tags)
 {
   return send_put(put_identity, timer_interval, timer_interval, callback_uri, opaque_data, trail, tags);
 }
@@ -165,7 +165,7 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
                                       const std::string& callback_uri,
                                       const std::string& opaque_data,
                                       SAS::TrailId trail,
-                                      const std::vector<std::string>& tags)
+                                      const std::map<std::string, uint32_t>& tags)
 {
   return send_post(post_identity, timer_interval, timer_interval, callback_uri, opaque_data, trail, tags);
 }
@@ -174,7 +174,7 @@ std::string ChronosConnection::create_body(uint32_t interval,
                                            uint32_t repeat_for,
                                            const std::string& path,
                                            const std::string& opaque_data,
-                                           const std::vector<std::string>& tags)
+                                           const std::map<std::string, uint32_t>& tags)
 {
   rapidjson::StringBuffer sb;
   rapidjson::Writer<rapidjson::StringBuffer> writer(sb);
@@ -209,14 +209,21 @@ std::string ChronosConnection::create_body(uint32_t interval,
     writer.String("statistics");
     writer.StartObject();
     {
-      writer.String("tags");
+      writer.String("tag-info");
       writer.StartArray();
       {
-        for (std::vector<std::string>::const_iterator it = tags.begin();
-                                                      it != tags.end();
-                                                      ++it)
+        for (std::map<std::string, uint32_t>::iterator it = tags.begin();
+                                                       it != tags.end();
+                                                       ++it)
         {
-          writer.String((*it).c_str());
+          writer->StartObject();
+          {
+            writer->String("type");
+            writer->String(it->first.c_str());
+            writer->String("count");
+            writer->Int(it->second);
+          }
+          writer->EndObject();
         }
       }
       writer.EndArray();
