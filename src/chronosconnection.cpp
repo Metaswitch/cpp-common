@@ -46,7 +46,7 @@
 #include "httpconnection.h"
 #include "chronosconnection.h"
 
-const std::vector<std::string> ChronosConnection::EMPTY_TAGS = std::vector<std::string>();
+const std::map<std::string, uint32_t> ChronosConnection::EMPTY_TAGS = std::map<std::string, uint32_t>();
 
 ChronosConnection::ChronosConnection(const std::string& server,
                                      std::string callback_host,
