@@ -50,7 +50,6 @@ CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
   _clear_confirm_ms(clear_confirm_sec * 1000),
   _set_confirm_ms(set_confirm_sec * 1000),
   _previous_state(0),
-  _new_state(0)
 {
   _next_check = current_time_ms() + _set_confirm_ms;
 }
@@ -82,8 +81,8 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
       TRC_DEBUG("Checking communication changes - successful attempts %d, failures %d",
                 succeeded, failed);
 
-      // Determine the current error state based on the results.
-      // If no successes of failures, new state remains unchanged.
+      int _new_state = 0;
+      // Determine the new error state based on the results.
       // States:
       // NO_ERRORS: At least one success and no failures
       // SOME_ERRORS: At least one success and at least one failure
@@ -101,27 +100,25 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
         _new_state = ONLY_ERRORS;
       }
 
-      // Check if we need to raise any logs/alarms. We do so if the new
-      // error state is different from the the previous error state.
-      //
-      // Switch organised by previous state, then new state.
+      // Check if we need to raise any logs/alarms. We do so if:
+      // - We are currently in the NO_ERRORS or SOME_ERRORS states, and
+      //   we have seen a change in state in the last 'set_confirm' ms.
+      // - We are currently in the ONLY_ERRORS state, and we have
+      //   seen a change of state in the last 'clear_confirm' ms.
       switch (_previous_state)
       {
         case NO_ERRORS:
           switch (_new_state)
           {
-            case NO_ERRORS:
-              // No change in state. Do nothing.
+            case NO_ERRORS: // No change in state. Do nothing.
               break;
 
             case SOME_ERRORS:
-              // Raise the partial error log
               CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
-                                                  _receiver.c_str());
+                                                 _receiver.c_str());
               break;
 
             case ONLY_ERRORS:
-              // Raise the full error log, and set alarm
               CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
                                            _receiver.c_str());
               TRC_STATUS("Setting alarm %d", _alarm->index());
@@ -133,17 +130,14 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
           switch (_new_state)
           {
             case NO_ERRORS:
-              // Clear the partial error log
               CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                            _receiver.c_str());
               break;
 
-            case SOME_ERRORS:
-              // No change in state. Do nothing.
+            case SOME_ERRORS: // No change in state. Do nothing.
               break;
 
             case ONLY_ERRORS:
-              // Raise the full error log, and set the alarm.
               CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
                                            _receiver.c_str());
               TRC_STATUS("Setting alarm %d", _alarm->index());
@@ -155,7 +149,6 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
           switch (_new_state)
           {
             case NO_ERRORS:
-              // Clear the full error log, clear alarm.
               CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                            _receiver.c_str());
               TRC_STATUS("Clearing alarm %d", _alarm->index());
@@ -163,15 +156,13 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
               break;
 
             case SOME_ERRORS:
-              // Clear the alarm, raise the partial error log.
-              CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
-                                           _receiver.c_str());
+              CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
+                                                 _receiver.c_str());
               TRC_STATUS("Clearing alarm %d", _alarm->index());
               _alarm->clear();
               break;
 
-            case ONLY_ERRORS:
-              // No change in state. Do nothing.
+            case ONLY_ERRORS: // No change in state. Do nothing.
               break;
           }
           break;
@@ -181,13 +172,8 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
       _previous_state = _new_state;
 
       // Set the next check interval.
-      // Default to the set_confirm interval
-      _next_check = now_ms + _set_confirm_ms;
-      // Set to the clear_confirm interval if we have set an alarm
-      if (_new_state == ONLY_ERRORS)
-      {
-        _next_check = now_ms + _clear_confirm_ms;
-      }
+      _next_check = (_new_state == ONLY_ERRORS) ? now_ms + _clear_confirm_ms :
+                                                  now_ms + _set_confirm_ms;
     }
 
     pthread_mutex_unlock(&_lock);
