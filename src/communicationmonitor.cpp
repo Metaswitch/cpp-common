@@ -181,9 +181,13 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
       _previous_state = _new_state;
 
       // Set the next check interval.
-      // Evaluates TRUE if either SOME_ERRORS or ONLY_ERRORS.
-      _next_check = _new_state ? now_ms + _clear_confirm_ms :
-                                   now_ms + _set_confirm_ms;
+      // Default to the set_confirm interval
+      _next_check = now_ms + _set_confirm_ms;
+      // Set to the clear_confirm interval if we have set an alarm
+      if (_new_state == ONLY_ERRORS)
+      {
+        _next_check = now_ms + _clear_confirm_ms;
+      }
     }
 
     pthread_mutex_unlock(&_lock);
