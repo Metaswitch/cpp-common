@@ -106,6 +106,20 @@ static const PDLog3<int, int, const char*> CL_MEMCACHED_CLUSTER_UPDATE_RESIZE
   "None."
 );
 
+static const PDLog2<const char*, const char*> CL_CM_CONNECTION_PARTIAL_ERROR
+(
+  PDLogBase::CL_CPP_COMMON_ID + 8,
+  PDLOG_INFO,
+  "Some connections between %s and %s have failed.",
+  "This process was unable to contact at least one instance of the application "
+  "it's trying to connect to, but did make some successful contact",
+  "This process was unable to contact at least one instance of the application "
+  "it's trying to connect to",
+  "(1). Check that the application this process is trying to connect to is running."
+  "(2). Check the configuration in /etc/clearwater is correct."
+  "(3). Check that this process has connectivity to the application it's trying to connect to."
+);
+
 static const PDLog2<const char*, const char*> CL_CM_CONNECTION_ERRORED
 (
   PDLogBase::CL_CPP_COMMON_ID + 9,
@@ -126,8 +140,8 @@ static const PDLog2<const char*, const char*> CL_CM_CONNECTION_CLEARED
   PDLogBase::CL_CPP_COMMON_ID + 10,
   PDLOG_INFO,
   "Connection between %s and %s has been restored.",
-  "This process can now contact at least one instance of the application "
-  "it's trying to connect to",
+  "This process can now contact at least one instance of the application it's "
+  "trying to connect to, and has seen no errors in the previous monitoring period",
   "Normal.",
   "None."
 );
