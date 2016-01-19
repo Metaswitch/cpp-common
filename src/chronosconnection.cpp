@@ -212,18 +212,18 @@ std::string ChronosConnection::create_body(uint32_t interval,
       writer.String("tag-info");
       writer.StartArray();
       {
-        for (std::map<std::string, uint32_t>::iterator it = tags.begin();
+        for (std::map<std::string, uint32_t>::const_iterator it = tags.begin();
                                                        it != tags.end();
                                                        ++it)
         {
-          writer->StartObject();
+          writer.StartObject();
           {
-            writer->String("type");
-            writer->String(it->first.c_str());
-            writer->String("count");
-            writer->Int(it->second);
+            writer.String("type");
+            writer.String(it->first.c_str());
+            writer.String("count");
+            writer.Int(it->second);
           }
-          writer->EndObject();
+          writer.EndObject();
         }
       }
       writer.EndArray();
