@@ -1217,6 +1217,13 @@ memcached_return_t TopologyNeutralMemcachedStore::iterate_through_targets(
       TRC_DEBUG("Return code means the request should not be retried");
       break;
     }
+    else
+    {
+      // If we can retry to another memcached there is something wrong with this
+      // particular target which means we should blacklist it.
+      TRC_DEBUG("Blacklisting target");
+      _resolver->blacklist(target);
+    }
   }
 
   return rc;

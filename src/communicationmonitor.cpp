@@ -49,7 +49,7 @@ CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
   _receiver(receiver),
   _clear_confirm_ms(clear_confirm_sec * 1000),
   _set_confirm_ms(set_confirm_sec * 1000),
-  _previous_state(0),
+  _previous_state(0)
 {
   _next_check = current_time_ms() + _set_confirm_ms;
 }
