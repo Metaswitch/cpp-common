@@ -72,7 +72,9 @@ private:
   unsigned int _clear_confirm_ms;
   unsigned int _set_confirm_ms;
   unsigned long _next_check;
-  bool _error_state;
+  int _previous_state;
+  // Setup the possible error states
+  enum { NO_ERRORS, SOME_ERRORS, ONLY_ERRORS };
 };
 
 #endif

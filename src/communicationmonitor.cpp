@@ -49,7 +49,7 @@ CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
   _receiver(receiver),
   _clear_confirm_ms(clear_confirm_sec * 1000),
   _set_confirm_ms(set_confirm_sec * 1000),
-  _error_state(false)
+  _previous_state(0)
 {
   _next_check = current_time_ms() + _set_confirm_ms;
 }
@@ -81,38 +81,99 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
       TRC_DEBUG("Checking communication changes - successful attempts %d, failures %d",
                 succeeded, failed);
 
+      int _new_state = 0;
+      // Determine the new error state based on the results.
+      // States:
+      // NO_ERRORS: At least one success and no failures
+      // SOME_ERRORS: At least one success and at least one failure
+      // ONLY_ERRORS: No successes and at least one failure
+      if ((succeeded != 0) && (failed == 0))
+      {
+        _new_state = NO_ERRORS;
+      }
+      else if ((succeeded != 0) && (failed != 0))
+      {
+        _new_state = SOME_ERRORS;
+      }
+      else if ((succeeded == 0) && (failed != 0))
+      {
+        _new_state = ONLY_ERRORS;
+      }
+
       // Check if we need to raise any logs/alarms. We do so if:
-      //  - We're not currently errored, and we've seen no successes and
-      //    at least one error in the last 'clear_confirm' ms
-      //  - We're currently errored, and we've seen at least one success
-      //    in the last 'set_confirm' ms.
-      if ((!_error_state) && (succeeded == 0) && (failed != 0))
+      // - We are currently in the NO_ERRORS or SOME_ERRORS states, and
+      //   we have seen a change in state in the last 'set_confirm' ms.
+      // - We are currently in the ONLY_ERRORS state, and we have
+      //   seen a change of state in the last 'clear_confirm' ms.
+      switch (_previous_state)
       {
-        _error_state = true;
-        CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
-                                     _receiver.c_str());
+        case NO_ERRORS:
+          switch (_new_state)
+          {
+            case NO_ERRORS: // No change in state. Do nothing.
+              break;
 
-        if ((_alarm != NULL) && (!_alarm->alarmed()))
-        {
-          TRC_STATUS("Setting alarm %d", _alarm->index());
-          _alarm->set();
-        }
+            case SOME_ERRORS:
+              CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
+                                                 _receiver.c_str());
+              break;
+
+            case ONLY_ERRORS:
+              CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
+                                           _receiver.c_str());
+              TRC_STATUS("Setting alarm %d", _alarm->index());
+              _alarm->set();
+              break;
+          }
+          break;
+        case SOME_ERRORS:
+          switch (_new_state)
+          {
+            case NO_ERRORS:
+              CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
+                                           _receiver.c_str());
+              break;
+
+            case SOME_ERRORS: // No change in state. Do nothing.
+              break;
+
+            case ONLY_ERRORS:
+              CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
+                                           _receiver.c_str());
+              TRC_STATUS("Setting alarm %d", _alarm->index());
+              _alarm->set();
+              break;
+          }
+          break;
+        case ONLY_ERRORS:
+          switch (_new_state)
+          {
+            case NO_ERRORS:
+              CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
+                                           _receiver.c_str());
+              TRC_STATUS("Clearing alarm %d", _alarm->index());
+              _alarm->clear();
+              break;
+
+            case SOME_ERRORS:
+              CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
+                                                 _receiver.c_str());
+              TRC_STATUS("Clearing alarm %d", _alarm->index());
+              _alarm->clear();
+              break;
+
+            case ONLY_ERRORS: // No change in state. Do nothing.
+              break;
+          }
+          break;
       }
-      else if ((_error_state) && (succeeded != 0))
-      {
-        _error_state = false;
-        CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
-                                     _receiver.c_str());
 
-        if ((_alarm != NULL) && (_alarm->alarmed()))
-        {
-          TRC_STATUS("Clearing alarm %d", _alarm->index());
-          _alarm->clear();
-        }
-      }
+      // Set the previous state to the new state, as operation is finished.
+      _previous_state = _new_state;
 
-      _next_check = _error_state ? now_ms + _clear_confirm_ms :
-                                   now_ms + _set_confirm_ms;
+      // Set the next check interval.
+      _next_check = (_new_state == ONLY_ERRORS) ? now_ms + _clear_confirm_ms :
+                                                  now_ms + _set_confirm_ms;
     }
 
     pthread_mutex_unlock(&_lock);
