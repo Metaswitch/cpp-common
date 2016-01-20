@@ -44,7 +44,7 @@ class MockCommunicationMonitor : public CommunicationMonitor
 {
 public:
   MockCommunicationMonitor() : 
-    CommunicationMonitor(new Alarm("sprout", 0, AlarmDef::CRITICAL)) {}
+    CommunicationMonitor(new Alarm("sprout", 0, AlarmDef::CRITICAL), "sprout", "chronos") {}
 
   MOCK_METHOD1(inform_success, void(unsigned long now_ms));
   MOCK_METHOD1(inform_failure, void(unsigned long now_ms));

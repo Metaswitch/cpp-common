@@ -73,22 +73,6 @@ static const PDLog CL_DIAMETER_INIT_CMPL
   "None."
 );
 
-static const PDLog4<const char*, int, const char*, const char*> 
-  CL_DIAMETER_ROUTE_ERR
-(
-  PDLogBase::CL_CPP_COMMON_ID + 3,
-  PDLOG_ERR,
-  "Diameter routing error: %s for message with Command-Code %d, "
-  "Destination-Host %s and Destination-Realm %s.",
-  "No route was found for a Diameter message.",
-  "The Diameter message with the specified command code could not "
-  "be routed to the destination host within the destination realm.",
-  "(1). Check the Diameter host configuration. "
-  "(2). Check to see that there is a route to the destination host. "
-  "(3). Check for IP connectivity on the Diameter interface using ping. "
-  "(4). Wireshark the Diameter interface."
-);
-
 static const PDLog1<const char*> CL_DIAMETER_CONN_ERR
 (
   PDLogBase::CL_CPP_COMMON_ID + 4,
@@ -100,18 +84,6 @@ static const PDLog1<const char*> CL_DIAMETER_CONN_ERR
   "(2). Check to see that there is a route to the destination host. "
   "(3). Check for IP connectivity on the Diameter interface using ping. "
   "(4). Wireshark the interface on Diameter interface."
-);
-
-static const PDLog4<const char*, const char*, const char*, int> CL_HTTP_COMM_ERR
-(
-  PDLogBase::CL_CPP_COMMON_ID + 5,
-  PDLOG_ERR,
-  "Request for %s to HTTP server %s failed with error \"%s\" (code %d).",
-  "An HTTP request to the specified server failed with the specified error code.",
-  "This condition may impact the ability to register, subscribe, or make a call.",
-  "(1). Check to see if the specified host has failed. "
-  "(2). Check to see if there is TCP connectivity to the host by using ping "
-  "and/or Wireshark."
 );
 
 static const PDLog2<int, const char*> CL_MEMCACHED_CLUSTER_UPDATE_STABLE
@@ -134,14 +106,44 @@ static const PDLog3<int, int, const char*> CL_MEMCACHED_CLUSTER_UPDATE_RESIZE
   "None."
 );
 
-static const PDLog3<const char*, const char*, int> CL_HTTP_PROTOCOL_ERR
+static const PDLog2<const char*, const char*> CL_CM_CONNECTION_PARTIAL_ERROR
 (
   PDLogBase::CL_CPP_COMMON_ID + 8,
+  PDLOG_INFO,
+  "Some connections between %s and %s have failed.",
+  "This process was unable to contact at least one instance of the application "
+  "it's trying to connect to, but did make some successful contact",
+  "This process was unable to contact at least one instance of the application "
+  "it's trying to connect to",
+  "(1). Check that the application this process is trying to connect to is running."
+  "(2). Check the configuration in /etc/clearwater is correct."
+  "(3). Check that this process has connectivity to the application it's trying to connect to."
+);
+
+static const PDLog2<const char*, const char*> CL_CM_CONNECTION_ERRORED
+(
+  PDLogBase::CL_CPP_COMMON_ID + 9,
   PDLOG_ERR,
-  "Request for %s to HTTP server %s failed with HTTP status %d.",
-  "An HTTP request was rejected at the specified server with the specified status code.",
-  "This condition may impact the ability to register, subscribe, or make a call.",
-  "Check for logs on the specified server to see why it rejected the request."
+  "%s is unable to contact any %s applications. It will periodically "
+  "attempt to reconnect",
+  "This process is unable to contact any instances of the application "
+  "it's trying to connect to",
+  "This process is unable to contact any instances of the application "
+  "it's trying to connect to",
+  "(1). Check that the application this process is trying to connect to is running."
+  "(2). Check the configuration in /etc/clearwater is correct."
+  "(3). Check that this process has connectivity to the application it's trying to connect to."
+);
+
+static const PDLog2<const char*, const char*> CL_CM_CONNECTION_CLEARED
+(
+  PDLogBase::CL_CPP_COMMON_ID + 10,
+  PDLOG_INFO,
+  "Connection between %s and %s has been restored.",
+  "This process can now contact at least one instance of the application it's "
+  "trying to connect to, and has seen no errors in the previous monitoring period",
+  "Normal.",
+  "None."
 );
 
 #endif
