@@ -113,6 +113,7 @@ protected:
   void destroy_naptr_cache();
   void destroy_srv_cache();
   void destroy_blacklist();
+
   /// Does an SRV record resolution for the specified SRV name, selecting
   // appropriate targets.
   void srv_resolve(const std::string& srv_name,
