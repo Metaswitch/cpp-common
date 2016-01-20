@@ -129,7 +129,7 @@ void LastValueCache::run()
 {
   // One for each internal statistic (0.._statcount-1) and one for the publisher.
   zmq_pollitem_t items[_statcount + 1];
-  
+
   for (int ii = 0; ii < _statcount; ii++)
   {
     _subscriber[ii] = zmq_socket(_context, ZMQ_SUB);
@@ -160,7 +160,7 @@ void LastValueCache::run()
     items[_statcount].fd = 0;
     items[_statcount].events = ZMQ_POLLIN;
     items[_statcount].revents = 0;
-    
+
     // Poll for an event
     int rc = zmq_poll(items, _statcount + 1, _poll_timeout_ms);
     assert(rc >= 0 || errno == EINTR);
@@ -191,6 +191,7 @@ void LastValueCache::run()
         }
       }
     }
+
     // Recognize incoming subscription events
     if (items[_statcount].revents & ZMQ_POLLIN)
     {
