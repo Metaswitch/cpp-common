@@ -145,7 +145,7 @@ void LastValueCache::run()
   unlink((ZMQ_IPC_FOLDER_PATH + _process_name).c_str());
   zmq_bind(_publisher, ("ipc://" ZMQ_IPC_FOLDER_PATH + _process_name).c_str());
   chmod((ZMQ_IPC_FOLDER_PATH + _process_name).c_str(), 0x777);
-  
+
   while (!_terminate)
   {
     // Reset the poll items
