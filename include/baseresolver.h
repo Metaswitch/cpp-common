@@ -105,6 +105,7 @@ public:
   /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
   bool parse_ip_target(const std::string& target, IP46Address& address);
 
+  void clear_blacklist() {_blacklist.clear();}
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
   void create_srv_cache();
@@ -112,7 +113,6 @@ protected:
   void destroy_naptr_cache();
   void destroy_srv_cache();
   void destroy_blacklist();
-
   /// Does an SRV record resolution for the specified SRV name, selecting
   // appropriate targets.
   void srv_resolve(const std::string& srv_name,

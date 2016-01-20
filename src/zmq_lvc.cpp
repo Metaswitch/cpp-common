@@ -129,7 +129,6 @@ void LastValueCache::run()
 {
   // One for each internal statistic (0.._statcount-1) and one for the publisher.
   zmq_pollitem_t items[_statcount + 1];
-
   for (int ii = 0; ii < _statcount; ii++)
   {
     _subscriber[ii] = zmq_socket(_context, ZMQ_SUB);
@@ -145,7 +144,6 @@ void LastValueCache::run()
   unlink((ZMQ_IPC_FOLDER_PATH + _process_name).c_str());
   zmq_bind(_publisher, ("ipc://" ZMQ_IPC_FOLDER_PATH + _process_name).c_str());
   chmod((ZMQ_IPC_FOLDER_PATH + _process_name).c_str(), 0x777);
-
   while (!_terminate)
   {
     // Reset the poll items
@@ -160,7 +158,6 @@ void LastValueCache::run()
     items[_statcount].fd = 0;
     items[_statcount].events = ZMQ_POLLIN;
     items[_statcount].revents = 0;
-
     // Poll for an event
     int rc = zmq_poll(items, _statcount + 1, _poll_timeout_ms);
     assert(rc >= 0 || errno == EINTR);
@@ -191,7 +188,6 @@ void LastValueCache::run()
         }
       }
     }
-
     // Recognize incoming subscription events
     if (items[_statcount].revents & ZMQ_POLLIN)
     {
@@ -239,7 +235,6 @@ void LastValueCache::run()
       zmq_msg_close(&message);
     }
   }
-
   for (int ii = 0; ii < _statcount; ii++)
   {
     zmq_disconnect(_subscriber[ii], ("inproc://" + _statnames[ii]).c_str());
