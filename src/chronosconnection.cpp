@@ -213,8 +213,8 @@ std::string ChronosConnection::create_body(uint32_t interval,
       writer.StartArray();
       {
         for (std::map<std::string, uint32_t>::const_iterator it = tags.begin();
-                                                       it != tags.end();
-                                                       ++it)
+                                                             it != tags.end();
+                                                             ++it)
         {
           writer.StartObject();
           {
