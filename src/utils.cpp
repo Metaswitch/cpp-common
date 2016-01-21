@@ -451,7 +451,7 @@ bool Utils::split_site_store(const std::string& site_store,
                              std::string& site,
                              std::string& store)
 {
-  size_t pos = site_store.find('=');
+  size_t pos = site_store.find("=");
   if (pos == std::string::npos)
   {
     // No site specified.
