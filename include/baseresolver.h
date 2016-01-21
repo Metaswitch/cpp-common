@@ -105,7 +105,7 @@ public:
   /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
   bool parse_ip_target(const std::string& target, IP46Address& address);
 
-  void clear_blacklist() {_blacklist.clear();}
+  void clear_blacklist();
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
   void create_srv_cache();
