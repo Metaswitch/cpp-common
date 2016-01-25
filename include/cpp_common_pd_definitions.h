@@ -110,7 +110,7 @@ static const PDLog2<const char*, const char*> CL_CM_CONNECTION_PARTIAL_ERROR
 (
   PDLogBase::CL_CPP_COMMON_ID + 8,
   PDLOG_INFO,
-  "Some connections between %s and %s have failed.",
+  "Some connections between %s and %s applications have failed.",
   "This process was unable to contact at least one instance of the application "
   "it's trying to connect to, but did make some successful contact",
   "This process was unable to contact at least one instance of the application "
