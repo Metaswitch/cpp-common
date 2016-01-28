@@ -60,6 +60,7 @@
 Logger::Logger() :
   _flags(ADD_TIMESTAMPS),
   _last_hour(0),
+  _last_rotate(0),
   _rotate(false),
   _fd(stdout)
 {
@@ -70,6 +71,7 @@ Logger::Logger() :
 Logger::Logger(const std::string& directory, const std::string& filename) :
   _flags(ADD_TIMESTAMPS),
   _last_hour(0),
+  _last_rotate(0),
   _rotate(true),
   _fd(NULL),
   _discards(0),
@@ -104,6 +106,12 @@ void Logger::gettime(struct timespec* ts)
 }
 
 
+void Logger::gettime_monotonic(struct timespec* ts)
+{
+  clock_gettime(CLOCK_MONOTONIC, ts);
+}
+
+
 /// Writes a log to the logfile, cycling or opening the log file when
 /// necessary.
 void Logger::write(const char* data)
@@ -117,37 +125,52 @@ void Logger::write(const char* data)
   pthread_mutex_lock(&_lock);
   pthread_cleanup_push(Logger::release_lock, this);
 
-  if ((_fd != NULL) ||
-      ((_discards % LOGFILE_CHECK_FREQUENCY) == 0))
-  {
-    // We have a valid file handle, or it is time to try opening the file
-    // again.
+  bool cycle_log_file_required = false;
 
+  if (_fd == NULL)
+  {
+    // When there is no valid log file, try to open one frequently to
+    // ensure that as few logs are lost as possible.
+    struct timespec current_time;
+    gettime_monotonic(&current_time);
+    double seconds = difftime(current_time, _last_rotate);
+    if (seconds > LOGFILE_RETRY_FREQUENCY)
+    {
+      cycle_log_file_required = true;
+    }
+  }
+  else
+  {
     // Convert the date/time into a rough number of hours since some base date.
     // This doesn't have to be exact, but it does have to be monotonically
     // increasing, so assume every year is a leap year.
     int hour = ts.year * 366 * 24 + ts.yday * 24 + ts.hour;
-
-    if ((_rotate && (hour > _last_hour)) ||
-        (_fd == NULL))
+    if (_rotate && (hour > _last_hour))
     {
-      // Open a new log file.
-      cycle_log_file(ts);
-      _last_hour = hour;
+      cycle_log_file_required = true;
+    }
+  }
 
-      if ((_fd != NULL) &&
-          (_discards != 0))
-      {
-        // LCOV_EXCL_START Currently don't force fopen failures in UT
-        char discard_msg[100];
-        sprintf(discard_msg,
-                "Failed to open logfile (%d - %s), %d logs discarded",
-                _saved_errno, ::strerror(_saved_errno), _discards);
-        write_log_file(discard_msg, ts);
-        _discards = 0;
-        _saved_errno = 0;
-        // LCOV_EXCL_STOP
-      }
+  if (cycle_log_file_required)
+  {
+    // Open a new log file.
+    cycle_log_file(ts);
+
+    _last_hour = hour;
+    gettime_monotonic(&_last_rotate);
+
+    if ((_fd != NULL) &&
+        (_discards != 0))
+    {
+      // LCOV_EXCL_START Currently don't force fopen failures in UT
+      char discard_msg[100];
+      sprintf(discard_msg,
+              "Failed to open logfile (%d - %s), %d logs discarded",
+              _saved_errno, ::strerror(_saved_errno), _discards);
+      write_log_file(discard_msg, ts);
+      _discards = 0;
+      _saved_errno = 0;
+      // LCOV_EXCL_STOP
     }
   }
 

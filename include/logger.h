@@ -92,6 +92,7 @@ private:
   int _flags;
   int _last_hour;
   bool _rotate;
+  struct timespec _last_rotate;
   FILE* _fd;
   int _discards;
   int _saved_errno;
@@ -99,9 +100,9 @@ private:
   std::string _directory;
   pthread_mutex_t _lock;
 
-  /// Defines how frequently (in terms of log attempts) we will try to
-  /// open the log file if we failed to open it previously.
-  static const int LOGFILE_CHECK_FREQUENCY = 1000;
+  /// Defines how frequently (in seconds) we will try to reopen a log
+  /// file when we have previously failed to use it.
+  static const double LOGFILE_RETRY_FREQUENCY = 5.0l;
 };
 
 
