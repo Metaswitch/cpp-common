@@ -57,11 +57,13 @@
 
 #include "logger.h"
 
+const double Logger::LOGFILE_RETRY_FREQUENCY = 5.0;
+
 Logger::Logger() :
   _flags(ADD_TIMESTAMPS),
   _last_hour(0),
-  _last_rotate(0),
   _rotate(false),
+  _last_rotate({0}),
   _fd(stdout)
 {
   pthread_mutex_init(&_lock, NULL);
@@ -71,8 +73,8 @@ Logger::Logger() :
 Logger::Logger(const std::string& directory, const std::string& filename) :
   _flags(ADD_TIMESTAMPS),
   _last_hour(0),
-  _last_rotate(0),
   _rotate(true),
+  _last_rotate({0}),
   _fd(NULL),
   _discards(0),
   _saved_errno(0),
@@ -133,7 +135,7 @@ void Logger::write(const char* data)
     // ensure that as few logs are lost as possible.
     struct timespec current_time;
     gettime_monotonic(&current_time);
-    double seconds = difftime(current_time, _last_rotate);
+    double seconds = difftime(current_time.tv_sec, _last_rotate.tv_sec);
     if (seconds > LOGFILE_RETRY_FREQUENCY)
     {
       cycle_log_file_required = true;
@@ -148,6 +150,7 @@ void Logger::write(const char* data)
     if (_rotate && (hour > _last_hour))
     {
       cycle_log_file_required = true;
+      _last_hour = hour;
     }
   }
 
@@ -155,8 +158,6 @@ void Logger::write(const char* data)
   {
     // Open a new log file.
     cycle_log_file(ts);
-
-    _last_hour = hour;
     gettime_monotonic(&_last_rotate);
 
     if ((_fd != NULL) &&
@@ -331,7 +332,7 @@ void Logger::backtrace(const char *data)
     if (ferror(_fd))
     {
       fclose(_fd);
-      _fd == NULL;
+      _fd = NULL;
     }
   }
 }

@@ -100,9 +100,11 @@ private:
   std::string _directory;
   pthread_mutex_t _lock;
 
+  void gettime_monotonic(struct timespec* ts);
+
   /// Defines how frequently (in seconds) we will try to reopen a log
   /// file when we have previously failed to use it.
-  static const double LOGFILE_RETRY_FREQUENCY = 5.0l;
+  const static double LOGFILE_RETRY_FREQUENCY;
 };
 
 
