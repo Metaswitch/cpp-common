@@ -229,6 +229,12 @@ void Logger::write_log_file(const char *data, const timestamp_t& ts)
   {
     fflush(_fd);
   }
+
+  if (ferror(_fd))
+  {
+    fclose(_fd);
+    _fd = NULL;
+  }
 }
 
 
@@ -321,6 +327,12 @@ void Logger::backtrace(const char *data)
     }
 
     fflush(_fd);
+
+    if (ferror(_fd))
+    {
+      fclose(_fd);
+      _fd == NULL;
+    }
   }
 }
 
