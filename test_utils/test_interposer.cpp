@@ -75,7 +75,7 @@ static time_t abs_time;
 static bool control_fopen = false;
 
 // When controlling fopen, this stores the file pointer to return.
-FILE* fopen_file_pointer = NULL;
+static FILE* fopen_file_pointer = NULL;
 
 /// The real functions we are interposing.
 static int (*real_getaddrinfo)(const char*, const char*, const struct addrinfo*, struct addrinfo**);
@@ -341,14 +341,14 @@ int pthread_cond_timedwait(pthread_cond_t* cond,
 }
 
 
-void cw_control_fopen(FILE* fd)
+void cwtest_control_fopen(FILE* fd)
 {
   control_fopen = true;
   fopen_file_pointer = fd;
 }
 
 
-void cw_release_fopen()
+void cwtest_release_fopen()
 {
   control_fopen = false;
   fopen_file_pointer = NULL;

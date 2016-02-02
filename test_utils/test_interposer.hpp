@@ -46,5 +46,5 @@ void cwtest_reset_time();
 void cwtest_completely_control_time();
 
 // Control file manipulation.
-void cw_control_fopen(FILE* fd);
-void cw_release_fopen();
+void cwtest_control_fopen(FILE* fd);
+void cwtest_release_fopen();
