@@ -55,8 +55,6 @@ public:
   int get_flags() const;
   void set_flags(int flags);
 
-  virtual void gettime(struct timespec* ts);
-
   virtual void write(const char* data);
   virtual void flush();
   virtual void commit();
@@ -65,6 +63,10 @@ public:
   // called when no other threads are running - generally from a signal
   // handler.
   virtual void backtrace(const char* data);
+
+protected:
+  virtual void gettime_monotonic(struct timespec* ts);
+  virtual void gettime(struct timespec* ts);
 
 private:
   /// Encodes the time as needed by the logger.
@@ -99,8 +101,6 @@ private:
   std::string _filename;
   std::string _directory;
   pthread_mutex_t _lock;
-
-  void gettime_monotonic(struct timespec* ts);
 
   /// Defines how frequently (in seconds) we will try to reopen a log
   /// file when we have previously failed to use it.

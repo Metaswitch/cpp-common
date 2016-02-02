@@ -136,8 +136,12 @@ void Logger::write(const char* data)
     struct timespec current_time;
     gettime_monotonic(&current_time);
     double seconds = difftime(current_time.tv_sec, _last_rotate.tv_sec);
-    if (seconds > LOGFILE_RETRY_FREQUENCY)
-    {
+
+    // Make sure to catch the case when logging is started before the
+    // monotonic clock gets higher than LOGFILE_RETRY_FREQUENCY.
+    if ((seconds > LOGFILE_RETRY_FREQUENCY) ||
+        (current_time.tv_sec < LOGFILE_RETRY_FREQUENCY))
+     {
       cycle_log_file_required = true;
     }
   }
@@ -163,15 +167,13 @@ void Logger::write(const char* data)
     if ((_fd != NULL) &&
         (_discards != 0))
     {
-      // LCOV_EXCL_START Currently don't force fopen failures in UT
       char discard_msg[100];
       sprintf(discard_msg,
-              "Failed to open logfile (%d - %s), %d logs discarded",
+              "Failed to open logfile (%d - %s), %d logs discarded\n",
               _saved_errno, ::strerror(_saved_errno), _discards);
       write_log_file(discard_msg, ts);
       _discards = 0;
       _saved_errno = 0;
-      // LCOV_EXCL_STOP
     }
   }
 
@@ -183,9 +185,7 @@ void Logger::write(const char* data)
   else
   {
     // No valid log file, so count this as a discard.
-    // LCOV_EXCL_START Currently don't force fopen failures in UT
     ++_discards;
-    // LCOV_EXCL_STOP
   }
 
   pthread_cleanup_pop(0);
@@ -272,9 +272,7 @@ void Logger::cycle_log_file(const timestamp_t& ts)
   if (_fd == NULL)
   {
     // Failed to open logfile, so save errno until we can log it.
-    // LCOV_EXCL_START Currently don't force fopen failures in UT
     _saved_errno = errno;
-    // LCOV_EXCL_STOP
   }
 }
 
