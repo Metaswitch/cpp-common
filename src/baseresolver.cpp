@@ -60,6 +60,14 @@ BaseResolver::~BaseResolver()
 {
 }
 
+// Removes all the entries from the blacklist.
+void BaseResolver::clear_blacklist()
+{
+  pthread_mutex_lock(&_blacklist_lock);
+  _blacklist.clear();
+  pthread_mutex_unlock(&_blacklist_lock);
+}
+
 // Creates the cache for storing NAPTR results.
 void BaseResolver::create_naptr_cache(const std::map<std::string, int> naptr_services)
 {

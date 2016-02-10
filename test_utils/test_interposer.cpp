@@ -71,11 +71,18 @@ static const clockid_t supported_clock_ids[] = {CLOCK_REALTIME,
 static std::map<clockid_t, struct timespec> abs_timespecs;
 static time_t abs_time;
 
+// Whether file opening is completely controlled by the test script.
+static bool control_fopen = false;
+
+// When controlling fopen, this stores the file pointer to return.
+static FILE* fopen_file_pointer = NULL;
+
 /// The real functions we are interposing.
 static int (*real_getaddrinfo)(const char*, const char*, const struct addrinfo*, struct addrinfo**);
 static struct hostent* (*real_gethostbyname)(const char*);
 static int (*real_clock_gettime)(clockid_t, struct timespec *);
 static time_t (*real_time)(time_t*);
+static FILE* (*real_fopen)(const char*, const char*);
 typedef int (*pthread_cond_timedwait_func_t)(pthread_cond_t*,
                                              pthread_mutex_t*,
                                              const struct timespec*);
@@ -331,4 +338,40 @@ int pthread_cond_timedwait(pthread_cond_t* cond,
   ts_add(real_time, delta_time, fixed_time);
 
   return real_pthread_cond_timedwait(cond, mutex, &fixed_time);
+}
+
+
+void cwtest_control_fopen(FILE* fd)
+{
+  control_fopen = true;
+  fopen_file_pointer = fd;
+}
+
+
+void cwtest_release_fopen()
+{
+  control_fopen = false;
+  fopen_file_pointer = NULL;
+}
+
+
+FILE* fopen(const char *path, const char *mode)
+{
+  if (!real_fopen)
+  {
+    real_fopen = (FILE* (*)(const char*, const char*))dlsym(RTLD_NEXT, "fopen");
+  }
+
+  FILE* rc;
+
+  if (control_fopen)
+  {
+    rc = fopen_file_pointer;
+  }
+  else
+  {
+    rc = real_fopen(path, mode);
+  }
+
+  return rc;
 }
