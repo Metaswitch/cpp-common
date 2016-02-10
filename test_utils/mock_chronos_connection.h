@@ -77,10 +77,10 @@ public:
   };
 
   MOCK_METHOD2(send_delete, HTTPCode(const std::string&, SAS::TrailId));
-  MOCK_METHOD7(send_put, HTTPCode(std::string&, uint32_t, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::vector<std::string>&));
-  MOCK_METHOD7(send_post, HTTPCode(std::string&, uint32_t, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::vector<std::string>&));
-  MOCK_METHOD6(send_put, HTTPCode(std::string&, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::vector<std::string>&));
-  MOCK_METHOD6(send_post, HTTPCode(std::string&, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::vector<std::string>&));
+  MOCK_METHOD7(send_put, HTTPCode(std::string&, uint32_t, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::map<std::string, uint32_t>&));
+  MOCK_METHOD7(send_post, HTTPCode(std::string&, uint32_t, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::map<std::string, uint32_t>&));
+  MOCK_METHOD6(send_put, HTTPCode(std::string&, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::map<std::string, uint32_t>&));
+  MOCK_METHOD6(send_post, HTTPCode(std::string&, uint32_t, const std::string&, const std::string&, SAS::TrailId, const std::map<std::string, uint32_t>&));
 };
 
 #endif
