@@ -121,3 +121,10 @@ std::string base64_decode(std::string const& encoded_string) {
 
   return ret;
 }
+
+std::string base64_encode(const std::string& string_to_encode) {
+  const unsigned char* bytes_to_encode =
+             reinterpret_cast<const unsigned char*>(string_to_encode.c_str());
+
+  return base64_encode(bytes_to_encode, string_to_encode.length());
+}

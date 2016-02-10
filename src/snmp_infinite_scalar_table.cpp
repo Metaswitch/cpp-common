@@ -56,16 +56,16 @@ namespace SNMP
 
     virtual ~InfiniteScalarTableImpl(){};
     
-    void increment(std::string tag)
+    void increment(std::string tag, uint32_t count)
     {
-      _scalar_counters[tag]++;
+      _scalar_counters[tag] += count;
     }
 
-    void decrement(std::string tag)
+    void decrement(std::string tag, uint32_t count)
     {
       // Ensure scalar value does not become negative
-      if (_scalar_counters[tag]>0)
-        _scalar_counters[tag]--;
+      if (_scalar_counters[tag] > count)
+        _scalar_counters[tag] -= count;
       else
         _scalar_counters[tag] = 0;
     }
@@ -73,7 +73,7 @@ namespace SNMP
   protected:
     static const uint32_t max_row = 1;
     static const uint32_t max_column = 2;
-    std::map<std::string, int> _scalar_counters;
+    std::map<std::string, uint32_t> _scalar_counters;
 
   private:
     Value get_value(std::string tag,

@@ -47,8 +47,8 @@ public:
 
   ~MockInfiniteTable();
 
-  MOCK_METHOD1(increment, void(std::string value));
-  MOCK_METHOD1(decrement, void(std::string value));
+  MOCK_METHOD2(increment, void(std::string value, uint32_t count));
+  MOCK_METHOD2(decrement, void(std::string value, uint32_t count));
 };
 
 #endif

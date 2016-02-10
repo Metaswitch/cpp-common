@@ -53,8 +53,8 @@ public:
   TimerCounter();
   ~TimerCounter();
 
-  void increment();
-  void decrement();
+  void increment(uint32_t count = 1);
+  void decrement(uint32_t count = 1);
   void get_statistics(int index, timespec now, SNMP::SimpleStatistics* stats);
 
   CurrentAndPrevious<SNMP::ContinuousStatistics> five_second;
