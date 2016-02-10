@@ -86,6 +86,55 @@ Alarm::Alarm(const std::string& issuer,
 {
 }
 
+MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
+                                 const int index,
+                                 std::vector<AlarmDef::Severity> severities) :
+  _issuer(issuer),
+  _alarmed(false),
+  _indeterminate_state(NULL),
+  _warning_state(NULL),
+  _minor_state(NULL),
+  _major_state(NULL),
+  _critical_state(NULL) 
+{
+  for (unsigned int i = 0; i < severities.length(); i++)
+  {
+    switch(severities[i])
+    {
+      case AlarmDef::INDETERMINATE:
+      {
+        _indeterminate_state = AlarmState(issuer, index, AlarmDef::INDETERMINATE);
+      }
+      break;
+      case AlarmDef::WARNING:
+      {
+        _warning_state = AlarmState(issuer, index, AlarmDef::WARNING);
+      }
+      break;
+      case AlarmDef::MINOR:
+      {
+        _minor_state = AlarmState(issuer, index, AlarmDef::MINOR);
+      }
+      break;
+      case AlarmDef::MAJOR:
+      {
+        _major_state = AlarmState(issuer, index, AlarmDef::MAJOR);
+      }
+      break;
+      case AlarmDef::CRITICAL:
+      {
+        _critical_state = AlarmState(issuer, index, AlarmDef::CRITICAL);
+      }
+      break;
+
+      default: /** We shouldn't get here */
+      {
+        TRC_ERROR("unknown Alarm severity");
+      }
+    }
+  }
+}
+
 void Alarm::set()
 {
   bool previously_alarmed = _alarmed.exchange(true);
@@ -103,6 +152,56 @@ void Alarm::clear()
   if (previously_alarmed)
   {
     _clear_state.issue();
+  }
+}
+
+void MultiStateAlarm::set_indeterminate()
+{
+  bool previous_alarmed = _alarmed.exchange(true);
+
+  if (!previously_alarmed)
+  {
+    _indeterminate_state.issue();
+  }
+}
+
+void MultiStateAlarm::set_warning()
+{
+  bool previous_alarmed = _alarmed.exchange(true);
+
+  if (!previously_alarmed)
+  {
+    _warning_state.issue();
+  }
+}
+
+void MultiStateAlarm::set_minor()
+{
+  bool previous_alarmed = _alarmed.exchange(true);
+
+  if (!previously_alarmed)
+  {
+    _minor_state.issue();
+  }
+}
+
+void MultiStateAlarm::set_major()
+{
+  bool previous_alarmed = _alarmed.exchange(true);
+
+  if (!previously_alarmed)
+  {
+    _major_state.issue();
+  }
+}
+
+void MultiStateAlarm::set_critical()
+{
+  bool previous_alarmed = _alarmed.exchange(true);
+
+  if (!previously_alarmed)
+  {
+    _critical_state.issue();
   }
 }
 

@@ -74,12 +74,40 @@ private:
   std::string _identifier;
 };
 
+/// @class BaseAlarm
+/// 
+/// Superclass for alarms that allows us to split different types of
+/// alarms into subclasses. Those alarms which only have one possible raised
+/// state will be constructed by subclass Alarm. Those alarms which have two or
+/// more possible raised states will be constructed by subclass
+/// MultiStateAlarm. 
+
+class BaseAlarm
+{
+public:
+  /// Queues a request to generate an alarm state change corresponding to the
+  /// CLEARED severity.
+  virtual void clear();
+  
+  /// Indicates whether the alarm state currently maintained by this object
+  /// corresponds to the non-CLEARED severity.
+  virtual bool alarmed() {return _alarmed.load();}
+
+protected:
+  /// Keeps track of whether the alarm is raised.
+  std::atomic<bool> _alarmed;
+
+  AlarmState _clear_state;
+  const int _index;
+};
+
 /// @class Alarm
 ///
-/// Encapsulates an alarm active state and its associated alarm clear state.
+/// Encapsulates an alarm's only active state with its associated alarm clear state.
 /// Used to manage the reporting of a fault condition, and subsequent clear
 /// of said condition.
-class Alarm
+
+class Alarm: public BaseAlarm
 {
 public:
   Alarm(const std::string& issuer,
@@ -89,28 +117,59 @@ public:
   virtual ~Alarm() {}
 
   /// Queues a request to generate an alarm state change corresponding to the
-  /// CLEARED severity if a state change for the non-CLEARED severity was
-  /// previously requested via set().
-  virtual void clear();
-
-  /// Queues a request to generate an alarm state change corresponding to the
   /// non-CLEARED severity if a state change for the CLEARED severity was
   /// previously requestd via clear().
   virtual void set();
 
-  /// Indicates that the alarm state currently maintained by this object
-  /// corresponds to the non-CLEARED severity.
-  virtual bool alarmed() {return _alarmed.load();}
-
-  /// Returns the index of this alarm.
+    /// Returns the index of this alarm.
   virtual int index() const {return _index;}
 
 private:
-  const int _index;
-  AlarmState _clear_state;
   AlarmState _set_state;
 
   std::atomic<bool> _alarmed;
+};
+
+/// @class MultiStateAlarm
+///
+/// Encapsulates an alarm's two or more active states with its associated clear
+/// state. Used to manage the reporting of a fault condition, and subsequent
+/// clear of said condition.
+
+class MultiStateAlarm: public BaseAlarm
+{
+public:
+  MultiStateAlarm(const std::string& issuer,
+                  const int index,
+                  std::vector<AlarmDef::Severity> severities);
+
+protected:
+  /// These raise the alarm with the specified severity.
+  virtual void set_indeterminate();
+  virtual void set_warning();
+  virtual void set_minor();
+  virtual void set_major();
+  virtual void set_critical();
+
+private:
+  AlarmState _indeterminate_state;
+  AlarmState _warning_state;
+  AlarmState _minor_state;
+  AlarmState _major_state;
+  AlarmState _critical_state;
+};
+
+/// @class CassandraLicenseErrorAlarm
+///
+/// Represents a Clearwater alarm with multiple raised states. This class gives
+/// the MultiStateAlarm object visibility of just those functions corresponding
+/// to states of the alarm that can be raised.
+
+class CassandraLicenseErrorAlarm: public MultiStateAlarm
+{
+public:
+  set_major() {MultiStateAlarm::set_major()};
+  set_critical() {MultiStateAlarm::set_critical()};
 };
 
 /// @class AlarmReqAgent
