@@ -55,8 +55,6 @@ public:
   int get_flags() const;
   void set_flags(int flags);
 
-  virtual void gettime(struct timespec* ts);
-
   virtual void write(const char* data);
   virtual void flush();
   virtual void commit();
@@ -65,6 +63,10 @@ public:
   // called when no other threads are running - generally from a signal
   // handler.
   virtual void backtrace(const char* data);
+
+protected:
+  virtual void gettime_monotonic(struct timespec* ts);
+  virtual void gettime(struct timespec* ts);
 
 private:
   /// Encodes the time as needed by the logger.
@@ -92,6 +94,7 @@ private:
   int _flags;
   int _last_hour;
   bool _rotate;
+  struct timespec _last_rotate;
   FILE* _fd;
   int _discards;
   int _saved_errno;
@@ -99,9 +102,9 @@ private:
   std::string _directory;
   pthread_mutex_t _lock;
 
-  /// Defines how frequently (in terms of log attempts) we will try to
-  /// open the log file if we failed to open it previously.
-  static const int LOGFILE_CHECK_FREQUENCY = 1000;
+  /// Defines how frequently (in seconds) we will try to reopen a log
+  /// file when we have previously failed to use it.
+  const static double LOGFILE_RETRY_FREQUENCY;
 };
 
 

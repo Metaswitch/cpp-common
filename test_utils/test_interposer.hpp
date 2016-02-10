@@ -45,4 +45,6 @@ void cwtest_advance_time_ms(long delta_ms);
 void cwtest_reset_time();
 void cwtest_completely_control_time();
 
-
+// Control file manipulation.
+void cwtest_control_fopen(FILE* fd);
+void cwtest_release_fopen();
