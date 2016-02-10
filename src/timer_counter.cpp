@@ -54,28 +54,28 @@ TimerCounter::TimerCounter():
 
 TimerCounter::~TimerCounter() {}
 
-void TimerCounter::increment()
+void TimerCounter::increment(uint32_t count)
 {
   timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
   refresh_statistics(five_second.get_current(now), now, five_second.get_interval_ms());
-  write_statistics(five_second.get_current(now), 1);
+  write_statistics(five_second.get_current(now), count);
 
   refresh_statistics(five_minute.get_current(now), now, five_minute.get_interval_ms());
-  write_statistics(five_minute.get_current(now), 1);
+  write_statistics(five_minute.get_current(now), count);
 }
 
-void TimerCounter::decrement()
+void TimerCounter::decrement(uint32_t count)
 {
   timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
   refresh_statistics(five_second.get_current(now), now, five_second.get_interval_ms());
-  write_statistics(five_second.get_current(now), -1);
+  write_statistics(five_second.get_current(now), -count);
 
   refresh_statistics(five_minute.get_current(now), now, five_minute.get_interval_ms());
-  write_statistics(five_minute.get_current(now), -1);
+  write_statistics(five_minute.get_current(now), -count);
 }
 
 void TimerCounter::get_statistics(int index, timespec now, SNMP::SimpleStatistics* stats)
@@ -105,8 +105,6 @@ void TimerCounter::get_statistics(int index, timespec now, SNMP::SimpleStatistic
 
 void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec now, uint32_t interval_ms)
 {
-  TRC_DEBUG("Bringing the statistics up to date");
-
   // Compute the updated sum and sqsum based on the previous values, dependent on
   // how long since an update happened. Additionally update the sum of squares as a
   // rolling total, and update the time of the last update. Also maintain a
@@ -132,14 +130,25 @@ void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec
 
 void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_delta)
 {
+  // Pull the current value from the underlying data.
+  uint64_t current_value = data->current_value.load();
+
+  // Initialise a new value to be used. The new value defaults to 0, until we
+  // determine that the calculation will not lead to overflow.
+  uint64_t new_value = 0;
+
+  // Ensure value_delta is less than the current value if negative.
+  // If value_delta would cause new_value to underflow, leave new_value as 0.
+  if ((value_delta > 0) || ((uint64_t)abs(value_delta) < current_value))
+  {
+    new_value = current_value + value_delta;
+  }
 
   // Update the low- and high-water marks.  In each case, we get the current
   // value, decide whether a change is required and then atomically swap it
   // if so, repeating if it was changed in the meantime.  Note that
   // compare_exchange_weak loads the current value into the expected value
   // parameter (lwm or hwm below) if the compare fails.
-
-  uint64_t new_value = data->current_value.load() + value_delta;
 
   uint_fast64_t lwm = data->lwm.load();
   while ((new_value < lwm) &&
