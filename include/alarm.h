@@ -82,24 +82,7 @@ private:
 /// more possible raised states will be constructed by subclass
 /// MultiStateAlarm. 
 
-class BaseAlarm
-{
-public:
-  /// Queues a request to generate an alarm state change corresponding to the
-  /// CLEARED severity.
-  virtual void clear();
-  
-  /// Indicates whether the alarm state currently maintained by this object
-  /// corresponds to the non-CLEARED severity.
-  virtual bool alarmed() {return _alarmed.load();}
-
-protected:
-  /// Keeps track of whether the alarm is raised.
-  std::atomic<bool> _alarmed;
-
-  AlarmState _clear_state;
-  const int _index;
-};
+class BaseAlarm{};
 
 /// @class Alarm
 ///
@@ -121,12 +104,23 @@ public:
   /// previously requestd via clear().
   virtual void set();
 
-    /// Returns the index of this alarm.
+  /// Queues a request to generate an alarm state change corresponding to the
+  /// CLEARED severity.
+  virtual void clear();
+
+  /// Returns the index of this alarm.
   virtual int index() const {return _index;}
+  
+  /// Indicates whether the alarm state currently maintained by this object
+  /// corresponds to the non-CLEARED severity.
+  virtual bool alarmed() {return _alarmed.load();}
 
 private:
+  const int _index;
+  AlarmState _clear_state;
   AlarmState _set_state;
 
+  /// Keeps track of whether the alarm is raised
   std::atomic<bool> _alarmed;
 };
 
@@ -140,23 +134,36 @@ class MultiStateAlarm: public BaseAlarm
 {
 public:
   MultiStateAlarm(const std::string& issuer,
-                  const int index,
-                  std::vector<AlarmDef::Severity> severities);
+                  const int index);
+  
+  /// Indicates whether the alarm state currently maintained by this object
+  /// corresponds to the non-CLEARED severity.
+  virtual bool alarmed() {return _alarmed.load();}
+  
+  /// Queues a request to generate an alarm state change corresponding to the
+  /// CLEARED severity.
+  virtual void clear();
 
 protected:
   /// These raise the alarm with the specified severity.
-  virtual void set_indeterminate();
-  virtual void set_warning();
-  virtual void set_minor();
-  virtual void set_major();
-  virtual void set_critical();
+  virtual void multi_set_indeterminate();
+  virtual void multi_set_warning();
+  virtual void multi_set_minor();
+  virtual void multi_set_major();
+  virtual void multi_set_critical();
 
 private:
+  const int _index;
+  
+  /// Keeps track of whether the alarm is raised
+  std::atomic<bool> _alarmed;
+
   AlarmState _indeterminate_state;
   AlarmState _warning_state;
   AlarmState _minor_state;
   AlarmState _major_state;
   AlarmState _critical_state;
+  AlarmState _clear_state;
 };
 
 /// @class CassandraLicenseErrorAlarm
@@ -168,8 +175,12 @@ private:
 class CassandraLicenseErrorAlarm: public MultiStateAlarm
 {
 public:
-  set_major() {MultiStateAlarm::set_major()};
-  set_critical() {MultiStateAlarm::set_critical()};
+  CassandraLicenseErrorAlarm(const std::string& issuer,
+                             const int index):
+    MultiStateAlarm(issuer,
+                    index){}
+  virtual void set_major() {MultiStateAlarm::multi_set_major();}
+  virtual void set_critical() {MultiStateAlarm::multi_set_critical();}
 };
 
 /// @class AlarmReqAgent
