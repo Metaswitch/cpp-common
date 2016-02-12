@@ -185,23 +185,6 @@ public:
   virtual void set_critical() {MultiStateAlarm::multi_set_critical();}
 };
 
-/// @class CedarLicenseErrorAlarm
-///
-/// Represents a Clearwater alarm with multiple raised states. This class gives
-/// the MultiStateAlarm object visibility of just those functions corresponding
-/// to states of the alarm that can be raised.
-
-//class CedarFTPDLicenseErrorAlarm: public MultiStateAlarm
-//{
-//public:
-  //CedarFTPDLicenseErrorAlarm(const std::string& issuer,
-    //                         const int index):
-    //MultiStateAlarm(issuer,
-    //                index){}
-  //virtual void set_major() {MultiStateAlarm::multi_set_major();}
-  //virtual void set_critical() {MultiStateAlarm::multi_set_critical();}
-//};
-
 /// @class AlarmReqAgent
 ///
 /// Singleton which provides an agent thead to accept queued alarm requests from
