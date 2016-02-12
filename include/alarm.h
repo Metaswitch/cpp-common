@@ -82,7 +82,28 @@ private:
 /// more possible raised states will be constructed by subclass
 /// MultiStateAlarm. 
 
-class BaseAlarm{};
+class BaseAlarm
+{
+public:
+  BaseAlarm(const std::string& issuer,
+            const int index):
+    _index(index),
+    _clear_state(issuer, index, AlarmDef::CLEARED),
+    _alarmed(false)
+  {
+  }
+  
+  /// Queues a request to generate an alarm state change corresponding to the
+  /// CLEARED severity.
+  virtual void clear();
+
+protected:
+  const int _index;
+  AlarmState _clear_state;
+  
+  /// Keeps track of whether the alarm is raised
+  std::atomic<bool> _alarmed;
+};
 
 /// @class Alarm
 ///
@@ -104,10 +125,6 @@ public:
   /// previously requestd via clear().
   virtual void set();
 
-  /// Queues a request to generate an alarm state change corresponding to the
-  /// CLEARED severity.
-  virtual void clear();
-
   /// Returns the index of this alarm.
   virtual int index() const {return _index;}
   
@@ -116,12 +133,7 @@ public:
   virtual bool alarmed() {return _alarmed.load();}
 
 private:
-  const int _index;
-  AlarmState _clear_state;
   AlarmState _set_state;
-
-  /// Keeps track of whether the alarm is raised
-  std::atomic<bool> _alarmed;
 };
 
 /// @class MultiStateAlarm
@@ -140,10 +152,6 @@ public:
   /// corresponds to the non-CLEARED severity.
   virtual bool alarmed() {return _alarmed.load();}
   
-  /// Queues a request to generate an alarm state change corresponding to the
-  /// CLEARED severity.
-  virtual void clear();
-
 protected:
   /// These raise the alarm with the specified severity.
   virtual void multi_set_indeterminate();
@@ -153,29 +161,40 @@ protected:
   virtual void multi_set_critical();
 
 private:
-  const int _index;
-  
-  /// Keeps track of whether the alarm is raised
-  std::atomic<bool> _alarmed;
-
   AlarmState _indeterminate_state;
   AlarmState _warning_state;
   AlarmState _minor_state;
   AlarmState _major_state;
   AlarmState _critical_state;
-  AlarmState _clear_state;
 };
 
-/// @class CassandraLicenseErrorAlarm
+/// @class CedarLicenseErrorAlarm
 ///
 /// Represents a Clearwater alarm with multiple raised states. This class gives
 /// the MultiStateAlarm object visibility of just those functions corresponding
 /// to states of the alarm that can be raised.
 
-class CassandraLicenseErrorAlarm: public MultiStateAlarm
+class CedarLicenseErrorAlarm: public MultiStateAlarm
 {
 public:
-  CassandraLicenseErrorAlarm(const std::string& issuer,
+  CedarLicenseErrorAlarm(const std::string& issuer,
+                             const int index):
+    MultiStateAlarm(issuer,
+                    index){}
+  virtual void set_major() {MultiStateAlarm::multi_set_major();}
+  virtual void set_critical() {MultiStateAlarm::multi_set_critical();}
+};
+
+/// @class CedarLicenseErrorAlarm
+///
+/// Represents a Clearwater alarm with multiple raised states. This class gives
+/// the MultiStateAlarm object visibility of just those functions corresponding
+/// to states of the alarm that can be raised.
+
+class CedarFTPDLicenseErrorAlarm: public MultiStateAlarm
+{
+public:
+  CedarFTPDLicenseErrorAlarm(const std::string& issuer,
                              const int index):
     MultiStateAlarm(issuer,
                     index){}

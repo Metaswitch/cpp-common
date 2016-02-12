@@ -79,23 +79,19 @@ void AlarmState::clear_all(const std::string& issuer)
 Alarm::Alarm(const std::string& issuer,
              const int index,
              AlarmDef::Severity severity) :
-  _index(index),
-  _clear_state(issuer, index, AlarmDef::CLEARED),
-  _set_state(issuer, index, severity),
-  _alarmed(false)
+  BaseAlarm(issuer, index),
+  _set_state(issuer, index, severity)
 {
 }
 
 MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
                                  const int index) :
-  _index(index),
-  _alarmed(false),
+  BaseAlarm(issuer, index),
   _indeterminate_state(issuer, index, AlarmDef::INDETERMINATE),
   _warning_state(issuer, index, AlarmDef::WARNING),
   _minor_state(issuer, index, AlarmDef::MINOR),
   _major_state(issuer, index, AlarmDef::MAJOR),
-  _critical_state(issuer, index, AlarmDef::CRITICAL),
-  _clear_state(issuer, index, AlarmDef::CLEARED) 
+  _critical_state(issuer, index, AlarmDef::CRITICAL)
 {
 }
 
@@ -109,17 +105,7 @@ void Alarm::set()
   }
 }
 
-void Alarm::clear()
-{
-  bool previously_alarmed = _alarmed.exchange(false);
-
-  if (previously_alarmed)
-  {
-    _clear_state.issue();
-  }
-}
-
-void MultiStateAlarm::clear()
+void BaseAlarm::clear()
 {
   bool previously_alarmed = _alarmed.exchange(false);
 
