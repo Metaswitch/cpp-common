@@ -191,16 +191,16 @@ public:
 /// the MultiStateAlarm object visibility of just those functions corresponding
 /// to states of the alarm that can be raised.
 
-class CedarFTPDLicenseErrorAlarm: public MultiStateAlarm
-{
-public:
-  CedarFTPDLicenseErrorAlarm(const std::string& issuer,
-                             const int index):
-    MultiStateAlarm(issuer,
-                    index){}
-  virtual void set_major() {MultiStateAlarm::multi_set_major();}
-  virtual void set_critical() {MultiStateAlarm::multi_set_critical();}
-};
+//class CedarFTPDLicenseErrorAlarm: public MultiStateAlarm
+//{
+//public:
+  //CedarFTPDLicenseErrorAlarm(const std::string& issuer,
+    //                         const int index):
+    //MultiStateAlarm(issuer,
+    //                index){}
+  //virtual void set_major() {MultiStateAlarm::multi_set_major();}
+  //virtual void set_critical() {MultiStateAlarm::multi_set_critical();}
+//};
 
 /// @class AlarmReqAgent
 ///
