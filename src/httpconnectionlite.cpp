@@ -38,6 +38,11 @@
 #include <iostream>
 #include <map>
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/ip.h>
+#include <netinet/tcp.h>
+
 #include "cpp_common_pd_definitions.h"
 #include "utils.h"
 #include "log.h"
@@ -283,13 +288,13 @@ HTTPCode HttpConnectionLite::send_put(const std::string& path,
                   username);
 }
 
-HTTPCode HttpConnectionLite::send_put(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                                      std::map<std::string, std::string>& headers, //< Map of headers from the response
-                                      std::string& response,                       //< Retrieved document
-                                      const std::string& body,                     //< Body to send in request
-                                      const std::vector<std::string>& extra_req_headers, //< Extra headers to add to the request.
-                                      SAS::TrailId trail,                          //< SAS trail
-                                      const std::string& username)                 //< Username to assert (if assertUser was true, else ignored)
+HTTPCode HttpConnectionLite::send_put(const std::string& path,
+                                      std::map<std::string, std::string>& headers,
+                                      std::string& response,
+                                      const std::string& body,
+                                      const std::vector<std::string>& extra_req_headers,
+                                      SAS::TrailId trail,
+                                      const std::string& username)
 {
   return send_request(path,
                       body,
@@ -311,12 +316,12 @@ HTTPCode HttpConnectionLite::send_post(const std::string& path,
   return send_post(path, headers, unused_response, body, trail, username);
 }
 
-HTTPCode HttpConnectionLite::send_post(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                                       std::map<std::string, std::string>& headers, //< Map of headers from the response
-                                       std::string& response,                       //< Retrieved document
-                                       const std::string& body,                     //< Body to send in request
-                                       SAS::TrailId trail,                          //< SAS trail
-                                       const std::string& username)                 //< Username to assert (if assertUser was true, else ignored).
+HTTPCode HttpConnectionLite::send_post(const std::string& path,
+                                       std::map<std::string, std::string>& headers,
+                                       std::string& response,
+                                       const std::string& body,
+                                       SAS::TrailId trail,
+                                       const std::string& username)
 {
   std::vector<std::string> unused_extra_headers;
   return send_request(path,
@@ -483,7 +488,15 @@ HTTPCode HttpConnectionLite::send_request(const std::string& path,              
               remote_ip,
               (recycle_conn) ? "on new connection" : "");
 
-    bool got_response = conn->send_request_recv_response(/* TODO */);
+    bool got_response = conn->send_request_recv_response(*i,
+                                                         recycle_conn,
+                                                         method_str,
+                                                         path,
+                                                         headers_to_add,
+                                                         body,
+                                                         http_code,
+                                                         response_headers,
+                                                         &doc);
 
     // If a request was sent, log it to SAS.
     if (recorder.request.length() > 0)
@@ -628,7 +641,8 @@ void HttpConnectionLite::cleanup_conn(void* ptr)
 HttpConnectionLite::Connection::Connection(HttpConnectionLite* parent) :
   _parent(parent),
   _deadline_ms(0L),
-  _rand(1.0 / CONNECTION_AGE_MS)
+  _rand(1.0 / CONNECTION_AGE_MS),
+  _fd(-1)
 {
 }
 
@@ -935,3 +949,227 @@ long HttpConnectionLite::calc_req_timeout_from_latency(int latency_us)
 {
   return std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
 }
+
+bool HttpConnectionLite::Connection::
+send_request_recv_response(const AddrInfo& ai,
+                           bool recycle,
+                           const std::string& method,
+                           const std::string& path,
+                           const std::vector<std::string>& request_headers,
+                           const std::string& body,
+                           long& http_code,
+                           std::map<std::string, std::string>* response_headers,
+                           std::string* response_body)
+{
+  char buffer[16 * 1024];
+  size_t send_size = 0;
+  int rc;
+
+  if (!establish_connection(ai, recycle))
+  {
+    return false;
+  }
+
+  if (!build_request_header(method, path, request_headers, body, buffer, send_size))
+  {
+    return false;
+  }
+
+  send_all(buffer, send_size);
+  send_all(body.c_str(), body.length());
+  usleep(10 * 1000);
+
+  rc = ::recv(_fd, buffer, sizeof(buffer), 0);
+  if (rc < 0)
+  {
+    TRC_ERROR("Failed to receive");
+    ::close(_fd); _fd = 1;
+    return false;
+  }
+  else if (rc == 0)
+  {
+    TRC_ERROR("Connection closed");
+    ::close(_fd); _fd = 1;
+    return false;
+  }
+  else
+  {
+    TRC_DEBUG("%.*s", rc, buffer, rc);
+  }
+
+  http_code = 200;
+  if (response_body != nullptr)
+  {
+    *response_body = "hello there";
+  }
+
+  return true;
+}
+
+bool HttpConnectionLite::Connection::establish_connection(const AddrInfo& ai,
+                                                          bool recycle)
+{
+  if (!recycle && (_fd >= 0) && (ai == _remote_ai))
+  {
+    TRC_DEBUG("Keep using same connection");
+    return true;
+  }
+
+  if (_fd >= 0)
+  {
+    TRC_DEBUG("Close existing connection");
+    ::close(_fd); _fd = -1;
+  }
+
+  TRC_DEBUG("Establish a brand new connection");
+
+  _fd = ::socket(AF_INET, SOCK_STREAM, 0);
+  if (_fd < 0)
+  {
+    TRC_ERROR("Could not create socket: %d, %s", _fd, strerror(errno));
+    return false;
+  }
+
+  int rc = 0;
+  int enable = 1;
+  rc = ::setsockopt(_fd, IPPROTO_TCP, TCP_NODELAY, (char *)&enable, sizeof(int));
+  if (rc < 0)
+  {
+    TRC_ERROR("Error setting TCP_NODELAY: %d, %s", rc, strerror(errno));
+    ::close(_fd); _fd = -1;
+    return false;
+  }
+
+  sockaddr_in remote_sa_in = {0};
+  remote_sa_in.sin_family = AF_INET;
+  remote_sa_in.sin_addr = ai.address.addr.ipv4;
+  remote_sa_in.sin_port = htons(ai.port);
+
+  rc = ::connect(_fd, (sockaddr*)&remote_sa_in, sizeof(remote_sa_in));
+  if (rc < 0)
+  {
+    TRC_ERROR("Failed to connect: %d, %s", rc, strerror(errno));
+    ::close(_fd); _fd = -1;
+    return false;
+  }
+
+  sockaddr_in local_sa_in = {0};
+  socklen_t socklen = sizeof(local_sa_in);
+
+  rc = getsockname(_fd, (sockaddr*)&local_sa_in, &socklen);
+  if (rc < 0)
+  {
+    TRC_ERROR("Could not get local socket name");
+    ::close(_fd); _fd = -1;
+    return false;
+  }
+
+  _remote_ai = ai;
+
+  _local_ai.transport = _remote_ai.transport;
+  _local_ai.port = local_sa_in.sin_port;
+  _local_ai.address.addr.ipv4 = local_sa_in.sin_addr;
+
+  return true;
+}
+
+bool HttpConnectionLite::Connection::
+build_request_header(const std::string& method,
+                     const std::string& path,
+                     const std::vector<std::string>& request_headers,
+                     const std::string& body,
+                     char* buffer,
+                     size_t& send_size)
+{
+  send_size = 0;
+
+  send_size += sprintf(buffer + send_size, "%s %s HTTP/1.1\r\n", method.c_str(), path.c_str());
+  for(std::vector<std::string>::const_iterator hdr = request_headers.begin();
+      hdr != request_headers.end();
+      ++hdr)
+  {
+    send_size += sprintf(buffer + send_size, "%s\r\n", hdr->c_str());
+  }
+
+  if (!body.empty())
+  {
+    send_size += sprintf(buffer + send_size,
+                      "Content-Length: %ld\r\n"
+                      "Content-Type: application/json\r\n"
+                      "\r\n",
+                      body.length());
+  }
+  else
+  {
+    send_size += sprintf(buffer + send_size, "Content-Length: 0\r\n\r\n");
+  }
+
+  return true;
+}
+
+bool HttpConnectionLite::Connection::send_all(const char* data, size_t len)
+{
+  size_t data_sent = 0;
+
+  while (data_sent < len)
+  {
+    size_t rc = ::send(_fd, data + data_sent, (len - data_sent), 0);
+    if (rc < 0)
+    {
+      TRC_ERROR("Failed to send");
+      ::close(_fd); _fd = 1;
+      return false;
+    }
+    else
+    {
+      TRC_DEBUG("Sent %d bytes: %.*s", rc, rc, data + data_sent);
+      data_sent += rc;
+    }
+  }
+  return true;
+}
+
+template<class T>
+bool HttpConnectionLite::Connection::assign_if_connected(T& lhs, const T& rhs)
+{
+  if (_fd >= 0)
+  {
+    lhs = rhs;
+    return true;
+  }
+  else
+  {
+    return false;
+  }
+}
+
+bool HttpConnectionLite::Connection::get_local_ai(AddrInfo& ai)
+{
+  return assign_if_connected(ai, _local_ai);
+}
+
+bool HttpConnectionLite::Connection::get_remote_ai(AddrInfo& ai)
+{
+  return assign_if_connected(ai, _remote_ai);
+}
+
+bool HttpConnectionLite::Connection::get_local_ip(std::string& ip)
+{
+  return assign_if_connected(ip, _local_ai.address.to_string());
+}
+
+bool HttpConnectionLite::Connection::get_remote_ip(std::string& ip)
+{
+  return assign_if_connected(ip, _remote_ai.address.to_string());
+}
+
+bool HttpConnectionLite::Connection::get_local_port(int& port)
+{
+  return assign_if_connected(port, _remote_ai.port);
+}
+
+bool HttpConnectionLite::Connection::get_remote_port(int& port)
+{
+  return assign_if_connected(port, _local_ai.port);
+}
+

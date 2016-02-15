@@ -197,17 +197,40 @@ private:
     bool is_connection_expired(unsigned long now_ms);
     void update_deadline(unsigned long now_ms);
 
-    bool send_request_recv_response() { return false; }
-    bool is_connected() { return true; }
+    bool send_request_recv_response(const AddrInfo& ai,
+                                    bool recycle,
+                                    const std::string& method,
+                                    const std::string& path,
+                                    const std::vector<std::string>& request_headers,
+                                    const std::string& body,
+                                    long& http_code,
+                                    std::map<std::string, std::string>* response_headers,
+                                    std::string* response_body);
 
-    bool get_remote_ai(AddrInfo& ai) { ai = _remote_ai; return true; }
-    bool get_remote_ip(std::string& ip) { ip = ""; return true; }
-    bool get_local_ip(std::string& ip) { ip = ""; return true; }
-    bool get_remote_port(int& port) { port = 0; return true; }
-    bool get_local_port(int& port) { port = 0; return true; }
+    bool get_remote_ai(AddrInfo& ai);
+    bool get_local_ai(AddrInfo& ai);
+    bool get_remote_ip(std::string& ip);
+    bool get_local_ip(std::string& ip);
+    bool get_remote_port(int& port);
+    bool get_local_port(int& port);
 
   private:
+    template<class T>
+      bool assign_if_connected(T& lhs, const T& rhs);
+
     void update_snmp_ip_counts(const std::string& value);
+
+    bool build_request_header(const std::string& method,
+                              const std::string& path,
+                              const std::vector<std::string>& req_headers,
+                              const std::string& body,
+                              char* buffer,
+                              size_t& send_size);
+
+    bool establish_connection(const AddrInfo& ai,
+                              bool recycle);
+
+    bool send_all(const char* data, size_t len);
 
     /// Parent HttpConnectionLite object.
     HttpConnectionLite* _parent;
@@ -222,10 +245,11 @@ private:
     /// individual threads and for the overall application.
     Utils::ExponentialDistribution _rand;
 
-    // Address of the remote host we are connected to.
+    int _fd;
+
+    AddrInfo _local_ai;
     AddrInfo _remote_ai;
 
-    // The remote IP we use for tracking stats.
     std::string _stats_remote_ip;
   };
 
