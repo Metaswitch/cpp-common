@@ -189,7 +189,9 @@ private:
   class Connection
   {
   public:
-    Connection(HttpConnectionLite* parent);
+    Connection(HttpConnectionLite* parent,
+               SASEvent::HttpLogLevel sas_log_level);
+
     ~Connection();
 
     void set_remote_ip(const std::string& value);
@@ -199,6 +201,7 @@ private:
 
     bool send_request_recv_response(const AddrInfo& ai,
                                     bool recycle,
+                                    SAS::TrailId trail,
                                     const std::string& method,
                                     const std::string& path,
                                     const std::vector<std::string>& request_headers,
@@ -215,6 +218,23 @@ private:
     bool get_local_port(int& port);
 
   private:
+    void sas_add_ip(SAS::Event& event, bool remote);
+    void sas_add_port(SAS::Event& event, bool remote);
+    void sas_add_ip_addrs_and_ports(SAS::Event& event);
+
+    void sas_log_http_req(SAS::TrailId trail,
+                          const std::string& method_str,
+                          const std::string& url,
+                          const std::string& request_bytes,
+                          uint32_t instance_id);
+
+    void sas_log_http_rsp(SAS::TrailId trail,
+                          long http_rc,
+                          const std::string& method_str,
+                          const std::string& url,
+                          const std::string& response_bytes,
+                          uint32_t instance_id);
+
     template<class T>
       bool assign_if_connected(T& lhs, const T& rhs);
 
@@ -224,8 +244,7 @@ private:
                               const std::string& path,
                               const std::vector<std::string>& req_headers,
                               const std::string& body,
-                              char* buffer,
-                              size_t& send_size);
+                              std::string& request);
 
     bool establish_connection(const AddrInfo& ai,
                               bool recycle);
@@ -251,37 +270,9 @@ private:
     AddrInfo _remote_ai;
 
     std::string _stats_remote_ip;
+
+    SASEvent::HttpLogLevel _sas_log_level;
   };
-
-  void sas_add_ip(SAS::Event& event, Connection* conn, bool remote);
-
-  void sas_add_port(SAS::Event& event, Connection* conn, bool remote);
-
-  void sas_add_ip_addrs_and_ports(SAS::Event& event,
-                                  Connection* conn);
-
-  void sas_log_http_req(SAS::TrailId trail,
-                        Connection* conn,
-                        const std::string& method_str,
-                        const std::string& url,
-                        const std::string& request_bytes,
-                        SAS::Timestamp timestamp,
-                        uint32_t instance_id);
-
-  void sas_log_http_rsp(SAS::TrailId trail,
-                        Connection* conn,
-                        long http_rc,
-                        const std::string& method_str,
-                        const std::string& url,
-                        const std::string& response_bytes,
-                        uint32_t instance_id);
-
-  void sas_log_conn_error(SAS::TrailId trail,
-                          const char* remote_ip_addr,
-                          unsigned short remote_port,
-                          const std::string& method_str,
-                          const std::string& url,
-                          uint32_t instance_id);
 
   /// Enum of response types to correspond with ENUM defined in SAS resource
   /// bundle. Make sure the two are kept in sync

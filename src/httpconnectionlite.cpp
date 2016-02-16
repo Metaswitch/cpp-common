@@ -50,6 +50,7 @@
 #include "httpconnectionlite.h"
 #include "load_monitor.h"
 #include "random_uuid.h"
+#include "httpresponseparser.h"
 
 /// Total time to wait for a response from the server as a multiple of the
 /// configured target latency before giving up.  This is the value that affects
@@ -181,7 +182,7 @@ HttpConnectionLite::Connection* HttpConnectionLite::get_connection()
   Connection* conn = (Connection*)pthread_getspecific(_conn_thread_local);
   if (conn == NULL)
   {
-    conn = new Connection(this);
+    conn = new Connection(this, _sas_log_level);
     pthread_setspecific(_conn_thread_local, conn);
   }
   return conn;
@@ -324,6 +325,7 @@ HTTPCode HttpConnectionLite::send_post(const std::string& path,
                                        const std::string& username)
 {
   std::vector<std::string> unused_extra_headers;
+
   return send_request(path,
                       body,
                       response,
@@ -472,15 +474,6 @@ HTTPCode HttpConnectionLite::send_request(const std::string& path,              
     // Work out the remote IP for logging.
     remote_ip = inet_ntop(i->address.af, &i->address.addr, buf, sizeof(buf));
 
-    // Create and register an object to record the HTTP transaction.
-    Recorder recorder;
-
-    // Get the current timestamp before calling sending a request.  This is
-    // because we can't log the request to SAS until after the client has
-    // returned.  This could be a long time if the server is being slow, and we
-    // want to log the request with the right timestamp.
-    SAS::Timestamp req_timestamp = SAS::get_current_timestamp();
-
     // Send the request.
     doc.clear();
     TRC_DEBUG("Sending HTTP request : %s (trying %s) %s",
@@ -490,6 +483,7 @@ HTTPCode HttpConnectionLite::send_request(const std::string& path,              
 
     bool got_response = conn->send_request_recv_response(*i,
                                                          recycle_conn,
+                                                         trail,
                                                          method_str,
                                                          path,
                                                          headers_to_add,
@@ -497,30 +491,6 @@ HTTPCode HttpConnectionLite::send_request(const std::string& path,              
                                                          http_code,
                                                          response_headers,
                                                          &doc);
-
-    // If a request was sent, log it to SAS.
-    if (recorder.request.length() > 0)
-    {
-      sas_log_http_req(trail,
-                       conn,
-                       method_str,
-                       path,
-                       recorder.request,
-                       req_timestamp,
-                       0);
-    }
-
-    // Log the result of the request.
-    if (got_response)
-    {
-      sas_log_http_rsp(trail, conn, http_code, method_str, path, recorder.response, 0);
-      TRC_DEBUG("Received HTTP response: status=%d, doc=%s", http_code, doc.c_str());
-    }
-    else
-    {
-      TRC_ERROR("%s failed at server %s", path.c_str(), remote_ip);
-      sas_log_conn_error(trail, remote_ip, i->port, method_str, path, 0);
-    }
 
     // Update the connection recycling and retry algorithms.
     if (got_response && !(http_code >= 400))
@@ -638,11 +608,13 @@ void HttpConnectionLite::cleanup_conn(void* ptr)
 
 
 /// Connection constructor
-HttpConnectionLite::Connection::Connection(HttpConnectionLite* parent) :
+HttpConnectionLite::Connection::Connection(HttpConnectionLite* parent,
+                                           SASEvent::HttpLogLevel sas_log_level) :
   _parent(parent),
   _deadline_ms(0L),
   _rand(1.0 / CONNECTION_AGE_MS),
-  _fd(-1)
+  _fd(-1),
+  _sas_log_level(sas_log_level)
 {
 }
 
@@ -751,21 +723,18 @@ boost::uuids::uuid HttpConnectionLite::get_random_uuid()
   return (*uuid_gen)();
 }
 
-
-
-
-void HttpConnectionLite::sas_add_ip(SAS::Event& event, Connection* conn, bool remote)
+void HttpConnectionLite::Connection::sas_add_ip(SAS::Event& event, bool remote)
 {
   bool ok;
   std::string ip;
 
   if (remote)
   {
-    ok = conn->get_remote_ip(ip);
+    ok = get_remote_ip(ip);
   }
   else
   {
-    ok = conn->get_local_ip(ip);
+    ok = get_local_ip(ip);
   }
 
   if (ok)
@@ -778,18 +747,18 @@ void HttpConnectionLite::sas_add_ip(SAS::Event& event, Connection* conn, bool re
   }
 }
 
-void HttpConnectionLite::sas_add_port(SAS::Event& event, Connection* conn, bool remote)
+void HttpConnectionLite::Connection::sas_add_port(SAS::Event& event, bool remote)
 {
   bool ok;
   int port;
 
   if (remote)
   {
-    ok = conn->get_remote_port(port);
+    ok = get_remote_port(port);
   }
   else
   {
-    ok = conn->get_local_port(port);
+    ok = get_local_port(port);
   }
 
   if (ok)
@@ -802,25 +771,22 @@ void HttpConnectionLite::sas_add_port(SAS::Event& event, Connection* conn, bool 
   }
 }
 
-void HttpConnectionLite::sas_add_ip_addrs_and_ports(SAS::Event& event,
-                                                    Connection* conn)
+void HttpConnectionLite::Connection::sas_add_ip_addrs_and_ports(SAS::Event& event)
 {
   // Add the local IP and port.
-  sas_add_ip(event, conn, false);
-  sas_add_port(event, conn, false);
+  sas_add_ip(event, false);
+  sas_add_port(event, false);
 
   // Now add the remote IP and port.
-  sas_add_ip(event, conn, true);
-  sas_add_port(event, conn, true);
+  sas_add_ip(event, true);
+  sas_add_port(event, true);
 }
 
-void HttpConnectionLite::sas_log_http_req(SAS::TrailId trail,
-                                          Connection* conn,
-                                          const std::string& method_str,
-                                          const std::string& path,
-                                          const std::string& request_bytes,
-                                          SAS::Timestamp timestamp,
-                                          uint32_t instance_id)
+void HttpConnectionLite::Connection::sas_log_http_req(SAS::TrailId trail,
+                                                      const std::string& method_str,
+                                                      const std::string& path,
+                                                      const std::string& request_bytes,
+                                                      uint32_t instance_id)
 {
   if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
   {
@@ -828,23 +794,21 @@ void HttpConnectionLite::sas_log_http_req(SAS::TrailId trail,
                     SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
     SAS::Event event(trail, event_id, instance_id);
 
-    sas_add_ip_addrs_and_ports(event, conn);
+    sas_add_ip_addrs_and_ports(event);
     event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
     event.add_var_param(method_str);
     event.add_var_param(Utils::url_unescape(path));
 
-    event.set_timestamp(timestamp);
     SAS::report_event(event);
   }
 }
 
-void HttpConnectionLite::sas_log_http_rsp(SAS::TrailId trail,
-                                          Connection* conn,
-                                          long http_code,
-                                          const std::string& method_str,
-                                          const std::string& path,
-                                          const std::string& response_bytes,
-                                          uint32_t instance_id)
+void HttpConnectionLite::Connection::sas_log_http_rsp(SAS::TrailId trail,
+                                                      long http_code,
+                                                      const std::string& method_str,
+                                                      const std::string& path,
+                                                      const std::string& response_bytes,
+                                                      uint32_t instance_id)
 {
   if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
   {
@@ -852,7 +816,8 @@ void HttpConnectionLite::sas_log_http_rsp(SAS::TrailId trail,
                     SASEvent::RX_HTTP_RSP : SASEvent::RX_HTTP_RSP_DETAIL);
     SAS::Event event(trail, event_id, instance_id);
 
-    sas_add_ip_addrs_and_ports(event, conn);
+    sas_add_ip_addrs_and_ports(event);
+
     event.add_static_param(http_code);
     event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
     event.add_var_param(method_str);
@@ -873,6 +838,7 @@ void HttpConnectionLite::sas_log_http_abort(SAS::TrailId trail,
   SAS::report_event(event);
 }
 
+#if 0
 void HttpConnectionLite::sas_log_conn_error(SAS::TrailId trail,
                                             const char* remote_ip_addr,
                                             unsigned short remote_port,
@@ -896,6 +862,7 @@ void HttpConnectionLite::sas_log_conn_error(SAS::TrailId trail,
     SAS::report_event(event);
   }
 }
+#endif
 
 void HttpConnectionLite::host_port_from_server(const std::string& server, std::string& host, int& port)
 {
@@ -953,16 +920,18 @@ long HttpConnectionLite::calc_req_timeout_from_latency(int latency_us)
 bool HttpConnectionLite::Connection::
 send_request_recv_response(const AddrInfo& ai,
                            bool recycle,
+                           SAS::TrailId trail,
                            const std::string& method,
                            const std::string& path,
                            const std::vector<std::string>& request_headers,
                            const std::string& body,
-                           long& http_code,
+                           HTTPCode& http_code,
                            std::map<std::string, std::string>* response_headers,
                            std::string* response_body)
 {
   char buffer[16 * 1024];
-  size_t send_size = 0;
+  std::string request;
+  std::string response;
   int rc;
 
   if (!establish_connection(ai, recycle))
@@ -970,38 +939,51 @@ send_request_recv_response(const AddrInfo& ai,
     return false;
   }
 
-  if (!build_request_header(method, path, request_headers, body, buffer, send_size))
+  if (!build_request_header(method, path, request_headers, body, request))
   {
     return false;
   }
 
-  send_all(buffer, send_size);
-  send_all(body.c_str(), body.length());
-  usleep(10 * 1000);
+  request.append(body);
+  sas_log_http_req(trail, method, path, request, 0);
 
-  rc = ::recv(_fd, buffer, sizeof(buffer), 0);
-  if (rc < 0)
-  {
-    TRC_ERROR("Failed to receive");
-    ::close(_fd); _fd = 1;
-    return false;
-  }
-  else if (rc == 0)
-  {
-    TRC_ERROR("Connection closed");
-    ::close(_fd); _fd = 1;
-    return false;
-  }
-  else
-  {
-    TRC_DEBUG("%.*s", rc, buffer, rc);
-  }
+  send_all(request.c_str(), request.length());
 
-  http_code = 200;
-  if (response_body != nullptr)
+  HttpResponseParser parser(&http_code, response_headers, response_body);
+
+  do
   {
-    *response_body = "hello there";
+    rc = ::recv(_fd, buffer, sizeof(buffer), 0);
+    TRC_DEBUG("Done a read of %d bytes", rc);
+
+    if (rc < 0)
+    {
+      TRC_ERROR("Failed to receive");
+      ::close(_fd); _fd = 1;
+      return false;
+    }
+    else if (rc == 0)
+    {
+      TRC_ERROR("Connection closed");
+      ::close(_fd); _fd = 1;
+      return false;
+    }
+
+    int data_available = rc;
+
+    if (parser.feed(buffer, data_available) < 0)
+    {
+      // Parser hit an error. Nothing we can do but close the connection.
+      ::close(_fd); _fd = 1;
+      return false;
+    }
+
+    response.append(buffer, data_available);
   }
+  while (!parser.is_complete());
+
+  TRC_DEBUG("Received %d bytes: %s", response.length(), response.c_str());
+  sas_log_http_rsp(trail, 200, method, path, response, 0);
 
   return true;
 }
@@ -1078,22 +1060,22 @@ build_request_header(const std::string& method,
                      const std::string& path,
                      const std::vector<std::string>& request_headers,
                      const std::string& body,
-                     char* buffer,
-                     size_t& send_size)
+                     std::string& request)
 {
-  send_size = 0;
+  char buffer[16 * 1000];
+  size_t len = 0;
 
-  send_size += sprintf(buffer + send_size, "%s %s HTTP/1.1\r\n", method.c_str(), path.c_str());
+  len += sprintf(buffer + len, "%s %s HTTP/1.1\r\n", method.c_str(), path.c_str());
   for(std::vector<std::string>::const_iterator hdr = request_headers.begin();
       hdr != request_headers.end();
       ++hdr)
   {
-    send_size += sprintf(buffer + send_size, "%s\r\n", hdr->c_str());
+    len += sprintf(buffer + len, "%s\r\n", hdr->c_str());
   }
 
   if (!body.empty())
   {
-    send_size += sprintf(buffer + send_size,
+    len += sprintf(buffer + len,
                       "Content-Length: %ld\r\n"
                       "Content-Type: application/json\r\n"
                       "\r\n",
@@ -1101,9 +1083,10 @@ build_request_header(const std::string& method,
   }
   else
   {
-    send_size += sprintf(buffer + send_size, "Content-Length: 0\r\n\r\n");
+    len += sprintf(buffer + len, "Content-Length: 0\r\n\r\n");
   }
 
+  request.assign(buffer, len);
   return true;
 }
 
