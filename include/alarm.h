@@ -86,16 +86,13 @@ class BaseAlarm
 {
 public:
   BaseAlarm(const std::string& issuer,
-            const int index):
-    _index(index),
-    _clear_state(issuer, index, AlarmDef::CLEARED),
-    _alarmed(false)
-  {
-  }
+            const int index);
   
   /// Queues a request to generate an alarm state change corresponding to the
   /// CLEARED severity.
   virtual void clear();
+
+  virtual void reraise_last_state();
 
 protected:
   const int _index;
@@ -103,6 +100,34 @@ protected:
   
   /// Keeps track of whether the alarm is raised
   std::atomic<bool> _alarmed;
+
+  AlarmState* _last_state_raised;
+};
+
+/// @class AlarmManager
+///
+/// Singleton class responsible for calling BaseAlarm's reraise_latest_state
+/// function on each alarm every thirty seconds.
+
+class AlarmManager
+{
+public:
+  static AlarmManager& get_instance() {return _instance;}
+  static AlarmManager _instance;
+  bool _terminated;
+  void add_alarm_to_list(BaseAlarm* alarm); 
+  // Static function called by the reraising alarms thread. This simply calls
+  // the 'reraise_alarms' member method.
+  static void* reraise_alarms_function(void* data); 
+
+private:
+  AlarmManager();
+  ~AlarmManager();
+  virtual void reraise_alarms();
+  std::vector<BaseAlarm*> _global_alarm_list;
+  pthread_mutex_t _lock;
+  pthread_cond_t _terminating_variable;
+  pthread_t _reraising_alarms_thread;
 };
 
 /// @class Alarm
@@ -166,23 +191,6 @@ private:
   AlarmState _minor_state;
   AlarmState _major_state;
   AlarmState _critical_state;
-};
-
-/// @class CedarLicenseErrorAlarm
-///
-/// Represents a Clearwater alarm with multiple raised states. This class gives
-/// the MultiStateAlarm object visibility of just those functions corresponding
-/// to states of the alarm that can be raised.
-
-class CedarLicenseErrorAlarm: public MultiStateAlarm
-{
-public:
-  CedarLicenseErrorAlarm(const std::string& issuer,
-                             const int index):
-    MultiStateAlarm(issuer,
-                    index){}
-  virtual void set_major() {MultiStateAlarm::multi_set_major();}
-  virtual void set_critical() {MultiStateAlarm::multi_set_critical();}
 };
 
 /// @class AlarmReqAgent

@@ -42,6 +42,7 @@
 #include "log.h"
 
 AlarmReqAgent AlarmReqAgent::_instance;
+AlarmManager AlarmManager::_instance;
 
 AlarmState::AlarmState(const std::string& issuer,
                        const int index,
@@ -76,6 +77,21 @@ void AlarmState::clear_all(const std::string& issuer)
   TRC_DEBUG("%s cleared its alarms", issuer.c_str());
 }
 
+BaseAlarm::BaseAlarm(const std::string& issuer,
+                     const int index):
+  _index(index),
+  _clear_state(issuer, index, AlarmDef::CLEARED),
+  _alarmed(false),
+  _last_state_raised(&_clear_state)
+{
+  AlarmManager::get_instance().add_alarm_to_list(this);
+}
+
+void AlarmManager::add_alarm_to_list(BaseAlarm* alarm)
+{
+  _global_alarm_list.push_back(alarm);
+}
+
 Alarm::Alarm(const std::string& issuer,
              const int index,
              AlarmDef::Severity severity) :
@@ -98,7 +114,7 @@ MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
 void Alarm::set()
 {
   bool previously_alarmed = _alarmed.exchange(true);
-
+  _last_state_raised = &_set_state;
   if (!previously_alarmed)
   {
     _set_state.issue();
@@ -108,7 +124,7 @@ void Alarm::set()
 void BaseAlarm::clear()
 {
   bool previously_alarmed = _alarmed.exchange(false);
-
+  _last_state_raised = &_clear_state;
   if (previously_alarmed)
   {
     _clear_state.issue();
@@ -117,52 +133,87 @@ void BaseAlarm::clear()
 
 void MultiStateAlarm::multi_set_indeterminate()
 {
-  bool previously_alarmed = _alarmed.exchange(true);
-
-  if (!previously_alarmed)
-  {
-    _indeterminate_state.issue();
-  }
+  _alarmed.exchange(true);
+  _last_state_raised = &_indeterminate_state;
+  _indeterminate_state.issue();
 }
 
 void MultiStateAlarm::multi_set_warning()
 {
-  bool previously_alarmed = _alarmed.exchange(true);
-
-  if (!previously_alarmed)
-  {
-    _warning_state.issue();
-  }
+  _alarmed.exchange(true);
+  _last_state_raised = &_warning_state;
+  _warning_state.issue();
 }
 
 void MultiStateAlarm::multi_set_minor()
 {
-  bool previously_alarmed = _alarmed.exchange(true);
-
-  if (!previously_alarmed)
-  {
-    _minor_state.issue();
-  }
+  _alarmed.exchange(true);
+  _last_state_raised = &_minor_state;
+  _minor_state.issue();
 }
 
 void MultiStateAlarm::multi_set_major()
 {
-  bool previously_alarmed = _alarmed.exchange(true);
-
-  if (!previously_alarmed)
-  {
-    _major_state.issue();
-  }
+  _alarmed.exchange(true);
+  _last_state_raised = &_major_state;
+  _major_state.issue();
 }
 
 void MultiStateAlarm::multi_set_critical()
 {
-  bool previously_alarmed = _alarmed.exchange(true);
+  _alarmed.exchange(true);
+  _last_state_raised = &_critical_state;
+  _critical_state.issue();
+}
 
-  if (!previously_alarmed)
+void BaseAlarm::reraise_last_state()
+{
+  _last_state_raised->issue();
+}
+
+void* AlarmManager::reraise_alarms_function(void* data)
+{
+  ((AlarmManager*)data)->reraise_alarms();
+  return NULL;
+}
+
+void AlarmManager::reraise_alarms()
+{
+  while (!_terminated)
   {
-    _critical_state.issue();
+    for (std::vector<BaseAlarm*>::iterator it = _global_alarm_list.begin(); it != _global_alarm_list.end(); it++)
+    {
+      (*it)->reraise_last_state();
+    }
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    ts.tv_sec += 30;
+    pthread_cond_timedwait(&_terminating_variable, &_lock, &ts);
   }
+}
+
+AlarmManager::AlarmManager()
+{
+  _terminated = false;
+  pthread_mutex_init(&_lock, NULL);
+  pthread_condattr_t cond_attr;
+  pthread_condattr_init(&cond_attr);
+  pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+  pthread_cond_init(&_terminating_variable, &cond_attr);
+  pthread_condattr_destroy(&cond_attr);
+
+  pthread_create(&_reraising_alarms_thread, NULL, reraise_alarms_function, this);
+}
+
+AlarmManager::~AlarmManager()
+{
+  pthread_mutex_lock(&_lock);
+  _terminated = true;
+  pthread_cond_signal(&_terminating_variable);
+  pthread_mutex_unlock(&_lock);
+  pthread_join(_reraising_alarms_thread, NULL);
+  pthread_cond_destroy(&_terminating_variable);
+  pthread_mutex_destroy(&_lock);
 }
 
 bool AlarmReqAgent::start()
