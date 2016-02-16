@@ -92,6 +92,8 @@ public:
   /// CLEARED severity.
   virtual void clear();
 
+  /// Uses the _last_state_raised member variable to re-raise the latest state
+  /// of the alarm.
   virtual void reraise_last_state();
 
 protected:
@@ -101,6 +103,9 @@ protected:
   /// Keeps track of whether the alarm is raised
   std::atomic<bool> _alarmed;
 
+  // Keeps track of the latest state of each alarm that has been raised. If the
+  // alarm has just been cleared this would be the corresponding _clear_state
+  // for the alarm.
   AlarmState* _last_state_raised;
 };
 
@@ -123,7 +128,11 @@ public:
 private:
   AlarmManager();
   ~AlarmManager();
+  // This runs on a thread (defined below) and iterates over _global_alarm_list
+  // every 30 seconds. For each alarm it calls the reraise_last_state method.
   virtual void reraise_alarms();
+  // This is used for storing all of the BaseAlarm objects as they get
+  // constructed.
   std::vector<BaseAlarm*> _global_alarm_list;
   pthread_mutex_t _lock;
   pthread_cond_t _terminating_variable;
