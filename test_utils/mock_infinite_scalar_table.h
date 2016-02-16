@@ -1,8 +1,8 @@
 /**
- * @file test_interposer.hpp Unit test interposer header - hooks various calls that are useful for UT.
+ * @file mock_infinite_scalar_table.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,17 +34,21 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef MOCK_INFINITE_SCALAR_TABLE_H_
+#define MOCK_INFINITE_SCALAR_TABLE_H_
 
-#pragma once
+#include "gmock/gmock.h"
+#include "snmp_infinite_scalar_table.h"
 
-#include <string>
+class MockInfiniteScalarTable : public SNMP::InfiniteScalarTable
+{
+public:
+  MockInfiniteScalarTable ();
 
-void cwtest_add_host_mapping(std::string host, std::string target);
-void cwtest_clear_host_mapping();
-void cwtest_advance_time_ms(long delta_ms);
-void cwtest_reset_time();
-void cwtest_completely_control_time();
+  ~MockInfiniteScalarTable();
 
-// Control file manipulation.
-void cwtest_control_fopen(FILE* fd);
-void cwtest_release_fopen();
+  MOCK_METHOD2(increment, void(std::string value, uint32_t count));
+  MOCK_METHOD2(decrement, void(std::string value, uint32_t count));
+};
+
+#endif

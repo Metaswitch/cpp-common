@@ -1,5 +1,5 @@
 /**
- * @file test_interposer.hpp Unit test interposer header - hooks various calls that are useful for UT.
+ * @file mockdiameterresolver.hpp Mock Diameter resolver.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -34,17 +34,25 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#ifndef MOCKDIAMETERRESOLVER_H__
+#define MOCKDIAMETERRESOLVER_H__
 
-#pragma once
+#include "gmock/gmock.h"
+#include "diameterresolver.h"
 
-#include <string>
+class MockDiameterResolver : public DiameterResolver
+{
+public:
+  MockDiameterResolver() :
+    DiameterResolver(NULL, AF_INET)
+  {};
+  virtual ~MockDiameterResolver() {};
 
-void cwtest_add_host_mapping(std::string host, std::string target);
-void cwtest_clear_host_mapping();
-void cwtest_advance_time_ms(long delta_ms);
-void cwtest_reset_time();
-void cwtest_completely_control_time();
+  MOCK_METHOD5(resolve, void(const std::string&,
+                             const std::string&,
+                             int,
+                             std::vector<AddrInfo>&,
+                             int&));
+};
 
-// Control file manipulation.
-void cwtest_control_fopen(FILE* fd);
-void cwtest_release_fopen();
+#endif
