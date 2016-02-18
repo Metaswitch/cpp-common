@@ -85,9 +85,6 @@ private:
 class BaseAlarm
 {
 public:
-  BaseAlarm(const std::string& issuer,
-            const int index);
-  
   /// Queues a request to generate an alarm state change corresponding to the
   /// CLEARED severity.
   void clear();
@@ -101,6 +98,9 @@ public:
   bool alarmed() {return _alarmed.load();}
 
 protected:
+  BaseAlarm(const std::string& issuer,
+            const int index);
+
   const int _index;
   AlarmState _clear_state;
   
@@ -125,13 +125,15 @@ public:
   static AlarmManager& get_instance() {return _instance;}
   bool _terminated;
   void register_alarm(BaseAlarm* alarm); 
-  // Static function called by the reraising alarms thread. This simply calls
-  // the 'reraise_alarms' member method.
-  static void* reraise_alarms_function(void* data); 
-
+  
 private:
   AlarmManager();
   ~AlarmManager();
+
+  // Static function called by the reraising alarms thread. This simply calls
+  // the 'reraise_alarms' member method
+  static void* reraise_alarms_function(void* data);
+
   static AlarmManager _instance;
   // This runs on a thread (defined below) and iterates over _alarm_list
   // every 30 seconds. For each alarm it calls the reraise_last_state method.
@@ -139,8 +141,10 @@ private:
   // This is used for storing all of the BaseAlarm objects as they get
   // registered.
   std::vector<BaseAlarm*> _alarm_list;
+  // Defines a lock and condition variable to protect the reraising alarms
+  // thread.
   pthread_mutex_t _lock;
-  pthread_cond_t _terminating_variable;
+  pthread_cond_t _condition;
   pthread_t _reraising_alarms_thread;
 };
 
@@ -161,7 +165,7 @@ public:
 
   /// Queues a request to generate an alarm state change corresponding to the
   /// non-CLEARED severity if a state change for the CLEARED severity was
-  /// previously requestd via clear().
+  /// previously requested via clear().
   void set();
 
   /// Returns the index of this alarm.
@@ -175,7 +179,10 @@ private:
 ///
 /// Encapsulates an alarm's two or more active states with its associated clear
 /// state. Used to manage the reporting of a fault condition, and subsequent
-/// clear of said condition.
+/// clear of said condition. We further subclass this on a per-alarm basis, to
+/// give an alarm visibility of the protected raising functions cordesponding to that
+/// alarm's possible raised states. This would stop a user raising alarm at a
+/// state which does not exist for that alarm.
 
 class MultiStateAlarm: public BaseAlarm
 {

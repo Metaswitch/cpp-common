@@ -89,12 +89,12 @@ BaseAlarm::BaseAlarm(const std::string& issuer,
 
 void BaseAlarm::clear()
 {
-  bool previously_alarmed = _alarmed.exchange(false);
-  _last_state_raised = &_clear_state;
-  if (previously_alarmed)
+  _alarmed.exchange(false);
+  if (_last_state_raised != &_clear_state)
   {
     _clear_state.issue();
   }
+  _last_state_raised = &_clear_state;
 }
 
 void BaseAlarm::reraise_last_state()
@@ -112,12 +112,12 @@ Alarm::Alarm(const std::string& issuer,
 
 void Alarm::set()
 {
-  bool previously_alarmed = _alarmed.exchange(true);
-  _last_state_raised = &_set_state;
-  if (!previously_alarmed)
+  _alarmed.exchange(true);
+  if (_last_state_raised != &_set_state)
   {
     _set_state.issue();
   }
+  _last_state_raised = &_set_state;
 }
 
 MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
@@ -134,46 +134,62 @@ MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
 void MultiStateAlarm::multi_set_indeterminate()
 {
   _alarmed.exchange(true);
+  if (_last_state_raised != &_indeterminate_state)
+  {
+    _indeterminate_state.issue();
+  }
   _last_state_raised = &_indeterminate_state;
-  _indeterminate_state.issue();
 }
 
 void MultiStateAlarm::multi_set_warning()
 {
   _alarmed.exchange(true);
+  if (_last_state_raised != &_warning_state)
+  {
+    _warning_state.issue();
+  }
   _last_state_raised = &_warning_state;
-  _warning_state.issue();
 }
 
 void MultiStateAlarm::multi_set_minor()
 {
   _alarmed.exchange(true);
+  if (_last_state_raised != &_minor_state)
+  {
+    _minor_state.issue();
+  }
   _last_state_raised = &_minor_state;
-  _minor_state.issue();
 }
 
 void MultiStateAlarm::multi_set_major()
 {
   _alarmed.exchange(true);
+  if (_last_state_raised != &_major_state)
+  {
+    _major_state.issue();
+  }
   _last_state_raised = &_major_state;
-  _major_state.issue();
 }
 
 void MultiStateAlarm::multi_set_critical()
 {
   _alarmed.exchange(true);
+  if (_last_state_raised != &_critical_state)
+  {
+    _critical_state.issue();
+  }
   _last_state_raised = &_critical_state;
-  _critical_state.issue();
 }
 
 AlarmManager::AlarmManager()
 {
   _terminated = false;
+  // Creates a lock and a condition variable to protect the thread.
   pthread_mutex_init(&_lock, NULL);
   pthread_condattr_t cond_attr;
   pthread_condattr_init(&cond_attr);
   pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
-  pthread_cond_init(&_terminating_variable, &cond_attr);
+  pthread_cond_init(&_condition, &cond_attr);
   pthread_condattr_destroy(&cond_attr);
 
   pthread_create(&_reraising_alarms_thread, NULL, reraise_alarms_function, this);
@@ -183,10 +199,11 @@ AlarmManager::~AlarmManager()
 {
   pthread_mutex_lock(&_lock);
   _terminated = true;
-  pthread_cond_signal(&_terminating_variable);
+  // Signals the condition variable to terminate the thread.
+  pthread_cond_signal(&_condition);
   pthread_mutex_unlock(&_lock);
   pthread_join(_reraising_alarms_thread, NULL);
-  pthread_cond_destroy(&_terminating_variable);
+  pthread_cond_destroy(&_condition);
   pthread_mutex_destroy(&_lock);
 }
 
@@ -195,6 +212,10 @@ void AlarmManager::register_alarm(BaseAlarm* alarm)
   _alarm_list.push_back(alarm);
 }
 
+// This function runs on the thread created by the AlarmManager constructor. To
+// be compatible with the pthread this function needs to accept and return a
+// void pointer. This void pointer is then cast to an AlarmManger pointer in order to
+// call the reraise_alarms method.
 void* AlarmManager::reraise_alarms_function(void* data)
 {
   ((AlarmManager*)data)->reraise_alarms();
@@ -203,17 +224,19 @@ void* AlarmManager::reraise_alarms_function(void* data)
 
 void AlarmManager::reraise_alarms()
 {
+  TRC_DEBUG("Started reraising alarms every 30 seconds");
   while (!_terminated)
   {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    ts.tv_sec += 30;
     for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
     {
       (*it)->reraise_last_state();
     }
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    ts.tv_sec += 30;
-    pthread_cond_timedwait(&_terminating_variable, &_lock, &ts);
+    pthread_cond_timedwait(&_condition, &_lock, &ts);
   }
+  TRC_INFO("Reraising alarms thread terminating");
 }
 
 bool AlarmReqAgent::start()

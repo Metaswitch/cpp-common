@@ -1,5 +1,5 @@
 /**
- * @file mock_scalar_table.h
+ * @file mock_infinite_scalar_table.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015  Metaswitch Networks Ltd
@@ -34,21 +34,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCK_SCALAR_TABLE_H_
-#define MOCK_SCALAR_TABLE_H_
+#include "mock_infinite_scalar_table.h"
 
-#include "gmock/gmock.h"
-#include "snmp_infinite_scalar_table.h"
-
-class MockScalarTable : public SNMP::InfiniteScalarTable
-{
-public:
-  MockScalarTable ();
-
-  ~MockScalarTable();
-
-  MOCK_METHOD1(increment, void(std::string value));
-  MOCK_METHOD1(decrement, void(std::string value));
-};
-
-#endif
+MockInfiniteScalarTable::MockInfiniteScalarTable() {}
+MockInfiniteScalarTable::~MockInfiniteScalarTable() {}

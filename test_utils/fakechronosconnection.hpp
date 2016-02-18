@@ -1,8 +1,8 @@
 /**
- * @file mock_infinite_table.cpp
+ * @file fakehssconnection.hpp Header file for fake HSS connection (for testing).
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015  Metaswitch Networks Ltd
+ * Copyright (C) 2013  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,7 +34,39 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "mock_scalar_table.h"
+#pragma once
 
-MockScalarTable::MockScalarTable() {}
-MockScalarTable::~MockScalarTable() {}
+#include <string>
+#include "log.h"
+#include "sas.h"
+#include "chronosconnection.h"
+
+/// ChronosConnection that writes to/reads from a local map rather than the HSS.
+class FakeChronosConnection : public ChronosConnection
+{
+public:
+  FakeChronosConnection();
+  ~FakeChronosConnection();
+
+  void flush_all();
+  void set_result(const std::string& url, const HTTPCode& result);
+  void delete_result(const std::string& url);
+
+private:
+  std::map<std::string, HTTPCode> _results;
+  HTTPCode send_delete(const std::string& delete_identity,
+                       SAS::TrailId trail);
+  HTTPCode send_post(std::string& post_identity,
+                     uint32_t timer_interval,
+                     const std::string& callback_uri,
+                     const std::string& opaque_data,
+                     SAS::TrailId trail,
+                     const std::map<std::string, uint32_t>& tags);
+  HTTPCode send_put(std::string& put_identity,
+                    uint32_t timer_interval,
+                    const std::string& callback_uri,
+                    const std::string& opaque_data,
+                    SAS::TrailId trail,
+                    const std::map<std::string, uint32_t>& tags);
+  HTTPCode get_result(std::string identity);
+};

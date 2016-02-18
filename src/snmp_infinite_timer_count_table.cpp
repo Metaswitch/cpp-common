@@ -58,14 +58,14 @@ namespace SNMP
 
     virtual ~InfiniteTimerCountTableImpl(){};
     
-    void increment(std::string tag)
+    void increment(std::string tag, uint32_t count)
     {
-      _timer_counters[tag].increment();
+      _timer_counters[tag].increment(count);
     }
 
-    void decrement(std::string tag)
+    void decrement(std::string tag, uint32_t count)
     {
-      _timer_counters[tag].decrement();
+      _timer_counters[tag].decrement(count);
     }
 
   protected:
