@@ -171,6 +171,10 @@ void BaseAlarm::reraise_last_state()
   _last_state_raised->issue();
 }
 
+// This function runs on the thread created by the AlarmManager constructor. To
+// be compatible with the pthread this function needs to accept and return a
+// void pointer. This void pointer is then cast to an AlarmManger pointer in order to
+// call the reraise_alarms method.
 void* AlarmManager::reraise_alarms_function(void* data)
 {
   ((AlarmManager*)data)->reraise_alarms();
@@ -188,18 +192,19 @@ void AlarmManager::reraise_alarms()
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
     ts.tv_sec += 30;
-    pthread_cond_timedwait(&_terminating_variable, &_lock, &ts);
+    pthread_cond_timedwait(&_condition, &_lock, &ts);
   }
 }
 
 AlarmManager::AlarmManager()
 {
   _terminated = false;
+  // Creates a lock and a condition variable to protect the thread.
   pthread_mutex_init(&_lock, NULL);
   pthread_condattr_t cond_attr;
   pthread_condattr_init(&cond_attr);
   pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
-  pthread_cond_init(&_terminating_variable, &cond_attr);
+  pthread_cond_init(&_condition, &cond_attr);
   pthread_condattr_destroy(&cond_attr);
 
   pthread_create(&_reraising_alarms_thread, NULL, reraise_alarms_function, this);
@@ -209,10 +214,11 @@ AlarmManager::~AlarmManager()
 {
   pthread_mutex_lock(&_lock);
   _terminated = true;
-  pthread_cond_signal(&_terminating_variable);
+  // Signals the condition variable to terminate the thread.
+  pthread_cond_signal(&_condition);
   pthread_mutex_unlock(&_lock);
   pthread_join(_reraising_alarms_thread, NULL);
-  pthread_cond_destroy(&_terminating_variable);
+  pthread_cond_destroy(&_condition);
   pthread_mutex_destroy(&_lock);
 }
 

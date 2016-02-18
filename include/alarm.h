@@ -116,17 +116,21 @@ public:
   static AlarmManager _instance;
   bool _terminated;
   void add_alarm_to_list(BaseAlarm* alarm); 
+  
+private:
+  AlarmManager();
+  ~AlarmManager();
+  
   // Static function called by the reraising alarms thread. This simply calls
   // the 'reraise_alarms' member method.
   static void* reraise_alarms_function(void* data); 
 
-private:
-  AlarmManager();
-  ~AlarmManager();
   virtual void reraise_alarms();
   std::vector<BaseAlarm*> _global_alarm_list;
+  // Defines a lock and condition variable to protect the reraising alarms
+  // thread.
   pthread_mutex_t _lock;
-  pthread_cond_t _terminating_variable;
+  pthread_cond_t _condition;
   pthread_t _reraising_alarms_thread;
 };
 
