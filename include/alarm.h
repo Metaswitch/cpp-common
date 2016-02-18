@@ -90,11 +90,15 @@ public:
   
   /// Queues a request to generate an alarm state change corresponding to the
   /// CLEARED severity.
-  virtual void clear();
+  void clear();
 
   /// Uses the _last_state_raised member variable to re-raise the latest state
   /// of the alarm.
-  virtual void reraise_last_state();
+  void reraise_last_state();
+  
+  /// Indicates whether the alarm state currently maintained by this object
+  /// corresponds to the non-CLEARED severity.
+  bool alarmed() {return _alarmed.load();}
 
 protected:
   const int _index;
@@ -107,6 +111,7 @@ protected:
   // alarm has just been cleared this would be the corresponding _clear_state
   // for the alarm.
   AlarmState* _last_state_raised;
+  
 };
 
 /// @class AlarmManager
@@ -118,9 +123,8 @@ class AlarmManager
 {
 public:
   static AlarmManager& get_instance() {return _instance;}
-  static AlarmManager _instance;
   bool _terminated;
-  void add_alarm_to_list(BaseAlarm* alarm); 
+  void register_alarm(BaseAlarm* alarm); 
   // Static function called by the reraising alarms thread. This simply calls
   // the 'reraise_alarms' member method.
   static void* reraise_alarms_function(void* data); 
@@ -128,12 +132,13 @@ public:
 private:
   AlarmManager();
   ~AlarmManager();
-  // This runs on a thread (defined below) and iterates over _global_alarm_list
+  static AlarmManager _instance;
+  // This runs on a thread (defined below) and iterates over _alarm_list
   // every 30 seconds. For each alarm it calls the reraise_last_state method.
-  virtual void reraise_alarms();
+  void reraise_alarms();
   // This is used for storing all of the BaseAlarm objects as they get
-  // constructed.
-  std::vector<BaseAlarm*> _global_alarm_list;
+  // registered.
+  std::vector<BaseAlarm*> _alarm_list;
   pthread_mutex_t _lock;
   pthread_cond_t _terminating_variable;
   pthread_t _reraising_alarms_thread;
@@ -152,20 +157,16 @@ public:
         const int index,
         AlarmDef::Severity severity);
 
-  virtual ~Alarm() {}
+  ~Alarm() {}
 
   /// Queues a request to generate an alarm state change corresponding to the
   /// non-CLEARED severity if a state change for the CLEARED severity was
   /// previously requestd via clear().
-  virtual void set();
+  void set();
 
   /// Returns the index of this alarm.
-  virtual int index() const {return _index;}
+  int index() const {return _index;}
   
-  /// Indicates whether the alarm state currently maintained by this object
-  /// corresponds to the non-CLEARED severity.
-  virtual bool alarmed() {return _alarmed.load();}
-
 private:
   AlarmState _set_state;
 };
@@ -182,17 +183,13 @@ public:
   MultiStateAlarm(const std::string& issuer,
                   const int index);
   
-  /// Indicates whether the alarm state currently maintained by this object
-  /// corresponds to the non-CLEARED severity.
-  virtual bool alarmed() {return _alarmed.load();}
-  
 protected:
   /// These raise the alarm with the specified severity.
-  virtual void multi_set_indeterminate();
-  virtual void multi_set_warning();
-  virtual void multi_set_minor();
-  virtual void multi_set_major();
-  virtual void multi_set_critical();
+  void multi_set_indeterminate();
+  void multi_set_warning();
+  void multi_set_minor();
+  void multi_set_major();
+  void multi_set_critical();
 
 private:
   AlarmState _indeterminate_state;
