@@ -130,9 +130,6 @@ private:
   // the 'reraise_alarms' member method.
   static void* reraise_alarms_function(void* data); 
 
-private:
-  AlarmManager();
-  ~AlarmManager();
   // This runs on a thread (defined below) and iterates over _global_alarm_list
   // every 30 seconds. For each alarm it calls the reraise_last_state method.
   virtual void reraise_alarms();
