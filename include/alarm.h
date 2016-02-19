@@ -87,7 +87,7 @@ class BaseAlarm
 public:
   /// Queues a request to generate an alarm state change corresponding to the
   /// CLEARED severity.
-  void clear();
+  virtual void clear();
 
   /// Uses the _last_state_raised member variable to re-raise the latest state
   /// of the alarm.
@@ -95,7 +95,7 @@ public:
   
   /// Indicates whether the alarm state currently maintained by this object
   /// corresponds to the non-CLEARED severity.
-  bool alarmed() {return _alarmed.load();}
+  virtual bool alarmed() {return _alarmed.load();}
 
 protected:
   BaseAlarm(const std::string& issuer,
@@ -161,12 +161,12 @@ public:
         const int index,
         AlarmDef::Severity severity);
 
-  ~Alarm() {}
+  virtual ~Alarm() {}
 
   /// Queues a request to generate an alarm state change corresponding to the
   /// non-CLEARED severity if a state change for the CLEARED severity was
   /// previously requested via clear().
-  void set();
+  virtual void set();
 
   /// Returns the index of this alarm.
   int index() const {return _index;}

@@ -59,9 +59,7 @@ void AlarmState::issue()
   req.push_back("issue-alarm");
   req.push_back(_issuer);
   req.push_back(_identifier);
-
   AlarmReqAgent::get_instance().alarm_request(req);
-
   TRC_DEBUG("%s issued %s alarm", _issuer.c_str(), _identifier.c_str());
 }
 
@@ -191,7 +189,6 @@ AlarmManager::AlarmManager()
   pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
   pthread_cond_init(&_condition, &cond_attr);
   pthread_condattr_destroy(&cond_attr);
-
   pthread_create(&_reraising_alarms_thread, NULL, reraise_alarms_function, this);
 }
 
@@ -229,12 +226,28 @@ void AlarmManager::reraise_alarms()
   {
     struct timespec ts;
     clock_gettime(CLOCK_MONOTONIC, &ts);
-    ts.tv_sec += 30;
+    time_t current_time = ts.tv_sec;
     for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
     {
       (*it)->reraise_last_state();
     }
-    pthread_cond_timedwait(&_condition, &_lock, &ts);
+    struct timespec tr;
+    clock_gettime(CLOCK_MONOTONIC, &tr);
+    time_t alarm_time = tr.tv_sec;
+    while (alarm_time - current_time < 30 && !_terminated)
+    {
+      // When we are unit testing this function we want to sleep in 10ms
+      // increments. This gives the UT a chance to simulate 30 seconds of 
+      // time passing to cause all the alarms to be re-raised.
+#ifdef UNIT_TEST
+      ts.tv_nsec += 10000000;
+#else
+      ts.tv_sec += 30;
+#endif
+      pthread_cond_timedwait(&_condition, &_lock, &ts);
+      clock_gettime(CLOCK_MONOTONIC, &tr);
+      alarm_time = tr.tv_sec;
+    }
   }
   TRC_INFO("Reraising alarms thread terminating");
 }
@@ -401,7 +414,6 @@ void AlarmReqAgent::agent()
   while (_req_q && _req_q->pop(req))
   {
     TRC_DEBUG("AlarmReqAgent: servicing request queue");
-
     for (std::vector<std::string>::iterator it = req.begin(); it != req.end(); it++)
     {
       if (zmq_send(_sck, it->c_str(), it->size(), ((it + 1) != req.end()) ? ZMQ_SNDMORE : 0) == -1)
