@@ -124,11 +124,11 @@ SAS::TrailId SAS::new_trail(uint32_t instance)
 class FakeCompressor : public SAS::Compressor
 {
 public:
-  std::string compress(const std::string& s, std::string dictionary)
+  std::string compress(const std::string& s, const SAS::Profile* profile)
   {
-    if (!dictionary.empty())
+    if (profile != NULL)
     {
-      return "compress(\"" + s + "\", \"" + dictionary + "\")";
+      return "compress(\"" + s + "\", \"" + profile->get_dictionary() + "\")";
     }
     else
     {
