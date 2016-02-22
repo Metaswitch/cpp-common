@@ -83,14 +83,25 @@ namespace AlarmDef {
   struct SeverityDetails {
     SeverityDetails() {};
 
-    SeverityDetails(Severity severity, std::string description, std::string details):
+    SeverityDetails(Severity severity,
+                    std::string description,
+                    std::string details,
+                    std::string cause,
+                    std::string effect,
+                    std::string action):
       _severity(severity),
       _description(description),
-      _details(details){};
+      _details(details),
+      _cause(cause),
+      _effect(effect),
+      _action(action) {};
 
     Severity _severity;
     std::string _description;
     std::string _details;
+    std::string _cause;
+    std::string _effect;
+    std::string _action;
   };
 
   struct AlarmDefinition {
