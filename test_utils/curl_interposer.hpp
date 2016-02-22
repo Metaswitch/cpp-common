@@ -49,51 +49,17 @@
 #include <cerrno>
 #include <stdexcept>
 
-#pragma once
+#ifndef CURL_INTERPOSER_H
+#define CURL_INTERPOSER_H
 
 // Curl manipulation - note that curl is controlled by default
 void cwtest_control_curl();
 void cwtest_release_curl();
 
-static bool control_curl = true;
-
-static CURLcode (*real_curl_easy_getinfo)(CURL* handle, CURLINFO info, ...);
-static CURLcode (*real_curl_easy_setopt)(CURL* handle, CURLoption option, ...);
+template<typename... Args>
+CURLcode proxy_curl_easy_getinfo(CURL* handle, CURLINFO info, Args... args);
 
 template<typename... Args>
-CURLcode proxy_curl_easy_getinfo(CURL* handle, CURLINFO info, Args... args)
-{
-  if (!real_curl_easy_getinfo)
-  {
-    real_curl_easy_getinfo = (CURLcode (*)(CURL* handle, CURLINFO info, ...))dlsym(RTLD_NEXT, "curl_easy_getinfo");
-  }
+CURLcode proxy_curl_easy_setopt(CURL* handle, CURLoption option, Args... args);
 
-  if (control_curl)
-  {
-    printf("ERROR! Entered proxy curl function when we're controlling curl");
-    return CURLE_OK;
-  }
-  else
-  {
-    return real_curl_easy_getinfo(handle, info, args...);
-  }
-}
-
-template<typename... Args>
-CURLcode proxy_curl_easy_setopt(CURL* handle, CURLoption option, Args... args)
-{
-  if (!real_curl_easy_setopt)
-  {
-    real_curl_easy_setopt = (CURLcode (*)(CURL* handle, CURLoption option, ...))dlsym(RTLD_NEXT, "curl_easy_setopt");
-  }
-
-  if (control_curl)
-  {
-    printf("ERROR! Entered proxy curl function when we're controlling curl");
-    return CURLE_OK;
-  }
-  else
-  {
-    return real_curl_easy_setopt(handle, option, args...);
-  }
-}
+#endif

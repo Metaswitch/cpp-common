@@ -37,6 +37,8 @@
 #include "curl_interposer.hpp"
 #include "fakecurl.hpp"
 
+static bool control_curl = true;
+
 void cwtest_release_curl()
 {
   control_curl = false;
@@ -55,6 +57,8 @@ static struct curl_slist* (*real_curl_slist_append)(struct curl_slist* lst, cons
 static void (*real_curl_easy_cleanup)(CURL* handle);
 static CURL* (*real_curl_easy_init)();
 static CURLcode (*real_curl_global_init)(long flags);
+static CURLcode (*real_curl_easy_getinfo)(CURL* handle, CURLINFO info, ...);
+static CURLcode (*real_curl_easy_setopt)(CURL* handle, CURLoption option, ...);
 
 CURLcode curl_easy_perform(CURL* handle)
 {
@@ -444,3 +448,48 @@ CURLcode curl_easy_getinfo(CURL* handle, CURLINFO info, ...)
   va_end(args);  // http://www.gnu.org/software/gnu-c-manual/gnu-c-manual.html#Variable-Length-Parameter-Lists clarifies that in GCC this does nothing, so is fine even in the presence of exceptions
   return CURLE_OK;
 }
+
+template<typename... Args>
+CURLcode proxy_curl_easy_getinfo(CURL* handle, CURLINFO info, Args... args)
+{
+  if (!real_curl_easy_getinfo)
+  {
+    real_curl_easy_getinfo = (CURLcode (*)(CURL* handle, CURLINFO info, ...))dlsym(RTLD_NEXT, "curl_easy_getinfo");
+  }
+
+  if (control_curl)
+  {
+    printf("ERROR! Entered proxy curl function when we're controlling curl");
+    return CURLE_OK;
+  }
+  else
+  {
+    return real_curl_easy_getinfo(handle, info, args...);
+  }
+}
+
+template CURLcode proxy_curl_easy_getinfo<int*>(CURL*, CURLINFO, int*);
+
+template<typename... Args>
+CURLcode proxy_curl_easy_setopt(CURL* handle, CURLoption option, Args... args)
+{
+  if (!real_curl_easy_setopt)
+  {
+    real_curl_easy_setopt = (CURLcode (*)(CURL* handle, CURLoption option, ...))dlsym(RTLD_NEXT, "curl_easy_setopt");
+  }
+
+  if (control_curl)
+  {
+    printf("ERROR! Entered proxy curl function when we're controlling curl");
+    return CURLE_OK;
+  }
+  else
+  {
+    return real_curl_easy_setopt(handle, option, args...);
+  }
+}
+template CURLcode proxy_curl_easy_setopt<curl_slist*>(CURL*, CURLoption, curl_slist*);
+template CURLcode proxy_curl_easy_setopt<char*>(CURL*, CURLoption, char*);
+template CURLcode proxy_curl_easy_setopt<char const*>(CURL*, CURLoption, char const*);
+template CURLcode proxy_curl_easy_setopt<std::string*>(CURL*, CURLoption, std::string*);
+template CURLcode proxy_curl_easy_setopt<unsigned long (*)(void*, unsigned long, unsigned long, void*)>(CURL*, CURLoption, unsigned long (*)(void*, unsigned long, unsigned long, void*));
