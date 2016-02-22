@@ -51,11 +51,11 @@
 
 #pragma once
 
-// Curl manipulation.
+// Curl manipulation - note that curl is controlled by default
 void cwtest_control_curl();
 void cwtest_release_curl();
 
-static bool control_curl = false;
+static bool control_curl = true;
 
 static CURLcode (*real_curl_easy_getinfo)(CURL* handle, CURLINFO info, ...);
 static CURLcode (*real_curl_easy_setopt)(CURL* handle, CURLoption option, ...);
