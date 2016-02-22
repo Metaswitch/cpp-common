@@ -1,8 +1,8 @@
 /**
- * @file curl_interposer.hpp
+ * @file fakesnmp.cpp Fake SNMP infrastructure (for testing).
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2016 Metaswitch Networks Ltd
+ * Copyright (C) 2015 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,32 +34,48 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <curl/curl.h>
-#include <cstdarg>
-#include <stdexcept>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <dlfcn.h>
-#include <pthread.h>
+#include "snmp_internal/snmp_includes.h"
+#include "fakesnmp.hpp"
+#include "snmp_success_fail_count_table.h"
+#include "snmp_success_fail_count_by_request_type_table.h"
 
-#include <map>
-#include <string>
-#include <cstdio>
-#include <cerrno>
-#include <stdexcept>
+namespace SNMP
+{
+struct in_addr dummy_addr;
 
-#ifndef CURL_INTERPOSER_H
-#define CURL_INTERPOSER_H
+// Alternative implementations is some functions, so we aren't calling real SNMP code in UT
+CounterTable* CounterTable::create(std::string name, std::string oid) { return new FakeCounterTable(); };
 
-// Curl manipulation - note that curl is controlled by default
-void cwtest_control_curl();
-void cwtest_release_curl();
+IPCountTable* IPCountTable::create(std::string name, std::string oid) { return new FakeIPCountTable(); };
+IPCountRow::IPCountRow(struct in_addr addr) {};
+IPCountRow::IPCountRow(struct in6_addr addr) {};
 
-template<typename... Args>
-CURLcode proxy_curl_easy_getinfo(CURL* handle, CURLINFO info, Args... args);
+ColumnData IPCountRow::get_columns()
+{
+  ColumnData ret;
+  return ret;
+}
 
-template<typename... Args>
-CURLcode proxy_curl_easy_setopt(CURL* handle, CURLoption option, Args... args);
+SuccessFailCountByRequestTypeTable* SuccessFailCountByRequestTypeTable::create(std::string name, std::string oid)
+{
+  return new FakeSuccessFailCountByRequestTypeTable();
+};
 
-#endif
+FakeIPCountRow FAKE_IP_COUNT_ROW;
+FakeIPCountTable FAKE_IP_COUNT_TABLE;
+FakeCounterTable FAKE_COUNTER_TABLE;
+FakeEventAccumulatorTable FAKE_EVENT_ACCUMULATOR_TABLE;
+FakeContinuousAccumulatorTable FAKE_CONTINUOUS_ACCUMULATOR_TABLE;
+
+} // Namespace SNMP ends
+
+// Fake implementation of scalar registration function, so SNMP::U32Scalar doesn't call real SNMP
+// code
+int netsnmp_register_read_only_ulong_instance(const char *name,
+                                              oid *reg_oid,
+                                              size_t reg_oid_len,
+                                              u_long *it,
+                                              Netsnmp_Node_Handler *subhandler)
+{
+  return 0;
+}
