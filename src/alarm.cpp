@@ -54,6 +54,7 @@ AlarmState::AlarmState(const std::string& issuer,
 
 void AlarmState::issue()
 {
+  AlarmManager::get_instance()._first_alarm_raised = true;
   std::vector<std::string> req;
 
   req.push_back("issue-alarm");
@@ -129,7 +130,7 @@ MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
 {
 }
 
-void MultiStateAlarm::multi_set_indeterminate()
+void MultiStateAlarm::set_indeterminate()
 {
   _alarmed.exchange(true);
   if (_last_state_raised != &_indeterminate_state)
@@ -139,7 +140,7 @@ void MultiStateAlarm::multi_set_indeterminate()
   _last_state_raised = &_indeterminate_state;
 }
 
-void MultiStateAlarm::multi_set_warning()
+void MultiStateAlarm::set_warning()
 {
   _alarmed.exchange(true);
   if (_last_state_raised != &_warning_state)
@@ -149,7 +150,7 @@ void MultiStateAlarm::multi_set_warning()
   _last_state_raised = &_warning_state;
 }
 
-void MultiStateAlarm::multi_set_minor()
+void MultiStateAlarm::set_minor()
 {
   _alarmed.exchange(true);
   if (_last_state_raised != &_minor_state)
@@ -159,7 +160,7 @@ void MultiStateAlarm::multi_set_minor()
   _last_state_raised = &_minor_state;
 }
 
-void MultiStateAlarm::multi_set_major()
+void MultiStateAlarm::set_major()
 {
   _alarmed.exchange(true);
   if (_last_state_raised != &_major_state)
@@ -169,7 +170,7 @@ void MultiStateAlarm::multi_set_major()
   _last_state_raised = &_major_state;
 }
 
-void MultiStateAlarm::multi_set_critical()
+void MultiStateAlarm::set_critical()
 {
   _alarmed.exchange(true);
   if (_last_state_raised != &_critical_state)
@@ -182,6 +183,7 @@ void MultiStateAlarm::multi_set_critical()
 AlarmManager::AlarmManager()
 {
   _terminated = false;
+  _first_alarm_raised = false;
   // Creates a lock and a condition variable to protect the thread.
   pthread_mutex_init(&_lock, NULL);
   pthread_condattr_t cond_attr;
@@ -222,31 +224,41 @@ void* AlarmManager::reraise_alarms_function(void* data)
 void AlarmManager::reraise_alarms()
 {
   TRC_DEBUG("Started reraising alarms every 30 seconds");
+  struct timespec time_limit;
+  clock_gettime(CLOCK_MONOTONIC, &time_limit);
+  
   while (!_terminated)
   {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    time_t current_time = ts.tv_sec;
-    for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
+    // Sets the limit for when we want the thread to wake up and start
+    // re-issueing alarms again.
+    time_limit.tv_sec += 30;
+
+    if (AlarmManager::get_instance()._first_alarm_raised)
     {
-      (*it)->reraise_last_state();
+      for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
+      {
+        (*it)->reraise_last_state();
+      }
     }
-    struct timespec tr;
-    clock_gettime(CLOCK_MONOTONIC, &tr);
-    time_t alarm_time = tr.tv_sec;
-    while (alarm_time - current_time < 30 && !_terminated)
+
+    struct timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC, &current_time);
+    
+    // Forces us to wait if it took less than 30 seconds to raise the alarms.
+    while (current_time.tv_sec < time_limit.tv_sec && !_terminated)
     {
       // When we are unit testing this function we want to sleep in 10ms
       // increments. This gives the UT a chance to simulate 30 seconds of 
       // time passing to cause all the alarms to be re-raised.
 #ifdef UNIT_TEST
-      ts.tv_nsec += 10000000;
-#else
-      ts.tv_sec += 30;
+      time_limit.tv_nsec += 10000000;
+      time_limit.tv_sec -= 30;
 #endif
-      pthread_cond_timedwait(&_condition, &_lock, &ts);
-      clock_gettime(CLOCK_MONOTONIC, &tr);
-      alarm_time = tr.tv_sec;
+      pthread_cond_timedwait(&_condition, &_lock, &time_limit);
+      clock_gettime(CLOCK_MONOTONIC, &current_time);
+#ifdef UNIT_TEST
+      time_limit.tv_sec += 30;
+#endif
     }
   }
   TRC_INFO("Reraising alarms thread terminating");
@@ -414,6 +426,7 @@ void AlarmReqAgent::agent()
   while (_req_q && _req_q->pop(req))
   {
     TRC_DEBUG("AlarmReqAgent: servicing request queue");
+
     for (std::vector<std::string>::iterator it = req.begin(); it != req.end(); it++)
     {
       if (zmq_send(_sck, it->c_str(), it->size(), ((it + 1) != req.end()) ? ZMQ_SNDMORE : 0) == -1)

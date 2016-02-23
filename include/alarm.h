@@ -111,7 +111,6 @@ protected:
   // alarm has just been cleared this would be the corresponding _clear_state
   // for the alarm.
   AlarmState* _last_state_raised;
-  
 };
 
 /// @class AlarmManager
@@ -124,8 +123,11 @@ class AlarmManager
 public:
   static AlarmManager& get_instance() {return _instance;}
   bool _terminated;
+  bool _first_alarm_raised;
   void register_alarm(BaseAlarm* alarm); 
-  
+  // Used to stop re-raising alarms in UTs
+  void alarm_list_clear(void) {_alarm_list.clear();}
+
 private:
   AlarmManager();
   ~AlarmManager();
@@ -192,11 +194,11 @@ public:
   
 protected:
   /// These raise the alarm with the specified severity.
-  void multi_set_indeterminate();
-  void multi_set_warning();
-  void multi_set_minor();
-  void multi_set_major();
-  void multi_set_critical();
+  void set_indeterminate();
+  void set_warning();
+  void set_minor();
+  void set_major();
+  void set_critical();
 
 private:
   AlarmState _indeterminate_state;
