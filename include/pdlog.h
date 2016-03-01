@@ -99,6 +99,7 @@ public:
     CL_PYTHON_COMMON_ID = 12000,
     CL_CREST_ID = 13000,
     CL_QUEUE_MGR_ID = 14000
+    // The range 15000-15999 is reserved
   };
 
   PDLogBase(int log_id,
