@@ -232,9 +232,9 @@ void AlarmManager::reraise_alarms()
     // Sets the limit for when we want the thread to wake up and start
     // re-issueing alarms again.
     time_limit.tv_sec += 30;
-
     if (AlarmManager::get_instance()._first_alarm_raised)
     {
+      TRC_DEBUG("Reraising alarms");
       for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
       {
         (*it)->reraise_last_state();
