@@ -58,10 +58,11 @@ namespace AlarmDef {
   // Memento alarms: 5000->5499
   // Astaire alarms: 5500->5999
   // Etcd alarms: 6500->6999
-  // Alarms 7000-7999 are reserved
+  // Alarms 7000->7999 are reserved
   // Cluster-manager alarms: 8000->8499
   // Config-manager alarms: 8500->8999
-  // Queue-manager alarms: 9000->9500
+  // Queue-manager alarms: 9000->9499
+  // Alarms 9500->9999 are reserved
 
   enum Severity {
     UNDEFINED_SEVERITY,
