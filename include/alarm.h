@@ -95,7 +95,7 @@ public:
   
   /// Indicates whether the alarm state currently maintained by this object
   /// corresponds to the non-CLEARED severity.
-  virtual bool alarmed() {return _alarmed.load();}
+  virtual bool alarmed() {return (_last_state_raised == &_clear_state ? false : true);}
 
 protected:
   BaseAlarm(const std::string& issuer,
@@ -104,9 +104,6 @@ protected:
   const int _index;
   AlarmState _clear_state;
   
-  /// Keeps track of whether the alarm is raised
-  std::atomic<bool> _alarmed;
-
   // Keeps track of the latest state of each alarm that has been raised. If the
   // alarm has just been cleared this would be the corresponding _clear_state
   // for the alarm.
@@ -123,15 +120,17 @@ class AlarmManager
 public:
   static AlarmManager& get_instance() {return _instance;}
   bool _terminated;
-  bool _first_alarm_raised;
   void register_alarm(BaseAlarm* alarm); 
   // Used to stop re-raising alarms in UTs
   void alarm_list_clear(void) {_alarm_list.clear();}
+  void start_resending_alarms(void) {_first_alarm_raised = true;}
+  bool has_alarm_been_raised(void) {return _first_alarm_raised;}
 
 private:
   AlarmManager();
   ~AlarmManager();
 
+  bool _first_alarm_raised;
   // Static function called by the reraising alarms thread. This simply calls
   // the 'reraise_alarms' member method
   static void* reraise_alarms_function(void* data);

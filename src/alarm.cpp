@@ -41,6 +41,8 @@
 #include "alarm.h"
 #include "log.h"
 
+pthread_mutex_t mutexlock;
+
 AlarmReqAgent AlarmReqAgent::_instance;
 AlarmManager AlarmManager::_instance;
 
@@ -54,7 +56,7 @@ AlarmState::AlarmState(const std::string& issuer,
 
 void AlarmState::issue()
 {
-  AlarmManager::get_instance()._first_alarm_raised = true;
+  AlarmManager::get_instance().start_resending_alarms();
   std::vector<std::string> req;
 
   req.push_back("issue-alarm");
@@ -80,7 +82,6 @@ BaseAlarm::BaseAlarm(const std::string& issuer,
                      const int index):
   _index(index),
   _clear_state(issuer, index, AlarmDef::CLEARED),
-  _alarmed(false),
   _last_state_raised(&_clear_state)
 {
   AlarmManager::get_instance().register_alarm(this);
@@ -88,12 +89,13 @@ BaseAlarm::BaseAlarm(const std::string& issuer,
 
 void BaseAlarm::clear()
 {
-  _alarmed.exchange(false);
   if (_last_state_raised != &_clear_state)
   {
+    pthread_mutex_lock (&mutexlock);
     _clear_state.issue();
+    _last_state_raised = &_clear_state;
+    pthread_mutex_unlock (&mutexlock);
   }
-  _last_state_raised = &_clear_state;
 }
 
 void BaseAlarm::reraise_last_state()
@@ -111,12 +113,13 @@ Alarm::Alarm(const std::string& issuer,
 
 void Alarm::set()
 {
-  _alarmed.exchange(true);
   if (_last_state_raised != &_set_state)
   {
+    pthread_mutex_lock (&mutexlock);
     _set_state.issue();
+    _last_state_raised = &_set_state;
+    pthread_mutex_unlock (&mutexlock);
   }
-  _last_state_raised = &_set_state;
 }
 
 MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
@@ -132,58 +135,63 @@ MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
 
 void MultiStateAlarm::set_indeterminate()
 {
-  _alarmed.exchange(true);
   if (_last_state_raised != &_indeterminate_state)
   {
+    pthread_mutex_lock (&mutexlock);
     _indeterminate_state.issue();
+    _last_state_raised = &_indeterminate_state;
+    pthread_mutex_unlock (&mutexlock);
   }
-  _last_state_raised = &_indeterminate_state;
 }
 
 void MultiStateAlarm::set_warning()
 {
-  _alarmed.exchange(true);
   if (_last_state_raised != &_warning_state)
   {
+    pthread_mutex_lock (&mutexlock);
     _warning_state.issue();
+    _last_state_raised = &_warning_state;
+    pthread_mutex_unlock (&mutexlock);
   }
-  _last_state_raised = &_warning_state;
 }
 
 void MultiStateAlarm::set_minor()
 {
-  _alarmed.exchange(true);
   if (_last_state_raised != &_minor_state)
   {
+    pthread_mutex_lock (&mutexlock);
     _minor_state.issue();
+    _last_state_raised = &_minor_state;
+    pthread_mutex_unlock (&mutexlock);
   }
-  _last_state_raised = &_minor_state;
 }
 
 void MultiStateAlarm::set_major()
 {
-  _alarmed.exchange(true);
   if (_last_state_raised != &_major_state)
   {
+    pthread_mutex_lock (&mutexlock);
     _major_state.issue();
+    _last_state_raised = &_major_state;
+    pthread_mutex_unlock (&mutexlock);
   }
-  _last_state_raised = &_major_state;
 }
 
 void MultiStateAlarm::set_critical()
 {
-  _alarmed.exchange(true);
   if (_last_state_raised != &_critical_state)
   {
+    pthread_mutex_lock (&mutexlock);
     _critical_state.issue();
+    _last_state_raised = &_critical_state;
+    pthread_mutex_unlock (&mutexlock);
   }
-  _last_state_raised = &_critical_state;
 }
 
-AlarmManager::AlarmManager()
+AlarmManager::AlarmManager():
+  _terminated(false),
+  _first_alarm_raised(false)
 {
-  _terminated = false;
-  _first_alarm_raised = false;
   // Creates a lock and a condition variable to protect the thread.
   pthread_mutex_init(&_lock, NULL);
   pthread_condattr_t cond_attr;
@@ -232,7 +240,7 @@ void AlarmManager::reraise_alarms()
     // Sets the limit for when we want the thread to wake up and start
     // re-issueing alarms again.
     time_limit.tv_sec += 30;
-    if (AlarmManager::get_instance()._first_alarm_raised)
+    if (AlarmManager::get_instance().has_alarm_been_raised())
     {
       TRC_DEBUG("Reraising alarms");
       for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
