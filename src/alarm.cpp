@@ -41,7 +41,12 @@
 #include "alarm.h"
 #include "log.h"
 
-pthread_mutex_t mutexlock;
+// When an alarm is issued we change the _last_state_raised member variable of
+// the alarm. We must not allow another thread to raise the same alarm at a
+// different severity between these operations for this would cause data
+// contention. To ensure we don't do this the call to issue the alarm and change
+// the _last_state_raised are protected by this lock.
+pthread_mutex_t issue_alarm_change_state;
 
 AlarmReqAgent AlarmReqAgent::_instance;
 AlarmManager AlarmManager::_instance;
@@ -87,15 +92,19 @@ BaseAlarm::BaseAlarm(const std::string& issuer,
   AlarmManager::get_instance().register_alarm(this);
 }
 
+void BaseAlarm::switch_to_state(AlarmState* new_state)
+{
+  if (_last_state_raised !=  new_state)
+  {
+    pthread_mutex_lock (&issue_alarm_change_state);
+    new_state->issue();
+    _last_state_raised = new_state;
+    pthread_mutex_unlock (&issue_alarm_change_state);
+  }
+}
 void BaseAlarm::clear()
 {
-  if (_last_state_raised != &_clear_state)
-  {
-    pthread_mutex_lock (&mutexlock);
-    _clear_state.issue();
-    _last_state_raised = &_clear_state;
-    pthread_mutex_unlock (&mutexlock);
-  }
+  switch_to_state(&_clear_state);
 }
 
 void BaseAlarm::reraise_last_state()
@@ -113,13 +122,7 @@ Alarm::Alarm(const std::string& issuer,
 
 void Alarm::set()
 {
-  if (_last_state_raised != &_set_state)
-  {
-    pthread_mutex_lock (&mutexlock);
-    _set_state.issue();
-    _last_state_raised = &_set_state;
-    pthread_mutex_unlock (&mutexlock);
-  }
+  switch_to_state(&_set_state);
 }
 
 MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
@@ -135,57 +138,27 @@ MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
 
 void MultiStateAlarm::set_indeterminate()
 {
-  if (_last_state_raised != &_indeterminate_state)
-  {
-    pthread_mutex_lock (&mutexlock);
-    _indeterminate_state.issue();
-    _last_state_raised = &_indeterminate_state;
-    pthread_mutex_unlock (&mutexlock);
-  }
+  switch_to_state(&_indeterminate_state);
 }
 
 void MultiStateAlarm::set_warning()
 {
-  if (_last_state_raised != &_warning_state)
-  {
-    pthread_mutex_lock (&mutexlock);
-    _warning_state.issue();
-    _last_state_raised = &_warning_state;
-    pthread_mutex_unlock (&mutexlock);
-  }
+  switch_to_state(&_warning_state);
 }
 
 void MultiStateAlarm::set_minor()
 {
-  if (_last_state_raised != &_minor_state)
-  {
-    pthread_mutex_lock (&mutexlock);
-    _minor_state.issue();
-    _last_state_raised = &_minor_state;
-    pthread_mutex_unlock (&mutexlock);
-  }
+  switch_to_state(&_minor_state);
 }
 
 void MultiStateAlarm::set_major()
 {
-  if (_last_state_raised != &_major_state)
-  {
-    pthread_mutex_lock (&mutexlock);
-    _major_state.issue();
-    _last_state_raised = &_major_state;
-    pthread_mutex_unlock (&mutexlock);
-  }
+  switch_to_state(&_major_state);
 }
 
 void MultiStateAlarm::set_critical()
 {
-  if (_last_state_raised != &_critical_state)
-  {
-    pthread_mutex_lock (&mutexlock);
-    _critical_state.issue();
-    _last_state_raised = &_critical_state;
-    pthread_mutex_unlock (&mutexlock);
-  }
+  switch_to_state(&_critical_state);
 }
 
 AlarmManager::AlarmManager():

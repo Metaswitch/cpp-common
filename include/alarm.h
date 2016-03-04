@@ -95,7 +95,11 @@ public:
   
   /// Indicates whether the alarm state currently maintained by this object
   /// corresponds to the non-CLEARED severity.
-  virtual bool alarmed() {return (_last_state_raised == &_clear_state ? false : true);}
+  virtual bool alarmed() {return (_last_state_raised != &_clear_state);}
+
+  // If an alarm is currently in a different state to the one we wish to raise
+  // the alarm in, we raise the alarm and update _last_state_raised.
+  void switch_to_state(AlarmState* new_state);
 
 protected:
   BaseAlarm(const std::string& issuer,
@@ -122,8 +126,8 @@ public:
   bool _terminated;
   void register_alarm(BaseAlarm* alarm); 
   // Used to stop re-raising alarms in UTs
-  void alarm_list_clear(void) {_alarm_list.clear();}
-  void start_resending_alarms(void) {_first_alarm_raised = true;}
+  void forget_alarm_list(void) {_alarm_list.clear();}
+  void start_resending_alarms(void) { _first_alarm_raised = true; }
   bool has_alarm_been_raised(void) {return _first_alarm_raised;}
 
 private:
