@@ -61,7 +61,7 @@ AlarmState::AlarmState(const std::string& issuer,
 
 void AlarmState::issue()
 {
-  AlarmManager::get_instance().start_resending_alarms();
+  AlarmManager::get_instance()._first_alarm_raised = true;
   std::vector<std::string> req;
 
   req.push_back("issue-alarm");
@@ -213,7 +213,7 @@ void AlarmManager::reraise_alarms()
     // Sets the limit for when we want the thread to wake up and start
     // re-issueing alarms again.
     time_limit.tv_sec += 30;
-    if (has_alarm_been_raised())
+    if (_first_alarm_raised)
     {
       TRC_DEBUG("Reraising alarms");
       for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
