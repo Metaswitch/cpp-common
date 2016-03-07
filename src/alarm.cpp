@@ -206,6 +206,7 @@ void AlarmManager::reraise_alarms()
 {
   TRC_DEBUG("Started reraising alarms every 30 seconds");
   struct timespec time_limit;
+  pthread_mutex_lock(&_lock);
   clock_gettime(CLOCK_MONOTONIC, &time_limit);
   
   while (!_terminated)
@@ -242,6 +243,7 @@ void AlarmManager::reraise_alarms()
 #endif
     }
   }
+  pthread_mutex_lock(&_lock);
   TRC_INFO("Reraising alarms thread terminating");
 }
 
