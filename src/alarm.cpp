@@ -243,7 +243,7 @@ void AlarmManager::reraise_alarms()
 #endif
     }
   }
-  pthread_mutex_lock(&_lock);
+  pthread_mutex_unlock(&_lock);
   TRC_INFO("Reraising alarms thread terminating");
 }
 
