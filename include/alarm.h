@@ -127,6 +127,7 @@ public:
   void register_alarm(BaseAlarm* alarm); 
   // Used to stop re-raising alarms in UTs
   void forget_alarm_list(void) {_alarm_list.clear();}
+  void start_resending_alarms(void) { _first_alarm_raised = true; }
 
 private:
   AlarmManager();
