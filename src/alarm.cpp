@@ -213,7 +213,19 @@ void AlarmManager::reraise_alarms()
   {
     // Sets the limit for when we want the thread to wake up and start
     // re-issueing alarms again.
+#ifndef UNIT_TEST
     time_limit.tv_sec += 30;
+#else
+    // When we are unit testing this function we want to sleep in 10ms
+    // increments. This gives the UT a chance to simulate 30 seconds of 
+    // time passing to cause all the alarms to be re-raised.
+    time_limit.tv_nsec += 10 * 1000 * 1000;
+    if (time_limit.tv_nsec >= (1000 * 1000 * 1000))
+    {
+      time_limit.tv_nsec -= 1000 * 1000 * 1000;
+      time_limit.tv_sec += 1;
+    }
+#endif
     if (_first_alarm_raised)
     {
       TRC_DEBUG("Reraising alarms");
@@ -227,20 +239,12 @@ void AlarmManager::reraise_alarms()
     clock_gettime(CLOCK_MONOTONIC, &current_time);
     
     // Forces us to wait if it took less than 30 seconds to raise the alarms.
-    while (current_time.tv_sec < time_limit.tv_sec && !_terminated)
+    while (((current_time.tv_sec < time_limit.tv_sec) ||
+            ((current_time.tv_sec == time_limit.tv_sec) && (current_time.tv_nsec < time_limit.tv_nsec))) &&
+            !_terminated)
     {
-      // When we are unit testing this function we want to sleep in 10ms
-      // increments. This gives the UT a chance to simulate 30 seconds of 
-      // time passing to cause all the alarms to be re-raised.
-#ifdef UNIT_TEST
-      time_limit.tv_nsec += 10000000;
-      time_limit.tv_sec -= 30;
-#endif
       pthread_cond_timedwait(&_condition, &_lock, &time_limit);
       clock_gettime(CLOCK_MONOTONIC, &current_time);
-#ifdef UNIT_TEST
-      time_limit.tv_sec += 30;
-#endif
     }
   }
   pthread_mutex_unlock(&_lock);
