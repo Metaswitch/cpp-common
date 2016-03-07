@@ -61,7 +61,7 @@ AlarmState::AlarmState(const std::string& issuer,
 
 void AlarmState::issue()
 {
-  AlarmManager::get_instance()._first_alarm_raised = true;
+  AlarmManager::get_instance().start_resending_alarms();
   std::vector<std::string> req;
 
   req.push_back("issue-alarm");
