@@ -209,7 +209,9 @@ void AlarmManager::reraise_alarms()
 {
   TRC_DEBUG("Started reraising alarms every 30 seconds");
   struct timespec time_limit;
+#ifdef UNIT_TEST
   int UT_TIME_BETWEEN_CHECKS = 1000;
+#endif
   pthread_mutex_lock(&_lock);
   clock_gettime(CLOCK_MONOTONIC, &time_limit);
   
