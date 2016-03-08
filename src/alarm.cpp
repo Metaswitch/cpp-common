@@ -136,10 +136,13 @@ MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
 {
 }
 
+// We don't have any UTs that use an indeterminate state.
+// LCOV_EXCL_START
 void MultiStateAlarm::set_indeterminate()
 {
   switch_to_state(&_indeterminate_state);
 }
+// LCOV_EXCL_STOP
 
 void MultiStateAlarm::set_warning()
 {
@@ -250,8 +253,10 @@ void AlarmManager::reraise_alarms()
       time_limit.tv_nsec += 10 * 1000 * 1000;
       if (time_limit.tv_nsec >= (1000 * 1000 * 1000))
       {
+        // LCOV_EXCL_START
         time_limit.tv_nsec -= 1000 * 1000 * 1000;
         time_limit.tv_sec += 1;
+        // LCOV_EXCL_STOP
       }
       // We want to temporarily reduce the time_limit for UTs to 10ms, this
       // allows us to pass pthread_cond_timedwait quickly but keeps us in this

@@ -128,6 +128,7 @@ public:
   // Used to stop re-raising alarms in UTs
   void forget_alarm_list(void) {_alarm_list.clear();}
   void start_resending_alarms(void) { _first_alarm_raised = true; }
+  void stop_resending_alarms(void) { _first_alarm_raised = false; }
 
 private:
   AlarmManager();
