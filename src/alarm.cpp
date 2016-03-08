@@ -49,7 +49,8 @@
 pthread_mutex_t issue_alarm_change_state;
 
 AlarmReqAgent AlarmReqAgent::_instance;
-AlarmManager AlarmManager::_instance;
+AlarmManager* AlarmManager::_instance;
+pthread_once_t AlarmManager::alarm_manager_singleton_once = PTHREAD_ONCE_INIT;
 
 AlarmState::AlarmState(const std::string& issuer,
                        const int index,
@@ -164,6 +165,17 @@ void MultiStateAlarm::set_critical()
   switch_to_state(&_critical_state);
 }
 
+void AlarmManager::create_singleton()
+{
+  _instance = new AlarmManager();
+}
+
+AlarmManager& AlarmManager::get_instance()
+{
+  pthread_once(&alarm_manager_singleton_once, AlarmManager::create_singleton);
+  return *_instance;
+}
+
 AlarmManager::AlarmManager():
   _terminated(false),
   _first_alarm_raised(false)
@@ -192,7 +204,9 @@ AlarmManager::~AlarmManager()
 
 void AlarmManager::register_alarm(BaseAlarm* alarm)
 {
+  pthread_mutex_lock(&_lock);
   _alarm_list.push_back(alarm);
+  pthread_mutex_unlock(&_lock);
 }
 
 // This function runs on the thread created by the AlarmManager constructor. To

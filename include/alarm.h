@@ -122,7 +122,7 @@ protected:
 class AlarmManager
 {
 public:
-  static AlarmManager& get_instance() {return _instance;}
+  static AlarmManager& get_instance();
   bool _terminated;
   void register_alarm(BaseAlarm* alarm); 
   // Used to stop re-raising alarms in UTs
@@ -134,12 +134,16 @@ private:
   AlarmManager();
   ~AlarmManager();
 
+  // Called once (using pthread_once) to create the AlarmManager.
+  static void create_singleton();
+  static AlarmManager* _instance;
+  static pthread_once_t alarm_manager_singleton_once;
+
   bool _first_alarm_raised;
   // Static function called by the reraising alarms thread. This simply calls
   // the 'reraise_alarms' member method
   static void* reraise_alarms_function(void* data);
 
-  static AlarmManager _instance;
   // This runs on a thread (defined below) and iterates over _alarm_list
   // every 30 seconds. For each alarm it calls the reraise_last_state method.
   void reraise_alarms();
