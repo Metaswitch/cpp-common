@@ -248,7 +248,7 @@ void AlarmManager::reraise_alarms()
       // time passing to cause all the alarms to be re-raised. We have to make
       // sure though that adding on 10ms doesn't cause tv_nsec to go over its
       // limit of a billion nanoseconds, in this case we incrament the second
-      // counter and
+      // counter.
 #ifdef UNIT_TEST
       time_limit.tv_nsec += 10 * 1000 * 1000;
       if (time_limit.tv_nsec >= (1000 * 1000 * 1000))
