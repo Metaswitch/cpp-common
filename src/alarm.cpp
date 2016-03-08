@@ -206,15 +206,20 @@ void AlarmManager::reraise_alarms()
 {
   TRC_DEBUG("Started reraising alarms every 30 seconds");
   struct timespec time_limit;
+  int UT_TIME_BETWEEN_CHECKS = 1000;
   pthread_mutex_lock(&_lock);
   clock_gettime(CLOCK_MONOTONIC, &time_limit);
   
   while (!_terminated)
   {
     // Sets the limit for when we want the thread to wake up and start
-    // re-issueing alarms again.
+    // re-issueing alarms again. When we are Unit Testing with Valgrind we need
+    // to ensure the UTs have enough time to complete before we start resending
+    // alarms, so we add 1000s on to the time limit used below and then in UTs
+    // we can simulate time moving forward by 1000s if we want to trigger alarms
+    // being resent. 
 #ifdef UNIT_TEST
-    time_limit.tv_sec += 1000;
+    time_limit.tv_sec += UT_TIME_BETWEEN_CHECKS;
 #else
     time_limit.tv_sec += 30;
 #endif
@@ -236,8 +241,11 @@ void AlarmManager::reraise_alarms()
             !_terminated)
     {
       // When we are unit testing this function we want to sleep in 10ms
-      // increments. This gives the UT a chance to simulate 30 seconds of 
-      // time passing to cause all the alarms to be re-raised.
+      // increments. This gives the UT a chance to simulate 1000 seconds of 
+      // time passing to cause all the alarms to be re-raised. We have to make
+      // sure though that adding on 10ms doesn't cause tv_nsec to go over its
+      // limit of a billion nanoseconds, in this case we incrament the second
+      // counter and
 #ifdef UNIT_TEST
       time_limit.tv_nsec += 10 * 1000 * 1000;
       if (time_limit.tv_nsec >= (1000 * 1000 * 1000))
@@ -245,12 +253,15 @@ void AlarmManager::reraise_alarms()
         time_limit.tv_nsec -= 1000 * 1000 * 1000;
         time_limit.tv_sec += 1;
       }
-      time_limit.tv_sec -= 1000;
+      // We want to temporarily reduce the time_limit for UTs to 10ms, this
+      // allows us to pass pthread_cond_timedwait quickly but keeps us in this
+      // while loop until we manually advance time by 1000s in a UT.
+      time_limit.tv_sec -= UT_TIME_BETWEEN_CHECKS;
 #endif
       pthread_cond_timedwait(&_condition, &_lock, &time_limit);
       clock_gettime(CLOCK_MONOTONIC, &current_time);
 #ifdef UNIT_TEST
-      time_limit.tv_sec += 1000;
+      time_limit.tv_sec += UT_TIME_BETWEEN_CHECKS;
 #endif
     }
   }
