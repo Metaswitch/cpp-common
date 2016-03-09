@@ -42,6 +42,7 @@
 #include <string>
 #include <vector>
 #include <atomic>
+#include <memory>
 
 #include "alarmdefinition.h"
 #include "eventq.h"
@@ -122,6 +123,9 @@ protected:
 class AlarmManager
 {
 public:
+  // Public so std::unique_ptr can destroy us at end of day.
+  ~AlarmManager();
+
   static AlarmManager& get_instance();
   bool _terminated;
   void register_alarm(BaseAlarm* alarm); 
@@ -131,12 +135,12 @@ public:
   void stop_resending_alarms(void) { _first_alarm_raised = false; }
 
 private:
+  // Private since this is a singleton
   AlarmManager();
-  ~AlarmManager();
 
   // Called once (using pthread_once) to create the AlarmManager.
   static void create_singleton();
-  static AlarmManager* _instance;
+  static std::unique_ptr<AlarmManager> _instance;
   static pthread_once_t alarm_manager_singleton_once;
 
   bool _first_alarm_raised;

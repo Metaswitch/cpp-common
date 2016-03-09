@@ -49,7 +49,7 @@
 pthread_mutex_t issue_alarm_change_state;
 
 AlarmReqAgent AlarmReqAgent::_instance;
-AlarmManager* AlarmManager::_instance;
+std::unique_ptr<AlarmManager> AlarmManager::_instance;
 pthread_once_t AlarmManager::alarm_manager_singleton_once = PTHREAD_ONCE_INIT;
 
 AlarmState::AlarmState(const std::string& issuer,
@@ -167,7 +167,7 @@ void MultiStateAlarm::set_critical()
 
 void AlarmManager::create_singleton()
 {
-  _instance = new AlarmManager();
+  _instance = std::unique_ptr<AlarmManager>(new AlarmManager());
 }
 
 AlarmManager& AlarmManager::get_instance()
