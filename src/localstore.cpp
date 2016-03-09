@@ -114,7 +114,7 @@ Store::Status LocalStore::get_data(const std::string& table,
     // Found an existing record, so check the expiry.
     Record& r = i->second;
     TRC_DEBUG("Found record, expiry = %ld (now = %ld)", r.expiry, now);
-    if (r.expiry < now)
+    if (r.expiry <= now)
     {
       // Record has expired, so remove it from the map and return not found.
       TRC_DEBUG("Record has expired, remove it from store");
