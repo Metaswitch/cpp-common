@@ -182,7 +182,7 @@ Store::Status LocalStore::set_data(const std::string& table,
       
       r.data = data;
       r.cas = ++cas;
-      r.expiry = (uint32_t)expiry + now;
+      r.expiry = (expiry == 0) ? 0 : (uint32_t)expiry + now;
       status = Store::Status::OK;
       TRC_DEBUG("CAS is consistent, updated record, CAS = %ld, expiry = %ld (now = %ld)",
                 r.cas, r.expiry, now);
@@ -194,7 +194,7 @@ Store::Status LocalStore::set_data(const std::string& table,
     Record& r = _db[fqkey];
     r.data = data;
     r.cas = 1;
-    r.expiry = expiry + now;
+    r.expiry = (expiry == 0) ? 0 : (uint32_t)expiry + now;
     status = Store::Status::OK;
     TRC_DEBUG("No existing record so inserted new record, CAS = %ld, expiry = %ld (now = %ld)",
               r.cas, r.expiry, now);
