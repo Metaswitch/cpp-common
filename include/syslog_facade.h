@@ -68,6 +68,7 @@ extern void syslog (int __pri, __const char *__fmt, ...)
 #define PDLOG_LOCAL4      (20<<3) /* reserved for local use */
 #define PDLOG_LOCAL5      (21<<3) /* reserved for local use */
 #define PDLOG_LOCAL6      (22<<3) /* reserved for local use */
+#define PDLOG_LOCAL7      (23<<3) /* reserved for local use */
 
 
 #endif
