@@ -88,7 +88,7 @@ BaseAlarm::BaseAlarm(const std::string& issuer,
                      const int index):
   _index(index),
   _clear_state(issuer, index, AlarmDef::CLEARED),
-  _last_state_raised(&_clear_state)
+  _last_state_raised(NULL)
 {
   AlarmManager::get_instance().register_alarm(this);
 }
@@ -110,7 +110,10 @@ void BaseAlarm::clear()
 
 void BaseAlarm::reraise_last_state()
 {
-  _last_state_raised->issue();
+  if (_last_state_raised != NULL)
+  {
+    _last_state_raised->issue();
+  }
 }
 
 Alarm::Alarm(const std::string& issuer,

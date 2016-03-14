@@ -110,7 +110,8 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
         case NO_ERRORS:
           switch (_new_state)
           {
-            case NO_ERRORS: // No change in state. Do nothing.
+            case NO_ERRORS: // No change in state. Ensure alarm is cleared.
+              _alarm->clear();
               break;
 
             case SOME_ERRORS:
@@ -134,7 +135,8 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
                                            _receiver.c_str());
               break;
 
-            case SOME_ERRORS: // No change in state. Do nothing.
+            case SOME_ERRORS: // No change in state. Ensure alarm is cleared.
+              _alarm->clear();
               break;
 
             case ONLY_ERRORS:
@@ -162,7 +164,8 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
               _alarm->clear();
               break;
 
-            case ONLY_ERRORS: // No change in state. Do nothing.
+            case ONLY_ERRORS: // No change in state. Ensure alarm is raised.
+              _alarm->set()
               break;
           }
           break;
