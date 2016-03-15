@@ -117,6 +117,7 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
             case SOME_ERRORS:
               CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
                                                  _receiver.c_str());
+              _alarm->clear();
               break;
 
             case ONLY_ERRORS:
@@ -132,6 +133,7 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
             case NO_ERRORS:
               CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                            _receiver.c_str());
+              _alarm->clear();
               break;
 
             case SOME_ERRORS: // No change in state. Ensure alarm is cleared.
@@ -161,7 +163,7 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
               break;
 
             case ONLY_ERRORS: // No change in state. Ensure alarm is raised.
-              _alarm->set()
+              _alarm->set();
               break;
           }
           break;
