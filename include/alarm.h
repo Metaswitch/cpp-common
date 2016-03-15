@@ -94,10 +94,6 @@ public:
   /// of the alarm.
   void reraise_last_state();
   
-  /// Indicates whether the alarm state currently maintained by this object
-  /// corresponds to the non-CLEARED severity.
-  virtual bool alarmed() {return (_last_state_raised != &_clear_state);}
-
   // If an alarm is currently in a different state to the one we wish to raise
   // the alarm in, we raise the alarm and update _last_state_raised.
   void switch_to_state(AlarmState* new_state);
