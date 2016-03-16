@@ -50,7 +50,7 @@
 /// @enum AlarmStatus
 ///
 /// Enum for the three possible alarm states
-enum Alarm
+enum AlarmStatus
 {
   // The NULL state in which all alarms start
   UNKNOWN,
@@ -58,7 +58,7 @@ enum Alarm
   CLEARED,
   // The alarm has been raised at any severity other than cleared
   ALARMED
-}
+};
 
 /// @class AlarmState
 ///
