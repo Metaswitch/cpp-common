@@ -108,15 +108,15 @@ AlarmState::AlarmCondition BaseAlarm::get_alarm_state()
 {
   if (_last_state_raised == NULL)
   {
-    return UNKNOWN;
+    return AlarmState::UNKNOWN;
   }
   else if (_last_state_raised == &_clear_state)
   {
-    return CLEARED;
+    return AlarmState::CLEARED;
   }
   else
   {
-    return ALARMED;
+    return AlarmState::ALARMED;
   }
 }
 
