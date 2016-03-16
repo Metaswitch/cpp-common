@@ -70,6 +70,22 @@ public:
   std::string& get_issuer() {return _issuer;}
   std::string& get_identifier() {return _identifier;}
 
+  /// @enum AlarmCondition
+  ///
+  /// Enum for the three possible general states an alarm can be in.
+  /// i.e. Not yet set, raised or cleared.
+  enum AlarmCondition
+  {
+    // The state in which all alarms start, indicating that
+    // no state has been explicitly raised
+    UNKNOWN,
+    // The alarm has been explicitly cleared
+    CLEARED,
+    // The alarm has been raised at any severity other than cleared
+    ALARMED
+  };
+
+
 private:
   std::string _issuer;
   std::string _identifier;
@@ -81,7 +97,7 @@ private:
 /// alarms into subclasses. Those alarms which only have one possible raised
 /// state will be constructed by subclass Alarm. Those alarms which have two or
 /// more possible raised states will be constructed by subclass
-/// MultiStateAlarm. 
+/// MultiStateAlarm.
 
 class BaseAlarm
 {
@@ -94,9 +110,8 @@ public:
   /// of the alarm.
   void reraise_last_state();
   
-  /// Indicates whether the alarm state currently maintained by this object
-  /// corresponds to the non-CLEARED severity.
-  virtual bool alarmed() {return (_last_state_raised != &_clear_state);}
+  /// Returns the current state of the alarm as one of UNKNOWN, CLEARED, or ALARMED.
+  virtual AlarmState::AlarmCondition get_alarm_state();
 
   // If an alarm is currently in a different state to the one we wish to raise
   // the alarm in, we raise the alarm and update _last_state_raised.
