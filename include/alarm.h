@@ -72,7 +72,8 @@ public:
 
   /// @enum AlarmCondition
   ///
-  /// Enum for the three possible alarm states
+  /// Enum for the three possible general states an alarm can be in.
+  /// i.e. Not yet set, raised or cleared.
   enum AlarmCondition
   {
     // The state in which all alarms start, indicating that
