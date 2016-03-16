@@ -104,7 +104,7 @@ void BaseAlarm::reraise_last_state()
   }
 }
 
-AlarmStatus BaseAlarm::get_alarm_state()
+AlarmCondition BaseAlarm::get_alarm_state()
 {
   if (_last_state_raised == NULL)
   {
