@@ -104,6 +104,22 @@ void BaseAlarm::reraise_last_state()
   }
 }
 
+AlarmStatus BaseAlarm::get_alarm_state()
+{
+  if (_last_state_raised == NULL)
+  {
+    return UNKNOWN;
+  }
+  else if (_last_state_raised == &_clear_state)
+  {
+    return CLEARED;
+  }
+  else
+  {
+    return ALARMED;
+  }
+}
+
 Alarm::Alarm(const std::string& issuer,
              const int index,
              AlarmDef::Severity severity) :

@@ -48,6 +48,8 @@ public:
 
   MOCK_METHOD0(clear, void());
   MOCK_METHOD0(set, void());
+  MOCK_METHOD0(get_alarm_state, AlarmStatus());
+
 };
 
 #endif

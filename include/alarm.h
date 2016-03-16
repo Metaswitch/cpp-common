@@ -47,6 +47,19 @@
 #include "alarmdefinition.h"
 #include "eventq.h"
 
+/// @enum AlarmStatus
+///
+/// Enum for the three possible alarm states
+enum Alarm
+{
+  // The NULL state in which all alarms start
+  UNKNOWN,
+  // The alarm has been explicitly cleared
+  CLEARED,
+  // The alarm has been raised at any severity other than cleared
+  ALARMED
+}
+
 /// @class AlarmState
 ///
 /// Provides the basic interface for updating an SNMP alarm's state.
@@ -81,7 +94,7 @@ private:
 /// alarms into subclasses. Those alarms which only have one possible raised
 /// state will be constructed by subclass Alarm. Those alarms which have two or
 /// more possible raised states will be constructed by subclass
-/// MultiStateAlarm. 
+/// MultiStateAlarm.
 
 class BaseAlarm
 {
@@ -94,6 +107,9 @@ public:
   /// of the alarm.
   void reraise_last_state();
   
+  /// Returns the current state of the alarm as one of UNKNOWN, CLEARED, or ALARMED.
+  virtual AlarmStatus get_alarm_state();
+
   // If an alarm is currently in a different state to the one we wish to raise
   // the alarm in, we raise the alarm and update _last_state_raised.
   void switch_to_state(AlarmState* new_state);
