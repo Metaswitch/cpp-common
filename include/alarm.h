@@ -110,7 +110,7 @@ public:
   void reraise_last_state();
   
   /// Returns the current state of the alarm as one of UNKNOWN, CLEARED, or ALARMED.
-  virtual AlarmCondition get_alarm_state();
+  virtual AlarmState::AlarmCondition get_alarm_state();
 
   // If an alarm is currently in a different state to the one we wish to raise
   // the alarm in, we raise the alarm and update _last_state_raised.
