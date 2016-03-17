@@ -62,11 +62,6 @@ public:
   /// state associated with severity, for the specified issuer.
   void issue();
 
-  /// Queue request to clear all active alarms initiated by issuer.
-  /// This will result in a state change to CLEARED for all alarms
-  /// whose state was set to non-CLEARED by the issuer.
-  static void clear_all(const std::string& issuer);
-
   std::string& get_issuer() {return _issuer;}
   std::string& get_identifier() {return _identifier;}
 
