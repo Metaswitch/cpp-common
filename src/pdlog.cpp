@@ -2,7 +2,7 @@
  * @file pdlog.cpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,7 +34,6 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -47,7 +46,11 @@ void PDLogStatic::init(char *pname)
   boost::filesystem::path p = pname;
 
   // Copy the filename to a string so that we can be sure of its lifespan -
-  // the value passed to openlog must be valid for the duration of the program.
+  // the memory passed to openlog must be valid for the duration of the program.
+  //
+  // Note that we don't save "filename" here, and so we're technically leaking
+  // this object.  However, its effectively part of static initialisation of
+  // the process - it'll be freed on process exit - so its not leaked in practice.
   std::string *filename = new std::string(p.filename().c_str());
 
   // Use logging facility for ENT logs
