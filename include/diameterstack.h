@@ -471,6 +471,13 @@ private:
   }
 };
 
+class AVPException
+{
+public:
+  inline AVPException(const char* missing_avp): _missing_avp(missing_avp) {};
+  const char* _missing_avp;
+};
+
 class AVP::iterator
 {
 public:
