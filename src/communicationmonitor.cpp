@@ -110,19 +110,18 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
         case NO_ERRORS:
           switch (_new_state)
           {
-            case NO_ERRORS: // No change in state. Ensure alarm is cleared.
-              _alarm->clear();
+            case NO_ERRORS: // No change in state. Do nothing.
               break;
 
             case SOME_ERRORS:
               CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
                                                  _receiver.c_str());
-              _alarm->clear();
               break;
 
             case ONLY_ERRORS:
               CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
                                            _receiver.c_str());
+              TRC_STATUS("Setting alarm %d", _alarm->index());
               _alarm->set();
               break;
           }
@@ -133,16 +132,15 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
             case NO_ERRORS:
               CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                            _receiver.c_str());
-              _alarm->clear();
               break;
 
-            case SOME_ERRORS: // No change in state. Ensure alarm is cleared.
-              _alarm->clear();
+            case SOME_ERRORS: // No change in state. Do nothing.
               break;
 
             case ONLY_ERRORS:
               CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
                                            _receiver.c_str());
+              TRC_STATUS("Setting alarm %d", _alarm->index());
               _alarm->set();
               break;
           }
@@ -153,17 +151,18 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
             case NO_ERRORS:
               CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                            _receiver.c_str());
+              TRC_STATUS("Clearing alarm %d", _alarm->index());
               _alarm->clear();
               break;
 
             case SOME_ERRORS:
               CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
                                                  _receiver.c_str());
+              TRC_STATUS("Clearing alarm %d", _alarm->index());
               _alarm->clear();
               break;
 
-            case ONLY_ERRORS: // No change in state. Ensure alarm is raised.
-              _alarm->set();
+            case ONLY_ERRORS: // No change in state. Do nothing.
               break;
           }
           break;
