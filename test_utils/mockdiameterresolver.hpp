@@ -1,8 +1,8 @@
 /**
- * @file mockalarms.h 
+ * @file mockdiameterresolver.hpp Mock Diameter resolver.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2013  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,21 +34,25 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKALARM_H__
-#define MOCKALARM_H__
+#ifndef MOCKDIAMETERRESOLVER_H__
+#define MOCKDIAMETERRESOLVER_H__
 
 #include "gmock/gmock.h"
-#include "alarm.h"
+#include "diameterresolver.h"
 
-class MockAlarm : public Alarm
+class MockDiameterResolver : public DiameterResolver
 {
 public:
-  MockAlarm() : 
-    Alarm("sprout", 0, AlarmDef::CRITICAL) {}
+  MockDiameterResolver() :
+    DiameterResolver(NULL, AF_INET)
+  {};
+  virtual ~MockDiameterResolver() {};
 
-  MOCK_METHOD0(clear, void());
-  MOCK_METHOD0(set, void());
-  MOCK_METHOD0(get_alarm_state, AlarmState::AlarmCondition());
+  MOCK_METHOD5(resolve, void(const std::string&,
+                             const std::string&,
+                             int,
+                             std::vector<AddrInfo>&,
+                             int&));
 };
 
 #endif

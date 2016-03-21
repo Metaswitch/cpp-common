@@ -1,8 +1,8 @@
 /**
- * @file mockalarms.h 
+ * @file fakehssconnection.hpp Header file for fake HSS connection (for testing).
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2013  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,21 +34,39 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKALARM_H__
-#define MOCKALARM_H__
+#pragma once
 
-#include "gmock/gmock.h"
-#include "alarm.h"
+#include <string>
+#include "log.h"
+#include "sas.h"
+#include "chronosconnection.h"
 
-class MockAlarm : public Alarm
+/// ChronosConnection that writes to/reads from a local map rather than the HSS.
+class FakeChronosConnection : public ChronosConnection
 {
 public:
-  MockAlarm() : 
-    Alarm("sprout", 0, AlarmDef::CRITICAL) {}
+  FakeChronosConnection();
+  ~FakeChronosConnection();
 
-  MOCK_METHOD0(clear, void());
-  MOCK_METHOD0(set, void());
-  MOCK_METHOD0(get_alarm_state, AlarmState::AlarmCondition());
+  void flush_all();
+  void set_result(const std::string& url, const HTTPCode& result);
+  void delete_result(const std::string& url);
+
+private:
+  std::map<std::string, HTTPCode> _results;
+  HTTPCode send_delete(const std::string& delete_identity,
+                       SAS::TrailId trail);
+  HTTPCode send_post(std::string& post_identity,
+                     uint32_t timer_interval,
+                     const std::string& callback_uri,
+                     const std::string& opaque_data,
+                     SAS::TrailId trail,
+                     const std::map<std::string, uint32_t>& tags);
+  HTTPCode send_put(std::string& put_identity,
+                    uint32_t timer_interval,
+                    const std::string& callback_uri,
+                    const std::string& opaque_data,
+                    SAS::TrailId trail,
+                    const std::map<std::string, uint32_t>& tags);
+  HTTPCode get_result(std::string identity);
 };
-
-#endif

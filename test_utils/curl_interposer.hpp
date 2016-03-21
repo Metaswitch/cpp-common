@@ -1,8 +1,8 @@
 /**
- * @file mockalarms.h 
+ * @file curl_interposer.hpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2016 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,21 +34,32 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKALARM_H__
-#define MOCKALARM_H__
+#include <curl/curl.h>
+#include <cstdarg>
+#include <stdexcept>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <dlfcn.h>
+#include <pthread.h>
 
-#include "gmock/gmock.h"
-#include "alarm.h"
+#include <map>
+#include <string>
+#include <cstdio>
+#include <cerrno>
+#include <stdexcept>
 
-class MockAlarm : public Alarm
-{
-public:
-  MockAlarm() : 
-    Alarm("sprout", 0, AlarmDef::CRITICAL) {}
+#ifndef CURL_INTERPOSER_H
+#define CURL_INTERPOSER_H
 
-  MOCK_METHOD0(clear, void());
-  MOCK_METHOD0(set, void());
-  MOCK_METHOD0(get_alarm_state, AlarmState::AlarmCondition());
-};
+// Curl manipulation - note that curl is controlled by default
+void cwtest_control_curl();
+void cwtest_release_curl();
+
+template<typename... Args>
+CURLcode proxy_curl_easy_getinfo(CURL* handle, CURLINFO info, Args... args);
+
+template<typename... Args>
+CURLcode proxy_curl_easy_setopt(CURL* handle, CURLoption option, Args... args);
 
 #endif

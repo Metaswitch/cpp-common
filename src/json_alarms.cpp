@@ -92,6 +92,9 @@ namespace JSONAlarms
       // - have a cause that matches an allowed cause
       // - have a severity that matches an allowed severity
       // - have the description/details text be less than 256 characters. 
+      // - have a more detailed cause text.
+      // - have an effect text.
+      // - have an action text.
 
       JSON_ASSERT_CONTAINS(doc, "alarms");
       JSON_ASSERT_ARRAY(doc["alarms"]);
@@ -134,6 +137,9 @@ namespace JSONAlarms
           std::string severity;
           std::string details;
           std::string description;
+          std::string detailed_cause;
+          std::string effect;
+          std::string action;
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "severity", severity);
           // Alarms are stored in ITU Alarm Table using
@@ -177,7 +183,16 @@ namespace JSONAlarms
             return false;
           }
 
-          AlarmDef::SeverityDetails sd(e_severity, description, details); 
+          JSON_GET_STRING_MEMBER(*alarms_def_it, "cause", detailed_cause);
+          JSON_GET_STRING_MEMBER(*alarms_def_it, "effect", effect);
+          JSON_GET_STRING_MEMBER(*alarms_def_it, "action", action);
+
+          AlarmDef::SeverityDetails sd(e_severity,
+                                       description,
+                                       details,
+                                       detailed_cause,
+                                       effect,
+                                       action);
           severity_vec.push_back(sd);
         }
       

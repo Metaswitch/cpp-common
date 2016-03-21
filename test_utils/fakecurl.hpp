@@ -40,6 +40,15 @@
 
 #include <curl/curl.h>
 
+typedef std::map<std::string,std::string>* headerdata_ty;
+typedef size_t (*datafn_ty)(void* ptr, size_t size, size_t nmemb, void* userdata);
+typedef size_t (*headerfn_ty)(void* ptr, size_t size, size_t nmemb, headerdata_ty headers);
+typedef int (*debug_callback_t)(CURL *handle,
+                                curl_infotype type,
+                                char *data,
+                                size_t size,
+                                void *userptr);
+
 /// The content of a request.
 class Request
 {
@@ -119,6 +128,64 @@ public:
     _http_rc(http_rc)
   {
   }
+};
+
+/// Object representing a single fake cURL handle.
+class FakeCurl
+{
+public:
+  std::string _method;
+  std::string _url;
+
+  std::list<std::string> _headers;
+
+  bool _failonerror;
+  long _httpauth;  //^ OR of CURLAUTH_* constants
+  std::string _username;
+  std::string _password;
+  bool _fresh;
+
+  datafn_ty _readfn;
+  void* _readdata; //^ user data; not owned by this object
+
+  std::string _body;
+  datafn_ty _writefn;
+  void* _writedata; //^ user data; not owned by this object
+
+  headerfn_ty _hdrfn;
+  headerdata_ty _hdrdata; //^ user data; not owned by this object
+
+  void* _private;
+
+  debug_callback_t _debug_callback;
+  void* _debug_data;
+  bool _verbose;
+
+  int _http_rc;
+
+  FakeCurl() :
+    _method("GET"),
+    _failonerror(false),
+    _httpauth(0L),
+    _fresh(false),
+    _readfn(NULL),
+    _readdata(NULL),
+    _writefn(NULL),
+    _writedata(NULL),
+    _hdrfn(NULL),
+    _hdrdata(NULL),
+    _private(NULL),
+    _debug_callback(NULL),
+    _debug_data(NULL),
+    _http_rc(200)
+  {
+  }
+
+  virtual ~FakeCurl()
+  {
+  }
+
+  CURLcode easy_perform(FakeCurl* curl);
 };
 
 /// Responses to give, by URL.
