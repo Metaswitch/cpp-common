@@ -316,6 +316,10 @@ public:
   {
     fd_msg_new(type.dict(), MSGFL_ALLOC_ETEID, &_fd_msg);
   }
+  inline Message(const Dictionary* dict, const Dictionary::Message& type, const Dictionary::Application& appl, Stack* stack) : _dict(dict), _stack(stack), _free_on_delete(true), _master_msg(this), _result(0)
+  {
+    fd_msg_new_with_appl(type.dict(), appl.dict(), MSGFL_ALLOC_ETEID, &_fd_msg);
+  }
   inline Message(const Dictionary* dict, struct msg* msg, Stack* stack) : _dict(dict), _fd_msg(msg), _stack(stack),  _free_on_delete(true), _master_msg(this), _result(0) {};
   inline Message(const Message& msg) : _dict(msg._dict), _fd_msg(msg._fd_msg), _stack(msg._stack),  _free_on_delete(false), _master_msg(msg._master_msg), _result(0) {};
   virtual ~Message();
