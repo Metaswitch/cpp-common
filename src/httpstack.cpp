@@ -209,8 +209,10 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
   rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), _bind_port, 1024);
   if (rc != 0)
   {
+    // LCOV_EXCL_START
     TRC_ERROR("evhtp_bind_socket failed with address %s and port %d", full_bind_address.c_str(), _bind_port);
-    throw Exception("evhtp_bind_socket", rc); // LCOV_EXCL_LINE
+    throw Exception("evhtp_bind_socket", rc);
+    // LCOV_EXCL_STOP
   }
 
   if ((local_bind_address != full_bind_address) &&
@@ -222,15 +224,20 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
     rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), _bind_port, 1024);
     if (rc != 0)
     {
+      // LCOV_EXCL_START
       TRC_ERROR("evhtp_bind_socket failed with address %s and port %d", local_bind_address.c_str(), _bind_port);
-      throw Exception("evhtp_bind_socket - localhost", rc); // LCOV_EXCL_LINE
+      throw Exception("evhtp_bind_socket - localhost", rc);
+      // LCOV_EXCL_STOP
     }
   }
 
   rc = pthread_create(&_event_base_thread, NULL, event_base_thread_fn, this);
   if (rc != 0)
   {
-    throw Exception("pthread_create", rc); // LCOV_EXCL_LINE
+    // LCOV_EXCL_START
+    TRC_ERROR("pthread_create failed in HTTPStack creation");
+    throw Exception("pthread_create", rc);
+    // LCOV_EXCL_STOP
   }
 }
 
@@ -289,6 +296,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     {
       handler->process_request(request, trail);
     }
+    // LCOV_EXCL_START
     CW_EXCEPT(_exception_handler)
     {
       send_reply_internal(request, 500, trail); 
@@ -300,6 +308,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
       }
     }
     CW_END
+    // LCOV_EXCL_STOP
   }
   else
   {
@@ -488,6 +497,7 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
   }
   else
   {
+    // LCOV_EXCL_START
     if (req.get_tx_body().empty())
     {
       // We are omitting the body but there wasn't one in the messaage. Just log
@@ -501,6 +511,7 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
       event.add_compressed_param(req.get_tx_header(rc) + "<Body present but not logged>",
                                  &SASEvent::PROFILE_HTTP);
     }
+    // LCOV_EXCL_STOP
   }
 
   SAS::report_event(event);
@@ -540,8 +551,10 @@ void HttpStack::SasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& re
   }
   else
   {
+    // LCOV_EXCL_START
     event.add_var_param("unknown");
     event.add_static_param(0);
+    // LCOV_EXCL_STOP
   }
 
   if (req.get_local_ip_port(ip, port))
@@ -551,8 +564,10 @@ void HttpStack::SasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& re
   }
   else
   {
+    // LCOV_EXCL_START
     event.add_var_param("unknown");
     event.add_static_param(0);
+    // LCOV_EXCL_STOP
   }
 }
 

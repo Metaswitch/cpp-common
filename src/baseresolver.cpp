@@ -691,10 +691,12 @@ bool BaseResolver::NAPTRCacheFactory::parse_regex_replace(const std::string& reg
       replace = match_replace[1];
       success = true;
     }
+    // LCOV_EXCL_START
     catch (...)
     {
       success = false;
     }
+    // LCOV_EXCL_STOP
   }
   else
   {
@@ -810,20 +812,6 @@ BaseResolver::SRVWeightedSelector::SRVWeightedSelector(const std::vector<SRV>& s
 
 BaseResolver::SRVWeightedSelector::~SRVWeightedSelector()
 {
-}
-
-std::string BaseResolver::SRVWeightedSelector::to_string() const
-{
-  std::ostringstream oss;
-  for (size_t ii = 0; ii < _tree.size(); ++ii)
-  {
-    oss << _tree[ii];
-    if (ii != _tree.size()-1)
-    {
-      oss << ", ";
-    }
-  }
-  return oss.str();
 }
 
 int BaseResolver::SRVWeightedSelector::select()
