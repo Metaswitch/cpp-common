@@ -395,9 +395,11 @@ std::vector<int> MemcachedStoreView::Ring::get_nodes(int slot, int replicas)
     {
       if (node_list[i] == _ring[next_slot])
       {
+        // LCOV_EXCL_START
         // Found the node in the list, so break out and move to the next one.
         unique = false;
         break;
+        // LCOV_EXCL_STOP
       }
     }
 

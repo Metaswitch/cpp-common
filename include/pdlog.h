@@ -148,7 +148,9 @@ public:
   {
   };
 
-  void log() const
+  virtual ~PDLog() {}
+
+  virtual void log() const
   {
     // The format for the snprintf is defined by buf
     char buf[MAX_FORMAT_LINE];
@@ -178,7 +180,9 @@ public:
   {
   };
 
-  void log(T1 v1) const
+  virtual ~PDLog1() {}
+
+  virtual void log(T1 v1) const
   {
     // The format for the snprintf is defined by buf
     char buf[MAX_FORMAT_LINE];
@@ -208,7 +212,9 @@ public:
   {
   };
 
-  void log(T1 v1, T2 v2) const
+  virtual ~PDLog2() {}
+
+  virtual void log(T1 v1, T2 v2) const
   {
     char buf[MAX_FORMAT_LINE];
 #pragma GCC diagnostic push
@@ -234,7 +240,9 @@ public:
   {
   };
 
-  void log(T1 v1, T2 v2, T3 v3) const
+  virtual ~PDLog3() {}
+
+  virtual void log(T1 v1, T2 v2, T3 v3) const
   {
     char buf[MAX_FORMAT_LINE];
 #pragma GCC diagnostic push
@@ -261,7 +269,9 @@ public:
   {
   };
 
-  void log(T1 v1, T2 v2, T3 v3, T4 v4) const
+  virtual ~PDLog4() {}
+
+  virtual void log(T1 v1, T2 v2, T3 v3, T4 v4) const
   {
     char buf[MAX_FORMAT_LINE];
 #pragma GCC diagnostic push

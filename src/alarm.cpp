@@ -69,26 +69,14 @@ void AlarmState::issue()
   req.push_back(_issuer);
   req.push_back(_identifier);
   AlarmReqAgent::get_instance().alarm_request(req);
-  TRC_DEBUG("%s issued %s alarm", _issuer.c_str(), _identifier.c_str());
-}
-
-void AlarmState::clear_all(const std::string& issuer)
-{
-  std::vector<std::string> req;
-
-  req.push_back("clear-alarms");
-  req.push_back(issuer);
-
-  AlarmReqAgent::get_instance().alarm_request(req);
-
-  TRC_DEBUG("%s cleared its alarms", issuer.c_str());
+  TRC_STATUS("%s issued %s alarm", _issuer.c_str(), _identifier.c_str());
 }
 
 BaseAlarm::BaseAlarm(const std::string& issuer,
                      const int index):
   _index(index),
   _clear_state(issuer, index, AlarmDef::CLEARED),
-  _last_state_raised(&_clear_state)
+  _last_state_raised(NULL)
 {
   AlarmManager::get_instance().register_alarm(this);
 }
@@ -110,7 +98,26 @@ void BaseAlarm::clear()
 
 void BaseAlarm::reraise_last_state()
 {
-  _last_state_raised->issue();
+  if (_last_state_raised != NULL)
+  {
+    _last_state_raised->issue();
+  }
+}
+
+AlarmState::AlarmCondition BaseAlarm::get_alarm_state()
+{
+  if (_last_state_raised == NULL)
+  {
+    return AlarmState::UNKNOWN;
+  }
+  else if (_last_state_raised == &_clear_state)
+  {
+    return AlarmState::CLEARED;
+  }
+  else
+  {
+    return AlarmState::ALARMED;
+  }
 }
 
 Alarm::Alarm(const std::string& issuer,
