@@ -50,6 +50,12 @@ extern "C" {
 #include "syslog_facade.h"
 }
 
+// Namespace for common static ENT logging functions
+namespace PDLogStatic
+{
+  void init(char *pname);
+}
+
 // Defines common definitions for PDLog (Problem Definition Log) classes
 
 // A PDLogBase defines the base class containing:
@@ -271,7 +277,7 @@ public:
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
     snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str(),
-	     v1, v2, v3, v4);
+       v1, v2, v3, v4);
 #pragma GCC diagnostic pop
     dcealog(buf);
   };
