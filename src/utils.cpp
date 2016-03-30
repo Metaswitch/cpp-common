@@ -49,8 +49,11 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <sys/file.h>
+#include <signal.h>
+#include <sys/stat.h>
 
 #include "utils.h"
+#include "log.h"
 
 bool Utils::parse_http_url(const std::string& url, std::string& server, std::string& path)
 {
@@ -377,7 +380,7 @@ int Utils::lock_and_write_pidfile(std::string filename)
   FILE* fd = fopen(filename.c_str(), "w");
   fprintf(fd, "%d\n", getpid());
   fclose(fd);
-  
+
   return lockfd;
 }
 
@@ -387,4 +390,49 @@ uint64_t Utils::get_time(clockid_t clock)
   clock_gettime(clock, &ts);
   uint64_t timestamp = ((uint64_t)ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
   return timestamp;
+}
+
+int Utils::daemonize()
+{
+  TRC_STATUS("Switching to daemon mode");
+
+  pid_t pid = fork();
+  if (pid == -1)
+  {
+    // Fork failed, return error.
+    return errno;
+  }
+  else if (pid > 0)
+  {
+    // Parent process, fork successful, so exit.
+    exit(0);
+  }
+
+  // Must now be running in the context of the child process.
+
+  // Redirect standard files to /dev/null
+  if (freopen("/dev/null", "r", stdin) == NULL)
+  {
+    return errno;
+  }
+  if (freopen("/dev/null", "w", stdout) == NULL)
+  {
+    return errno;
+  }
+  if (freopen("/dev/null", "w", stderr) == NULL)
+  {
+    return errno;
+  }
+
+  if (setsid() == -1)
+  {
+    // Create a new session to divorce the child from the tty of the parent.
+    return errno;
+  }
+
+  signal(SIGHUP, SIG_IGN);
+
+  umask(0);
+
+  return 0;
 }
