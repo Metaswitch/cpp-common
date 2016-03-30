@@ -396,10 +396,10 @@ int Utils::daemonize()
 {
   TRC_STATUS("Switching to daemon mode");
 
+  // First fork
   pid_t pid = fork();
   if (pid == -1)
   {
-    // Fork failed, return error.
     return errno;
   }
   else if (pid > 0)
@@ -407,8 +407,6 @@ int Utils::daemonize()
     // Parent process, fork successful, so exit.
     exit(0);
   }
-
-  // Must now be running in the context of the child process.
 
   // Redirect standard files to /dev/null
   if (freopen("/dev/null", "r", stdin) == NULL)
@@ -424,15 +422,26 @@ int Utils::daemonize()
     return errno;
   }
 
+  // Create a new session to divorce the child from the tty of the parent.
   if (setsid() == -1)
   {
-    // Create a new session to divorce the child from the tty of the parent.
     return errno;
   }
 
-  signal(SIGHUP, SIG_IGN);
-
+  // Clear any restricted umask
   umask(0);
+
+  // Second fork
+  pid = fork();
+  if (pid == -1)
+  {
+    return errno;
+  }
+  else if (pid > 0)
+  {
+    // Parent process, fork successful, so exit.
+    exit(0);
+  }
 
   return 0;
 }
