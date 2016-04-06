@@ -233,8 +233,10 @@ void Logger::write_log_file(const char *data, const timestamp_t& ts)
 
   if (ferror(_fd))
   {
+    // LCOV_EXCL_START
     fclose(_fd);
     _fd = NULL;
+    // LCOV_EXCL_STOP
   }
 }
 

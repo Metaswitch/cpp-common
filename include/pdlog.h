@@ -1,5 +1,5 @@
 /**
- * @file pdlog.h Enhanced Node Troubleshooting PDLog classes 
+ * @file pdlog.h Enhanced Node Troubleshooting PDLog classes
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014  Metaswitch Networks Ltd
@@ -50,32 +50,38 @@ extern "C" {
 #include "syslog_facade.h"
 }
 
+// Namespace for common static ENT logging functions
+namespace PDLogStatic
+{
+  void init(char *pname);
+}
+
 // Defines common definitions for PDLog (Problem Definition Log) classes
 
 // A PDLogBase defines the base class containing:
 //   Identity - Identifies the log id to be used in the syslog id field.
-//   Severity - One of Emergency, Alert, Critical, Error, Warning, Notice, 
+//   Severity - One of Emergency, Alert, Critical, Error, Warning, Notice,
 //              and Info.  Directly corresponds to the syslog severity types.
-//              Only Error and Notice are used.  See syslog_facade.h for 
+//              Only Error and Notice are used.  See syslog_facade.h for
 //              definitions.
 //   Message - Formatted description of the condition.
 //   Cause - The cause of the condition.
 //   Effect - The effect the condition.
-//   Action - A list of one or more actions to take to resolve the condition 
+//   Action - A list of one or more actions to take to resolve the condition
 //           if it is an error.
 // The elements of the class are used to format a syslog call.
 // The call to output to syslog is in the method,  dcealog.
-// By default syslog limits a total syslog message size to 2048 bytes.  
-// Anything above the limit is truncated.  The formatted message, cause, 
-// effect, and action(s) are concatenated into the syslog message.  Note, 
-// as an arbitrary convention, for more than a signle action, the actions 
-// are numbered as (1)., (2)., ...  to make the actions easier to read within 
+// By default syslog limits a total syslog message size to 2048 bytes.
+// Anything above the limit is truncated.  The formatted message, cause,
+// effect, and action(s) are concatenated into the syslog message.  Note,
+// as an arbitrary convention, for more than a signle action, the actions
+// are numbered as (1)., (2)., ...  to make the actions easier to read within
 // the syslog message.  syslog removes extra whitespace and
-// carriage-returns/linefeeds before inserting the complete string into a 
-// message.  Note also, the action(s) are a list of strings with all but 
-// the last string having a space character at the end.  The space makes the 
-// actions more readable.  Most of the derived classes are templates.  
-// The paremeterized types being values that are output as a formatted string 
+// carriage-returns/linefeeds before inserting the complete string into a
+// message.  Note also, the action(s) are a list of strings with all but
+// the last string having a space character at the end.  The space makes the
+// actions more readable.  Most of the derived classes are templates.
+// The paremeterized types being values that are output as a formatted string
 // in the Message field.
 class PDLogBase
 {
@@ -142,7 +148,9 @@ public:
   {
   };
 
-  void log() const
+  virtual ~PDLog() {}
+
+  virtual void log() const
   {
     // The format for the snprintf is defined by buf
     char buf[MAX_FORMAT_LINE];
@@ -172,7 +180,9 @@ public:
   {
   };
 
-  void log(T1 v1) const
+  virtual ~PDLog1() {}
+
+  virtual void log(T1 v1) const
   {
     // The format for the snprintf is defined by buf
     char buf[MAX_FORMAT_LINE];
@@ -202,7 +212,9 @@ public:
   {
   };
 
-  void log(T1 v1, T2 v2) const
+  virtual ~PDLog2() {}
+
+  virtual void log(T1 v1, T2 v2) const
   {
     char buf[MAX_FORMAT_LINE];
 #pragma GCC diagnostic push
@@ -228,7 +240,9 @@ public:
   {
   };
 
-  void log(T1 v1, T2 v2, T3 v3) const
+  virtual ~PDLog3() {}
+
+  virtual void log(T1 v1, T2 v2, T3 v3) const
   {
     char buf[MAX_FORMAT_LINE];
 #pragma GCC diagnostic push
@@ -255,13 +269,15 @@ public:
   {
   };
 
-  void log(T1 v1, T2 v2, T3 v3, T4 v4) const
+  virtual ~PDLog4() {}
+
+  virtual void log(T1 v1, T2 v2, T3 v3, T4 v4) const
   {
     char buf[MAX_FORMAT_LINE];
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-security"
-    snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str(), 
-	     v1, v2, v3, v4);
+    snprintf(buf, MAX_FORMAT_LINE - 2, (const char*)_msg.c_str(),
+       v1, v2, v3, v4);
 #pragma GCC diagnostic pop
     dcealog(buf);
   };

@@ -1,8 +1,8 @@
 /**
- * @file syslog_facade.h - Facade to syslog.h
+ * @file pdlog.cpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,41 +34,25 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-
-#ifndef SYSLOG_FACADE_H__
-#define SYSLOG_FACADE_H__
-
-#include <features.h>
-#define __need___va_list
 #include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
+#include "pdlog.h"
+#include <boost/filesystem.hpp>
 
-// Facade to avoid name collision between syslog.h and log.h
-// Note that this is an extern "C" type file and is almost an exact duplicate of syslog.h
+void PDLogStatic::init(char *pname)
+{
+  // Get the full path of the executable from the first command line argument
+  boost::filesystem::path p = pname;
 
-extern void closelog (void);
-extern void openlog (__const char *__ident, int __option, int __facility);
-extern void syslog (int __pri, __const char *__fmt, ...)
-  __attribute__ ((__format__ (__printf__, 2, 3)));
+  // Copy the filename to a string so that we can be sure of its lifespan -
+  // the memory passed to openlog must be valid for the duration of the program.
+  //
+  // Note that we don't save "filename" here, and so we're technically leaking
+  // this object.  However, its effectively part of static initialisation of
+  // the process - it'll be freed on process exit - so its not leaked in practice.
+  std::string *filename = new std::string(p.filename().c_str());
 
-#define PDLOG_PID         0x01    /* log the pid with each message */
-
-#define PDLOG_EMERG       0       /* system is unusable */
-#define PDLOG_ALERT       1       /* action must be taken immediately */
-#define PDLOG_CRIT        2       /* critical conditions */
-#define PDLOG_ERR         3       /* error conditions */
-#define PDLOG_WARNING     4       /* warning conditions */
-#define PDLOG_NOTICE      5       /* normal but significant condition */
-#define PDLOG_INFO        6       /* informational */
-
-
-#define PDLOG_LOCAL0      (16<<3) /* reserved for local use */
-#define PDLOG_LOCAL1      (17<<3) /* reserved for local use */
-#define PDLOG_LOCAL2      (18<<3) /* reserved for local use */
-#define PDLOG_LOCAL3      (19<<3) /* reserved for local use */
-#define PDLOG_LOCAL4      (20<<3) /* reserved for local use */
-#define PDLOG_LOCAL5      (21<<3) /* reserved for local use */
-#define PDLOG_LOCAL6      (22<<3) /* reserved for local use */
-#define PDLOG_LOCAL7      (23<<3) /* reserved for local use */
-
-
-#endif
+  // Use logging facility for ENT logs
+  openlog(filename->c_str(), PDLOG_PID, PDLOG_LOCAL7);
+}

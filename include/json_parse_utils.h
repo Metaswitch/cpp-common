@@ -102,6 +102,22 @@ struct JsonFormatError
   }                                                                            \
 }
 
+#define JSON_ASSERT_UINT(NODE)                                                 \
+{                                                                              \
+  if (!(NODE).IsUint())                                                        \
+  {                                                                            \
+    JSON_FORMAT_ERROR();                                                       \
+  }                                                                            \
+}
+
+#define JSON_ASSERT_UINT_64(NODE)                                              \
+{                                                                              \
+  if (!(NODE).IsUint64())                                                      \
+  {                                                                            \
+    JSON_FORMAT_ERROR();                                                       \
+  }                                                                            \
+}
+
 #define JSON_ASSERT_STRING(NODE)                                               \
 {                                                                              \
   if (!(NODE).IsString())                                                      \
@@ -160,11 +176,79 @@ struct JsonFormatError
     (TARGET) = (NODE)[(ATTR_NAME)].GetInt64();                                 \
 }
 
+#define JSON_GET_UINT_MEMBER(NODE, ATTR_NAME, TARGET)                          \
+{                                                                              \
+    JSON_ASSERT_CONTAINS((NODE), (ATTR_NAME));                                 \
+    JSON_ASSERT_UINT((NODE)[(ATTR_NAME)]);                                     \
+    (TARGET) = (NODE)[(ATTR_NAME)].GetUint();                                  \
+}
+
+#define JSON_GET_UINT_64_MEMBER(NODE, ATTR_NAME, TARGET)                       \
+{                                                                              \
+    JSON_ASSERT_CONTAINS((NODE), (ATTR_NAME));                                 \
+    JSON_ASSERT_UINT_64((NODE)[(ATTR_NAME)]);                                  \
+    (TARGET) = (NODE)[(ATTR_NAME)].GetUint64();                                \
+}
+
 #define JSON_GET_BOOL_MEMBER(NODE, ATTR_NAME, TARGET)                          \
 {                                                                              \
     JSON_ASSERT_CONTAINS((NODE), (ATTR_NAME));                                 \
     JSON_ASSERT_BOOL((NODE)[(ATTR_NAME)]);                                     \
     (TARGET) = (NODE)[(ATTR_NAME)].GetBool();                                  \
+}
+
+#define JSON_SAFE_GET_STRING_MEMBER(NODE, ATTR_NAME, TARGET)                   \
+{                                                                              \
+    if (((NODE).HasMember(ATTR_NAME)) &&                                       \
+        ((NODE)[(ATTR_NAME)].IsString()))                                      \
+    {                                                                          \
+      (TARGET) = (NODE)[(ATTR_NAME)].GetString();                              \
+    }                                                                          \
+}
+
+#define JSON_SAFE_GET_INT_MEMBER(NODE, ATTR_NAME, TARGET)                      \
+{                                                                              \
+    if (((NODE).HasMember(ATTR_NAME)) &&                                       \
+        ((NODE)[(ATTR_NAME)].IsInt()))                                         \
+    {                                                                          \
+      (TARGET) = (NODE)[(ATTR_NAME)].GetInt();                                 \
+    }                                                                          \
+}
+
+#define JSON_SAFE_GET_INT_64_MEMBER(NODE, ATTR_NAME, TARGET)                   \
+{                                                                              \
+    if (((NODE).HasMember(ATTR_NAME)) &&                                       \
+        ((NODE)[(ATTR_NAME)].IsInt64()))                                       \
+    {                                                                          \
+      (TARGET) = (NODE)[(ATTR_NAME)].GetInt64();                               \
+    }                                                                          \
+}
+
+#define JSON_SAFE_GET_UINT_MEMBER(NODE, ATTR_NAME, TARGET)                     \
+{                                                                              \
+    if (((NODE).HasMember(ATTR_NAME)) &&                                       \
+        ((NODE)[(ATTR_NAME)].IsUint()))                                        \
+    {                                                                          \
+      (TARGET) = (NODE)[(ATTR_NAME)].GetUint();                                \
+    }                                                                          \
+}
+
+#define JSON_SAFE_GET_UINT_64_MEMBER(NODE, ATTR_NAME, TARGET)                  \
+{                                                                              \
+    if (((NODE).HasMember(ATTR_NAME)) &&                                       \
+        ((NODE)[(ATTR_NAME)].IsUint64()))                                      \
+    {                                                                          \
+      (TARGET) = (NODE)[(ATTR_NAME)].GetUint64();                              \
+    }                                                                          \
+}
+
+#define JSON_SAFE_GET_BOOL_MEMBER(NODE, ATTR_NAME, TARGET)                     \
+{                                                                              \
+    if (((NODE).HasMember(ATTR_NAME)) &&                                       \
+        ((NODE)[(ATTR_NAME)].IsBool()))                                        \
+    {                                                                          \
+      (TARGET) = (NODE)[(ATTR_NAME)].GetBool();                                \
+    }                                                                          \
 }
 
 #endif
