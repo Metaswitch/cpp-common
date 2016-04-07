@@ -37,6 +37,8 @@
 #ifndef UTILS_H_
 #define UTILS_H_
 
+#include <time.h>
+#include <stdint.h>
 #include <math.h>
 #include <algorithm>
 #include <functional>
@@ -476,6 +478,9 @@ namespace Utils
   bool split_site_store(const std::string& site_store,
                         std::string& site,
                         std::string& store);
+
+  // Gets the current time in milliseconds - just a conversion of clock_gettime
+  uint64_t get_time(clockid_t clock = CLOCK_MONOTONIC);
 } // namespace Utils
 
 #endif /* UTILS_H_ */
