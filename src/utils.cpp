@@ -380,3 +380,11 @@ int Utils::lock_and_write_pidfile(std::string filename)
   
   return lockfd;
 }
+
+uint64_t Utils::get_time(clockid_t clock)
+{
+  struct timespec ts;
+  clock_gettime(clock, &ts);
+  uint64_t timestamp = ((uint64_t)ts.tv_sec * 1000) + (ts.tv_nsec / 1000000);
+  return timestamp;
+}
