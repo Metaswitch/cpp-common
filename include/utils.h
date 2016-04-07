@@ -37,6 +37,8 @@
 #ifndef UTILS_H_
 #define UTILS_H_
 
+#include <time.h>
+#include <stdint.h>
 #include <math.h>
 #include <algorithm>
 #include <functional>
@@ -449,6 +451,8 @@ namespace Utils
   
   int lock_and_write_pidfile(std::string filename);
 
+  // Gets the current time in milliseconds - just a conversion of clock_gettime
+  uint64_t get_time(clockid_t clock = CLOCK_MONOTONIC);
 } // namespace Utils
 
 #endif /* UTILS_H_ */
