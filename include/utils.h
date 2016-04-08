@@ -448,11 +448,16 @@ namespace Utils
   // Compares two 32 bit numbers and returns if a < b.
   // This also returns true if b hasoverflown, and hence looks like b < a
   bool overflow_less_than(uint32_t a, uint32_t b);
-  
+
   int lock_and_write_pidfile(std::string filename);
 
   // Gets the current time in milliseconds - just a conversion of clock_gettime
   uint64_t get_time(clockid_t clock = CLOCK_MONOTONIC);
+
+  // Daemonize the current process, detaching it from the parent and redirecting
+  // file descriptors.
+  int daemonize();
+
 } // namespace Utils
 
 #endif /* UTILS_H_ */
