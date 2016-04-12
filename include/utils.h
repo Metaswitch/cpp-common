@@ -481,6 +481,11 @@ namespace Utils
 
   // Gets the current time in milliseconds - just a conversion of clock_gettime
   uint64_t get_time(clockid_t clock = CLOCK_MONOTONIC);
+
+  // Daemonize the current process, detaching it from the parent and redirecting
+  // file descriptors.
+  int daemonize();
+
 } // namespace Utils
 
 #endif /* UTILS_H_ */
