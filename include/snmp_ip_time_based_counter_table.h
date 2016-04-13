@@ -43,7 +43,7 @@ namespace SNMP
 class IPTimeBasedCounterTable
 {
 public:
-  virtual ~IPTimeBasedCounterTable();
+  virtual ~IPTimeBasedCounterTable() {};
 
   /// Create a new instance of the table.
   ///
@@ -58,21 +58,21 @@ public:
   ///
   /// @param ip - The IP address to add. Must be a valid IPv4 or IPv6 IP
   ///             address.
-  virtual void add_ip(const std::string& ip);
+  virtual void add_ip(const std::string& ip) = 0;
 
   /// Removes rows for the specified IP address from the table. This is a no-op
   /// if the IP address is not known to the table.
   ///
   /// @param ip - The IP address to remove. Must be a valid IPv4 or IPv6 IP
   ///             address.
-  virtual void remove_ip(const std::string& ip);
+  virtual void remove_ip(const std::string& ip) = 0;
 
   /// Increment the count for the given IP. The IP address must have been
   /// previously added to the table by calling `add_ip`. If it has not, the
   /// increment is ignored.
   ///
   /// @param ip - The IP address t
-  virtual void increment(const std::string& ip);
+  virtual void increment(const std::string& ip) = 0;
 
 protected:
   IPTimeBasedCounterTable() {};

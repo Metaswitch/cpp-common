@@ -95,7 +95,7 @@ typedef std::pair<std::string, TimePeriodIndexes> IPTimeBasedCounterIndex;
 class IPTimeBasedCounterTableImpl : public IPTimeBasedCounterTable,
                                      public ManagedTable<IPTimeBasedCounterRow, IPTimeBasedCounterIndex>
 {
-protected:
+public:
   IPTimeBasedCounterTableImpl(std::string name, std::string tbl_oid) :
     ManagedTable<IPTimeBasedCounterRow, IPTimeBasedCounterIndex>(
       name, tbl_oid, 4, 4, { ASN_INTEGER, ASN_OCTET_STR, ASN_INTEGER })
@@ -107,37 +107,6 @@ protected:
   {
     pthread_rwlock_init(&_counters_lock, NULL);
   }
-
-  IPTimeBasedCounterTableImpl* create(std::string name, std::string oid)
-  {
-    return new IPTimeBasedCounterTableImpl(name, oid);
-  }
-
-  IPTimeBasedCounterRow* new_row(IPTimeBasedCounterIndex index)
-  {
-    std::string& ip = index.first;
-    TimePeriodIndexes time_period = index.second;
-
-    struct in_addr  v4;
-    struct in6_addr v6;
-
-    // Convert the string into a type (IPv4 or IPv6) and a sequence of bytes
-    if (inet_pton(AF_INET, ip.c_str(), &v4) == 1)
-    {
-      return new IPTimeBasedCounterRow(v4, ip, time_period, this);
-    }
-    else if (inet_pton(AF_INET6, ip.c_str(), &v6) == 1)
-    {
-      return new IPTimeBasedCounterRow(v6, ip, time_period, this);
-    }
-    else
-    {
-      TRC_ERROR("Could not parse %s as an IPv4 or IPv6 address", ip.c_str());
-      return NULL;
-    }
-  }
-
-public:
 
   void add_ip(const std::string& ip)
   {
@@ -237,6 +206,31 @@ public:
   }
 
 private:
+
+  IPTimeBasedCounterRow* new_row(IPTimeBasedCounterIndex index)
+  {
+    std::string& ip = index.first;
+    TimePeriodIndexes time_period = index.second;
+
+    struct in_addr  v4;
+    struct in6_addr v6;
+
+    // Convert the string into a type (IPv4 or IPv6) and a sequence of bytes
+    if (inet_pton(AF_INET, ip.c_str(), &v4) == 1)
+    {
+      return new IPTimeBasedCounterRow(v4, ip, time_period, this);
+    }
+    else if (inet_pton(AF_INET6, ip.c_str(), &v6) == 1)
+    {
+      return new IPTimeBasedCounterRow(v6, ip, time_period, this);
+    }
+    else
+    {
+      TRC_ERROR("Could not parse %s as an IPv4 or IPv6 address", ip.c_str());
+      return NULL;
+    }
+  }
+
   // A simple counter - this is needed so we can construct a CurrentAndPrevious
   // (which requires the underlying type to have a reset method).
   struct Counter
@@ -262,6 +256,13 @@ private:
   std::map<std::string, IPEntry*> _counters_by_ip;
   pthread_rwlock_t _counters_lock;
 };
+
+
+IPTimeBasedCounterTable* IPTimeBasedCounterTable::create(std::string name,
+                                                         std::string oid)
+{
+  return new IPTimeBasedCounterTableImpl(name, oid);
+}
 
 
 ColumnData IPTimeBasedCounterRow::get_columns()
