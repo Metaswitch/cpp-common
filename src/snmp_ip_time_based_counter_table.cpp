@@ -48,7 +48,7 @@ namespace SNMP
 {
 
 // Forward declaration to break circular references.
-class IPTimedBasedCounterTableImpl;
+class IPTimeBasedCounterTableImpl;
 
 // A row in the IP time based count table.
 class IPTimeBasedCounterRow : public IPRow
@@ -58,7 +58,7 @@ public:
   IPTimeBasedCounterRow(struct in_addr addr,
                          const std::string& ip_str,
                          TimePeriodIndexes time_period,
-                         IPTimedBasedCounterTableImpl* table) :
+                         IPTimeBasedCounterTableImpl* table) :
     IPRow(addr), _table(table), _ip_str(ip_str), _time_period(time_period)
   {}
 
@@ -66,7 +66,7 @@ public:
   IPTimeBasedCounterRow(struct in6_addr addr,
                          const std::string& ip_str,
                          TimePeriodIndexes time_period,
-                         IPTimedBasedCounterTableImpl* table) :
+                         IPTimeBasedCounterTableImpl* table) :
     IPRow(addr), _table(table), _ip_str(ip_str), _time_period(time_period)
   {}
 
@@ -78,7 +78,7 @@ public:
 private:
   // Pointer to the parent table, used to retrieve counts when queried by
   // netsnmp.
-  IPTimedBasedCounterTableImpl* _table;
+  IPTimeBasedCounterTableImpl* _table;
 
   // The IP address in string form. This is needed to retrieve entries from the
   // parent table.
@@ -92,25 +92,25 @@ private:
 typedef std::pair<std::string, TimePeriodIndexes> IPTimeBasedCounterIndex;
 
 // Implementation of the table.
-class IPTimedBasedCounterTableImpl : public IPTimedBasedCounterTable,
+class IPTimeBasedCounterTableImpl : public IPTimeBasedCounterTable,
                                      public ManagedTable<IPTimeBasedCounterRow, IPTimeBasedCounterIndex>
 {
 protected:
-  IPTimedBasedCounterTableImpl(std::string name, std::string tbl_oid) :
+  IPTimeBasedCounterTableImpl(std::string name, std::string tbl_oid) :
     ManagedTable<IPTimeBasedCounterRow, IPTimeBasedCounterIndex>(
       name, tbl_oid, 4, 4, { ASN_INTEGER, ASN_OCTET_STR, ASN_INTEGER })
   {
     pthread_rwlock_init(&_counters_lock, NULL);
   }
 
-  ~IPTimedBasedCounterTableImpl()
+  ~IPTimeBasedCounterTableImpl()
   {
     pthread_rwlock_init(&_counters_lock, NULL);
   }
 
-  IPTimedBasedCounterTableImpl* create(std::string name, std::string oid)
+  IPTimeBasedCounterTableImpl* create(std::string name, std::string oid)
   {
-    return new IPTimedBasedCounterTableImpl(name, oid);
+    return new IPTimeBasedCounterTableImpl(name, oid);
   }
 
   IPTimeBasedCounterRow* new_row(IPTimeBasedCounterIndex index)

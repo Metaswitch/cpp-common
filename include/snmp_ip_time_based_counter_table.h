@@ -37,15 +37,13 @@
 #ifndef SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
 #define SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
 
-#include "snmp_row.h"
-
 namespace SNMP
 {
 
-class IPTimedBasedCounterTable
+class IPTimeBasedCounterTable
 {
 public:
-  virtual ~IPTimedBasedCounterTable();
+  virtual ~IPTimeBasedCounterTable();
 
   /// Create a new instance of the table.
   ///
@@ -53,7 +51,7 @@ public:
   /// @param oid  - The OID subtree that the table lives within.
   ///
   /// @return     - The table instance.
-  static IPTimedBasedCounterTable* create(std::string name, std::string oid);
+  static IPTimeBasedCounterTable* create(std::string name, std::string oid);
 
   /// Add rows to the table for the specified IP address. This is a no-op if
   /// the IP is already known to the table.
@@ -77,7 +75,7 @@ public:
   virtual void increment(const std::string& ip);
 
 protected:
-  IPTimedBasedCounterTable() {};
+  IPTimeBasedCounterTable() {};
 };
 
 }
