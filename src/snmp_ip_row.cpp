@@ -1,5 +1,5 @@
 /**
- * @file snmp_ip_timed_based_count_table.h
+ * @file snmp_ip_row.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2016 Metaswitch Networks Ltd
@@ -34,53 +34,50 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
-#define SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
+#include "snmp_internal/snmp_table.h"
+#include "snmp_internal/snmp_includes.h"
 
-#include "snmp_row.h"
+#include "snmp_ip_row.h"
 
 namespace SNMP
 {
 
-class IPTimedBasedCounterTable
+IPRow::IPRow(struct in_addr addr) :
+  Row(),
+  _addr_type(AddrTypes::IPv4),
+  _addr_len(sizeof(struct in_addr))
 {
-public:
-  virtual ~IPTimedBasedCounterTable();
+  _addr.v4 = addr;
+  // Set the IPAddrType and IPAddr as indexes
+  netsnmp_tdata_row_add_index(_row,
+                              ASN_INTEGER,
+                              &_addr_type,
+                              sizeof(int));
 
-  /// Create a new instance of the table.
-  ///
-  /// @param name - The name of the table.
-  /// @param oid  - The OID subtree that the table lives within.
-  ///
-  /// @return     - The table instance.
-  static IPTimedBasedCounterTable* create(std::string name, std::string oid);
+  netsnmp_tdata_row_add_index(_row,
+                              ASN_OCTET_STR,
+                              (unsigned char*)&_addr,
+                              _addr_len);
 
-  /// Add rows to the table for the specified IP address. This is a no-op if
-  /// the IP is already known to the table.
-  ///
-  /// @param ip - The IP address to add. Must be a valid IPv4 or IPv6 IP
-  ///             address.
-  virtual void add_ip(const std::string& ip);
+};
 
-  /// Removes rows for the specified IP address from the table. This is a no-op
-  /// if the IP address is not known to the table.
-  ///
-  /// @param ip - The IP address to remove. Must be a valid IPv4 or IPv6 IP
-  ///             address.
-  virtual void remove_ip(const std::string& ip);
+IPRow::IPRow(struct in6_addr addr) :
+  Row(),
+  _addr_type(AddrTypes::IPv6),
+  _addr_len(sizeof(struct in6_addr))
+{
+  _addr.v6 = addr;
+  // Set the IPAddrType and IPAddr as indexes
+  netsnmp_tdata_row_add_index(_row,
+                              ASN_INTEGER,
+                              &_addr_type,
+                              sizeof(int));
 
-  /// Increment the count for the given IP. The IP address must have been
-  /// previously added to the table by calling `add_ip`. If it has not, the
-  /// increment is ignored.
-  ///
-  /// @param ip - The IP address t
-  virtual void increment(const std::string& ip);
+  netsnmp_tdata_row_add_index(_row,
+                              ASN_OCTET_STR,
+                              (unsigned char*)&_addr,
+                              _addr_len);
 
-protected:
-  IPTimedBasedCounterTable() {};
 };
 
 }
-
-#endif
-

@@ -1,5 +1,5 @@
 /**
- * @file snmp_ip_timed_based_count_table.h
+ * @file snmp_types.h
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2016 Metaswitch Networks Ltd
@@ -34,50 +34,24 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
-#define SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
-
-#include "snmp_row.h"
+#ifndef SNMP_TYPES_H_
+#define SNMP_TYPES_H_
 
 namespace SNMP
 {
 
-class IPTimedBasedCounterTable
+enum TimePeriodIndexes
 {
-public:
-  virtual ~IPTimedBasedCounterTable();
+  scopePrevious5SecondPeriod = 1,
+  scopeCurrent5MinutePeriod = 2,
+  scopePrevious5MinutePeriod = 3,
+};
 
-  /// Create a new instance of the table.
-  ///
-  /// @param name - The name of the table.
-  /// @param oid  - The OID subtree that the table lives within.
-  ///
-  /// @return     - The table instance.
-  static IPTimedBasedCounterTable* create(std::string name, std::string oid);
-
-  /// Add rows to the table for the specified IP address. This is a no-op if
-  /// the IP is already known to the table.
-  ///
-  /// @param ip - The IP address to add. Must be a valid IPv4 or IPv6 IP
-  ///             address.
-  virtual void add_ip(const std::string& ip);
-
-  /// Removes rows for the specified IP address from the table. This is a no-op
-  /// if the IP address is not known to the table.
-  ///
-  /// @param ip - The IP address to remove. Must be a valid IPv4 or IPv6 IP
-  ///             address.
-  virtual void remove_ip(const std::string& ip);
-
-  /// Increment the count for the given IP. The IP address must have been
-  /// previously added to the table by calling `add_ip`. If it has not, the
-  /// increment is ignored.
-  ///
-  /// @param ip - The IP address t
-  virtual void increment(const std::string& ip);
-
-protected:
-  IPTimedBasedCounterTable() {};
+enum AddrTypes
+{
+  Unknown = 0,
+  IPv4 = 1,
+  IPv6 = 2
 };
 
 }

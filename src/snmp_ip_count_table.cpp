@@ -48,63 +48,19 @@
 namespace SNMP
 {
 
-enum AddrTypes
+IPCountRow::IPCountRow(struct in_addr addr) : IPRow(addr), _count(0) {};
+
+IPCountRow::IPCountRow(struct in6_addr addr) : IPRow(addr), _count(0) {};
+
+ColumnData IPCountRow::get_columns()
 {
-  Unknown = 0,
-  IPv4 = 1,
-  IPv6 = 2
-};
-
-IPCountRow::IPCountRow(struct in_addr addr) :
-    Row(),
-    _addr_type(AddrTypes::IPv4),
-    _addr_len(sizeof(struct in_addr)),
-    _count(0)
-  {
-    _addr.v4 = addr;
-    // Set the IPAddrType and IPAddr as indexes
-    netsnmp_tdata_row_add_index(_row,
-                                ASN_INTEGER,
-                                &_addr_type,
-                                sizeof(int));
- 
-    netsnmp_tdata_row_add_index(_row,
-                                ASN_OCTET_STR,
-                                (unsigned char*)&_addr,
-                                _addr_len);
-    
-  };
-
-IPCountRow::IPCountRow(struct in6_addr addr) :
-    Row(),
-    _addr_type(AddrTypes::IPv6),
-    _addr_len(sizeof(struct in6_addr)),
-    _count(0)
-  {
-    _addr.v6 = addr;
-    // Set the IPAddrType and IPAddr as indexes
-    netsnmp_tdata_row_add_index(_row,
-                                ASN_INTEGER,
-                                &_addr_type,
-                                sizeof(int));
- 
-    netsnmp_tdata_row_add_index(_row,
-                                ASN_OCTET_STR,
-                                (unsigned char*)&_addr,
-                                _addr_len);
-    
-  };
-
-
-  ColumnData IPCountRow::get_columns()
-  {
-    // Construct and return a ColumnData with the appropriate values
-    ColumnData ret;
-    ret[1] = Value::integer(_addr_type);
-    ret[2] = Value(ASN_OCTET_STR, (unsigned char*)&_addr, _addr_len);
-    ret[3] = Value::uint(_count);
-    return ret;
-  }
+  // Construct and return a ColumnData with the appropriate values
+  ColumnData ret;
+  ret[1] = Value::integer(_addr_type);
+  ret[2] = Value(ASN_OCTET_STR, (unsigned char*)&_addr, _addr_len);
+  ret[3] = Value::uint(_count);
+  return ret;
+}
 
 class IPCountTableImpl: public ManagedTable<IPCountRow, std::string>, public IPCountTable
 {
