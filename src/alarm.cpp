@@ -402,7 +402,11 @@ bool AlarmReqAgent::zmq_init_sck()
     return false;
   }
 
+#ifdef UNIT_TEST
+  std::string addr = "ipc:///tmp/ut-alarms-socket-" + std::to_string(getpid());
+#else
   std::string addr = "ipc:///var/run/clearwater/alarms";
+#endif
 
   if (zmq_connect(_sck, addr.c_str()) == -1)
   {
