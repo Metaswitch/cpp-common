@@ -42,7 +42,7 @@
 #include "current_and_previous.h"
 #include "snmp_types.h"
 #include "snmp_ip_row.h"
-#include "snmp_ip_timed_based_count_table.h"
+#include "snmp_ip_time_based_counter_table.h"
 
 namespace SNMP
 {
