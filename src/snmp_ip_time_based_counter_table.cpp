@@ -60,7 +60,12 @@ public:
                          TimePeriodIndexes time_period,
                          IPTimeBasedCounterTableImpl* table) :
     IPRow(addr), _table(table), _ip_str(ip_str), _time_period(time_period)
-  {}
+  {
+    netsnmp_tdata_row_add_index(_row,
+                                ASN_INTEGER,
+                                &_time_period,
+                                sizeof(int));
+  }
 
   // IPv6 constructor
   IPTimeBasedCounterRow(struct in6_addr addr,
@@ -68,7 +73,12 @@ public:
                          TimePeriodIndexes time_period,
                          IPTimeBasedCounterTableImpl* table) :
     IPRow(addr), _table(table), _ip_str(ip_str), _time_period(time_period)
-  {}
+  {
+    netsnmp_tdata_row_add_index(_row,
+                                ASN_INTEGER,
+                                &_time_period,
+                                sizeof(int));
+  }
 
   virtual ~IPTimeBasedCounterRow() {}
 
@@ -105,7 +115,14 @@ public:
 
   ~IPTimeBasedCounterTableImpl()
   {
-    pthread_rwlock_init(&_counters_lock, NULL);
+    pthread_rwlock_destroy(&_counters_lock);
+
+    for(std::map<std::string, IPEntry*>::iterator it = _counters_by_ip.begin();
+        it != _counters_by_ip.end();
+        ++it)
+    {
+      delete it->second; it->second = NULL;
+    }
   }
 
   void add_ip(const std::string& ip)
@@ -119,6 +136,8 @@ public:
     {
       // IP address does not already exist - add an entry in the counts map and
       // the associated SNMP rows.
+      TRC_DEBUG("Adding IP rows for: %s", ip.c_str());
+
       _counters_by_ip[ip] = new IPEntry();
       add(std::make_pair(ip, TimePeriodIndexes::scopePrevious5SecondPeriod));
       add(std::make_pair(ip, TimePeriodIndexes::scopeCurrent5MinutePeriod));
@@ -139,6 +158,8 @@ public:
     {
       // IP address already exists - remove the entry from the counts map and
       // delete the associated SNMP rows.
+      TRC_DEBUG("Removing IP rows for %s", ip.c_str());
+
       delete entry->second; entry->second = NULL;
       _counters_by_ip.erase(entry);
       remove(std::make_pair(ip, TimePeriodIndexes::scopePrevious5SecondPeriod));
@@ -159,6 +180,7 @@ public:
     std::map<std::string, IPEntry*>::iterator entry = _counters_by_ip.find(ip);
     if (entry != _counters_by_ip.end())
     {
+      TRC_DEBUG("Incrementing counter for %s", ip.c_str());
       entry->second->five_sec.get_current()->counter++;
       entry->second->five_min.get_current()->counter++;
     }
@@ -168,6 +190,8 @@ public:
 
   uint32_t get_count(const std::string& ip, TimePeriodIndexes time_period)
   {
+    TRC_DEBUG("Get count for IP: %s, time period: %d", ip.c_str(), time_period);
+
     uint32_t count = 0;
 
     // Reading a count cannot mutate the counts map (only the counts stored
@@ -202,6 +226,7 @@ public:
 
     pthread_rwlock_unlock(&_counters_lock);
 
+    TRC_DEBUG("Counter is %d", count);
     return count;
   }
 
@@ -211,6 +236,7 @@ private:
   {
     std::string& ip = index.first;
     TimePeriodIndexes time_period = index.second;
+    TRC_DEBUG("Create new SNMP row for IP: %s, time period: %d", ip.c_str(), time_period);
 
     struct in_addr  v4;
     struct in6_addr v6;
@@ -267,6 +293,8 @@ IPTimeBasedCounterTable* IPTimeBasedCounterTable::create(std::string name,
 
 ColumnData IPTimeBasedCounterRow::get_columns()
 {
+  TRC_DEBUG("Columns requested for row: IP: %s time period: %d", _ip_str.c_str(), _time_period);
+
   ColumnData ret;
   // IP address
   ret[1] = Value::integer(_addr_type);
