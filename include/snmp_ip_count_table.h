@@ -42,6 +42,7 @@
 
 #include "logger.h"
 #include "snmp_row.h"
+#include "snmp_ip_row.h"
 
 #ifndef SNMP_IP_COUNT_TABLE_H
 #define SNMP_IP_COUNT_TABLE_H
