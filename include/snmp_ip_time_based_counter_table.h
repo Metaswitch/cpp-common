@@ -1,8 +1,8 @@
 /**
- * @file snmp_ip_count_table.h
+ * @file snmp_ip_timed_based_count_table.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
+ * Copyright (C) 2016 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -28,75 +28,57 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed und er the OpenSSL Licenses.
+ * software and licensed under the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <vector>
-#include <map>
-#include <string>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-
-#include "logger.h"
-#include "snmp_row.h"
-#include "snmp_ip_row.h"
-
-#ifndef SNMP_IP_COUNT_TABLE_H
-#define SNMP_IP_COUNT_TABLE_H
-
-// This file contains the interface for tables which:
-//   - are indexed by IP address and IP address type
-//   - report a count for each IP address
-//
-// It also contains the interface for their rows.
-//
-// To use an IP count table, simply create one, call `get` on it to create appropriate rows, and
-// call `increment` or `decrement` on those rows as necessary:
-//
-// SNMP::IPCountTable* xdm_cxns_table = SNMP::IPCountTable::create("connections_to_homer", ".1.2.3");
-// xdm_cxns_table->get("10.0.0.1")->increment();
-// xdm_cxns_table->get("10.0.0.2")->decrement();
-//
-// IPCountRow objects are automatically created when needed, but need to be explicitly deleted (with
-// `remove`):
-//
-// xdm_cxns_table->remove("10.0.0.1");
-
+#ifndef SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
+#define SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
 
 namespace SNMP
 {
 
-// Row of counters indexed by RFC 2851 IP addresses
-class IPCountRow : public IPRow
+class IPTimeBasedCounterTable
 {
 public:
-  IPCountRow(struct in_addr addr);
-  IPCountRow(struct in6_addr addr);
+  virtual ~IPTimeBasedCounterTable() {};
 
-  uint32_t increment() { return ++_count; };
-  uint32_t decrement() { return --_count; };
+  /// Create a new instance of the table.
+  ///
+  /// @param name - The name of the table.
+  /// @param oid  - The OID subtree that the table lives within.
+  ///
+  /// @return     - The table instance.
+  static IPTimeBasedCounterTable* create(std::string name, std::string oid);
 
-  ColumnData get_columns();
+  /// Add rows to the table for the specified IP address. This is a no-op if
+  /// the IP is already known to the table.
+  ///
+  /// @param ip - The IP address to add. Must be a valid IPv4 or IPv6 IP
+  ///             address.
+  virtual void add_ip(const std::string& ip) = 0;
+
+  /// Removes rows for the specified IP address from the table. This is a no-op
+  /// if the IP address is not known to the table.
+  ///
+  /// @param ip - The IP address to remove. Must be a valid IPv4 or IPv6 IP
+  ///             address.
+  virtual void remove_ip(const std::string& ip) = 0;
+
+  /// Increment the count for the given IP. The IP address must have been
+  /// previously added to the table by calling `add_ip`. If it has not, the
+  /// increment is ignored.
+  ///
+  /// @param ip - The IP address t
+  virtual void increment(const std::string& ip) = 0;
 
 protected:
-  uint32_t _count;
-};
-
-class IPCountTable
-{
-public:
-  static IPCountTable* create(std::string name, std::string oid);
-  virtual ~IPCountTable() {};
-  virtual IPCountRow* get(std::string key) = 0;
-  virtual void add(std::string key) = 0;
-  virtual void remove(std::string key) = 0;
-protected:
-  IPCountTable() {};
+  IPTimeBasedCounterTable() {};
 };
 
 }
 
 #endif
+
