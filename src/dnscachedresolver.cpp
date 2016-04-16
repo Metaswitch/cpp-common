@@ -232,6 +232,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // Expire any cache entries that have passed their TTL.
   expire_cache();
 
+  bool wait_for_query_result = false;
   // First see if any of the domains need to be queried.
   for (std::vector<std::string>::const_iterator domain = domains.begin();
        domain != domains.end();
@@ -241,7 +242,6 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     DnsCacheEntryPtr ce = get_cache_entry(*domain, dnstype);
     time_t now = time(NULL);
     bool do_query = false;
-    bool wait_for_query_result = false;
     if (ce == NULL)
     {
       TRC_DEBUG("No entry found in cache");
@@ -257,7 +257,6 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
       // We have a result, but it has expired. To minimise latency, we should
       // kick off a new asynchronous query to update our DNS cache, but use the
       // expired value for now rather than blocking until that query returns.
-      wait_for_query_result = false;
       
       // Only query if we don't have another thread already doing this query
       // for us
@@ -296,7 +295,8 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
 
   if (channel != NULL && wait_for_query_result)
   {
-    // Issued some queries, so wait for the replies before processing the
+    // Issued some queries, and at least one of our domains had no current
+    // entry in the cache, so wait for the replies before processing the
     // request further.
     TRC_DEBUG("Wait for query responses");
     pthread_mutex_unlock(&_cache_lock);
@@ -332,10 +332,18 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                 ce->domain.c_str(),
                 DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
 
+      int expiry = ce->expires - time(NULL);
+      if (expiry < 0)
+      {
+        // We might have used an expired DNS record to avoid the latency of
+        // waiting for a response - if so, don't report a negative TTL.
+        expiry = 0;
+      }
+
       results.push_back(std::move(DnsResult(ce->domain,
                                             ce->dnstype,
                                             ce->records,
-                                            std::max(0, ce->expires - time(NULL)))));
+                                            expiry)));
     }
     else
     {
