@@ -44,8 +44,6 @@ class MockDiameterStack : public Diameter::Stack
 {
 public:
   MOCK_METHOD0(initialize, void());
-  MOCK_METHOD1(configure, void(const std::string&));
-  MOCK_METHOD1(advertize_application, void(const Diameter::Dictionary::Application&));
   MOCK_METHOD3(register_handler, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, HandlerInterface*));
   MOCK_METHOD1(register_fallback_handler, void(const Diameter::Dictionary::Application&));
   MOCK_METHOD2(register_peer_hook_hdlr, void(std::string, Diameter::PeerConnectionCB));

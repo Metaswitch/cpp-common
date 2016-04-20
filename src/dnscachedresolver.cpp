@@ -325,10 +325,10 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                 ce->domain.c_str(),
                 DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
 
-      results.push_back(std::move(DnsResult(ce->domain,
+      results.push_back(DnsResult(ce->domain,
                                             ce->dnstype,
                                             ce->records,
-                                            ce->expires - time(NULL))));
+                                            ce->expires - time(NULL)));
     }
     else
     {
