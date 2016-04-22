@@ -80,21 +80,6 @@ public:
 
     // Create the semaphore
     sem_init(&_sema, 0, 0);
-
-    // Create the dispatcher thread.
-    pthread_create(&_dispatcher_thread, 0, &SignalHandler::dispatcher, (void*)this);
-
-    // Hook the signal.
-    sighandler_t old_handler = signal(SIGNUM, &SignalHandler::handler);
-
-    if (old_handler != SIG_DFL)
-    {
-// LCOV_EXCL_START
-      // Old handler is not the default handler, so someone else has previously
-      // hooked the signal.
-      TRC_WARNING("SIGNAL already hooked");
-// LCOV_EXCL_STOP
-    }
   }
 
   ~SignalHandler()
@@ -112,6 +97,24 @@ public:
     // Destroy the mutex and condition.
     pthread_mutex_destroy(&_mutex);
     pthread_cond_destroy(&_cond);
+  }
+
+  void start()
+  {
+    // Create the dispatcher thread.
+    pthread_create(&_dispatcher_thread, 0, &SignalHandler::dispatcher, (void*)this);
+
+    // Hook the signal.
+    sighandler_t old_handler = signal(SIGNUM, &SignalHandler::handler);
+
+    if (old_handler != SIG_DFL)
+    {
+// LCOV_EXCL_START
+      // Old handler is not the default handler, so someone else has previously
+      // hooked the signal.
+      TRC_WARNING("SIGNAL already hooked");
+// LCOV_EXCL_STOP
+    }
   }
 
   bool wait_for_signal()

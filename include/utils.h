@@ -486,6 +486,8 @@ namespace Utils
   // file descriptors.
   int daemonize();
 
+  void start_signal_handlers();
+
 } // namespace Utils
 
 #endif /* UTILS_H_ */
