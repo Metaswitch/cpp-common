@@ -51,6 +51,8 @@
 /// one is detected, an alarm clear state is requested. Note that timing is
 /// driven by calls to the inform_* methods. As such the intervals will not
 /// be very precise at low call volume.
+///
+/// The communication monitor takes ownership of the alarm it's given.
 class CommunicationMonitor : public BaseCommunicationMonitor
 {
 public:

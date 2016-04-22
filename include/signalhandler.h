@@ -95,8 +95,8 @@ public:
     sem_destroy(&_sema);
 
     // Destroy the mutex and condition.
-    pthread_mutex_destroy(&_mutex);
     pthread_cond_destroy(&_cond);
+    pthread_mutex_destroy(&_mutex);
   }
 
   void start()
