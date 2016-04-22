@@ -486,6 +486,9 @@ namespace Utils
   // file descriptors.
   int daemonize();
 
+  // This starts the signal handlers. This creates a new thread for each
+  // handler, so this function must not be called before the process has
+  // daemonised (if it's going to)
   void start_signal_handlers();
 
 } // namespace Utils

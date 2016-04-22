@@ -534,9 +534,6 @@ int Utils::daemonize()
   return 0;
 }
 
-// This starts the signal handlers. This creates a new thread for each
-// handler, so this function must not be called before the process has
-// daemonised (if it's going to)
 void Utils::start_signal_handlers()
 {
   _sighup_handler.start();
