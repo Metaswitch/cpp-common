@@ -303,15 +303,22 @@ void BaseMemcachedStore::update_vbucket_comm_state(int vbucket, CommState state)
     {
       if (state == OK)
       {
-        if ((_vbucket_comm_fail_count--) == 0)
+        if (--_vbucket_comm_fail_count == 0)
         {
           _vbucket_alarm->clear();
         }
+
+        TRC_INFO("vbucket %d now accessible, %d inaccessible vbucket(s) remain",
+                 vbucket,
+                 _vbucket_comm_fail_count);
       }
       else
       {
         _vbucket_comm_fail_count++;
         _vbucket_alarm->set();
+        TRC_INFO("vbucket %d inaccessible, now %d inaccessible vbucket(s)",
+                 vbucket,
+                 _vbucket_comm_fail_count);
       }
 
       _vbucket_comm_state[vbucket] = state;
