@@ -63,6 +63,11 @@ public:
       size_t len = evbuffer_get_length(_req->buffer_out);
       return std::string((char*)evbuffer_pullup(_req->buffer_out, len), len);
     }
+    std::string response_header(const std::string& name)
+    {
+      const char* val = evhtp_header_find(_req->headers_out, name.c_str());
+      return std::string((val != NULL ? val : ""));
+    }
     void add_header_to_incoming_req(const std::string& name, 
                                     const std::string& value)
     {
