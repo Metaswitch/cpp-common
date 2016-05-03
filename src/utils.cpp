@@ -54,7 +54,6 @@
 
 #include "utils.h"
 #include "log.h"
-#include "signalhandler.h"
 
 bool Utils::parse_http_url(const std::string& url, std::string& server, std::string& path)
 {
@@ -532,10 +531,4 @@ int Utils::daemonize()
   }
 
   return 0;
-}
-
-void Utils::start_signal_handlers()
-{
-  _sighup_handler.start();
-  _sigusr1_handler.start();
 }
