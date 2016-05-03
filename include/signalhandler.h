@@ -194,4 +194,13 @@ template<int SIGNUM> sem_t SignalHandler<SIGNUM>::_sema;
 extern SignalHandler<SIGHUP> _sighup_handler;
 extern SignalHandler<SIGUSR1> _sigusr1_handler;
 
+// This starts the signal handlers. This creates a new thread for each
+// handler, so this function must not be called before the process has
+// daemonised (if it's going to)
+inline void start_signal_handlers()
+{
+  _sighup_handler.start();
+  _sigusr1_handler.start();
+}
+
 #endif
