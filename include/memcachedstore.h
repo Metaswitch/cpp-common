@@ -62,6 +62,11 @@ class BaseMemcachedStore : public Store
 public:
   virtual ~BaseMemcachedStore();
 
+  // Some MemcachedStores have their own implementation of this method for
+  // working out whether there are any servers configured. However, by default
+  // we expect there to be servers.
+  bool has_servers() { return true; };
+
   void set_max_connect_latency(unsigned int ms);
 
 protected:
