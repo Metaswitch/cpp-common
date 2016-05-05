@@ -320,6 +320,10 @@ int pthread_cond_timedwait(pthread_cond_t* cond,
     if (!real_pthread_cond_timedwait)
     {
       real_pthread_cond_timedwait = (pthread_cond_timedwait_func_t)(intptr_t)dlvsym(RTLD_NEXT, "pthread_cond_timedwait", "GLIBC_2.4.0");
+      if (!real_pthread_cond_timedwait)
+      {
+        real_pthread_cond_timedwait = (pthread_cond_timedwait_func_t)(intptr_t)dlvsym(RTLD_NEXT, "pthread_cond_timedwait", "GLIBC_2.17");
+      }
     }
   }
 
