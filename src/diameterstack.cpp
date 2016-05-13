@@ -602,8 +602,6 @@ void Stack::stop()
                     _peer_connection_cbs.begin()->first.c_str());
       }
       pthread_rwlock_unlock(&_peer_connection_cbs_lock);
-
-      fd_hook_unregister(_peer_cb_hdlr);
     }
 
     if (_rt_out_cb_hdlr)
@@ -615,8 +613,6 @@ void Stack::stop()
                     _rt_out_cbs.begin()->first.c_str());
       }
       pthread_rwlock_unlock(&_rt_out_cbs_lock);
-
-      fd_rt_out_unregister(_rt_out_cb_hdlr, NULL);
     }
 
     if (_error_cb_hdlr)

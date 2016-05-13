@@ -1,8 +1,8 @@
 /**
- * @file snmp_ip_count_table.h
+ * @file astaire_resolver.cpp
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -28,75 +28,75 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed und er the OpenSSL Licenses.
+ * software and licensed under the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <vector>
-#include <map>
-#include <string>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include "log.h"
+#include "astaire_resolver.h"
 
-#include "logger.h"
-#include "snmp_row.h"
-#include "snmp_ip_row.h"
-
-#ifndef SNMP_IP_COUNT_TABLE_H
-#define SNMP_IP_COUNT_TABLE_H
-
-// This file contains the interface for tables which:
-//   - are indexed by IP address and IP address type
-//   - report a count for each IP address
-//
-// It also contains the interface for their rows.
-//
-// To use an IP count table, simply create one, call `get` on it to create appropriate rows, and
-// call `increment` or `decrement` on those rows as necessary:
-//
-// SNMP::IPCountTable* xdm_cxns_table = SNMP::IPCountTable::create("connections_to_homer", ".1.2.3");
-// xdm_cxns_table->get("10.0.0.1")->increment();
-// xdm_cxns_table->get("10.0.0.2")->decrement();
-//
-// IPCountRow objects are automatically created when needed, but need to be explicitly deleted (with
-// `remove`):
-//
-// xdm_cxns_table->remove("10.0.0.1");
+static const uint16_t PORT = 11311;
+static const int TRANSPORT = IPPROTO_TCP;
 
 
-namespace SNMP
+AstaireResolver::AstaireResolver(DnsCachedResolver* dns_client,
+                                 int address_family,
+                                 int blacklist_duration) :
+  BaseResolver(dns_client),
+  _address_family(address_family)
 {
-
-// Row of counters indexed by RFC 2851 IP addresses
-class IPCountRow : public IPRow
-{
-public:
-  IPCountRow(struct in_addr addr);
-  IPCountRow(struct in6_addr addr);
-
-  uint32_t increment() { return ++_count; };
-  uint32_t decrement() { return --_count; };
-
-  ColumnData get_columns();
-
-protected:
-  uint32_t _count;
-};
-
-class IPCountTable
-{
-public:
-  static IPCountTable* create(std::string name, std::string oid);
-  virtual ~IPCountTable() {};
-  virtual IPCountRow* get(std::string key) = 0;
-  virtual void add(std::string key) = 0;
-  virtual void remove(std::string key) = 0;
-protected:
-  IPCountTable() {};
-};
-
+  // Create the blacklist.
+  create_blacklist(blacklist_duration);
 }
 
-#endif
+
+AstaireResolver::~AstaireResolver()
+{
+  destroy_blacklist();
+}
+
+
+void AstaireResolver::resolve(const std::string& host,
+                              int max_targets,
+                              std::vector<AddrInfo>& targets,
+                              SAS::TrailId trail)
+{
+  std::string host_without_port;
+  int port;
+  AddrInfo ai;
+  int dummy_ttl = 0;
+
+  TRC_DEBUG("AstaireResolver::resolve for host %s, family %d",
+            host.c_str(), _address_family);
+
+  targets.clear();
+
+  // Check if host contains a port. Otherwise use the default PORT.
+  if (!Utils::split_host_port(host, host_without_port, port))
+  {
+    host_without_port = host;
+    port = PORT;
+  }
+
+  if (parse_ip_target(host_without_port, ai.address))
+  {
+    // The name is already an IP address, so no DNS resolution is possible.
+    TRC_DEBUG("Target is an IP address");
+    ai.port = port;
+    ai.transport = TRANSPORT;
+    targets.push_back(ai);
+  }
+  else
+  {
+    a_resolve(host_without_port,
+              _address_family,
+              port,
+              TRANSPORT,
+              max_targets,
+              targets,
+              dummy_ttl,
+              trail);
+  }
+}

@@ -47,7 +47,7 @@
 #include "snmp_single_count_by_node_type_table.h"
 #include "snmp_success_fail_count_by_request_type_table.h"
 #include "snmp_cx_counter_table.h"
-
+#include "snmp_ip_time_based_counter_table.h"
 
 #include "snmp_internal/snmp_includes.h"
 using ::testing::AnyOf;
@@ -127,7 +127,7 @@ std::vector<std::string> SNMPTest::snmp_walk(std::string oid)
     fgets_pointer = fgets(buf, sizeof(buf), fd);
     entry = buf;
     end = entry.find("No more variables left in this MIB View");
-  }  
+  }
   }
   return res;
 }

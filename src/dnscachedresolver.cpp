@@ -340,10 +340,10 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
         expiry = 0;
       }
 
-      results.push_back(std::move(DnsResult(ce->domain,
-                                            ce->dnstype,
-                                            ce->records,
-                                            expiry)));
+      results.push_back(DnsResult(ce->domain,
+                                  ce->dnstype,
+                                  ce->records,
+                                  expiry));
     }
     else
     {

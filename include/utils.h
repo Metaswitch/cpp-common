@@ -100,6 +100,25 @@ struct IP46Address
       return false;
     }
   }
+
+  /// Render the address as a string.
+  ///
+  /// Note that inet_ntop (which this function uses under the covers) can
+  /// technically fail. In this situation this function returns the string
+  /// "unknown" (as it is inconvenient if it were allowed to fail).
+  std::string to_string()
+  {
+    char buf[INET6_ADDRSTRLEN];
+
+    if (inet_ntop(af, &addr, buf, sizeof(buf)) != NULL)
+    {
+      return buf;
+    }
+    else
+    {
+      return "unknown";
+    }
+  }
 };
 
 namespace Utils
@@ -451,13 +470,21 @@ namespace Utils
 
   int lock_and_write_pidfile(std::string filename);
 
+  bool parse_stores_arg(const std::vector<std::string>& stores_arg,
+                        const std::string& local_site_name,
+                        std::string& local_store_location,
+                        std::vector<std::string>& remote_stores_locations);
+
+  bool split_site_store(const std::string& site_store,
+                        std::string& site,
+                        std::string& store);
+
   // Gets the current time in milliseconds - just a conversion of clock_gettime
   uint64_t get_time(clockid_t clock = CLOCK_MONOTONIC);
 
   // Daemonize the current process, detaching it from the parent and redirecting
   // file descriptors.
   int daemonize();
-
 } // namespace Utils
 
 #endif /* UTILS_H_ */

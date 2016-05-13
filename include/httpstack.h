@@ -68,8 +68,8 @@ public:
     Request(HttpStack* stack, evhtp_request_t* req) :
       _method(htp_method_UNKNOWN), 
       _rx_body_set(false), 
-      _stack(stack), 
       _req(req), 
+      _stack(stack), 
       _stopwatch(),
       _track_latency(true)
     {
@@ -217,10 +217,10 @@ public:
     htp_method _method;
     std::string _rx_body;
     bool _rx_body_set;
+    evhtp_request_t* _req;
 
   private:
     HttpStack* _stack;
-    evhtp_request_t* _req;
     Utils::StopWatch _stopwatch;
     SasLogger* _sas_logger;
     bool _track_latency;

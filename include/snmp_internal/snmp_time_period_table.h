@@ -42,6 +42,8 @@
 #include <atomic>
 #include "logger.h"
 
+#include "snmp_types.h"
+
 #ifndef SNMP_TIME_PERIOD_TABLE_H
 #define SNMP_TIME_PERIOD_TABLE_H
 
@@ -52,13 +54,6 @@
 
 namespace SNMP
 {
-
-enum TimePeriodIndexes
-{
-  scopePrevious5SecondPeriod = 1,
-  scopeCurrent5MinutePeriod = 2,
-  scopePrevious5MinutePeriod = 3,
-};
 
 template <class T> class TimeBasedRow : public Row
 {

@@ -106,6 +106,7 @@ public:
     CL_CREST_ID = 13000,
     CL_QUEUE_MGR_ID = 14000
     // The range 15000-15999 is reserved
+    // The range 16000-16999 is reserved
   };
 
   PDLogBase(int log_id,

@@ -55,33 +55,137 @@ extern "C" {
 #include "sas.h"
 #include "sasevent.h"
 #include "communicationmonitor.h"
-
-//
-// This file contains the definition of a memcached-based store. This is split
-// across two classes:
-// -  BaseMemcachedStore which contains the majority of the code.
-// -  MemcachedStore. This is the class that users of the store should
-//    create.
-//
-// MemcacheStore is separate class as this allows different constructors to be
-// defined which all delegate to the BaseMemcachedStore class. This is required
-// as BaseMemcachedStore contains constant memebers, and our version of GCC
-// does not support delegating to constructors in the same class.
-//
+#include "astaire_resolver.h"
 
 class BaseMemcachedStore : public Store
 {
 public:
-  ~BaseMemcachedStore();
+  virtual ~BaseMemcachedStore();
+
+  // Some MemcachedStores have their own implementation of this method for
+  // working out whether there are any servers configured. However, by default
+  // we expect there to be servers.
+  bool has_servers() { return true; };
+
+  void set_max_connect_latency(unsigned int ms);
+
+protected:
+  // Whether this store is using the binary protocol (required for vbucket
+  // support).
+  bool _binary;
+
+  // The options string used to create appropriate memcached_st's for the
+  // current view.
+  std::string _options;
+
+  // The time to wait before timing out a connection to memcached.
+  // (This is only used during normal running - at start-of-day we use
+  // a fixed 10ms time, to start up as quickly as possible).
+  unsigned int _max_connect_latency_ms;
+
+  // The maximum expiration delta that memcached expects.  Any expiration
+  // value larger than this is assumed to be an absolute rather than relative
+  // value.  This matches the REALTIME_MAXDELTA constant defined by memcached.
+  static const int MEMCACHED_EXPIRATION_MAXDELTA = 60 * 60 * 24 * 30;
+
+  // Helper used to track replica communication state, and issue/clear alarms
+  // based upon recent activity.
+  BaseCommunicationMonitor* _comm_monitor;
+
+  // The lifetime (in seconds) of tombstones that are written to memcached when
+  // a record is deleted using `delete_data`. This is needed to allow active
+  // resync to spot records that have been deleted since the resync has begun.
+  //
+  // If this is set to zero the store will actually delete data in memcached
+  // instead of using tombstones.
+  int _tombstone_lifetime;
+
+  // Constructor. This is protected to prevent the BaseMemcachedStore from being
+  // instantiated directly.
+  BaseMemcachedStore(bool binary,
+                     BaseCommunicationMonitor* comm_monitor);
+
+  // Perform a get request to a single replica.
+  memcached_return_t get_from_replica(memcached_st* replica,
+                                      const char* key_ptr,
+                                      const size_t key_len,
+                                      std::string& data,
+                                      uint64_t& cas);
+
+  // Add a record to memcached. This overwrites any tombstone record already
+  // stored, but fails if any real data is stored.
+  memcached_return_t add_overwriting_tombstone(memcached_st* replica,
+                                               const char* key_ptr,
+                                               const size_t key_len,
+                                               const uint32_t vbucket,
+                                               const std::string& data,
+                                               time_t memcached_expiration,
+                                               uint32_t flags,
+                                               SAS::TrailId trail);
+
+  // Construct a fully qualified key from the specified table and key within
+  // that table.
+  static inline std::string get_fq_key(const std::string& table,
+                                       const std::string& key)
+  {
+    return table + "\\\\" + key;
+  }
+};
+
+
+/// @class TopologyAwareMemcachedStore
+///
+/// A memcached-based implementation of the Store class, which knows about the
+/// full cross-site topology of the cluster and places keys on exactly the right
+/// memcached.
+class TopologyAwareMemcachedStore : public BaseMemcachedStore
+{
+public:
+  /// Construct a MemcachedStore that reads its config from a user-supplied
+  /// object.
+  ///
+  /// @param binary        - Whether to use the binary or text interface to
+  ///                        memcached.
+  /// @param config_file   - A MemcachedConfigReader that the store will use to
+  ///                        fetch its config. The store takes ownership of
+  ///                        this object and is responsible for freeing it.
+  /// @param comm_monitor  - Object tracking memcached communications.
+  /// @param vbucket_alarm - Alarm object to kick if a vbucket is
+  ///                        uncontactable.
+  TopologyAwareMemcachedStore(bool binary,
+                              MemcachedConfigReader* config_reader,
+                              BaseCommunicationMonitor* comm_monitor = NULL,
+                              Alarm* vbucket_alarm = NULL);
+
+  /// Construct a MemcachedStore that reads its config from a file.
+  ///
+  /// @param binary        - Whether to use the binary or text interface to
+  ///                        memcached.
+  /// @param config_file   - The file (name and path) to read the config from.
+  /// @param comm_monitor  - Object tracking memcached communications.
+  /// @param vbucket_alarm - Alarm object to kick if a vbucket is
+  ///                        uncontactable.
+  TopologyAwareMemcachedStore(bool binary,
+                              const std::string& config_file,
+                              BaseCommunicationMonitor* comm_monitor = NULL,
+                              Alarm* vbucket_alarm = NULL):
+    TopologyAwareMemcachedStore(binary,
+                                new MemcachedConfigFileReader(config_file),
+                                comm_monitor,
+                                vbucket_alarm) {}
+
+
+  ~TopologyAwareMemcachedStore();
+
+  bool has_servers() { return (_servers.size() > 0); };
 
   /// Flags that the store should use a new view of the memcached cluster to
   /// distribute data.  Note that this is public because it is called from
   /// the MemcachedStoreUpdater class and from UT classes.
   void new_view(const MemcachedConfig& config);
 
-  bool has_servers() { return (_servers.size() > 0); };
-
-  void set_max_connect_latency(unsigned int ms);
+  /// Updates the cluster settings
+  void update_config();
 
   /// Gets the data for the specified table and key.
   Store::Status get_data(const std::string& table,
@@ -103,19 +207,31 @@ public:
                             const std::string& key,
                             SAS::TrailId trail = 0);
 
-
-  /// Updates the cluster settings
-  void update_config();
-
-protected:
-  // Constructor. This is protected to prevent the BaseMemcachedStore from being
-  // instantiated directly.
-  BaseMemcachedStore(bool binary,
-                     MemcachedConfigReader* config_reader,
-                     BaseCommunicationMonitor* comm_monitor,
-                     Alarm* vbucket_alarm);
-
 private:
+  // Stores the number of vbuckets being used.  This currently doesn't change,
+  // but in future we may choose to increase it when the cluster gets
+  // sufficiently large.  Note that it _must_ be a power of two.
+  const int _vbuckets;
+
+  // Stores the number of replicas configured for the store (one means the
+  // data is stored on one server, two means it is stored on two servers etc.).
+  const int _replicas;
+
+  // The current global view number.  Note that this is not protected by the
+  // _view_lock.
+  uint64_t _view_number;
+
+  // The lock used to protect the view parameters below (_servers,
+  // _read_replicas and _write_replicas).
+  pthread_rwlock_t _view_lock;
+
+  // The list of servers in this view.
+  std::vector<std::string> _servers;
+
+  // The set of read and write replicas for each vbucket.
+  std::vector<std::vector<std::string> > _read_replicas;
+  std::vector<std::vector<std::string> > _write_replicas;
+
   // A copy of this structure is maintained for each worker thread, as
   // thread local data.
   typedef struct connection
@@ -134,10 +250,6 @@ private:
 
   } connection;
 
-  // Whether this store is using the binary protocol (required for vbucket
-  // support).
-  bool _binary;
-
   /// Returns the vbucket for a specified key.
   int vbucket_for_key(const std::string& key);
 
@@ -153,89 +265,8 @@ private:
   // Called by the thread-local-storage clean-up functions when a thread ends.
   static void cleanup_connection(void* p);
 
-  // Perform a get request to a single replica.
-  memcached_return_t get_from_replica(memcached_st* replica,
-                                      const char* key_ptr,
-                                      const size_t key_len,
-                                      std::string& data,
-                                      uint64_t& cas);
-
-  // Delete a record from memcached by sending a DELETE command.
-  void delete_without_tombstone(const std::string& fqkey,
-                                const std::vector<memcached_st*>& replicas,
-                                SAS::TrailId trail);
-
-  // Delete a record from memcached by writing a tombstone record.
-  void delete_with_tombstone(const std::string& fqkey,
-                             const std::vector<memcached_st*>& replicas,
-                             SAS::TrailId trail);
-
-  // Utility method to log deletion failures. Called in both the tombstone and
-  // non-tombstone cases.
-  void log_delete_failure(const std::string& fqkey,
-                          int replica_ix,
-                          int replica_count,
-                          SAS::TrailId trail,
-                          uint32_t instance);
-
-  // Add a record to memcached. This overwrites any tombstone record already
-  // stored, but fails if any real data is stored.
-  memcached_return_t add_overwriting_tombstone(memcached_st* replica,
-                                               const char* key_ptr,
-                                               const size_t key_len,
-                                               const uint32_t vbucket,
-                                               const std::string& data,
-                                               time_t memcached_expiration,
-                                               uint32_t flags,
-                                               SAS::TrailId trail);
-
-  // Stores a pointer to an updater object
-  Updater<void, BaseMemcachedStore>* _updater;
-
   // Used to store a connection structure for each worker thread.
   pthread_key_t _thread_local;
-
-  // Stores the number of replicas configured for the store (one means the
-  // data is stored on one server, two means it is stored on two servers etc.).
-  const int _replicas;
-
-  // Stores the number of vbuckets being used.  This currently doesn't change,
-  // but in future we may choose to increase it when the cluster gets
-  // sufficiently large.  Note that it _must_ be a power of two.
-  const int _vbuckets;
-
-  // The options string used to create appropriate memcached_st's for the
-  // current view.
-  std::string _options;
-
-  // The current global view number.  Note that this is not protected by the
-  // _view_lock.
-  uint64_t _view_number;
-
-  // The lock used to protect the view parameters below (_servers,
-  // _read_replicas and _write_replicas).
-  pthread_rwlock_t _view_lock;
-
-  // The list of servers in this view.
-  std::vector<std::string> _servers;
-
-  // The time to wait before timing out a connection to memcached.
-  // (This is only used during normal running - at start-of-day we use
-  // a fixed 10ms time, to start up as quickly as possible).
-  unsigned int _max_connect_latency_ms;
-
-  // The set of read and write replicas for each vbucket.
-  std::vector<std::vector<std::string> > _read_replicas;
-  std::vector<std::vector<std::string> > _write_replicas;
-
-  // The maximum expiration delta that memcached expects.  Any expiration
-  // value larger than this is assumed to be an absolute rather than relative
-  // value.  This matches the REALTIME_MAXDELTA constant defined by memcached.
-  static const int MEMCACHED_EXPIRATION_MAXDELTA = 60 * 60 * 24 * 30;
-
-  // Helper used to track replica communication state, and issue/clear alarms
-  // based upon recent activity.
-  BaseCommunicationMonitor* _comm_monitor;
 
   // State of last communication with replica(s) for a given vbucket, indexed
   // by vbucket.
@@ -251,55 +282,204 @@ private:
   // Alarms to be used for reporting vbucket inaccessible conditions.
   Alarm* _vbucket_alarm;
 
-  // The lifetime (in seconds) of tombstones that are written to memcached when
-  // a record is deleted using `delete_data`. This is needed to allow active
-  // resync to spot records that have been deleted since the resync has begun.
-  //
-  // If this is set to zero the store will actually delete data in memcached
-  // instead of using tombstones.
-  //
-  // Atomic as it is set by the updater thread and read by application threads.
-  std::atomic<int> _tombstone_lifetime;
-
   // Object used to read the memcached config.
   MemcachedConfigReader* _config_reader;
+
+  // Stores a pointer to an updater object
+  Updater<void, TopologyAwareMemcachedStore>* _updater;
+
+  // Delete a record from memcached by sending a DELETE command.
+  void delete_without_tombstone(const std::string& fqkey,
+                                const std::vector<memcached_st*>& replicas,
+                                SAS::TrailId trail);
+
+  // Delete a record from memcached by writing a tombstone record.
+  void delete_with_tombstone(const std::string& fqkey,
+                             const std::vector<memcached_st*>& replicas,
+                             SAS::TrailId trail);
 };
 
 
-/// @class MemcachedStore
+/// @class TopologyNeutralMemcachedStore
 ///
-/// A memcached-based implementation of the Store class.
-class MemcachedStore : public BaseMemcachedStore
+/// A memcached-based implementation of the Store class, which does not know
+/// about the full cross-site topology of the cluster and relies on a
+/// topology-aware memcached proxy.
+class TopologyNeutralMemcachedStore : public BaseMemcachedStore
 {
 public:
-  /// Construct a MemcachedStore that reads its config from a file.
+  /// Construct a MemcachedStore talking to localhost.
   ///
-  /// @param binary        - Whether to use the binary or text interface to
-  ///                        memcached.
-  /// @param config_file   - The file (name and path) to read the config from.
+  /// @param target_domain - The domain name for the topology aware proxies.
+  /// @param resolver      - The resolver to use to lookup targets in the
+  ///                        specified domain.
   /// @param comm_monitor  - Object tracking memcached communications.
-  /// @param vbucket_alarm - Alarm object to kick if a vbucket is
-  ///                        uncontactable.
-  MemcachedStore(bool binary,
-                 const std::string& config_file,
-                 BaseCommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL);
+  TopologyNeutralMemcachedStore(const std::string& target_domain,
+                                AstaireResolver* resolver,
+                                BaseCommunicationMonitor* comm_monitor = NULL);
 
-  /// Construct a MemcachedStore that reads its config from a user-supplied
-  /// object.
-  ///
-  /// @param binary        - Whether to use the binary or text interface to
-  ///                        memcached.
-  /// @param config_file   - A MemcachedConfigReader that the store will use to
-  ///                        fetch its config. The store takes ownership of
-  ///                        this object and is responsible for freeing it.
-  /// @param comm_monitor  - Object tracking memcached communications.
-  /// @param vbucket_alarm - Alarm object to kick if a vbucket is
-  ///                        uncontactable.
-  MemcachedStore(bool binary,
-                 MemcachedConfigReader* config_reader,
-                 BaseCommunicationMonitor* comm_monitor = NULL,
-                 Alarm* vbucket_alarm = NULL);
+  ~TopologyNeutralMemcachedStore();
+
+  /// Gets the data for the specified table and key.
+  Store::Status get_data(const std::string& table,
+                         const std::string& key,
+                         std::string& data,
+                         uint64_t& cas,
+                         SAS::TrailId trail = 0);
+
+  /// Sets the data for the specified table and key.
+  Store::Status set_data(const std::string& table,
+                         const std::string& key,
+                         const std::string& data,
+                         uint64_t cas,
+                         int expiry,
+                         SAS::TrailId trail = 0);
+
+  /// Deletes the data for the specified table and key.
+  Store::Status delete_data(const std::string& table,
+                            const std::string& key,
+                            SAS::TrailId trail = 0);
+
+protected:
+  // The domain name for the memcached proxies.
+  std::string _target_domain;
+
+  // Object that can be used to resolve the above domain.
+  AstaireResolver* _resolver;
+
+  // How many time to retry a memcached operation.
+  const size_t _attempts;
+
+  struct Connection
+  {
+    // Constructor.
+    //
+    // @param target_param - The target that this connection is to.
+    // @param st_param -     An initialized memcached_st object.
+    Connection(AddrInfo& target_param, memcached_st* st_param);
+
+    ~Connection();
+
+    // Underlying libmemcached object for the connection.
+    memcached_st* st;
+
+    // The address of the remote host.
+    AddrInfo target;
+
+    // The time (in seconds since the epoch) at which the connection was last
+    // used. Used to close idle connections.
+    int64_t last_used_time_s;
+
+    // The length of time (in seconds) that a connection can remain idle
+    // before it is automatically closed.
+    const static int64_t MAX_IDLE_TIME_S = 60;
+  };
+
+  // A handle to a connection object that has been retrieved from the pool.
+  // This prevents store code from checking out a connection and forgetting to
+  // check it back in again.
+  class ConnectionHandle
+  {
+  public:
+    // Constructor
+    //
+    // @param conn -  The connection that this object wraps.
+    // @param store - The store that owns the connection.
+    //
+    ConnectionHandle(Connection* conn, TopologyNeutralMemcachedStore* store);
+
+    // Move constructor.
+    ConnectionHandle(ConnectionHandle&& rhs);
+
+    // Destructor.
+    ~ConnectionHandle();
+
+    // Get the underlying connection.
+    Connection* get();
+
+  private:
+    // Delete the copy constructor to avoid having copies of the handle (which
+    // could cause the connection to get checked back in twice!)
+    ConnectionHandle(ConnectionHandle& rhs) = delete;
+
+    Connection* _conn;
+    TopologyNeutralMemcachedStore* _store;
+  };
+
+  // A pool of connections that are available for use. Connections are stored
+  // in "slots", with each distinct target having its own slot.
+  //
+  // Threads that need a connection to a particular host check a connection out
+  // of this pool (creating one if necessary) and replace it when they are done.
+  // Connections are checked in/out at the back of the slot, so least active
+  // connection is always at he front of the slot.
+  //
+  // The associated lock must be held when accessing this pool.
+  typedef std::deque<Connection*> ConnectionPoolSlot;
+  typedef std::map<AddrInfo, ConnectionPoolSlot> ConnectionPool;
+  ConnectionPool _conn_pool;
+  pthread_mutex_t _conn_pool_lock;
+
+  // Get a connection to the specified target.
+  ConnectionHandle get_connection(AddrInfo& target);
+
+  // Release the specified connection back to the pool.
+  //
+  // This function is called automatically when the `ConnectionHandle` object
+  // is destroyed. Other methods in the store should not call this method
+  // directly.
+  void _release_connection(Connection* conn);
+
+  // Free at most one connection that has been idle sufficiently long to be
+  // aged out.
+  //
+  // The connection pool lock MUST be held when this function is called.
+  void free_old_connection(struct timespec now);
+
+  // Determine if for a given memcached return code it is worth retrying a
+  // request to a different server in the domain.
+  static bool can_retry_memcached_rc(memcached_return_t rc);
+
+  // Get the targets for the configured domain.
+  bool get_targets(std::vector<AddrInfo>& targets, SAS::TrailId trail);
+
+  // Call a particular subroutine on each target, stopping if any request gives
+  // a definitive result (i.e. a result which means it is not worth trying to a
+  // different target).
+  //
+  // The subroutine should take exactly one parameter - a `ConnectionHandle`
+  // which represents the connection to the current target.
+  //
+  // The following code shows an example of setting a value in memcached. Note
+  // that the lambda captures all the values it needs (`key` and `data`) by
+  // reference (the `[&]` part). This avoids them being copied, and allows them
+  // to be mutated from within the lambda (useful when performing get requests).
+  // The connection is not known when the lambda is created and is passed in as
+  // a parameter (the `(ConnectionHandle& conn)` part).
+  //
+  //     std::string key = "Kermit";
+  //     std::string data = "The Frog"
+  //
+  //     iterate_through_targets(targets, trail, [&](ConnectionHandle& conn) {
+  //        return memcached_set(conn.get()->st,
+  //                             key.data(),
+  //                             key.length(),
+  //                             data.data(),
+  //                             data.length(),
+  //                             0,
+  //                             0);
+  //     });
+  //
+  // @param targets - The vector of targets to try.
+  // @param trail   - SAS trail ID.
+  // @param fn      - The subroutine to call on each target.
+  memcached_return_t iterate_through_targets(
+    std::vector<AddrInfo>& targets,
+    SAS::TrailId trail,
+    std::function<memcached_return_t(ConnectionHandle&)> fn);
 };
+
+// Preserve the old name for backwards compatibility
+typedef TopologyAwareMemcachedStore MemcachedStore;
 
 #endif

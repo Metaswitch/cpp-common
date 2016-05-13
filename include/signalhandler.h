@@ -80,21 +80,6 @@ public:
 
     // Create the semaphore
     sem_init(&_sema, 0, 0);
-
-    // Create the dispatcher thread.
-    pthread_create(&_dispatcher_thread, 0, &SignalHandler::dispatcher, (void*)this);
-
-    // Hook the signal.
-    sighandler_t old_handler = signal(SIGNUM, &SignalHandler::handler);
-
-    if (old_handler != SIG_DFL)
-    {
-// LCOV_EXCL_START
-      // Old handler is not the default handler, so someone else has previously
-      // hooked the signal.
-      TRC_WARNING("SIGNAL already hooked");
-// LCOV_EXCL_STOP
-    }
   }
 
   ~SignalHandler()
@@ -110,8 +95,26 @@ public:
     sem_destroy(&_sema);
 
     // Destroy the mutex and condition.
-    pthread_mutex_destroy(&_mutex);
     pthread_cond_destroy(&_cond);
+    pthread_mutex_destroy(&_mutex);
+  }
+
+  void start()
+  {
+    // Create the dispatcher thread.
+    pthread_create(&_dispatcher_thread, 0, &SignalHandler::dispatcher, (void*)this);
+
+    // Hook the signal.
+    sighandler_t old_handler = signal(SIGNUM, &SignalHandler::handler);
+
+    if (old_handler != SIG_DFL)
+    {
+// LCOV_EXCL_START
+      // Old handler is not the default handler, so someone else has previously
+      // hooked the signal.
+      TRC_WARNING("SIGNAL already hooked");
+// LCOV_EXCL_STOP
+    }
   }
 
   bool wait_for_signal()
@@ -190,5 +193,14 @@ template<int SIGNUM> sem_t SignalHandler<SIGNUM>::_sema;
 // Concrete instances of signal handers
 extern SignalHandler<SIGHUP> _sighup_handler;
 extern SignalHandler<SIGUSR1> _sigusr1_handler;
+
+// This starts the signal handlers. This creates a new thread for each
+// handler, so this function must not be called before the process has
+// daemonised (if it's going to)
+inline void start_signal_handlers()
+{
+  _sighup_handler.start();
+  _sigusr1_handler.start();
+}
 
 #endif

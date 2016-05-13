@@ -212,6 +212,8 @@ class MultiStateAlarm: public BaseAlarm
 public:
   MultiStateAlarm(const std::string& issuer,
                   const int index);
+
+  virtual ~MultiStateAlarm() {}
   
 protected:
   /// These raise the alarm with the specified severity.
