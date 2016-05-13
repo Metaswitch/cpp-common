@@ -254,21 +254,31 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     }
     else if (ce->expires < now)
     {
-      // We have a result, but it has expired. To minimise latency, we should
-      // kick off a new asynchronous query to update our DNS cache, but use the
-      // expired value for now rather than blocking until that query returns.
+      // We have a result, but it has expired.  We should kick off a new
+      // asynchronous query to update our DNS cache, unless we have another
+      // thread already doing this query for us.
       
-      // Only query if we don't have another thread already doing this query
-      // for us
       if (ce->pending_query)
       {
         TRC_DEBUG("Expired entry found in cache - asynchronous query to update it already in progress on another thread");
+        // To minimise latency, we should only block until that query returns if
+        // we don't have any results - if we have an old result, it's probably
+        // still good, so use it.
+        if (ce->records.empty())
+        {
+          wait_for_query_result = true;
+        } 
       }
       else
       {
         TRC_DEBUG("Expired entry found in cache - starting asynchronous query to update it");
         do_query = true;
+
+        // If we do the query, we should wait for the query result - one thread
+        // needs to do so so that the response gets processed.
+        wait_for_query_result = true;
       }
+
     }
 
     if (do_query)
