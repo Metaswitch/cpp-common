@@ -51,4 +51,17 @@ public:
   MOCK_METHOD0(get_alarm_state, AlarmState::AlarmCondition());
 };
 
+class MockMultiStateAlarm : public MultiStateAlarm
+{
+public:
+  MockMultiStateAlarm() :
+    MultiStateAlarm("sprout", 0) {}
+
+  MOCK_METHOD0(set_indeterminate, void());
+  MOCK_METHOD0(set_warning, void());
+  MOCK_METHOD0(set_minor, void());
+  MOCK_METHOD0(set_major, void());
+  MOCK_METHOD0(set_critical, void());
+};
+
 #endif
