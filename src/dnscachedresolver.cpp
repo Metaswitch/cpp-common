@@ -232,6 +232,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // Expire any cache entries that have passed their TTL.
   expire_cache();
 
+  bool wait_for_query_result = false;
   // First see if any of the domains need to be queried.
   for (std::vector<std::string>::const_iterator domain = domains.begin();
        domain != domains.end();
@@ -249,20 +250,35 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
       TRC_DEBUG("Create cache entry pending query");
       ce = create_cache_entry(*domain, dnstype);
       do_query = true;
+      wait_for_query_result = true;
     }
     else if (ce->expires < now)
     {
-      TRC_DEBUG("Expired entry found in cache");
-      // Only query if we don't have another thread already doing this query
-      // for us
+      // We have a result, but it has expired.  We should kick off a new
+      // asynchronous query to update our DNS cache, unless we have another
+      // thread already doing this query for us.
+      
       if (ce->pending_query)
       {
-        TRC_DEBUG("Query already in progress on another thread");
+        TRC_DEBUG("Expired entry found in cache - asynchronous query to update it already in progress on another thread");
+        // To minimise latency, we should only block until that query returns if
+        // we don't have any results - if we have an old result, it's probably
+        // still good, so use it.
+        if (ce->records.empty())
+        {
+          wait_for_query_result = true;
+        } 
       }
       else
       {
+        TRC_DEBUG("Expired entry found in cache - starting asynchronous query to update it");
         do_query = true;
+
+        // If we do the query, we should wait for the query result - one thread
+        // needs to do so so that the response gets processed.
+        wait_for_query_result = true;
       }
+
     }
 
     if (do_query)
@@ -287,9 +303,10 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     }
   }
 
-  if (channel != NULL)
+  if (channel != NULL && wait_for_query_result)
   {
-    // Issued some queries, so wait for the replies before processing the
+    // Issued some queries, and at least one of our domains had no current
+    // entry in the cache, so wait for the replies before processing the
     // request further.
     TRC_DEBUG("Wait for query responses");
     pthread_mutex_unlock(&_cache_lock);
@@ -307,7 +324,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     DnsCacheEntryPtr ce = get_cache_entry(*i, dnstype);
 
     // If we found the cache entry, check whether it is still pending a query.
-    while ((ce != NULL) && (ce->pending_query))
+    while ((ce != NULL) && (ce->pending_query) && wait_for_query_result)
     {
       // We must release the global lock and let the other thread finish
       // the query.
@@ -325,10 +342,18 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                 ce->domain.c_str(),
                 DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
 
+      int expiry = ce->expires - time(NULL);
+      if (expiry < 0)
+      {
+        // We might have used an expired DNS record to avoid the latency of
+        // waiting for a response - if so, don't report a negative TTL.
+        expiry = 0;
+      }
+
       results.push_back(DnsResult(ce->domain,
-                                            ce->dnstype,
-                                            ce->records,
-                                            ce->expires - time(NULL)));
+                                  ce->dnstype,
+                                  ce->records,
+                                  expiry));
     }
     else
     {
