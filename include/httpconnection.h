@@ -80,13 +80,15 @@ public:
                  SNMP::IPCountTable* stat_table,
                  LoadMonitor* load_monitor,
                  SASEvent::HttpLogLevel,
-                 BaseCommunicationMonitor* comm_monitor);
+                 BaseCommunicationMonitor* comm_monitor,
+                 const std::string& scheme = "http");
 
   HttpConnection(const std::string& server,
                  bool assert_user,
                  HttpResolver* resolver,
                  SASEvent::HttpLogLevel,
-                 BaseCommunicationMonitor* comm_monitor);
+                 BaseCommunicationMonitor* comm_monitor,
+                 const std::string& scheme = "http");
 
   virtual ~HttpConnection();
 
@@ -295,6 +297,7 @@ private:
 
   std::string _server;
   std::string _host;
+  std::string _scheme;
   int _port;
   const bool _assert_user;
   pthread_key_t _curl_thread_local;
