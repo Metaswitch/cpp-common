@@ -148,7 +148,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   // Find/load the relevant SRV priority list from the cache.  This increments
   // a reference, so the list cannot be updated until we have finished with
   // it.
-  SRVPriorityList* srv_list = _srv_cache->get(srv_name, ttl);
+  SRVPriorityList* srv_list = _srv_cache->get(srv_name, ttl, trail);
 
   std::string targetlist_str;
   std::string blacklist_str;
@@ -193,7 +193,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       TRC_VERBOSE("Do A record look-ups for %ld SRVs", a_targets.size());
       _dns_client->dns_query(a_targets,
                              (af == AF_INET) ? ns_t_a : ns_t_aaaa,
-                             a_results);
+                             a_results,
+                             trail);
 
       // Now form temporary lists for each SRV target containing the active
       // and blacklisted addresses, in randomized order.
@@ -354,7 +355,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
   std::vector<AddrInfo> blacklisted_targets;
 
   // Do A/AAAA lookup.
-  DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa);
+  DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa, trail);
   ttl = result.ttl();
 
   // Randomize the records in the result.
@@ -483,9 +484,9 @@ bool BaseResolver::blacklisted(const AddrInfo& ai)
   pthread_mutex_lock(&_blacklist_lock);
   Blacklist::iterator i = _blacklist.find(ai);
 
-  if (i != _blacklist.end()) 
+  if (i != _blacklist.end())
   {
-    if (i->second > time(NULL)) 
+    if (i->second > time(NULL))
     {
       // Blacklist entry has yet to expire.
       rc = true;
@@ -546,7 +547,7 @@ BaseResolver::NAPTRCacheFactory::~NAPTRCacheFactory()
 {
 }
 
-BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string key, int& ttl)
+BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string key, int& ttl, SAS::TrailId trail)
 {
   // Iterate NAPTR lookups starting with querying the target domain until
   // we get a terminal result.
@@ -563,7 +564,7 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
 
     // Issue the NAPTR query.
     TRC_DEBUG("Sending DNS NAPTR query for %s", query_key.c_str());
-    DnsResult result = _dns_client->dns_query(query_key, ns_t_naptr);
+    DnsResult result = _dns_client->dns_query(query_key, ns_t_naptr, trail);
 
     if (!result.records().empty())
     {
@@ -727,12 +728,12 @@ BaseResolver::SRVCacheFactory::~SRVCacheFactory()
 {
 }
 
-BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string key, int& ttl)
+BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string key, int& ttl, SAS::TrailId trail)
 {
   TRC_DEBUG("SRV cache factory called for %s", key.c_str());
   SRVPriorityList* srv_list = NULL;
 
-  DnsResult result = _dns_client->dns_query(key, ns_t_srv);
+  DnsResult result = _dns_client->dns_query(key, ns_t_srv, trail);
 
   if (!result.records().empty())
   {
