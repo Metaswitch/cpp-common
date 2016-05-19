@@ -95,7 +95,7 @@ void DiameterResolver::resolve(const std::string& realm,
     // Realm is specified, so do a NAPTR lookup for the target.
     TRC_DEBUG("Do NAPTR look-up for %s", realm.c_str());
 
-    NAPTRReplacement* naptr = _naptr_cache->get(realm, ttl);
+    NAPTRReplacement* naptr = _naptr_cache->get(realm, ttl, 0);
 
     if (naptr != NULL)
     {
@@ -123,7 +123,7 @@ void DiameterResolver::resolve(const std::string& realm,
       domains.push_back("_diameter._tcp." + realm);
       domains.push_back("_diameter._sctp." + realm);
       std::vector<DnsResult> results;
-      _dns_client->dns_query(domains, ns_t_srv, results);
+      _dns_client->dns_query(domains, ns_t_srv, results, 0);
       DnsResult& tcp_result = results[0];
       TRC_DEBUG("TCP SRV record %s returned %d records",
                 tcp_result.domain().c_str(), tcp_result.records().size());

@@ -51,6 +51,7 @@
 
 #include "utils.h"
 #include "dnsrrecords.h"
+#include "sas.h"
 
 class DnsResult
 {
@@ -84,12 +85,14 @@ public:
 
   /// Queries a single DNS record.
   DnsResult dns_query(const std::string& domain,
-                      int dnstype);
+                      int dnstype,
+                      SAS::TrailId trail);
 
   /// Queries multiple DNS records in parallel.
   void dns_query(const std::vector<std::string>& domains,
                  int dnstype,
-                 std::vector<DnsResult>& results);
+                 std::vector<DnsResult>& results,
+                 SAS::TrailId trail);
 
   /// Adds or updates an entry in the cache.
   void add_to_cache(const std::string& domain,
@@ -116,7 +119,7 @@ private:
   class DnsTsx
   {
   public:
-    DnsTsx(DnsChannel* channel, const std::string& domain, int dnstype);
+    DnsTsx(DnsChannel* channel, const std::string& domain, int dnstype, SAS::TrailId trail);
     ~DnsTsx();;
     void execute();
     static void ares_callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen);
@@ -126,6 +129,7 @@ private:
     DnsChannel* _channel;
     std::string _domain;
     int _dnstype;
+    SAS::TrailId _trail;
   };
 
   struct DnsCacheEntry
@@ -169,7 +173,8 @@ private:
                     int dnstype,
                     int status,
                     unsigned char* abuf,
-                    int alen);
+                    int alen,
+                    SAS::TrailId trail);
 
   bool caching_enabled(int rrtype);
 
@@ -180,7 +185,7 @@ private:
   void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr);
   void clear_cache_entry(DnsCacheEntryPtr ce);
 
-  
+
   DnsChannel* get_dns_channel();
   void wait_for_replies(DnsChannel* channel);
   static void destroy_dns_channel(DnsChannel* channel);

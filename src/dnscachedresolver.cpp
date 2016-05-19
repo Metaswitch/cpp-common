@@ -45,6 +45,8 @@
 #include "log.h"
 #include "dnsparser.h"
 #include "dnscachedresolver.h"
+#include "sas.h"
+#include "sasevent.h"
 
 DnsResult::DnsResult(const std::string& domain,
                      int dnstype,
@@ -115,7 +117,7 @@ DnsResult::~DnsResult()
   }
 }
 
-void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers) 
+void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
 {
   _dns_servers = dns_servers;
   _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
@@ -208,13 +210,14 @@ DnsCachedResolver::~DnsCachedResolver()
 }
 
 DnsResult DnsCachedResolver::dns_query(const std::string& domain,
-                                       int dnstype)
+                                       int dnstype,
+                                       SAS::TrailId trail)
 {
   std::vector<DnsResult> res;
   std::vector<std::string> domains;
   domains.push_back(domain);
 
-  dns_query(domains, dnstype, res);
+  dns_query(domains, dnstype, res, trail);
 
   // The parallel version of dns_query always returns at least one
   // result, so res.front() is safe.
@@ -223,7 +226,8 @@ DnsResult DnsCachedResolver::dns_query(const std::string& domain,
 
 void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                                   int dnstype,
-                                  std::vector<DnsResult>& results)
+                                  std::vector<DnsResult>& results,
+                                  SAS::TrailId trail)
 {
   DnsChannel* channel = NULL;
 
@@ -297,7 +301,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
         // same query.
         TRC_DEBUG("Create and execute DNS query transaction");
         ce->pending_query = true;
-        DnsTsx* tsx = new DnsTsx(channel, *domain, dnstype);
+        DnsTsx* tsx = new DnsTsx(channel, *domain, dnstype, trail);
         tsx->execute();
       }
     }
@@ -452,7 +456,8 @@ void DnsCachedResolver::dns_response(const std::string& domain,
                                      int dnstype,
                                      int status,
                                      unsigned char* abuf,
-                                     int alen)
+                                     int alen,
+                                     SAS::TrailId trail)
 {
   pthread_mutex_lock(&_cache_lock);
 
@@ -471,8 +476,18 @@ void DnsCachedResolver::dns_response(const std::string& domain,
   // record it will expire after DEFAULT_NEGATIVE_CACHE_TTL time.
   if (status == ARES_SUCCESS)
   {
+    if (trail != 0)
+    {
+      SAS::Event event(trail, SASEvent::DNS_SUCCESS, 0);
+      event.add_static_param(dnstype);
+      event.add_var_param(domain);
+      event.add_var_param(alen, abuf);
+      SAS::report_event(event);
+    }
+
     // Create a message parser and parse the message.
     DnsParser parser(abuf, alen);
+
     if (parser.parse())
     {
       // Parsing was successful, so clear out any old records, then process
@@ -596,10 +611,27 @@ void DnsCachedResolver::dns_response(const std::string& domain,
       // NXDOMAIN, indicating that the DNS entry has been definitively removed
       // (rather than a DNS server failure). Clear the cache for this
       // entry.
+      if (trail != 0)
+      {
+        SAS::Event event(trail, SASEvent::DNS_NOT_FOUND, 0);
+        event.add_static_param(dnstype);
+        event.add_var_param(domain);
+        SAS::report_event(event);
+      }
+
       clear_cache_entry(ce);
     }
     else
     {
+      if (trail != 0)
+      {
+        SAS::Event event(trail, SASEvent::DNS_FAILED, 0);
+        event.add_static_param(dnstype);
+        event.add_static_param(status);
+        event.add_var_param(domain);
+        SAS::report_event(event);
+      }
+
       ce->expires = 30 + time(NULL);
     }
   }
@@ -866,7 +898,7 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
         memcpy(&ares_addr->addr.addr6, &server.addr.ipv6, sizeof(ares_addr->addr.addr6));
       }
     }
-    
+
     ares_set_servers(channel->channel, _ares_addrs);
 
     pthread_setspecific(_thread_local, channel);
@@ -881,10 +913,11 @@ void DnsCachedResolver::destroy_dns_channel(DnsChannel* channel)
   delete channel;
 }
 
-DnsCachedResolver::DnsTsx::DnsTsx(DnsChannel* channel, const std::string& domain, int dnstype) :
+DnsCachedResolver::DnsTsx::DnsTsx(DnsChannel* channel, const std::string& domain, int dnstype, SAS::TrailId trail) :
   _channel(channel),
   _domain(domain),
-  _dnstype(dnstype)
+  _dnstype(dnstype),
+  _trail(trail)
 {
 }
 
@@ -899,6 +932,14 @@ void DnsCachedResolver::DnsTsx::execute()
   // to account for this (and it's slightly cleaner to increment
   // pending_queries first, to stop it going negative).
   ++_channel->pending_queries;
+
+  if (_trail != 0)
+  {
+    SAS::Event event(_trail, SASEvent::DNS_LOOKUP, 0);
+    event.add_static_param(_dnstype);
+    event.add_var_param(_domain);
+    SAS::report_event(event);
+  }
 
   ares_query(_channel->channel,
              _domain.c_str(),
@@ -920,7 +961,7 @@ void DnsCachedResolver::DnsTsx::ares_callback(void* arg,
 
 void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned char* abuf, int alen)
 {
-  _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen);
+  _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen, _trail);
   --_channel->pending_queries;
   delete this;
 }

@@ -42,7 +42,7 @@
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20160420";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20160519";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -138,6 +138,10 @@ namespace SASEvent {
 
   const int BASERESOLVE_SRV_RESULT = COMMON_BASE + 0x000200;
   const int BASERESOLVE_A_RESULT = COMMON_BASE + 0x000201;
+  const int DNS_LOOKUP = COMMON_BASE + 0x000202;
+  const int DNS_SUCCESS = COMMON_BASE + 0x000203;
+  const int DNS_FAILED = COMMON_BASE + 0x000204;
+  const int DNS_NOT_FOUND = COMMON_BASE + 0x000205;
 
   const int CASS_CONNECT_FAIL = COMMON_BASE + 0x0300;
 

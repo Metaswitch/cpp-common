@@ -48,7 +48,7 @@ template <class K, class V>
 class CacheFactory
 {
 public:
-  virtual V get(K key, int& ttl) = 0;
+  virtual V get(K key, int& ttl, SAS::TrailId trail) = 0;
   virtual void evict(K key, V value) = 0;
 };
 
@@ -111,7 +111,7 @@ public:
   }
 
   /// Get or create an entry in the cache.
-  V get(K key, int& ttl)
+  V get(K key, int& ttl, SAS::TrailId trail)
   {
     pthread_mutex_lock(&_lock);
 
@@ -135,7 +135,7 @@ public:
         // Release the global lock and invoke the factory to populate the
         // cache data.
         pthread_mutex_unlock(&_lock);
-        entry.data = _factory->get(key, ttl);
+        entry.data = _factory->get(key, ttl, trail);
 
         // Cache data should now be populated, so get the global lock again,
         // and mark the entry as complete.
@@ -249,7 +249,7 @@ public:
       entry.data = value;
 
       // Move the entry in the expiry list.
-      if (entry.expiry_i != _expiry_list.end()) 
+      if (entry.expiry_i != _expiry_list.end())
       {
         _expiry_list.erase(entry.expiry_i);
         --entry.refs;
@@ -276,7 +276,7 @@ public:
     if (i != _cache.end())
     {
       Entry& entry = i->second;
-      if (entry.expiry_i != _expiry_list.end()) 
+      if (entry.expiry_i != _expiry_list.end())
       {
         ttl = entry.expiry_i->first - time(NULL);
       }
