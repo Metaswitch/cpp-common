@@ -476,11 +476,14 @@ void DnsCachedResolver::dns_response(const std::string& domain,
   // record it will expire after DEFAULT_NEGATIVE_CACHE_TTL time.
   if (status == ARES_SUCCESS)
   {
-    SAS::Event event(trail, SASEvent::DNS_SUCCESS, 0);
-    event.add_static_param(dnstype);
-    event.add_var_param(domain);
-    event.add_var_param(alen, abuf);
-    SAS::report_event(event);
+    if (trail != 0)
+    {
+      SAS::Event event(trail, SASEvent::DNS_SUCCESS, 0);
+      event.add_static_param(dnstype);
+      event.add_var_param(domain);
+      event.add_var_param(alen, abuf);
+      SAS::report_event(event);
+    }
 
     // Create a message parser and parse the message.
     DnsParser parser(abuf, alen);
@@ -608,20 +611,26 @@ void DnsCachedResolver::dns_response(const std::string& domain,
       // NXDOMAIN, indicating that the DNS entry has been definitively removed
       // (rather than a DNS server failure). Clear the cache for this
       // entry.
-      SAS::Event event(trail, SASEvent::DNS_NOT_FOUND, 0);
-      event.add_static_param(dnstype);
-      event.add_var_param(domain);
-      SAS::report_event(event);
+      if (trail != 0)
+      {
+        SAS::Event event(trail, SASEvent::DNS_NOT_FOUND, 0);
+        event.add_static_param(dnstype);
+        event.add_var_param(domain);
+        SAS::report_event(event);
+      }
 
       clear_cache_entry(ce);
     }
     else
     {
-      SAS::Event event(trail, SASEvent::DNS_FAILED, 0);
-      event.add_static_param(dnstype);
-      event.add_static_param(status);
-      event.add_var_param(domain);
-      SAS::report_event(event);
+      if (trail != 0)
+      {
+        SAS::Event event(trail, SASEvent::DNS_FAILED, 0);
+        event.add_static_param(dnstype);
+        event.add_static_param(status);
+        event.add_var_param(domain);
+        SAS::report_event(event);
+      }
 
       ce->expires = 30 + time(NULL);
     }
@@ -924,10 +933,13 @@ void DnsCachedResolver::DnsTsx::execute()
   // pending_queries first, to stop it going negative).
   ++_channel->pending_queries;
 
-  SAS::Event event(_trail, SASEvent::DNS_LOOKUP, 0);
-  event.add_static_param(_dnstype);
-  event.add_var_param(_domain);
-  SAS::report_event(event);
+  if (_trail != 0)
+  {
+    SAS::Event event(_trail, SASEvent::DNS_LOOKUP, 0);
+    event.add_static_param(_dnstype);
+    event.add_var_param(_domain);
+    SAS::report_event(event);
+  }
 
   ares_query(_channel->channel,
              _domain.c_str(),
