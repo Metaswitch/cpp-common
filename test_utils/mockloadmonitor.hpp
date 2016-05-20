@@ -46,7 +46,7 @@ public:
   MockLoadMonitor() : LoadMonitor(0, 0, 0.0, 0.0) {}
   virtual ~MockLoadMonitor() {}
 
-  MOCK_METHOD0(admit_request, bool());
+  MOCK_METHOD1(admit_request, bool(SAS::TrailId id));
   MOCK_METHOD0(incr_penalties, void());
   MOCK_METHOD1(request_complete, void(int latency));
 };

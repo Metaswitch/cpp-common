@@ -38,7 +38,7 @@
 #include "log.h"
 #include "snmp_continuous_accumulator_table.h"
 #include "snmp_scalar.h"
-
+#include "sasevent.h"
 
 TokenBucket::TokenBucket(int s, float r)
 {
@@ -142,12 +142,17 @@ LoadMonitor::~LoadMonitor()
   pthread_mutex_destroy(&_lock);
 }
 
-bool LoadMonitor::admit_request()
+bool LoadMonitor::admit_request(SAS::TrailId trail)
 {
   pthread_mutex_lock(&_lock);
 
   if (bucket.get_token())
   {
+    SAS::Event event(trail, SASEvent::LOAD_MONITOR_ACCEPTED_REQUEST, trail);
+    event.add_static_param(bucket.rate);
+    event.add_static_param(bucket.token_count());
+    SAS::report_event(event);
+
     // Got a token from the bucket, so admit the request
     accepted += 1;
     pending_count += 1;
@@ -162,6 +167,10 @@ bool LoadMonitor::admit_request()
   }
   else
   {
+    SAS::Event event(trail, SASEvent::LOAD_MONITOR_REJECTED_REQUEST, trail);
+    event.add_static_param(bucket.rate);
+    SAS::report_event(event);
+
     rejected += 1;
     pthread_mutex_unlock(&_lock);
     return false;
@@ -246,10 +255,15 @@ void LoadMonitor::request_complete(int latency)
           float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
           bucket.update_rate(new_rate);
           TRC_STATUS("Maximum incoming request rate/second increased to %f "
-                     "(based on a smoothed mean latency of %d and %d upstream overload responses)",
+                     "(based on a smoothed mean latency of %d, %d upstream "
+                     "overload responses, %dms time passing, %d accepted "
+                     "requests, and %d rejected requests).",
                      bucket.rate,
                      smoothed_latency,
-                     penalties);
+                     penalties,
+                     ms_passed,
+                     accepted,
+                     rejected);
         }
         else
         {

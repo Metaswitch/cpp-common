@@ -147,6 +147,9 @@ namespace SASEvent {
 
   const int QUORUM_FAILURE = COMMON_BASE + 0x0400;
 
+  const int LOAD_MONITOR_ACCEPTED_REQUEST = COMMON_BASE + 0x0500;
+  const int LOAD_MONITOR_REJECTED_REQUEST = COMMON_BASE + 0x0501;
+
 } // namespace SASEvent
 
 #endif
