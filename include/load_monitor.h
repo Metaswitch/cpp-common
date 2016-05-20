@@ -41,6 +41,7 @@
 #include <pthread.h>
 #include "snmp_continuous_accumulator_table.h"
 #include "snmp_scalar.h"
+#include "sas.h"
 
 class TokenBucket
 {
@@ -50,6 +51,7 @@ class TokenBucket
     int max_size;
     bool get_token();
     void update_rate(float new_rate);
+    inline float token_count() { return tokens; }
   private:
     timespec replenish_time;
     float tokens;
@@ -67,7 +69,7 @@ class LoadMonitor
                 SNMP::U32Scalar* penalties_scalar = NULL,
                 SNMP::U32Scalar* token_rate_scalar = NULL);
     virtual ~LoadMonitor();
-    virtual bool admit_request();
+    virtual bool admit_request(SAS::TrailId trail);
     virtual void incr_penalties();
     virtual int get_target_latency_us();
     virtual void request_complete(int latency);

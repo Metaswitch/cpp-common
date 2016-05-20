@@ -42,7 +42,7 @@
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20160519";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20160520";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -146,6 +146,9 @@ namespace SASEvent {
   const int CASS_CONNECT_FAIL = COMMON_BASE + 0x0300;
 
   const int QUORUM_FAILURE = COMMON_BASE + 0x0400;
+
+  const int LOAD_MONITOR_ACCEPTED_REQUEST = COMMON_BASE + 0x0500;
+  const int LOAD_MONITOR_REJECTED_REQUEST = COMMON_BASE + 0x0501;
 
 } // namespace SASEvent
 

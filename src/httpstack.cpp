@@ -280,7 +280,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     _stats->incr_http_incoming_requests();
   }
 
-  if ((_load_monitor == NULL) || _load_monitor->admit_request())
+  if ((_load_monitor == NULL) || _load_monitor->admit_request(trail))
   {
     // Pause the request processing (which stops it from being cancelled), as we
     // may process this request asynchronously.  The
