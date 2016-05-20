@@ -167,8 +167,19 @@ bool LoadMonitor::admit_request(SAS::TrailId trail)
   }
   else
   {
+    float accepted_percent = (accepted + rejected == 0) ?
+                             100.0 :
+                             100 * (((float) accepted) / (accepted + rejected));
+    timespec current_time;
+    clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
+    unsigned long time_passed_ms = ((current_time.tv_sec * 1000) +
+                                    (current_time.tv_nsec / 1000000)) -
+                                   last_adjustment_time_ms;
+
     SAS::Event event(trail, SASEvent::LOAD_MONITOR_REJECTED_REQUEST, trail);
     event.add_static_param(bucket.rate);
+    event.add_static_param(accepted_percent);
+    event.add_static_param(time_passed_ms);
     SAS::report_event(event);
 
     rejected += 1;
