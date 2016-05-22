@@ -56,11 +56,11 @@ void TimerHeap::insert(Timer* t)
   heapify_upwards(position);
 }
 
-void TimerHeap::remove(Timer* t)
+bool TimerHeap::remove(Timer* t)
 {
   if (t->_heap != this)
   {
-    return;
+    return false;
   }
 
   t->_heap = nullptr;
@@ -82,6 +82,8 @@ void TimerHeap::remove(Timer* t)
   // heap, it's almost certainly in the wrong place, so move it upwards or
   // downwards as appropriate until the heap property is restored.
   rebalance(_heap_store[index]);
+
+  return true;
 }
 
 

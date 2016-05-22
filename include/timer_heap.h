@@ -104,10 +104,11 @@ public:
 
   /// Removes a timer from the heap. This does not free the timer's memory.
   ///
-  /// Does nothing if this timer is not in the heap.
-  /// 
   /// @param t Timer to remove.
-  void remove(Timer* t);
+  ///
+  /// @returns True if the timer was  removed, False if the timer was not in
+  /// the heap.
+  bool remove(Timer* t);
 
   /// Moves the timer up or down as necessary to ensure that this timer is
   /// larger than its parent and smaller than its children (i.e. to ensure the
@@ -119,6 +120,12 @@ public:
   ///
   /// @param t The timer to move to the right place in the heap.
   void rebalance(Timer* t);
+
+  /// Removes all timers from the heap.
+  void clear() { _heap_store.clear(); }
+  
+  /// @return True if there are no timers in the heap, False otherwise.
+  bool empty() { return _heap_store.empty(); }
 
   /// Returns the timer which will pop next, or NULL if the heap is empty.
   ///
