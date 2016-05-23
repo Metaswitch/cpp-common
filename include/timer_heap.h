@@ -82,12 +82,6 @@ protected:
     boost::heap::compare<PopsBefore>>::handle_type _heap_handle;
 };
 
-
-bool PopsBefore::operator()(HeapableTimer* const& t1, HeapableTimer* const& t2) const
-{
-  return t1->get_pop_time() >= t2->get_pop_time();
-}
-
 /// Wrapper around a heap data structure for storing timers efficiently.
 class TimerHeap : public boost::heap::d_ary_heap<HeapableTimer*,
   boost::heap::arity<2>,
