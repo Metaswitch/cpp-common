@@ -38,62 +38,63 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <vector>
+#include <boost/heap/d_ary_heap.hpp>
 
-/// Heap data structure for storing timers. This has a tree structure, with
-/// every element having 0, 1 or 2 children, and ordered such that every
-/// timer's pop time is less than or equal to its children's pop time. This
-/// means that:
-///
-/// * finding the next timer to pop is an O(1) operation
-/// * inserting a new timer is an O(log n) operation
-/// * deleting a timer is an O(log n) operation
-/// * changing the pop time of a timer is an O(log n) operation
-class TimerHeap
+class TimerHeap;
+class HeapableTimer;
+
+class PopsBefore
 {
 public:
-  /// Interface for a timer which can be used in this heap. Subclasses should
-  /// implement the get_pop_time method, plus whatever else they need for the
-  /// information associated with a timer.
-  class Timer
-  {
-  public:
-    friend class TimerHeap;
+  bool operator()(HeapableTimer* const& t1, HeapableTimer* const& t2) const;
+};
 
-    Timer() :
-      _heap(nullptr),
-      _heap_position(42) // Arbitrary non-zero number to help detect when a
-                         // timer is used without having been inserted into a
-                         // heap first.
-    {}
-    virtual ~Timer() = default;
 
-    /// Time at which this timer pops. This doesn't enforce a particular unit
-    /// or epoch - whether it means seconds since 01-01-1970 or milliseconds
-    /// since 2000, the heap will just let you access the timer with the
-    /// earliest pop time. (Obviously the units and epoch do need to be
-    /// consistent between all timers in the same heap.)
-    /// 
-    /// @return Integer representing the pop time.
-    virtual uint64_t get_pop_time() = 0;
+/// Interface for a timer which can be used in this heap. Subclasses should
+/// implement the get_pop_time method, plus whatever else they need for the
+/// information associated with a timer.
+class HeapableTimer
+{
+public:
+  virtual ~HeapableTimer() = default;
 
-  protected:
-    /// Heap which this timer is in, or NULL if it isn't currently in a heap.
-    ///
-    /// TimerHeap::insert is responsible for updating this field.
-    TimerHeap* _heap;
+  /// Time at which this timer pops. This doesn't enforce a particular unit
+  /// or epoch - whether it means seconds since 01-01-1970 or milliseconds
+  /// since 2000, the heap will just let you access the timer with the
+  /// earliest pop time. (Obviously the units and epoch do need to be
+  /// consistent between all timers in the same heap.)
+  /// 
+  /// @return Integer representing the pop time.
+  virtual uint64_t get_pop_time() const = 0;
 
-  private:
-    bool pops_before(Timer* t)
-    {
-      return get_pop_time() < t->get_pop_time();
-    }
+protected:
+  /// Heap which this timer is in, or NULL if it isn't currently in a heap.
+  ///
+  /// TimerHeap::insert is responsible for updating this field.
+  TimerHeap* _heap = nullptr;
 
-    // The current position of this timer in the heap's underlying array. The
-    // TimerHeap is responsible for keeping this up-to-date as it moves the
-    // timer around.
-    size_t _heap_position;
-  };
+  // The current position of this timer in the heap's underlying array. The
+  // TimerHeap is responsible for keeping this up-to-date as it moves the
+  // timer around.
+  boost::heap::d_ary_heap<HeapableTimer*,
+    boost::heap::arity<2>,
+    boost::heap::mutable_<true>,
+    boost::heap::compare<PopsBefore>>::handle_type _heap_handle;
+};
 
+
+bool PopsBefore::operator()(HeapableTimer* const& t1, HeapableTimer* const& t2) const
+{
+  return t1->get_pop_time() >= t2->get_pop_time();
+}
+
+/// Wrapper around a heap data structure for storing timers efficiently.
+class TimerHeap : public boost::heap::d_ary_heap<HeapableTimer*,
+  boost::heap::arity<2>,
+  boost::heap::mutable_<true>,
+  boost::heap::compare<PopsBefore>>
+{
+public:
   /// Adds a timer to the heap. This doesn't take ownership of the timer's
   /// memory - this must be tracked, freed etc. outside of the heap. (The
   /// caller will usually wwant to do this anyway, so that they have a
@@ -102,7 +103,14 @@ public:
   /// Does nothing if this timer is already in the heap.
   /// 
   /// @param t Timer to insert
-  void insert(Timer* t);
+  void insert(HeapableTimer* t)
+  {
+    if (t->_heap != this)
+    {
+      t->_heap_handle = push(t);
+      t->_heap = this;
+    }
+  }
 
   /// Removes a timer from the heap. This does not free the timer's memory.
   ///
@@ -110,7 +118,19 @@ public:
   ///
   /// @returns True if the timer was  removed, False if the timer was not in
   /// the heap.
-  bool remove(Timer* t);
+  bool remove(HeapableTimer* t)
+  {
+    if (t->_heap == this)
+    {
+      erase(t->_heap_handle);
+      t->_heap = nullptr;
+      return true;
+    }
+    else
+    {
+      return false;
+    }
+  }
 
   /// Moves the timer up or down as necessary to ensure that this timer is
   /// larger than its parent and smaller than its children (i.e. to ensure the
@@ -121,13 +141,10 @@ public:
   /// * changing a timer's pop time
   ///
   /// @param t The timer to move to the right place in the heap.
-  void rebalance(Timer* t);
-
-  /// Removes all timers from the heap.
-  void clear() { _heap_store.clear(); }
-  
-  /// @return True if there are no timers in the heap, False otherwise.
-  bool empty() { return _heap_store.empty(); }
+  void rebalance(HeapableTimer* t)
+  {
+    update(t->_heap_handle);
+  }
 
   /// Returns the timer which will pop next, or NULL if the heap is empty.
   ///
@@ -135,44 +152,22 @@ public:
   /// want to execute the timer immediately - they may want to check the pop
   /// time, and then do some other operation if no timers are going to pop for
   /// a while). If this timer gets used, the caller should call remove() on it.
-  Timer* get_next_timer();
-
-private:
-  // See https://en.wikipedia.org/wiki/Binary_heap#Heap_implementation for heap
-  // index arithmetic.
-  inline size_t left_child_of(size_t index) { return (index * 2) + 1; }
-  inline size_t right_child_of(size_t index) { return (index * 2) + 2; }
-  inline size_t parent_of(size_t index) { return (index - 1) / 2; }
-
-  /// Restores the heap property by swapping the element at index with its
-  /// parent (i.e. moving it upwards) until it is smaller than its parent.
-  /// 
-  /// @param index The index of the timer to move.
-  void heapify_upwards(size_t index);
-
-  /// Restores the heap property by swapping the element at index with its
-  /// largest child (i.e. moving it downwards) until it is larger than both its
-  /// children.
-  /// 
-  /// @param index The index of the timer to move.
-  void heapify_downwards(size_t index);
-
-  /// Swaps the element at `index` with its parent.
-  ///
-  /// Callers should verify that:
-  /// * this element has a parent (i.e. index != 0)
-  /// * doing this swap is necessary to restore the heap property (i.e. the element at index currently pops before its parent)
-  /// 
-  /// @param index The index of the timer to move.
-  void swap_with_parent(size_t index);
-
-  /// Underlying storage for the heap.
-  std::vector<Timer*> _heap_store;
+  HeapableTimer* get_next_timer()
+  {
+    if (empty())
+    {
+      return nullptr;
+    }
+    else
+    {
+      return top();
+    }
+  }
 };
 
 // Basic implementation of a timer which allows setting and updating the pop
 // time.
-class SimpleTimer : public TimerHeap::Timer
+class SimpleTimer : public HeapableTimer
 {
   SimpleTimer(uint64_t pop_time) :
     _pop_time(pop_time)
@@ -187,7 +182,7 @@ class SimpleTimer : public TimerHeap::Timer
     _heap->rebalance(this);
   }
 
-  uint64_t get_pop_time() { return _pop_time; };
+  uint64_t get_pop_time() const { return _pop_time; };
 
 private:
   uint64_t _pop_time;
