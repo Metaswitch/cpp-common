@@ -56,6 +56,7 @@ public:
   /// information associated with a timer.
   class Timer
   {
+  public:
     friend class TimerHeap;
 
     Timer() :
@@ -75,16 +76,17 @@ public:
     /// @return Integer representing the pop time.
     virtual uint64_t get_pop_time() = 0;
 
+  protected:
+    /// Heap which this timer is in, or NULL if it isn't currently in a heap.
+    ///
+    /// TimerHeap::insert is responsible for updating this field.
+    TimerHeap* _heap;
+
   private:
     bool pops_before(Timer* t)
     {
       return get_pop_time() < t->get_pop_time();
     }
-
-    /// Heap which this timer is in, or NULL if it isn't currently in a heap.
-    ///
-    /// TimerHeap::insert is responsible for updating this field.
-    TimerHeap* _heap;
 
     // The current position of this timer in the heap's underlying array. The
     // TimerHeap is responsible for keeping this up-to-date as it moves the
