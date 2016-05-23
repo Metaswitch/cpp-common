@@ -140,7 +140,7 @@ public:
   bool _terminated;
   void register_alarm(BaseAlarm* alarm); 
   // Used to stop re-raising alarms in UTs
-  void forget_alarm_list(void) {_alarm_list.clear();}
+  void forget_alarm_list(void) {pthread_mutex_lock(&_lock); _alarm_list.clear(); pthread_mutex_unlock(&_lock); }
   void start_resending_alarms(void) { _first_alarm_raised = true; }
   void stop_resending_alarms(void) { _first_alarm_raised = false; }
 
