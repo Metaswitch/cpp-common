@@ -67,7 +67,6 @@ public:
   /// @return Integer representing the pop time.
   virtual uint64_t get_pop_time() const = 0;
 
-protected:
   /// Heap which this timer is in, or NULL if it isn't currently in a heap.
   ///
   /// TimerHeap::insert is responsible for updating this field.
