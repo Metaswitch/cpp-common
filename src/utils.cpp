@@ -369,7 +369,6 @@ bool Utils::overflow_less_than(uint64_t a, uint64_t b)
     return ((a - b) > ((uint64_t)(1) << 63));
 }
 
-
 int Utils::lock_and_write_pidfile(std::string filename)
 {
   std::string lockfilename = filename + ".lock";

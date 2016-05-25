@@ -464,12 +464,12 @@ namespace Utils
   // @return A 64-bit identifier
   uint64_t generate_unique_integer(uint32_t deployment_id, uint32_t instance_id);
 
-  // Compares two 32 bit numbers and returns if a < b.
-  // This also returns true if b hasoverflown, and hence looks like b < a
+  // Compares two 32 bit numbers and returns whether a < b.
+  // This also returns true if b has overflowed, and hence looks like b < a
   bool overflow_less_than(uint32_t a, uint32_t b);
 
-  // Compares two 64 bit numbers and returns if a < b.
-  // This also returns true if b hasoverflown, and hence looks like b < a
+  // Compares two 64 bit numbers and returns whether a < b.
+  // This also returns true if b has overflowed, and hence looks like b < a
   bool overflow_less_than(uint64_t a, uint64_t b);
 
   int lock_and_write_pidfile(std::string filename);
