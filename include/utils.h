@@ -468,6 +468,10 @@ namespace Utils
   // This also returns true if b hasoverflown, and hence looks like b < a
   bool overflow_less_than(uint32_t a, uint32_t b);
 
+  // Compares two 64 bit numbers and returns if a < b.
+  // This also returns true if b hasoverflown, and hence looks like b < a
+  bool overflow_less_than(uint64_t a, uint64_t b);
+
   int lock_and_write_pidfile(std::string filename);
 
   bool parse_stores_arg(const std::vector<std::string>& stores_arg,
