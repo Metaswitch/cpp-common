@@ -76,16 +76,16 @@ public:
   // TimerHeap is responsible for keeping this up-to-date as it moves the
   // timer around.
   boost::heap::d_ary_heap<HeapableTimer*,
-    boost::heap::arity<2>,
-    boost::heap::mutable_<true>,
-    boost::heap::compare<PopsBefore>>::handle_type _heap_handle;
+                          boost::heap::arity<2>,
+                          boost::heap::mutable_<true>,
+                          boost::heap::compare<PopsBefore>>::handle_type _heap_handle;
 };
 
 /// Wrapper around a heap data structure for storing timers efficiently.
 class TimerHeap : public boost::heap::d_ary_heap<HeapableTimer*,
-  boost::heap::arity<2>,
-  boost::heap::mutable_<true>,
-  boost::heap::compare<PopsBefore>>
+                                                 boost::heap::arity<2>,
+                                                 boost::heap::mutable_<true>,
+                                                 boost::heap::compare<PopsBefore>>
 {
 public:
   /// Adds a timer to the heap. This doesn't take ownership of the timer's
