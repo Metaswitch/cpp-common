@@ -46,15 +46,13 @@
 // different severity between these operations for this would cause data
 // contention. To ensure we don't do this the call to issue the alarm and change
 // the _last_state_raised are protected by this lock.
-pthread_mutex_t issue_alarm_change_state;
+pthread_mutex_t issue_alarm_change_state; // Where is this init'd?
 
-AlarmReqAgent AlarmReqAgent::_instance;
-std::unique_ptr<AlarmManager> AlarmManager::_instance;
-pthread_once_t AlarmManager::alarm_manager_singleton_once = PTHREAD_ONCE_INIT;
-
-AlarmState::AlarmState(const std::string& issuer,
+AlarmState::AlarmState(AlarmReqAgent* alarm_req_agent,
+                       const std::string& issuer,
                        const int index,
                        AlarmDef::Severity severity) :
+  _alarm_req_agent(alarm_req_agent),
   _issuer(issuer)
 {
   _identifier = std::to_string(index) + "." + std::to_string(severity);
@@ -62,23 +60,26 @@ AlarmState::AlarmState(const std::string& issuer,
 
 void AlarmState::issue()
 {
-  AlarmManager::get_instance().start_resending_alarms();
   std::vector<std::string> req;
-
   req.push_back("issue-alarm");
   req.push_back(_issuer);
   req.push_back(_identifier);
-  AlarmReqAgent::get_instance().alarm_request(req);
+  _alarm_req_agent->alarm_request(req);
+
   TRC_STATUS("%s issued %s alarm", _issuer.c_str(), _identifier.c_str());
 }
 
-BaseAlarm::BaseAlarm(const std::string& issuer,
+BaseAlarm::BaseAlarm(AlarmManager* alarm_manager,
+                     const std::string& issuer,
                      const int index):
   _index(index),
-  _clear_state(issuer, index, AlarmDef::CLEARED),
+  _clear_state(alarm_manager->alarm_req_agent(),
+               issuer,
+               index,
+               AlarmDef::CLEARED),
   _last_state_raised(NULL)
 {
-  AlarmManager::get_instance().register_alarm(this);
+  alarm_manager->alarm_re_raiser()->register_alarm(this);
 }
 
 void BaseAlarm::switch_to_state(AlarmState* new_state)
@@ -120,11 +121,12 @@ AlarmState::AlarmCondition BaseAlarm::get_alarm_state()
   }
 }
 
-Alarm::Alarm(const std::string& issuer,
+Alarm::Alarm(AlarmManager* alarm_manager,
+             const std::string& issuer,
              const int index,
              AlarmDef::Severity severity) :
-  BaseAlarm(issuer, index),
-  _set_state(issuer, index, severity)
+  BaseAlarm(alarm_manager, issuer, index),
+  _set_state(alarm_manager->alarm_req_agent(), issuer, index, severity)
 {
 }
 
@@ -133,14 +135,15 @@ void Alarm::set()
   switch_to_state(&_set_state);
 }
 
-MultiStateAlarm::MultiStateAlarm(const std::string& issuer,
+MultiStateAlarm::MultiStateAlarm(AlarmManager* alarm_manager,
+                                 const std::string& issuer,
                                  const int index) :
-  BaseAlarm(issuer, index),
-  _indeterminate_state(issuer, index, AlarmDef::INDETERMINATE),
-  _warning_state(issuer, index, AlarmDef::WARNING),
-  _minor_state(issuer, index, AlarmDef::MINOR),
-  _major_state(issuer, index, AlarmDef::MAJOR),
-  _critical_state(issuer, index, AlarmDef::CRITICAL)
+  BaseAlarm(alarm_manager, issuer, index),
+  _indeterminate_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::INDETERMINATE),
+  _warning_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::WARNING),
+  _minor_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MINOR),
+  _major_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MAJOR),
+  _critical_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::CRITICAL)
 {
 }
 
@@ -172,135 +175,89 @@ void MultiStateAlarm::set_critical()
   switch_to_state(&_critical_state);
 }
 
-void AlarmManager::create_singleton()
-{
-  _instance = std::unique_ptr<AlarmManager>(new AlarmManager());
-}
-
-AlarmManager& AlarmManager::get_instance()
-{
-  pthread_once(&alarm_manager_singleton_once, AlarmManager::create_singleton);
-  return *_instance;
-}
-
-AlarmManager::AlarmManager():
-  _terminated(false),
-  _first_alarm_raised(false)
+AlarmReRaiser::AlarmReRaiser():
+  _terminated(false)
 {
   // Creates a lock and a condition variable to protect the thread.
   pthread_mutex_init(&_lock, NULL);
-  pthread_condattr_t cond_attr;
-  pthread_condattr_init(&cond_attr);
-  pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
-  pthread_cond_init(&_condition, &cond_attr);
-  pthread_condattr_destroy(&cond_attr);
+
+#ifdef UNIT_TEST
+  _condition = new MockPThreadCondVar(&_lock);
+#else
+  _condition = new CondVar(&_lock);
+#endif
+
   pthread_create(&_reraising_alarms_thread, NULL, reraise_alarms_function, this);
 }
 
-AlarmManager::~AlarmManager()
+AlarmReRaiser::~AlarmReRaiser()
 {
+  // Signals the condition variable to terminate the thread.
   pthread_mutex_lock(&_lock);
   _terminated = true;
-  // Signals the condition variable to terminate the thread.
-  pthread_cond_signal(&_condition);
+  _condition->signal();
   pthread_mutex_unlock(&_lock);
+
   pthread_join(_reraising_alarms_thread, NULL);
-  pthread_cond_destroy(&_condition);
+  delete _condition; _condition = NULL;
   pthread_mutex_destroy(&_lock);
 }
 
-void AlarmManager::register_alarm(BaseAlarm* alarm)
+void AlarmReRaiser::register_alarm(BaseAlarm* alarm)
 {
   pthread_mutex_lock(&_lock);
   _alarm_list.push_back(alarm);
   pthread_mutex_unlock(&_lock);
 }
 
-// This function runs on the thread created by the AlarmManager constructor. To
+// This function runs on the thread created by the AlarmReRaiser constructor. To
 // be compatible with the pthread this function needs to accept and return a
 // void pointer. This void pointer is then cast to an AlarmManger pointer in order to
 // call the reraise_alarms method.
-void* AlarmManager::reraise_alarms_function(void* data)
+void* AlarmReRaiser::reraise_alarms_function(void* data)
 {
-  ((AlarmManager*)data)->reraise_alarms();
+  ((AlarmReRaiser*)data)->reraise_alarms();
   return NULL;
 }
 
-void AlarmManager::reraise_alarms()
+void AlarmReRaiser::reraise_alarms()
 {
   TRC_DEBUG("Started reraising alarms every 30 seconds");
-  struct timespec time_limit;
-#ifdef UNIT_TEST
-  int UT_TIME_BETWEEN_CHECKS = 1000;
-#endif
   pthread_mutex_lock(&_lock);
-  clock_gettime(CLOCK_MONOTONIC, &time_limit);
   
   while (!_terminated)
   {
     // Sets the limit for when we want the thread to wake up and start
-    // re-issueing alarms again. When we are Unit Testing with Valgrind we need
-    // to ensure the UTs have enough time to complete before we start resending
-    // alarms, so we add 1000s on to the time limit used below and then in UTs
-    // we can simulate time moving forward by 1000s if we want to trigger alarms
-    // being resent. 
-#ifdef UNIT_TEST
-    time_limit.tv_sec += UT_TIME_BETWEEN_CHECKS;
-#else
+    // re-issuing alarms again.
+    struct timespec time_limit;
+    clock_gettime(CLOCK_MONOTONIC, &time_limit);
     time_limit.tv_sec += 30;
-#endif
-    if (_first_alarm_raised)
+
+    TRC_DEBUG("Reraising all alarms with a known state");
+    for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
     {
-      TRC_DEBUG("Reraising alarms");
-      for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
-      {
-        (*it)->reraise_last_state();
-      }
+      (*it)->reraise_last_state();
     }
 
-    struct timespec current_time;
-    clock_gettime(CLOCK_MONOTONIC, &current_time);
-    
-    // Forces us to wait if it took less than 30 seconds to raise the alarms.
-    while (((current_time.tv_sec < time_limit.tv_sec && !_terminated) ||
-            ((current_time.tv_sec == time_limit.tv_sec) && (current_time.tv_nsec < time_limit.tv_nsec))) &&
-            !_terminated)
-    {
-      // When we are unit testing this function we want to sleep in 10ms
-      // increments. This gives the UT a chance to simulate 1000 seconds of 
-      // time passing to cause all the alarms to be re-raised. We have to make
-      // sure though that adding on 10ms doesn't cause tv_nsec to go over its
-      // limit of a billion nanoseconds, in this case we incrament the second
-      // counter.
-#ifdef UNIT_TEST
-      time_limit.tv_nsec += 10 * 1000 * 1000;
-      if (time_limit.tv_nsec >= (1000 * 1000 * 1000))
-      {
-        // LCOV_EXCL_START
-        time_limit.tv_nsec -= 1000 * 1000 * 1000;
-        time_limit.tv_sec += 1;
-        // LCOV_EXCL_STOP
-      }
-      // We want to temporarily reduce the time_limit for UTs to 10ms, this
-      // allows us to pass pthread_cond_timedwait quickly but keeps us in this
-      // while loop until we manually advance time by 1000s in a UT.
-      time_limit.tv_sec -= UT_TIME_BETWEEN_CHECKS;
-#endif
-      pthread_cond_timedwait(&_condition, &_lock, &time_limit);
-      clock_gettime(CLOCK_MONOTONIC, &current_time);
-#ifdef UNIT_TEST
-      time_limit.tv_sec += UT_TIME_BETWEEN_CHECKS;
-#endif
-    }
+    // Wait if it took less than 30 seconds to raise the alarms. If the time has
+    // already passed, then this instantly wakes up (as the timedwait call fails
+    // with ETIMEDOUT). We don't need to check if we've terminated as we're in
+    // the lock.
+    _condition->timedwait(&time_limit);
   }
+
   pthread_mutex_unlock(&_lock);
-  TRC_INFO("Reraising alarms thread terminating");
+  TRC_INFO("Thread to reraise alarms terminating");
 }
+
+AlarmReqAgent::AlarmReqAgent() : _ctx(NULL), _sck(NULL), _req_q(NULL)
+{}
 
 bool AlarmReqAgent::start()
 {
   if (!zmq_init_ctx())
   {
+    TRC_ERROR("Unable to initialise the ZMQ context");
     return false;
   }
 
@@ -308,33 +265,26 @@ bool AlarmReqAgent::start()
 
   pthread_mutex_init(&_start_mutex, NULL);
   pthread_cond_init(&_start_cond, NULL);
-
   pthread_mutex_lock(&_start_mutex);
 
-  int rc = pthread_create(&_thread, NULL, &agent_thread, (void*) &_instance);
+  int rc = pthread_create(&_thread, NULL, &agent_thread, (void*)this);
   if (rc == 0)
   {
+    // This blocks until the ZMQ thread is ready to accept incoming messages
     pthread_cond_wait(&_start_cond, &_start_mutex);
   }
 
   pthread_mutex_unlock(&_start_mutex);
-
   pthread_cond_destroy(&_start_cond);
   pthread_mutex_destroy(&_start_mutex);
 
   if (rc != 0)
   {
     // LCOV_EXCL_START - No mock for pthread_create
-
     TRC_ERROR("AlarmReqAgent: error creating thread %s", strerror(rc));
-
     zmq_clean_ctx();
-
-    delete _req_q;
-    _req_q = NULL;
-
+    delete _req_q; _req_q = NULL;
     return false;
-
     // LCOV_EXCL_STOP
   }
 
@@ -343,14 +293,18 @@ bool AlarmReqAgent::start()
 
 void AlarmReqAgent::stop()
 {
-  _req_q->terminate();
+  if (_req_q)
+  {
+    _req_q->terminate();
+  }
 
   zmq_clean_ctx();
-
   pthread_join(_thread, NULL);
+}
 
-  delete _req_q;
-  _req_q = NULL;
+AlarmReqAgent::~AlarmReqAgent()
+{
+  delete _req_q; _req_q = NULL;
 }
 
 void AlarmReqAgent::alarm_request(std::vector<std::string> req)
@@ -366,10 +320,6 @@ void* AlarmReqAgent::agent_thread(void* alarm_req_agent)
   ((AlarmReqAgent*) alarm_req_agent)->agent();
 
   return NULL;
-}
-
-AlarmReqAgent::AlarmReqAgent() : _ctx(NULL), _sck(NULL), _req_q(NULL)
-{
 }
 
 bool AlarmReqAgent::zmq_init_ctx()
