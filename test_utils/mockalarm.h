@@ -43,7 +43,7 @@
 class MockAlarm : public Alarm
 {
 public:
-  MockAlarm(AlarmManager* alarm_manager) : 
+  MockAlarm(AlarmManager* alarm_manager) :
     Alarm(alarm_manager, "sprout", 0, AlarmDef::CRITICAL) {}
 
   MOCK_METHOD0(clear, void());
