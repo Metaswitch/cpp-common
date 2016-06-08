@@ -44,7 +44,7 @@ namespace SNMP
 U32Scalar::U32Scalar(std::string name,
                      std::string oid_str):
   value(0),
-  _oid(oid_str)
+  _oid(oid_str + ".0")
   {
     oid parsed_oid[64];
     size_t oid_len = 64;
