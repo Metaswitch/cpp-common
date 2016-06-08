@@ -177,6 +177,7 @@ public:
     {
       _q.pop();
     }
+    _size = _q.size();
     pthread_mutex_unlock(&_m);
   }
 
@@ -214,6 +215,7 @@ public:
 
       // Must be space on the queue now.
       _q.push(item);
+      _size = _q.size();
 
       // Are there any readers waiting?
       if (_readers > 0)
@@ -252,6 +254,7 @@ public:
 
       // There is space on the queue.
       _q.push(item);
+      _size = _q.size();
 
       // Are there any readers waiting?
       if (_readers > 0)
@@ -285,6 +288,7 @@ public:
       // Something on the queue to receive.
       item = _q.front();
       _q.pop();
+      _size = _q.size();
 
       // Are there blocked writers?
       if ((_max_queue != 0) &&
@@ -358,6 +362,7 @@ public:
     {
       item = _q.front();
       _q.pop();
+      _size = _q.size();
 
       if ((_max_queue != 0) &&
           (_q.size() < _max_queue) &&
@@ -392,9 +397,9 @@ public:
     return item;
   }
 
-  int size() const
+  size_t size() const
   {
-    return _q.size();
+    return size.load();
   }
 
 private:
@@ -402,6 +407,7 @@ private:
   bool _open;
   unsigned int _max_queue;
   std::queue<T> _q;
+  std::atomic<size_t> _size;
   int _writers;
   int _readers;
   bool _terminated;
