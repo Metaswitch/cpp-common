@@ -957,7 +957,8 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
   struct session* sess;
   int dummy_is_new;
 
-  if (fd_msg_sess_get(fd_g_config->cnf_dict, msg, &sess, &dummy_is_new) == 0)
+  if ((fd_msg_sess_get(fd_g_config->cnf_dict, msg, &sess, &dummy_is_new) == 0) &&
+      (sess != NULL))
   {
     os0_t session_id;
     size_t session_id_len;
