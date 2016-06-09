@@ -254,10 +254,13 @@ public:
   // Deletes the row keyed off `key`.
   void remove(TRowKey key)
   {
-    TRow* row = _map.at(key);
-    _map.erase(key);
-    Table<TRow>::remove(row);
-    delete row;
+    if (_map.find(key) != _map.end())
+    {
+      TRow* row = _map.at(key);
+      _map.erase(key);
+      Table<TRow>::remove(row);
+      delete row;
+    }
   };
 
 protected:
