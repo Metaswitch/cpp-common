@@ -64,9 +64,6 @@ class AlarmManager;
 class AlarmReqAgent
 {
 public:
-  AlarmReqAgent();
-  ~AlarmReqAgent();
-
   enum
   {
     MAX_Q_DEPTH = 100
@@ -82,6 +79,9 @@ public:
   void alarm_request(std::vector<std::string> req);
 
 private:
+  AlarmReqAgent();
+  ~AlarmReqAgent();
+
   enum
   {
     ZMQ_PORT = 6664,
@@ -179,10 +179,18 @@ protected:
   BaseAlarm(AlarmManager* alarm_manager,
             const std::string& issuer,
             const int index);
+  ~BaseAlarm();
 
   const int _index;
   AlarmState _clear_state;
-  
+
+  // When an alarm is issued we change the _last_state_raised member variable of
+  // the alarm. We must not allow another thread to raise the same alarm at a
+  // different severity between these operations for this would cause data
+  // contention. To ensure we don't do this the call to issue the alarm and change
+  // the _last_state_raised are protected by this lock.
+  pthread_mutex_t _issue_alarm_change_state;
+
   // Keeps track of the latest state of each alarm that has been raised. If the
   // alarm has just been cleared this would be the corresponding _clear_state
   // for the alarm.
@@ -196,13 +204,13 @@ protected:
 class AlarmReRaiser
 {
 public:
-  AlarmReRaiser();
-  ~AlarmReRaiser();
-
   // Tell the Alarm Manager about an alarm
   void register_alarm(BaseAlarm* alarm); 
 
 private:
+  AlarmReRaiser();
+  ~AlarmReRaiser();
+
   bool _terminated;
 
   // Static function called by the reraising alarms thread. This simply calls
@@ -230,8 +238,8 @@ private:
 
 /// @class AlarmManager
 ///
-/// Class responsible for calling BaseAlarm's reraise_latest_state
-/// function on each alarm every thirty seconds.
+/// Class responsible for managing the AlarmReqAgent and AlarmReRaiser and
+/// making sure they are created/deleted in a safe order
 class AlarmManager
 {
 public:
@@ -251,6 +259,11 @@ public:
 
   AlarmReqAgent* alarm_req_agent() { return _alarm_req_agent; }
   AlarmReRaiser* alarm_re_raiser() { return _alarm_re_raiser; }
+
+  // The AlarmManager is the only class allowed to create the AlarmReqAgent
+  // and the AlarmReRaiser
+  friend class AlarmReqAgent;
+  friend class AlarmReRaiser;
 
 private:
   AlarmReqAgent* _alarm_req_agent;

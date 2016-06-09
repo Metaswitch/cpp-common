@@ -41,13 +41,6 @@
 #include "alarm.h"
 #include "log.h"
 
-// When an alarm is issued we change the _last_state_raised member variable of
-// the alarm. We must not allow another thread to raise the same alarm at a
-// different severity between these operations for this would cause data
-// contention. To ensure we don't do this the call to issue the alarm and change
-// the _last_state_raised are protected by this lock.
-pthread_mutex_t issue_alarm_change_state; // Where is this init'd?
-
 AlarmState::AlarmState(AlarmReqAgent* alarm_req_agent,
                        const std::string& issuer,
                        const int index,
@@ -79,17 +72,23 @@ BaseAlarm::BaseAlarm(AlarmManager* alarm_manager,
                AlarmDef::CLEARED),
   _last_state_raised(NULL)
 {
+  pthread_mutex_init(&_issue_alarm_change_state, NULL);
   alarm_manager->alarm_re_raiser()->register_alarm(this);
+}
+
+BaseAlarm::~BaseAlarm()
+{
+  pthread_mutex_destroy(&_issue_alarm_change_state);
 }
 
 void BaseAlarm::switch_to_state(AlarmState* new_state)
 {
   if (_last_state_raised !=  new_state)
   {
-    pthread_mutex_lock (&issue_alarm_change_state);
+    pthread_mutex_lock(&_issue_alarm_change_state);
     new_state->issue();
     _last_state_raised = new_state;
-    pthread_mutex_unlock (&issue_alarm_change_state);
+    pthread_mutex_unlock(&_issue_alarm_change_state);
   }
 }
 void BaseAlarm::clear()
@@ -99,10 +98,14 @@ void BaseAlarm::clear()
 
 void BaseAlarm::reraise_last_state()
 {
+  pthread_mutex_lock(&_issue_alarm_change_state);
+
   if (_last_state_raised != NULL)
   {
     _last_state_raised->issue();
   }
+
+  pthread_mutex_unlock(&_issue_alarm_change_state);
 }
 
 AlarmState::AlarmCondition BaseAlarm::get_alarm_state()
