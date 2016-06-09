@@ -73,7 +73,7 @@ public:
 
 private:
   // The OID as registered with net-snmp (including the trailing ".0").
-  std::string _oid;
+  std::string _registered_oid;
 };
 
 }
