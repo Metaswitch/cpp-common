@@ -69,14 +69,11 @@ public:
     MAX_Q_DEPTH = 100
   };
 
-  /// Initialize ZMQ context and start agent thread.
-  bool start();
-
-  /// Gracefully stop the agent thread and remove ZMQ context.
-  void stop();
-
   /// Queue an alarm request to be forwarded to snmpd.
   void alarm_request(std::vector<std::string> req);
+
+  // The AlarmManager is the only class allowed to create the AlarmReqAgent
+  friend class AlarmManager;
 
 private:
   AlarmReqAgent();
@@ -207,6 +204,9 @@ public:
   // Tell the Alarm Manager about an alarm
   void register_alarm(BaseAlarm* alarm); 
 
+  // The AlarmManager is the only class allowed to create the AlarmReRaiser
+  friend class AlarmManager;
+
 private:
   AlarmReRaiser();
   ~AlarmReRaiser();
@@ -254,16 +254,8 @@ public:
     delete _alarm_req_agent; _alarm_req_agent = NULL;
   }
 
-  bool start() { return _alarm_req_agent->start(); }
-  void stop() { _alarm_req_agent->stop(); }
-
   AlarmReqAgent* alarm_req_agent() { return _alarm_req_agent; }
   AlarmReRaiser* alarm_re_raiser() { return _alarm_re_raiser; }
-
-  // The AlarmManager is the only class allowed to create the AlarmReqAgent
-  // and the AlarmReRaiser
-  friend class AlarmReqAgent;
-  friend class AlarmReRaiser;
 
 private:
   AlarmReqAgent* _alarm_req_agent;

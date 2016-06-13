@@ -227,7 +227,7 @@ void AlarmReRaiser::reraise_alarms()
 {
   TRC_DEBUG("Started reraising alarms every 30 seconds");
   pthread_mutex_lock(&_lock);
-  
+
   while (!_terminated)
   {
     // Sets the limit for when we want the thread to wake up and start
@@ -236,16 +236,18 @@ void AlarmReRaiser::reraise_alarms()
     clock_gettime(CLOCK_MONOTONIC, &time_limit);
     time_limit.tv_sec += 30;
 
+    // Now raise the alarms
     TRC_DEBUG("Reraising all alarms with a known state");
-    for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin(); it != _alarm_list.end(); it++)
+    for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin();
+                                           it != _alarm_list.end();
+                                           it++)
     {
       (*it)->reraise_last_state();
     }
 
     // Wait if it took less than 30 seconds to raise the alarms. If the time has
     // already passed, then this instantly wakes up (as the timedwait call fails
-    // with ETIMEDOUT). We don't need to check if we've terminated as we're in
-    // the lock.
+    // with ETIMEDOUT). After waiting, get the timespec for 30 secs time.
     _condition->timedwait(&time_limit);
   }
 
@@ -254,16 +256,7 @@ void AlarmReRaiser::reraise_alarms()
 }
 
 AlarmReqAgent::AlarmReqAgent() : _ctx(NULL), _sck(NULL), _req_q(NULL)
-{}
-
-bool AlarmReqAgent::start()
 {
-  if (!zmq_init_ctx())
-  {
-    TRC_ERROR("Unable to initialise the ZMQ context");
-    return false;
-  }
-
   _req_q = new eventq<std::vector<std::string> >(MAX_Q_DEPTH);
 
   pthread_mutex_init(&_start_mutex, NULL);
@@ -287,26 +280,15 @@ bool AlarmReqAgent::start()
     TRC_ERROR("AlarmReqAgent: error creating thread %s", strerror(rc));
     zmq_clean_ctx();
     delete _req_q; _req_q = NULL;
-    return false;
     // LCOV_EXCL_STOP
   }
-
-  return true;
-}
-
-void AlarmReqAgent::stop()
-{
-  if (_req_q)
-  {
-    _req_q->terminate();
-  }
-
-  zmq_clean_ctx();
-  pthread_join(_thread, NULL);
 }
 
 AlarmReqAgent::~AlarmReqAgent()
 {
+  _req_q->terminate();
+  zmq_clean_ctx();
+  pthread_join(_thread, NULL);
   delete _req_q; _req_q = NULL;
 }
 
@@ -398,13 +380,17 @@ void AlarmReqAgent::zmq_clean_sck()
 
 void AlarmReqAgent::agent()
 {
-  bool sckOk = zmq_init_sck();
+  bool zmqOk = zmq_init_ctx();
+  if (zmqOk)
+  {
+    zmqOk = zmq_init_sck();
+  }
 
   pthread_mutex_lock(&_start_mutex);
   pthread_cond_signal(&_start_cond);
   pthread_mutex_unlock(&_start_mutex);
 
-  if (!sckOk)
+  if (!zmqOk)
   {
     return;
   }
