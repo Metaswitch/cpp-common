@@ -66,7 +66,7 @@ class AlarmReqAgent
 public:
   enum
   {
-    MAX_Q_DEPTH = 100
+    MAX_Q_DEPTH = 1000
   };
 
   /// Queue an alarm request to be forwarded to snmpd.
