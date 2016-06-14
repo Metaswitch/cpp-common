@@ -97,7 +97,9 @@ int snmp_setup(const char* name)
   netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_ROLE, 1);
 
   // Uncomment this line to send AgentX requests over TCP, rather than a unix
-  // domain socket, in order to snoop them with tcpdump.
+  // domain socket, in order to snoop them with tcpdump. You'll also need to
+  // replace the agentXSocket line in /etc/snmp/snmpd.conf on your node with
+  // 'agentXSocket tcp:localhost:705' and restart snmpd.
   // netsnmp_ds_set_string(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_X_SOCKET, "tcp:localhost:705");
 
   // Use callback-based logging, and integrate it with the Clearwater logger
