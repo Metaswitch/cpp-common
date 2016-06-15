@@ -39,13 +39,22 @@
 #ifndef SNMP_SCALAR_H
 #define SNMP_SCALAR_H
 
-// This file contains infrastructure for SNMP scalars (single values, not in a table).
+// This file contains infrastructure for SNMP scalars (single values, not in a
+// table).
 //
-// To use one, simply create a U32Scalar and modify its `value` object as necessary - changes to
-// this will automatically be reflected over SNMP. For example:
+// To use one, simply create a U32Scalar and modify its `value` object as
+// necessary - changes to this will automatically be reflected over SNMP. For
+// example:
 //
-// SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count", ".1.2.3");
-// cxn_count->value = 42;
+//     SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count", ".1.2.3");
+//     cxn_count->value = 42;
+//
+// Note that the OID scalars are exposed under has an additional element with
+// the value zero (so using the example above, would actually be obtained by
+// querying ".1.2.3.0"). This is extremely counter-intuitive and easy to
+// forget. Because of this the trailing ".0" should not be specified when
+// constructing the scalar - the scalar will add it when registering with
+// net-snmp.
 
 namespace SNMP
 {
@@ -54,12 +63,17 @@ namespace SNMP
 class U32Scalar
 {
 public:
+  /// Constructor
+  ///
+  /// @param name - The name of the scalar.
+  /// @param oid  - The OID for the scalar excluding the trailing ".0"
   U32Scalar(std::string name, std::string oid);
   ~U32Scalar();
   unsigned long value;
-  
+
 private:
-  std::string _oid;
+  // The OID as registered with net-snmp (including the trailing ".0").
+  std::string _registered_oid;
 };
 
 }
