@@ -150,6 +150,8 @@ namespace SASEvent {
   const int LOAD_MONITOR_ACCEPTED_REQUEST = COMMON_BASE + 0x0500;
   const int LOAD_MONITOR_REJECTED_REQUEST = COMMON_BASE + 0x0501;
 
+  const int DIAMETER_MSG_MISSING_AVP = COMMON_BASE + 0x0500;
+
 } // namespace SASEvent
 
 #endif

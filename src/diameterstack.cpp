@@ -958,7 +958,7 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
   int dummy_is_new;
 
   if ((fd_msg_sess_get(fd_g_config->cnf_dict, msg, &sess, &dummy_is_new) == 0) &&
-      (sess != NULL))
+     (sess != NULL))
   {
     os0_t session_id;
     size_t session_id_len;
@@ -1402,6 +1402,21 @@ Message& Message::add_session_id(const std::string& session_id)
   session_id_avp.val_str(session_id);
   add(session_id_avp);
   return *this;
+}
+
+const std::string Message::get_session_id()
+{
+  Diameter::AVP::iterator avps = begin((dict())->SESSION_ID);
+
+  if (avps != end())
+  {
+    return avps->val_str();
+  }
+  else
+  {
+    TRC_ERROR("No Session-ID found in request");
+    throw Diameter::AVPException("Session-ID");
+  }
 }
 
 void Message::send(SAS::TrailId trail)
