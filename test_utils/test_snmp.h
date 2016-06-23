@@ -94,7 +94,7 @@ unsigned int SNMPTest::snmp_get(std::string oid)
 char* SNMPTest::snmp_get_raw(std::string oid, char* buf, int size)
 {
   // Returns integer value found at that OID.
-  std::string command = "snmpget -v2c -Ovq -c clearwater 127.0.0.1:" + alarm_address + " " + oid;
+  std::string command = "snmpget -v2c -Ovqn -c clearwater 127.0.0.1:" + alarm_address + " " + oid;
   std::string mode = "r";
   FILE* fd = popen(command.c_str(), mode.c_str());
   fgets(buf, size, fd);
