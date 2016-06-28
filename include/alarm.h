@@ -192,6 +192,9 @@ protected:
   // alarm has just been cleared this would be the corresponding _clear_state
   // for the alarm.
   AlarmState* _last_state_raised;
+
+  // The manager this alarm is registered with.
+  AlarmManager* _alarm_manager;
 };
 
 /// @class AlarmReRaiser
@@ -203,6 +206,9 @@ class AlarmReRaiser
 public:
   // Tell the Alarm Manager about an alarm
   void register_alarm(BaseAlarm* alarm); 
+
+  // Tell the AlarmManager an alarm has been deleted
+  void unregister_alarm(BaseAlarm* alarm);
 
   // The AlarmManager is the only class allowed to create the AlarmReRaiser
   friend class AlarmManager;
