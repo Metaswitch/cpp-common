@@ -204,7 +204,8 @@ protected:
 class AlarmReRaiser
 {
 public:
-  // Tell the Alarm Manager about an alarm
+  // Tell the AlarmManager about an alarm. While this alarm is registered (i.e.
+  // until unregister_alarm is called), the AlarmManager must not be deleted.
   void register_alarm(BaseAlarm* alarm); 
 
   // Tell the AlarmManager an alarm has been deleted
