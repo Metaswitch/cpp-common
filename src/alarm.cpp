@@ -70,7 +70,8 @@ BaseAlarm::BaseAlarm(AlarmManager* alarm_manager,
                issuer,
                index,
                AlarmDef::CLEARED),
-  _last_state_raised(NULL)
+  _last_state_raised(NULL),
+  _alarm_manager(alarm_manager)
 {
   pthread_mutex_init(&_issue_alarm_change_state, NULL);
   alarm_manager->alarm_re_raiser()->register_alarm(this);
@@ -78,6 +79,7 @@ BaseAlarm::BaseAlarm(AlarmManager* alarm_manager,
 
 BaseAlarm::~BaseAlarm()
 {
+  _alarm_manager->alarm_re_raiser()->unregister_alarm(this);
   pthread_mutex_destroy(&_issue_alarm_change_state);
 }
 
@@ -210,6 +212,17 @@ void AlarmReRaiser::register_alarm(BaseAlarm* alarm)
 {
   pthread_mutex_lock(&_lock);
   _alarm_list.push_back(alarm);
+  pthread_mutex_unlock(&_lock);
+}
+
+void AlarmReRaiser::unregister_alarm(BaseAlarm* alarm)
+{
+  pthread_mutex_lock(&_lock);
+  std::vector<BaseAlarm*>::iterator it = std::find(_alarm_list.begin(), _alarm_list.end(), alarm);
+  if (it != _alarm_list.end())
+  {
+    _alarm_list.erase(it);
+  }
   pthread_mutex_unlock(&_lock);
 }
 
