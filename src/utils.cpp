@@ -486,6 +486,11 @@ uint64_t Utils::get_time(clockid_t clock)
 
 int Utils::daemonize()
 {
+  return daemonize("/dev/null", "/dev/null");
+}
+
+int Utils::daemonize(std::string out, std::string err)
+{
   TRC_STATUS("Switching to daemon mode");
 
   // First fork
@@ -505,11 +510,11 @@ int Utils::daemonize()
   {
     return errno;
   }
-  if (freopen("/dev/null", "w", stdout) == NULL)
+  if (freopen(out.c_str(), "a", stdout) == NULL)
   {
     return errno;
   }
-  if (freopen("/dev/null", "w", stderr) == NULL)
+  if (freopen(err.c_str(), "a", stderr) == NULL)
   {
     return errno;
   }
