@@ -493,6 +493,14 @@ namespace Utils
   // Daemonize the current process, detaching it from the parent and redirecting
   // file descriptors.
   int daemonize(std::string out, std::string err);
+
+  // Perform common server setup, daemonizing, and setting up basic logging.
+  void daemon_log_setup(int argc,
+                        char* argv[],
+                        bool daemon,
+                        std::string& log_directory,
+                        int log_level,
+                        bool log_to_file);
 } // namespace Utils
 
 #endif /* UTILS_H_ */

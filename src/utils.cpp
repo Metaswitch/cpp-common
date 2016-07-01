@@ -542,3 +542,51 @@ int Utils::daemonize(std::string out, std::string err)
 
   return 0;
 }
+
+void Utils::daemon_log_setup(int argc,
+                             char* argv[],
+                             bool daemon,
+                             std::string& log_directory,
+                             int log_level,
+                             bool log_to_file)
+{
+  // Work out the program name from argv[0], stripping anything before the
+  // final slash.
+  char* prog_name = argv[0];
+  char* slash_ptr = rindex(argv[0], '/');
+  if (slash_ptr != NULL)
+  {
+    prog_name = slash_ptr + 1;
+  }
+
+  if (daemon)
+  {
+    int errnum;
+
+    if (log_directory != "")
+    {
+      std::string prefix = log_directory + "/" + prog_name;
+      errnum = Utils::daemonize(prefix + "_out.log",
+                                prefix + "_err.log");
+    }
+    else
+    {
+      errnum = Utils::daemonize();
+    }
+
+    if (errnum != 0)
+    {
+      TRC_ERROR("Failed to convert to daemon, %d (%s)", errnum, strerror(errnum));
+      exit(0);
+    }
+  }
+
+  Log::setLoggingLevel(log_level);
+
+  if ((log_to_file) && (log_directory != ""))
+  {
+    Log::setLogger(new Logger(log_directory, prog_name));
+  }
+
+  TRC_STATUS("Log level set to %d", log_level);
+}
