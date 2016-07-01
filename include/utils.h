@@ -487,8 +487,12 @@ namespace Utils
   uint64_t get_time(clockid_t clock = CLOCK_MONOTONIC);
 
   // Daemonize the current process, detaching it from the parent and redirecting
-  // file descriptors.
+  // file descriptors, with stdout and stderr going to /dev/null.
   int daemonize();
+
+  // Daemonize the current process, detaching it from the parent and redirecting
+  // file descriptors.
+  int daemonize(std::string out, std::string err);
 } // namespace Utils
 
 #endif /* UTILS_H_ */
