@@ -131,17 +131,34 @@ public:
     // the write lock.
     pthread_rwlock_wrlock(&_counters_lock);
 
-    std::map<std::string, IPEntry*>::iterator entry = _counters_by_ip.find(ip);
-    if (entry == _counters_by_ip.end())
-    {
-      // IP address does not already exist - add an entry in the counts map and
-      // the associated SNMP rows.
-      TRC_DEBUG("Adding IP rows for: %s", ip.c_str());
+    std::map<std::string, uint32_t>::iterator ref_entry = _ref_count_by_ip.find(ip);
 
-      _counters_by_ip[ip] = new IPEntry();
-      add(std::make_pair(ip, TimePeriodIndexes::scopePrevious5SecondPeriod));
-      add(std::make_pair(ip, TimePeriodIndexes::scopeCurrent5MinutePeriod));
-      add(std::make_pair(ip, TimePeriodIndexes::scopePrevious5MinutePeriod));
+    if (ref_entry == _ref_count_by_ip.end())
+    {
+      _ref_count_by_ip[ip] = 1;
+
+      std::map<std::string, IPEntry*>::iterator entry = _counters_by_ip.find(ip);
+
+      if (entry == _counters_by_ip.end())
+      {
+        // IP address does not already exist - add an entry in the counts map and
+        // the associated SNMP rows.
+        TRC_DEBUG("Adding IP rows for: %s", ip.c_str());
+
+        _counters_by_ip[ip] = new IPEntry();
+        add(std::make_pair(ip, TimePeriodIndexes::scopePrevious5SecondPeriod));
+        add(std::make_pair(ip, TimePeriodIndexes::scopeCurrent5MinutePeriod));
+        add(std::make_pair(ip, TimePeriodIndexes::scopePrevious5MinutePeriod));
+      }
+      else
+      {
+        TRC_ERROR("Entry for %s doesn't exist in reference table, but does exist in count table",
+                  ip.c_str());
+      }
+    }
+    else
+    {
+      ref_entry->second++;
     }
 
     pthread_rwlock_unlock(&_counters_lock);
@@ -153,18 +170,41 @@ public:
     // grab the write lock.
     pthread_rwlock_wrlock(&_counters_lock);
 
-    std::map<std::string, IPEntry*>::iterator entry = _counters_by_ip.find(ip);
-    if (entry != _counters_by_ip.end())
-    {
-      // IP address already exists - remove the entry from the counts map and
-      // delete the associated SNMP rows.
-      TRC_DEBUG("Removing IP rows for %s", ip.c_str());
+    std::map<std::string, uint32_t>::iterator ref_entry = _ref_count_by_ip.find(ip);
 
-      delete entry->second; entry->second = NULL;
-      _counters_by_ip.erase(entry);
-      remove(std::make_pair(ip, TimePeriodIndexes::scopePrevious5SecondPeriod));
-      remove(std::make_pair(ip, TimePeriodIndexes::scopeCurrent5MinutePeriod));
-      remove(std::make_pair(ip, TimePeriodIndexes::scopePrevious5MinutePeriod));
+    if (ref_entry == _ref_count_by_ip.end())
+    {
+      TRC_ERROR("Attempted to delete row for %s which isn't in the reference table",
+                ip.c_str());
+    }
+    else
+    {
+      ref_entry->second --;
+
+      // If we have removed the last reference to this entry, remove it from the
+      // counts table.
+      if (ref_entry->second == 0)
+      {
+
+        std::map<std::string, IPEntry*>::iterator entry = _counters_by_ip.find(ip);
+        if (entry != _counters_by_ip.end())
+        {
+          // IP address already exists - remove the entry from the counts map and
+          // delete the associated SNMP rows.
+          TRC_DEBUG("Removing IP rows for %s", ip.c_str());
+
+          delete entry->second; entry->second = NULL;
+          _counters_by_ip.erase(entry);
+          remove(std::make_pair(ip, TimePeriodIndexes::scopePrevious5SecondPeriod));
+          remove(std::make_pair(ip, TimePeriodIndexes::scopeCurrent5MinutePeriod));
+          remove(std::make_pair(ip, TimePeriodIndexes::scopePrevious5MinutePeriod));
+        }
+        else
+        {
+          TRC_ERROR("Entry for %s exists in reference table, but not the count table",
+                    ip.c_str());
+        }
+      }
     }
 
     pthread_rwlock_unlock(&_counters_lock);
@@ -281,6 +321,10 @@ private:
   // multiple threads so is protected by a lock.
   std::map<std::string, IPEntry*> _counters_by_ip;
   pthread_rwlock_t _counters_lock;
+
+  // A reference count for each IP address, keeping track of how many times
+  // it's been added and removed. This is protected by _counters_lock
+  std::map<std::string, uint32_t> _ref_count_by_ip;
 };
 
 
