@@ -129,6 +129,11 @@ int init_snmp_handler_threads(const char* name)
 }
 
 // Cancel the handler thread and shut down the SNMP agent.
+//
+// Calling this on CentOS when the thread has not been created in
+// init_snmp_handler_threads above is dangerous, and can lead to sig11 death.
+// This appears to be a difference in the behaviour of pthread_cancel
+// between CentOS and Ubuntu when it is passed NULL.
 void snmp_terminate(const char* name)
 {
   pthread_cancel(snmp_thread_var);
