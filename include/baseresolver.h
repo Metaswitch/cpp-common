@@ -246,6 +246,44 @@ protected:
   Blacklist _blacklist;
   int _default_blacklist_duration;
 
+  /// Private class to hold data and methods associated to a transport/IP
+  /// address/port combination in the blacklist system. Each Host is associated
+  /// with exactly one combination.
+  class Host
+  {
+  public:
+    /// Constructor
+    Host(int blacklist_ttl, int graylist_ttl);
+
+    /// Enum representing the current state of a Host in the blacklist
+    /// system. Whitelisted, graylisted and not being probed, graylisted and
+    /// being probed, and blacklisted respectively.
+    enum struct State {WHITE, GRAY_NOT_PROBING, GRAY_PROBING, BLACK};
+    /// Returns the current state of a Host.
+    State get_state(time_t current_time);
+
+    /// Indicates that the combination associated with this Host has been
+    /// successfully contacted.
+    void success();
+    /// Indicates that the combination associated with this Host is being probed
+    /// by the given thread.
+    void probing(pthread_t thread_id);
+    /// Indicates that the combination associated with this Host has gone
+    /// untested by the given thread.
+    void untested(pthread_t thread_id);
+
+  private:
+    /// The time at which this Host is to be removed from the blacklist and
+    /// placed onto the graylist.
+    time_t _blacklist_expiry_time;
+    /// The time at which this Host is to be removed from the graylist.
+    time_t _graylist_expiry_time;
+    /// Indicates that this Host is currently being probed.
+    bool _being_probed;
+    /// The ID of the thread currently probing this Host.
+    pthread_t _probing_thread_id;
+  };
+
   /// Stores a pointer to the DNS client this resolver should use.
   DnsCachedResolver* _dns_client;
 
