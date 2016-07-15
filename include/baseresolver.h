@@ -255,6 +255,9 @@ protected:
     /// Constructor
     Host(int blacklist_ttl, int graylist_ttl);
 
+    /// Destructor
+    ~Host();
+
     /// Enum representing the current state of a Host in the blacklist
     /// system. Whitelisted, graylisted and not being probed, graylisted and
     /// being probed, and blacklisted respectively.
