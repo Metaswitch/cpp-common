@@ -292,11 +292,16 @@ protected:
   typedef std::map<AddrInfo, Host> Hosts;
   Hosts _hosts;
 
+  /// Returns the state of the Host associated with the given AddrInfo, if it is
+  /// in the blacklist system, and Host::State::WHITE otherwise.
   Host::State host_state(const AddrInfo& ai) {return host_state(ai, time(NULL));}
   Host::State host_state(const AddrInfo& ai, time_t current_time);
 
+  /// Indicates that the AddrInfo has responded.
   void success(const AddrInfo& ai);
+  /// Indicates that the calling thread is probing the AddrInfo
   void probing(const AddrInfo& ai);
+  /// Indicates that the calling thread has left the AddrInfo untested.
   void untested(const AddrInfo& ai);
 
   int _default_blacklist_duration;

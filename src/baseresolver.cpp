@@ -932,3 +932,43 @@ void BaseResolver::Host::untested(pthread_t user_id)
     _being_probed = false;
   }
 }
+
+void BaseResolver::success(const AddrInfo& ai)
+{
+  pthread_mutex_lock(&_hosts_lock);
+  Hosts::iterator i = _hosts.find(ai);
+
+  if (i != _hosts.end())
+  {
+    i->second.success();
+  }
+
+  pthread_mutex_unlock(&_hosts_lock);
+}
+
+void BaseResolver::probing(const AddrInfo& ai)
+{
+  pthread_mutex_lock(&_hosts_lock);
+  Hosts::iterator i = _hosts.find(ai);
+
+  if (i != _hosts.end())
+  {
+    i->second.probing(pthread_self());
+  }
+
+  pthread_mutex_unlock(&_hosts_lock);
+}
+
+void BaseResolver::untested(const AddrInfo& ai)
+{
+  pthread_mutex_lock(&_hosts_lock);
+  Hosts::iterator i = _hosts.find(ai);
+
+  if (i != _hosts.end())
+  {
+    i->second.untested(pthread_self());
+  }
+
+  pthread_mutex_unlock(&_hosts_lock);
+}
+
