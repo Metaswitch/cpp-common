@@ -870,3 +870,65 @@ int BaseResolver::SRVWeightedSelector::total_weight()
 {
   return _tree[0];
 }
+
+BaseResolver::Host::Host(int blacklist_ttl,int graylist_ttl) :
+  _blacklist_expiry_time(time(NULL) + blacklist_ttl),
+  _graylist_expiry_time(time(NULL) + blacklist_ttl + graylist_ttl),
+  _being_probed(false)
+{
+}
+
+BaseResolver::Host::~Host()
+{
+}
+
+BaseResolver::Host::State BaseResolver::Host::get_state(time_t current_time)
+{
+  if (current_time < _blacklist_expiry_time)
+  {
+    return State::BLACK;
+  }
+  else if (current_time < _graylist_expiry_time)
+  {
+    if (_being_probed)
+    {
+      return State::GRAY_PROBING;
+    }
+    else
+    {
+      return State::GRAY_NOT_PROBING;
+    }
+  }
+  else
+  {
+    return State::WHITE;
+  }
+}
+
+void BaseResolver::Host::success()
+{
+  if (get_state(time(NULL)) == State::GRAY_PROBING)
+  {
+    _being_probed = false;
+    _blacklist_expiry_time = 0;
+    _graylist_expiry_time = 0;
+  }
+}
+
+void BaseResolver::Host::probing(pthread_t thread_id)
+{
+  if (get_state(time(NULL)) == State::GRAY_NOT_PROBING)
+  {
+    _being_probed = true;
+    _probing_thread_id = thread_id;
+  }
+}
+
+void BaseResolver::Host::untested(pthread_t thread_id)
+{
+  if (get_state(time(NULL)) == State::GRAY_PROBING &&
+      thread_id == _probing_thread_id)
+  {
+    _being_probed = false;
+  }
+}
