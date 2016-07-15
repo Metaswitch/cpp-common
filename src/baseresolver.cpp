@@ -933,6 +933,28 @@ void BaseResolver::Host::untested(pthread_t user_id)
   }
 }
 
+BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t current_time)
+{
+  Host::State state;
+
+  pthread_mutex_lock(&_hosts_lock);
+  Hosts::iterator i = _hosts.find(ai);
+
+  if (i != _hosts.end())
+  {
+    state = i->second.get_state(current_time);
+    if (state == Host::State::WHITE)
+    {
+      _hosts.erase(i);
+    }
+  }
+  else
+  {
+    state = Host::State::WHITE;
+  }
+  return state;
+}
+
 void BaseResolver::success(const AddrInfo& ai)
 {
   pthread_mutex_lock(&_hosts_lock);
