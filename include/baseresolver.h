@@ -241,10 +241,6 @@ protected:
   /// combinations which have been blacklisted because the destination is
   /// unresponsive (either TCP connection attempts are failing or a UDP
   /// destination is unreachable).
-  pthread_mutex_t _blacklist_lock;
-  typedef std::map<AddrInfo, time_t> Blacklist;
-  Blacklist _blacklist;
-  int _default_blacklist_duration;
 
   /// Private class to hold data and methods associated to a transport/IP
   /// address/port combination in the blacklist system. Each Host is associated
@@ -288,6 +284,23 @@ protected:
   };
 
   /// Stores a pointer to the DNS client this resolver should use.
+  pthread_mutex_t _blacklist_lock;
+  typedef std::map<AddrInfo, time_t> Blacklist;
+  Blacklist _blacklist;
+
+  pthread_mutex_t _hosts_lock;
+  typedef std::map<AddrInfo, Host> Hosts;
+  Hosts _hosts;
+
+  Host::State host_state(const AddrInfo& ai) {return host_state(ai, time(NULL));}
+  Host::State host_state(const AddrInfo& ai, time_t current_time);
+
+  void success(const AddrInfo& ai);
+  void probing(const AddrInfo& ai);
+  void untested(const AddrInfo& ai);
+
+  int _default_blacklist_duration;
+
   DnsCachedResolver* _dns_client;
 
   static const int DEFAULT_TTL = 300;
