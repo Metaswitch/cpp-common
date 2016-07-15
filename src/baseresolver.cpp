@@ -915,19 +915,19 @@ void BaseResolver::Host::success()
   }
 }
 
-void BaseResolver::Host::probing(pthread_t thread_id)
+void BaseResolver::Host::probing(pthread_t user_id)
 {
   if (get_state(time(NULL)) == State::GRAY_NOT_PROBING)
   {
     _being_probed = true;
-    _probing_thread_id = thread_id;
+    _probing_user_id = user_id;
   }
 }
 
-void BaseResolver::Host::untested(pthread_t thread_id)
+void BaseResolver::Host::untested(pthread_t user_id)
 {
   if (get_state(time(NULL)) == State::GRAY_PROBING &&
-      thread_id == _probing_thread_id)
+      user_id == _probing_user_id)
   {
     _being_probed = false;
   }

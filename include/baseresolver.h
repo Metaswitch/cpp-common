@@ -269,11 +269,11 @@ protected:
     /// successfully contacted.
     void success();
     /// Indicates that the combination associated with this Host is being probed
-    /// by the given thread.
-    void probing(pthread_t thread_id);
+    /// by the given user.
+    void probing(pthread_t user_id);
     /// Indicates that the combination associated with this Host has gone
-    /// untested by the given thread.
-    void untested(pthread_t thread_id);
+    /// untested by the given user.
+    void untested(pthread_t user_id);
 
   private:
     /// The time at which this Host is to be removed from the blacklist and
@@ -284,7 +284,7 @@ protected:
     /// Indicates that this Host is currently being probed.
     bool _being_probed;
     /// The ID of the thread currently probing this Host.
-    pthread_t _probing_thread_id;
+    pthread_t _probing_user_id;
   };
 
   /// Stores a pointer to the DNS client this resolver should use.
