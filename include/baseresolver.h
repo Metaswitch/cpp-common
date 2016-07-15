@@ -98,8 +98,15 @@ public:
   BaseResolver(DnsCachedResolver* dns_client);
   virtual ~BaseResolver();
 
-  void blacklist(const AddrInfo& ai) { blacklist(ai, _default_blacklist_duration); }
-  void blacklist(const AddrInfo& ai, int ttl);
+  void blacklist(const AddrInfo& ai)
+  {
+    blacklist(ai, _default_blacklist_duration, _default_graylist_duration);
+  }
+  void blacklist(const AddrInfo& ai, int blacklist_ttl)
+  {
+    blacklist(ai, blacklist_ttl, _default_graylist_duration);
+  }
+  void blacklist(const AddrInfo& ai, int blacklist_ttl, int graylist_ttl);
   bool blacklisted(const AddrInfo& ai);
 
   /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
@@ -109,7 +116,12 @@ public:
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
   void create_srv_cache();
-  void create_blacklist(int blacklist_duration);
+  void create_blacklist(int blacklist_duration)
+  {
+    // Defaults to not using graylisting
+    create_blacklist(blacklist_duration, 0);
+  }
+  void create_blacklist(int blacklist_duration, int graylist_duration);
   void destroy_naptr_cache();
   void destroy_srv_cache();
   void destroy_blacklist();
@@ -299,9 +311,10 @@ protected:
   /// Indicates that the calling thread has left the AddrInfo untested.
   void untested(const AddrInfo& ai);
 
-  /// Stores a pointer to the DNS client this resolver should use.
   int _default_blacklist_duration;
+  int _default_graylist_duration;
 
+  /// Stores a pointer to the DNS client this resolver should use.
   DnsCachedResolver* _dns_client;
 
   static const int DEFAULT_TTL = 300;

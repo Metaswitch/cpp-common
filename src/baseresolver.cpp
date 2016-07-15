@@ -87,12 +87,13 @@ void BaseResolver::create_srv_cache()
 }
 
 /// Creates the blacklist of address/port/transport triplets.
-void BaseResolver::create_blacklist(int blacklist_duration)
+void BaseResolver::create_blacklist(int blacklist_duration, int graylist_duration)
 {
   // Create the blacklist (no factory required).
   TRC_DEBUG("Create black list");
   pthread_mutex_init(&_hosts_lock, NULL);
   _default_blacklist_duration = blacklist_duration;
+  _default_graylist_duration = graylist_duration;
 }
 
 void BaseResolver::destroy_naptr_cache()
@@ -466,14 +467,16 @@ IP46Address BaseResolver::to_ip46(const DnsRRecord* rr)
 }
 
 /// Adds an address, port, transport tuple to the blacklist.
-void BaseResolver::blacklist(const AddrInfo& ai, int ttl)
+void BaseResolver::blacklist(const AddrInfo& ai,
+                             int blacklist_ttl, int graylist_ttl)
 {
   char buf[100];
-  TRC_DEBUG("Add %s:%d transport %d to blacklist for %d seconds",
+  TRC_DEBUG("Add %s:%d transport %d to blacklist for %d seconds,"
+            "graylist for %d seconds",
             inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-            ai.port, ai.transport, ttl);
+            ai.port, ai.transport, blacklist_ttl, graylist_ttl);
   pthread_mutex_lock(&_hosts_lock);
-  _hosts.emplace(ai, Host(ttl, 0));
+  _hosts.emplace(ai, Host(blacklist_ttl, graylist_ttl));
   pthread_mutex_unlock(&_hosts_lock);
 }
 
