@@ -489,11 +489,6 @@ bool BaseResolver::blacklisted(const AddrInfo& ai)
     rc = true;
   }
 
-  char buf[100];
-  TRC_DEBUG("%s:%d transport %d is %sblacklisted",
-            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-            ai.port, ai.transport, rc ? "" : "not ");
-
   return rc;
 }
 
@@ -873,6 +868,23 @@ BaseResolver::Host::~Host()
 {
 }
 
+std::string BaseResolver::Host::state_to_string(State state)
+{
+  switch(state)
+  {
+  case State::WHITE:
+    return "WHITE";
+  case State::GRAY_NOT_PROBING:
+    return "GRAY_NOT_PROBING";
+  case State::GRAY_PROBING:
+    return "GRAY_PROBING";
+  case State::BLACK:
+    return "BLACK";
+  default:
+    return "UNKNOWN";
+  }
+}
+
 BaseResolver::Host::State BaseResolver::Host::get_state(time_t current_time)
 {
   if (current_time < _blacklist_expiry_time)
@@ -944,6 +956,12 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
     state = Host::State::WHITE;
   }
   pthread_mutex_unlock(&_hosts_lock);
+
+  char buf[100];
+  TRC_DEBUG("%s:%d transport %d has state: %s",
+            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
+            ai.port, ai.transport, Host::state_to_string(state).c_str());
+
   return state;
 }
 

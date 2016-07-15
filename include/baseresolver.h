@@ -270,6 +270,8 @@ protected:
     /// system. Whitelisted, graylisted and not being probed, graylisted and
     /// being probed, and blacklisted respectively.
     enum struct State {WHITE, GRAY_NOT_PROBING, GRAY_PROBING, BLACK};
+    /// Returns a string representation of the given state.
+    static std::string state_to_string(State state);
     /// Returns the current state of a Host.
     State get_state(time_t current_time);
 
