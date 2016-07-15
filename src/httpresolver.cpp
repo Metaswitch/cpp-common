@@ -39,14 +39,15 @@
 
 HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
                            int address_family,
-                           int blacklist_duration) :
+                           int blacklist_duration,
+                           int graylist_duration) :
   BaseResolver(dns_client),
   _address_family(address_family)
 {
   TRC_DEBUG("Creating HTTP resolver");
 
   // Create the blacklist.
-  create_blacklist(blacklist_duration);
+  create_blacklist(blacklist_duration, graylist_duration);
 
   TRC_STATUS("Created HTTP resolver");
 }
