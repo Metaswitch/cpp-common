@@ -586,7 +586,8 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
 
   // Try to get a decent connection - try each of the hosts in turn (although
   // we might quit early if we have too many HTTP-level failures).
-  for (std::vector<AddrInfo>::const_iterator i = targets.begin();
+  std::vector<AddrInfo>::const_iterator i;
+  for (i = targets.begin();
        i != targets.end();
        ++i)
   {
@@ -653,6 +654,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
       }
 
       // Success!
+      _resolver->success(*i);
       break;
     }
     else
@@ -712,6 +714,12 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
         break;
       }
     }
+  }
+
+  for(; i != targets.end(); ++i)
+  {
+    // Report to the resolver that the remaining targets have not been tested.
+    _resolver->untested(*i);
   }
 
   // Check whether we should apply a penalty. We do this when:
