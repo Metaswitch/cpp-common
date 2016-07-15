@@ -51,7 +51,7 @@ BaseResolver::BaseResolver(DnsCachedResolver* dns_client) :
   _naptr_cache(),
   _srv_factory(),
   _srv_cache(),
-  _blacklist(),
+  _hosts(),
   _dns_client(dns_client)
 {
 }
@@ -63,9 +63,9 @@ BaseResolver::~BaseResolver()
 // Removes all the entries from the blacklist.
 void BaseResolver::clear_blacklist()
 {
-  pthread_mutex_lock(&_blacklist_lock);
-  _blacklist.clear();
-  pthread_mutex_unlock(&_blacklist_lock);
+  pthread_mutex_lock(&_hosts_lock);
+  _hosts.clear();
+  pthread_mutex_unlock(&_hosts_lock);
 }
 
 // Creates the cache for storing NAPTR results.
@@ -91,7 +91,7 @@ void BaseResolver::create_blacklist(int blacklist_duration)
 {
   // Create the blacklist (no factory required).
   TRC_DEBUG("Create black list");
-  pthread_mutex_init(&_blacklist_lock, NULL);
+  pthread_mutex_init(&_hosts_lock, NULL);
   _default_blacklist_duration = blacklist_duration;
 }
 
@@ -113,7 +113,7 @@ void BaseResolver::destroy_blacklist()
 {
   TRC_DEBUG("Destroy blacklist");
   _default_blacklist_duration = 0;
-  pthread_mutex_destroy(&_blacklist_lock);
+  pthread_mutex_destroy(&_hosts_lock);
 }
 
 /// This algorithm selects a number of targets (IP address/port/transport
@@ -472,32 +472,20 @@ void BaseResolver::blacklist(const AddrInfo& ai, int ttl)
   TRC_DEBUG("Add %s:%d transport %d to blacklist for %d seconds",
             inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
             ai.port, ai.transport, ttl);
-  pthread_mutex_lock(&_blacklist_lock);
-  _blacklist[ai] = time(NULL) + ttl;
-  pthread_mutex_unlock(&_blacklist_lock);
+  pthread_mutex_lock(&_hosts_lock);
+  _hosts.emplace(ai, Host(ttl, 0));
+  pthread_mutex_unlock(&_hosts_lock);
 }
 
 bool BaseResolver::blacklisted(const AddrInfo& ai)
 {
   bool rc = false;
 
-  pthread_mutex_lock(&_blacklist_lock);
-  Blacklist::iterator i = _blacklist.find(ai);
-
-  if (i != _blacklist.end())
+  if (host_state(ai) == Host::State::BLACK)
   {
-    if (i->second > time(NULL))
-    {
-      // Blacklist entry has yet to expire.
-      rc = true;
-    }
-    else
-    {
-      // Blacklist entry has expired, so remove it.
-      _blacklist.erase(i);
-    }
+    rc = true;
   }
-  pthread_mutex_unlock(&_blacklist_lock);
+
   char buf[100];
   TRC_DEBUG("%s:%d transport %d is %sblacklisted",
             inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
@@ -952,6 +940,7 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
   {
     state = Host::State::WHITE;
   }
+  pthread_mutex_unlock(&_hosts_lock);
   return state;
 }
 

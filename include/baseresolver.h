@@ -283,11 +283,6 @@ protected:
     pthread_t _probing_user_id;
   };
 
-  /// Stores a pointer to the DNS client this resolver should use.
-  pthread_mutex_t _blacklist_lock;
-  typedef std::map<AddrInfo, time_t> Blacklist;
-  Blacklist _blacklist;
-
   pthread_mutex_t _hosts_lock;
   typedef std::map<AddrInfo, Host> Hosts;
   Hosts _hosts;
@@ -304,6 +299,7 @@ protected:
   /// Indicates that the calling thread has left the AddrInfo untested.
   void untested(const AddrInfo& ai);
 
+  /// Stores a pointer to the DNS client this resolver should use.
   int _default_blacklist_duration;
 
   DnsCachedResolver* _dns_client;
