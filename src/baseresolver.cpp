@@ -115,6 +115,7 @@ void BaseResolver::destroy_blacklist()
 {
   TRC_DEBUG("Destroy blacklist");
   _default_blacklist_duration = 0;
+  _default_graylist_duration = 0;
   pthread_mutex_destroy(&_hosts_lock);
 }
 

@@ -107,6 +107,7 @@ public:
     blacklist(ai, blacklist_ttl, _default_graylist_duration);
   }
   void blacklist(const AddrInfo& ai, int blacklist_ttl, int graylist_ttl);
+  /// Returns false only if the associated Host has state State::WHITE
   bool blacklisted(const AddrInfo& ai);
 
   /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
@@ -308,13 +309,13 @@ protected:
   Host::State host_state(const AddrInfo& ai, time_t current_time);
 
 public:
-  /// Indicates that the AddrInfo has responded.
+  /// Indicates that the given AddrInfo has responded.
   void success(const AddrInfo& ai);
-  /// Indicates that the calling thread has left the AddrInfo untested.
+  /// Indicates that the calling thread has left the given AddrInfo untested.
   void untested(const AddrInfo& ai);
 
 protected:
-  /// Indicates that the calling thread is probing theg given AddrInfo.
+  /// Indicates that the calling thread is probing the given AddrInfo.
   /// _hosts_lock must be held when calling this method.
   void probing(const AddrInfo& ai);
 
