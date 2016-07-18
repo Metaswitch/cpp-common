@@ -302,16 +302,21 @@ protected:
   Hosts _hosts;
 
   /// Returns the state of the Host associated with the given AddrInfo, if it is
-  /// in the blacklist system, and Host::State::WHITE otherwise.
+  /// in the blacklist system, and Host::State::WHITE otherwise. _hosts_lock
+  /// must be held when calling this method.
   Host::State host_state(const AddrInfo& ai) {return host_state(ai, time(NULL));}
   Host::State host_state(const AddrInfo& ai, time_t current_time);
 
+public:
   /// Indicates that the AddrInfo has responded.
   void success(const AddrInfo& ai);
-  /// Indicates that the calling thread is probing the AddrInfo
-  void probing(const AddrInfo& ai);
   /// Indicates that the calling thread has left the AddrInfo untested.
   void untested(const AddrInfo& ai);
+
+protected:
+  /// Indicates that the calling thread is probing theg given AddrInfo.
+  /// _hosts_lock must be held when calling this method.
+  void probing(const AddrInfo& ai);
 
   int _default_blacklist_duration;
   int _default_graylist_duration;

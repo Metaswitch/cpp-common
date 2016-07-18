@@ -363,49 +363,71 @@ void BaseResolver::a_resolve(const std::string& hostname,
   TRC_DEBUG("Found %ld A/AAAA records, randomizing", result.records().size());
   std::random_shuffle(result.records().begin(), result.records().end());
 
-  // Loop through the records in the result picking non-blacklisted targets.
   AddrInfo ai;
   ai.transport = transport;
   ai.port = port;
   std::string targetlist_str;
   std::string blacklist_str;
   std::string added_from_blacklist_str;
+  time_t current_time = time(NULL);
 
+  pthread_mutex_lock(&_hosts_lock);
+
+  // Loop through the records in the result to select a GRAY_NOT_PROBING target,
+  // if it exists
+  std::vector<DnsRRecord*>::const_iterator j;
+  for (j = result.records().begin(); j != result.records().end(); ++j)
+  {
+    ai.address = to_ip46(*j);
+    if (host_state(ai, current_time) == Host::State::GRAY_NOT_PROBING)
+    {
+      probing(ai);
+      targets.push_back(ai);
+      break;
+    }
+  }
+
+  pthread_mutex_unlock(&_hosts_lock);
+
+  // Loop through the records in the result picking non-blacklisted targets.
   for (std::vector<DnsRRecord*>::const_iterator i = result.records().begin();
        i != result.records().end();
        ++i)
   {
-    ai.address = to_ip46(*i);
-    if (!blacklisted(ai))
+    if (i != j)
     {
-      // Address isn't blacklisted, so copy across to the target list.
-      targets.push_back(ai);
-      targetlist_str = targetlist_str + (*i)->to_string() + ";";
-      TRC_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
-    }
-    else
-    {
-      // Address is blacklisted, so copy to blacklisted list.
-      blacklisted_targets.push_back(ai);
-      blacklist_str = blacklist_str + (*i)->to_string() + ";";
-    }
-
-    if (targets.size() >= (size_t)retries)
-    {
-      // We have enough targets so stop looking at records.
-      TRC_DEBUG("Have enough targets");
-
-      if (trail != 0)
+      ai.address = to_ip46(*i);
+      if (host_state(ai, current_time) == Host::State::WHITE)
       {
-        SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
-        event.add_var_param(hostname);
-        event.add_var_param(targetlist_str);
-        event.add_var_param(blacklist_str);
-        event.add_var_param(added_from_blacklist_str);
-        SAS::report_event(event);
+        // Address isn't blacklisted, so copy across to the target list.
+        targets.push_back(ai);
+        targetlist_str = targetlist_str + (*i)->to_string() + ";";
+        TRC_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
+      }
+      else
+      {
+        // Address is blacklisted, so copy to blacklisted list.
+        blacklisted_targets.push_back(ai);
+        blacklist_str = blacklist_str + (*i)->to_string() + ";";
       }
 
-      break;
+      if (targets.size() >= (size_t)retries)
+      {
+        // We have enough targets so stop looking at records.
+        TRC_DEBUG("Have enough targets");
+
+        if (trail != 0)
+        {
+          SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
+          event.add_var_param(hostname);
+          event.add_var_param(targetlist_str);
+          event.add_var_param(blacklist_str);
+          event.add_var_param(added_from_blacklist_str);
+          SAS::report_event(event);
+        }
+
+        break;
+      }
     }
   }
 
@@ -484,10 +506,14 @@ bool BaseResolver::blacklisted(const AddrInfo& ai)
 {
   bool rc = false;
 
+  pthread_mutex_lock(&_hosts_lock);
+
   if (host_state(ai) == Host::State::BLACK)
   {
     rc = true;
   }
+
+  pthread_mutex_unlock(&_hosts_lock);
 
   return rc;
 }
@@ -940,7 +966,6 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
 {
   Host::State state;
 
-  pthread_mutex_lock(&_hosts_lock);
   Hosts::iterator i = _hosts.find(ai);
 
   if (i != _hosts.end())
@@ -955,7 +980,6 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
   {
     state = Host::State::WHITE;
   }
-  pthread_mutex_unlock(&_hosts_lock);
 
   char buf[100];
   TRC_DEBUG("%s:%d transport %d has state: %s",
@@ -980,15 +1004,12 @@ void BaseResolver::success(const AddrInfo& ai)
 
 void BaseResolver::probing(const AddrInfo& ai)
 {
-  pthread_mutex_lock(&_hosts_lock);
   Hosts::iterator i = _hosts.find(ai);
 
   if (i != _hosts.end())
   {
     i->second.probing(pthread_self());
   }
-
-  pthread_mutex_unlock(&_hosts_lock);
 }
 
 void BaseResolver::untested(const AddrInfo& ai)
