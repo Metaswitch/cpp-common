@@ -40,6 +40,7 @@
 #include <list>
 #include <map>
 #include <vector>
+#include <sstream>
 #include <boost/regex.hpp>
 #include <pthread.h>
 
@@ -86,10 +87,20 @@ struct AddrInfo
            (transport == rhs.transport);
   }
 
-  std::string to_string()
+  std::string address_and_port_to_string() const
   {
-    // Remains to be implemented.
-    return "";
+    std::stringstream os;
+    char buf[100];
+    os << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
+    os << ":" << port;
+    return os.str();
+  }
+
+  std::string to_string() const
+  {
+    std::stringstream os;
+    os << address_and_port_to_string() << " transport " << transport;
+    return os.str();
   }
 };
 

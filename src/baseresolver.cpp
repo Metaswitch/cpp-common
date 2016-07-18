@@ -267,10 +267,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             ai.address = active_addr[ii].back();
             active_addr[ii].pop_back();
             targets.push_back(ai);
-            char buf[100];
-            std::string target = inet_ntop(ai.address.af,
-                                           &ai.address.addr,
-                                           buf, sizeof(buf));
+            std::string target = ai.address_and_port_to_string();
             std::string tg = "[" + target + ":" + std::to_string(ai.port) + "] ";
             targetlist_str = targetlist_str + tg;
 
@@ -282,10 +279,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             ai.address = blacklist_addr[ii].back();
             blacklist_addr[ii].pop_back();
             blacklisted_targets.push_back(ai);
-            char buf[100];
-            std::string blacklistee = inet_ntop(ai.address.af,
-                                                &ai.address.addr,
-                                                buf, sizeof(buf));
+            std::string blacklistee = ai.address_and_port_to_string();
             std::string bl = "[" + blacklistee + ":" + std::to_string(ai.port) + "] ";
             blacklist_str = blacklist_str + bl;
           }
@@ -318,10 +312,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       for (size_t ii = 0; ii < to_copy; ++ii)
       {
         targets.push_back(blacklisted_targets[ii]);
-        char buf[100];
-        std::string blacklistee = inet_ntop(blacklisted_targets[ii].address.af,
-                                            &blacklisted_targets[ii].address.addr,
-                                            buf, sizeof(buf));
+        std::string blacklistee = blacklisted_targets[ii].address_and_port_to_string();
         std::string bl = "[" + blacklistee + ":" + std::to_string(blacklisted_targets[ii].port) + "]";
         added_from_blacklist_str = added_from_blacklist_str + bl;
       }
@@ -453,10 +444,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
     for (size_t ii = 0; ii < to_copy; ++ii)
     {
       targets.push_back(unhealthy_targets[ii]);
-      char buf[100];
-      std::string blacklistee = inet_ntop(unhealthy_targets[ii].address.af,
-                                          &unhealthy_targets[ii].address.addr,
-                                          buf, sizeof(buf));
+      std::string blacklistee = unhealthy_targets[ii].address_and_port_to_string();
       std::string bl = "[" + blacklistee + ":" + std::to_string(unhealthy_targets[ii].port) + "]";
       added_from_unhealthy_str = added_from_unhealthy_str + bl;
     }
@@ -500,11 +488,8 @@ void BaseResolver::blacklist(const AddrInfo& ai,
                              int blacklist_ttl,
                              int graylist_ttl)
 {
-  char buf[100];
-  TRC_DEBUG("Add %s:%d transport %d to blacklist for %d seconds,"
-            "graylist for %d seconds",
-            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-            ai.port, ai.transport, blacklist_ttl, graylist_ttl);
+  TRC_DEBUG("Add %s to blacklist for %d seconds, graylist for %d seconds",
+            ai.to_string().c_str(), blacklist_ttl, graylist_ttl);
   pthread_mutex_lock(&_hosts_lock);
   _hosts.emplace(ai, Host(blacklist_ttl, graylist_ttl));
   pthread_mutex_unlock(&_hosts_lock);
@@ -979,10 +964,7 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
     state = i->second.get_state(current_time);
     if (state == Host::State::WHITE)
     {
-      char buf[100];
-      TRC_DEBUG("%s:%d transport %d graylist time elapsed",
-                inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-                ai.port, ai.transport);
+      TRC_DEBUG("%s graylist time elapsed", ai.to_string().c_str());
 
       _hosts.erase(i);
     }
@@ -992,20 +974,14 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
     state = Host::State::WHITE;
   }
 
-  char buf[100];
-  TRC_DEBUG("%s:%d transport %d has state: %s",
-            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-            ai.port, ai.transport, Host::state_to_string(state).c_str());
+  TRC_DEBUG("%s has state: %s", ai.to_string().c_str());
 
   return state;
 }
 
 void BaseResolver::success(const AddrInfo& ai)
 {
-  char buf[100];
-  TRC_DEBUG("Successful response from  %s:%d transport %d",
-            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-            ai.port, ai.transport);
+  TRC_DEBUG("Successful response from  %s", ai.to_string().c_str());
 
   pthread_mutex_lock(&_hosts_lock);
 
@@ -1025,21 +1001,14 @@ void BaseResolver::select_for_probing(const AddrInfo& ai)
 
   if (i != _hosts.end())
   {
-    char buf[100];
-    TRC_DEBUG("%s:%d transport %d selected for probing",
-              inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-              ai.port, ai.transport);
-
+    TRC_DEBUG("%s selected for probing", ai.to_string().c_str());
     i->second.selected_for_probing(pthread_self());
   }
 }
 
 void BaseResolver::untested(const AddrInfo& ai)
 {
-  char buf[100];
-  TRC_DEBUG("%s:%d transport %d returned untested",
-            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-            ai.port, ai.transport);
+  TRC_DEBUG("%s returned untested", ai.to_string().c_str());
 
   pthread_mutex_lock(&_hosts_lock);
   Hosts::iterator i = _hosts.find(ai);
