@@ -63,6 +63,7 @@ BaseResolver::~BaseResolver()
 // Removes all the entries from the blacklist.
 void BaseResolver::clear_blacklist()
 {
+  TRC_DEBUG("Clear blacklist");
   pthread_mutex_lock(&_hosts_lock);
   _hosts.clear();
   pthread_mutex_unlock(&_hosts_lock);
@@ -381,6 +382,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
     ai.address = to_ip46(*j);
     if (host_state(ai, current_time) == Host::State::GRAY_NOT_PROBING)
     {
+      TRC_DEBUG("Added a graylisted target for probing");
       probing(ai);
       targets.push_back(ai);
       break;
@@ -973,6 +975,11 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
     state = i->second.get_state(current_time);
     if (state == Host::State::WHITE)
     {
+      char buf[100];
+      TRC_DEBUG("%s:%d transport %d graylist time elapsed",
+                inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
+                ai.port, ai.transport);
+
       _hosts.erase(i);
     }
   }
@@ -991,7 +998,13 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
 
 void BaseResolver::success(const AddrInfo& ai)
 {
+  char buf[100];
+  TRC_DEBUG("Successful response from  %s:%d transport %d",
+            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
+            ai.port, ai.transport);
+
   pthread_mutex_lock(&_hosts_lock);
+
   Hosts::iterator i = _hosts.find(ai);
 
   if (i != _hosts.end())
@@ -1004,6 +1017,11 @@ void BaseResolver::success(const AddrInfo& ai)
 
 void BaseResolver::probing(const AddrInfo& ai)
 {
+  char buf[100];
+  TRC_DEBUG("Probing %s:%d transport %d",
+            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
+            ai.port, ai.transport);
+
   Hosts::iterator i = _hosts.find(ai);
 
   if (i != _hosts.end())
@@ -1014,6 +1032,11 @@ void BaseResolver::probing(const AddrInfo& ai)
 
 void BaseResolver::untested(const AddrInfo& ai)
 {
+  char buf[100];
+  TRC_DEBUG("%s:%d transport %d returned untested",
+            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
+            ai.port, ai.transport);
+
   pthread_mutex_lock(&_hosts_lock);
   Hosts::iterator i = _hosts.find(ai);
 
