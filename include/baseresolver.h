@@ -127,6 +127,7 @@ public:
 
   /// Indicates that the given AddrInfo has responded.
   void success(const AddrInfo& ai);
+
   /// Indicates that the calling thread has left the given AddrInfo untested.
   void untested(const AddrInfo& ai);
 
@@ -286,7 +287,7 @@ protected:
   /// probing and does not attempt to connect to it, it is made available for
   /// giving out by a_resolve once more. If a client attempts but fails to
   /// connect to a host, it is moved to the blacklist.
-  ///
+
   /// Private class to hold data and methods associated to an IP/transport/port
   /// combination in the blacklist system. Each Host is associated with exactly
   /// one such combination.

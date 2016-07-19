@@ -268,7 +268,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             active_addr[ii].pop_back();
             targets.push_back(ai);
             std::string target = ai.address_and_port_to_string();
-            std::string tg = "[" + target + ":" + std::to_string(ai.port) + "] ";
+            std::string tg = "[" + target + "] ";
             targetlist_str = targetlist_str + tg;
 
             TRC_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
@@ -280,7 +280,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             blacklist_addr[ii].pop_back();
             blacklisted_targets.push_back(ai);
             std::string blacklistee = ai.address_and_port_to_string();
-            std::string bl = "[" + blacklistee + ":" + std::to_string(ai.port) + "] ";
+            std::string bl = "[" + blacklistee + "] ";
             blacklist_str = blacklist_str + bl;
           }
 
@@ -313,7 +313,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       {
         targets.push_back(blacklisted_targets[ii]);
         std::string blacklistee = blacklisted_targets[ii].address_and_port_to_string();
-        std::string bl = "[" + blacklistee + ":" + std::to_string(blacklisted_targets[ii].port) + "]";
+        std::string bl = "[" + blacklistee + "]";
         added_from_blacklist_str = added_from_blacklist_str + bl;
       }
     }
@@ -444,8 +444,8 @@ void BaseResolver::a_resolve(const std::string& hostname,
     for (size_t ii = 0; ii < to_copy; ++ii)
     {
       targets.push_back(unhealthy_targets[ii]);
-      std::string blacklistee = unhealthy_targets[ii].address_and_port_to_string();
-      std::string bl = "[" + blacklistee + ":" + std::to_string(unhealthy_targets[ii].port) + "]";
+      std::string unhealthy_target = unhealthy_targets[ii].address_and_port_to_string();
+      std::string bl = "[" + unhealthy_target + "]";
       added_from_unhealthy_str = added_from_unhealthy_str + bl;
     }
   }
