@@ -488,8 +488,9 @@ void BaseResolver::blacklist(const AddrInfo& ai,
                              int blacklist_ttl,
                              int graylist_ttl)
 {
+  std::string ai_str = ai.to_string();
   TRC_DEBUG("Add %s to blacklist for %d seconds, graylist for %d seconds",
-            ai.to_string().c_str(), blacklist_ttl, graylist_ttl);
+            ai_str.c_str(), blacklist_ttl, graylist_ttl);
   pthread_mutex_lock(&_hosts_lock);
   _hosts.emplace(ai, Host(blacklist_ttl, graylist_ttl));
   pthread_mutex_unlock(&_hosts_lock);
@@ -956,7 +957,7 @@ void BaseResolver::Host::untested(pthread_t user_id)
 BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t current_time)
 {
   Host::State state;
-
+  std::string ai_str = ai.to_string();
   Hosts::iterator i = _hosts.find(ai);
 
   if (i != _hosts.end())
@@ -964,7 +965,7 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
     state = i->second.get_state(current_time);
     if (state == Host::State::WHITE)
     {
-      TRC_DEBUG("%s graylist time elapsed", ai.to_string().c_str());
+      TRC_DEBUG("%s graylist time elapsed", ai_str.c_str());
 
       _hosts.erase(i);
     }
@@ -974,14 +975,17 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
     state = Host::State::WHITE;
   }
 
-  TRC_DEBUG("%s has state: %s", ai.to_string().c_str());
+
+  std::string state_str = Host::state_to_string(state);
+  TRC_DEBUG("%s has state: %s", ai_str.c_str(), state_str.c_str());
 
   return state;
 }
 
 void BaseResolver::success(const AddrInfo& ai)
 {
-  TRC_DEBUG("Successful response from  %s", ai.to_string().c_str());
+  std::string ai_str = ai.to_string();
+  TRC_DEBUG("Successful response from  %s", ai_str.c_str());
 
   pthread_mutex_lock(&_hosts_lock);
 
@@ -1001,14 +1005,16 @@ void BaseResolver::select_for_probing(const AddrInfo& ai)
 
   if (i != _hosts.end())
   {
-    TRC_DEBUG("%s selected for probing", ai.to_string().c_str());
+    std::string ai_str = ai.to_string();
+    TRC_DEBUG("%s selected for probing", ai_str.c_str());
     i->second.selected_for_probing(pthread_self());
   }
 }
 
 void BaseResolver::untested(const AddrInfo& ai)
 {
-  TRC_DEBUG("%s returned untested", ai.to_string().c_str());
+  std::string ai_str = ai.to_string();
+  TRC_DEBUG("%s returned untested", ai_str.c_str());
 
   pthread_mutex_lock(&_hosts_lock);
   Hosts::iterator i = _hosts.find(ai);

@@ -668,6 +668,10 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
       {
         _resolver->blacklist(*i);
       }
+      else
+      {
+        _resolver->success(*i);
+      }
 
       // Determine the failure mode and update the correct counter.
       bool fatal_http_error = false;

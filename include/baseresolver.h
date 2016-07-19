@@ -273,17 +273,20 @@ protected:
   /// The global hosts map holds a list of IP/transport/port combinations which
   /// have been blacklisted because the destination is unresponsive (either TCP
   /// connection attempts are failing or a UDP destination is unreachable).
-
+  ///
   /// Blacklisted hosts are not given out by the a_resolve method, unless
   /// insufficient non-blacklisted hosts are available. A host remains on the
   /// blacklist until a specified time has elapsed, after which it moves to the
   /// graylist.
-
+  ///
   /// Hosts on the graylist are given out by the a_resolve method to only one
   /// client, unless insufficient non-blacklisted hosts are available. A host
-  /// remains on the graylist until a specified time has elapsed, or a client
-  /// successfully connects to this host.
-
+  /// moves to the whitelist if the client probing this host connects
+  /// successfully, or if a specified time elapses. If a client given a host for
+  /// probing and does not attempt to connect to it, it is made available for
+  /// giving out by a_resolve once more. If a client attempts but fails to
+  /// connect to a host, it is moved to the blacklist.
+  ///
   /// Private class to hold data and methods associated to an IP/transport/port
   /// combination in the blacklist system. Each Host is associated with exactly
   /// one such combination.
@@ -301,8 +304,8 @@ protected:
     ~Host();
 
     /// Enum representing the current state of a Host in the blacklist
-    /// system. Whitelisted, graylisted and not being probed, graylisted and
-    /// being probed, and blacklisted respectively.
+    /// system. Whitelisted, graylisted and not selected for probing, graylisted
+    /// and selected for probing, and blacklisted respectively.
     enum struct State {WHITE, GRAY_NOT_PROBING, GRAY_PROBING, BLACK};
 
     /// Returns a string representation of the given state.
@@ -323,11 +326,12 @@ protected:
     void untested(pthread_t user_id);
 
   private:
-    /// The time at which this Host is to be removed from the blacklist and
-    /// placed onto the graylist.
+    /// The time in seconds since the epoch at which this Host is to be removed
+    /// from the blacklist and placed onto the graylist.
     time_t _blacklist_expiry_time;
 
-    /// The time at which this Host is to be removed from the graylist.
+    /// The time in seconds since the epoch at which this Host is to be removed
+    /// from the graylist.
     time_t _graylist_expiry_time;
 
     /// Indicates that this Host is currently being probed.
