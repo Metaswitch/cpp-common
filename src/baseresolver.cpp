@@ -492,7 +492,8 @@ void BaseResolver::blacklist(const AddrInfo& ai,
   TRC_DEBUG("Add %s to blacklist for %d seconds, graylist for %d seconds",
             ai_str.c_str(), blacklist_ttl, graylist_ttl);
   pthread_mutex_lock(&_hosts_lock);
-  _hosts.emplace(ai, Host(blacklist_ttl, graylist_ttl));
+  _hosts.erase(ai);
+  _hosts.insert(std::pair<AddrInfo, Host>(ai, Host(blacklist_ttl, graylist_ttl)));
   pthread_mutex_unlock(&_hosts_lock);
 }
 
