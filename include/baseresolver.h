@@ -115,21 +115,21 @@ public:
   BaseResolver(DnsCachedResolver* dns_client);
   virtual ~BaseResolver();
 
-  void blacklist(const AddrInfo& ai)
+  virtual void blacklist(const AddrInfo& ai)
   {
     blacklist(ai, _default_blacklist_duration, _default_graylist_duration);
   }
-  void blacklist(const AddrInfo& ai, int blacklist_ttl)
+  virtual void blacklist(const AddrInfo& ai, int blacklist_ttl)
   {
     blacklist(ai, blacklist_ttl, _default_graylist_duration);
   }
-  void blacklist(const AddrInfo& ai, int blacklist_ttl, int graylist_ttl);
+  virtual void blacklist(const AddrInfo& ai, int blacklist_ttl, int graylist_ttl);
 
   /// Indicates that the given AddrInfo has responded.
-  void success(const AddrInfo& ai);
+  virtual void success(const AddrInfo& ai);
 
   /// Indicates that the calling thread has left the given AddrInfo untested.
-  void untested(const AddrInfo& ai);
+  virtual void untested(const AddrInfo& ai);
 
   /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
   static bool parse_ip_target(const std::string& target, IP46Address& address);

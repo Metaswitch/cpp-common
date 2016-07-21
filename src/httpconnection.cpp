@@ -720,7 +720,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     }
   }
 
-  for(; i != targets.end(); ++i)
+  for(++i; i != targets.end(); ++i)
   {
     // Report to the resolver that the remaining targets have not been tested.
     _resolver->untested(*i);
