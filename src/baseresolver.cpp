@@ -493,7 +493,7 @@ void BaseResolver::blacklist(const AddrInfo& ai,
             ai_str.c_str(), blacklist_ttl, graylist_ttl);
   pthread_mutex_lock(&_hosts_lock);
   _hosts.erase(ai);
-  _hosts.insert(std::pair<AddrInfo, Host>(ai, Host(blacklist_ttl, graylist_ttl)));
+  _hosts.emplace(ai, Host(blacklist_ttl, graylist_ttl));
   pthread_mutex_unlock(&_hosts_lock);
 }
 
