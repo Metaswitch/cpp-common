@@ -720,10 +720,12 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     }
   }
 
-  for(++i; i != targets.end(); ++i)
+  // Report to the resolver that the remaining records were not tested.
+  ++i;
+  while(i < targets.end())
   {
-    // Report to the resolver that the remaining targets have not been tested.
     _resolver->untested(*i);
+    ++i;
   }
 
   // Check whether we should apply a penalty. We do this when:
