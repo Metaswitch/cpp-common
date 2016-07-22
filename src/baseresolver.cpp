@@ -899,8 +899,10 @@ std::string BaseResolver::Host::state_to_string(State state)
     return "GRAY_PROBING";
   case State::BLACK:
     return "BLACK";
+  // LCOV_EXCL_START
   default:
     return "UNKNOWN";
+  // LCOV_EXCL_STOP
   }
 }
 
