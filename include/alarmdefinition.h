@@ -75,6 +75,19 @@ namespace AlarmDef {
     WARNING
   };
 
+  inline bool operator > (Severity lhs, Severity rhs)
+  {
+    // Order the severities so we can do a simple comparison to determine any
+    // severity change.
+    unsigned int ordered_severities[] = {0, 1, 2, 6, 5, 4, 3};
+    return ordered_severities[lhs] > ordered_severities[rhs];
+  }
+
+  inline bool operator < (Severity lhs, Severity rhs)
+  {
+    return !(lhs > rhs);
+  }
+
   enum Cause {
     UNDEFINED_CAUSE,
     DATABASE_INCONSISTENCY = 160,
