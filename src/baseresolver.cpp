@@ -46,6 +46,11 @@
 #include "sas.h"
 #include "sasevent.h"
 
+void PrintTo(const AddrInfo& ai, std::ostream* os)
+{
+  *os << ai.to_string();
+}
+
 BaseResolver::BaseResolver(DnsCachedResolver* dns_client) :
   _naptr_factory(),
   _naptr_cache(),

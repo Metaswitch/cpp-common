@@ -83,8 +83,8 @@ struct AddrInfo
   bool operator==(const AddrInfo& rhs) const
   {
     return (address.compare(rhs.address) == 0) &&
-           (port == rhs.port) &&
-           (transport == rhs.transport);
+      (port == rhs.port) &&
+      (transport == rhs.transport);
   }
 
   std::string address_and_port_to_string() const
@@ -103,6 +103,10 @@ struct AddrInfo
     return os.str();
   }
 };
+
+/// Overrides Google Test default print method to avoid compatibility issues
+/// with valgrind
+void PrintTo(const AddrInfo& ai, std::ostream* os);
 
 /// The BaseResolver class provides common infrastructure for doing DNS
 /// resolution, but does not implement a full resolver for any particular
