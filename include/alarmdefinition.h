@@ -141,7 +141,6 @@ namespace AlarmDef {
     int _index;
     Cause _cause;
     std::vector<SeverityDetails> _severity_details;
-    int _resource_ID;
   };
 
   Cause cause_to_enum(std::string cause);
