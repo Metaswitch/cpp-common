@@ -165,9 +165,8 @@ Store::Status LocalStore::set_data(const std::string& table,
   {
     TRC_DEBUG("Force an error on the SET");
     _force_error_flag = false;
-    status = Store::Status::ERROR;
 
-    return status;
+    return Store::Status::ERROR;
   }
 
   // Calculate the fully qualified key.
