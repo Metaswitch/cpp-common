@@ -50,6 +50,7 @@ public:
 
   void flush_all();
   void force_contention();
+  void force_error();
 
   Store::Status get_data(const std::string& table,
                          const std::string& key,
@@ -75,6 +76,7 @@ private:
   bool _data_contention_flag;
   pthread_mutex_t _db_lock;
   std::map<std::string, Record> _db;
+  bool _force_error_flag;
   std::map<std::string, Record> _old_db;
 };
 

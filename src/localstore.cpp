@@ -51,6 +51,7 @@ LocalStore::LocalStore() :
   _data_contention_flag(false),
   _db_lock(PTHREAD_MUTEX_INITIALIZER),
   _db(),
+  _force_error_flag(false),
   _old_db()
 {
   TRC_DEBUG("Created local store");
@@ -81,6 +82,13 @@ void LocalStore::force_contention()
   _data_contention_flag = true;
 }
 
+// This function sets a flag to true that tells the program to simulate an
+// error on the SET.  We achieve this by just returning an error on the SET.
+void LocalStore::force_error()
+{
+  _force_error_flag = true;
+}
+
 Store::Status LocalStore::get_data(const std::string& table,
                                    const std::string& key,
                                    std::string& data,
@@ -94,7 +102,7 @@ Store::Status LocalStore::get_data(const std::string& table,
   std::string fqkey = table + "\\\\" + key;
 
   pthread_mutex_lock(&_db_lock);
-  
+
   // This is for the purposes of testing data contention. If the flag is set to
   // true _db_in_use will become a reference to _old_db the out-of-date
   // database we constructed in set_data().
@@ -151,6 +159,16 @@ Store::Status LocalStore::set_data(const std::string& table,
 
   Store::Status status = Store::Status::DATA_CONTENTION;
 
+  // This is for the purpose of testing data SETs failing.  If the flag is set
+  // to true, then we'll just return an error.
+  if (_force_error_flag == true)
+  {
+    TRC_DEBUG("Force an error on the SET");
+    _force_error_flag = false;
+
+    return Store::Status::ERROR;
+  }
+
   // Calculate the fully qualified key.
   std::string fqkey = table + "\\\\" + key;
 
@@ -175,11 +193,11 @@ Store::Status LocalStore::set_data(const std::string& table,
       // Supplied CAS is consistent (either because record hasn't expired and
       // CAS matches, or record has expired and CAS is zero) so update the
       // record.
-      
+
       // This writes data this is one update out-of-date to _old_db. This is for
       // the purposes of simulating data contention in Unit Testing.
       _old_db[fqkey] = r;
-      
+
       r.data = data;
       r.cas = ++cas;
       r.expiry = (expiry == 0) ? 0 : (uint32_t)expiry + now;
