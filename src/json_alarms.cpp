@@ -180,9 +180,9 @@ namespace JSONAlarms
 
           // We check if any extended details have been included in each
           // alarms's JSON file.
-          if (alarms_def_it->HasMember("extended details"))
+          if (alarms_def_it->HasMember("extended_details"))
           {
-            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended details", extended_details);
+            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_details", extended_details);
             if (extended_details.length() > 4096)
             {
               char error_text[100];
@@ -207,11 +207,11 @@ namespace JSONAlarms
             return false;
           }
           
-          // We check if a extended description have been included in each
+          // We check if an extended description have been included in each
           // alarms's JSON file.
-          if (alarms_def_it->HasMember("extended description"))
+          if (alarms_def_it->HasMember("extended_description"))
           {
-            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended description", extended_description);
+            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_description", extended_description);
             if (extended_description.length() > 4096)
             {
               char error_text[100];
