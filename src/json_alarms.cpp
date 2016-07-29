@@ -36,7 +36,6 @@
 
 #include "json_alarms.h"
 #include <algorithm>
-#include <string>
 
 namespace JSONAlarms
 {
@@ -108,7 +107,7 @@ namespace JSONAlarms
       {
         int index;
         std::string cause;
-        std::string raw_name;
+        std::string name;
 
         JSON_GET_INT_MEMBER(*alarms_it, "index", index);
         JSON_GET_STRING_MEMBER(*alarms_it, "cause", cause);
@@ -121,8 +120,8 @@ namespace JSONAlarms
           return false;
         }
 
-        JSON_GET_STRING_MEMBER(*alarms_it, "name", raw_name);
-        header[raw_name] = index;
+        JSON_GET_STRING_MEMBER(*alarms_it, "name", name);
+        header[name] = index;
 
         JSON_ASSERT_CONTAINS(*alarms_it, "levels");
         JSON_ASSERT_ARRAY((*alarms_it)["levels"]);
@@ -172,9 +171,7 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "details", details);
           if (details.length() > 255)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'details' exceeds %d char limit", index, 255);
-            error = std::string(error_text);
+            error = prepare_error_message("details", 255, index);
             return false;
           }
 
@@ -185,9 +182,7 @@ namespace JSONAlarms
             JSON_GET_STRING_MEMBER(*alarms_def_it, "extended details", extended_details);
             if (extended_details.length() > 4096)
             {
-              char error_text[100];
-              sprintf(error_text, "alarm %d: 'extended details' exceeds %d char limit", index, 4096);
-              error = std::string(error_text);
+              error = prepare_error_message("extended_details", 4096, index);
               return false;
             }
           }
@@ -201,22 +196,18 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "description", description);
           if (description.length() > 255)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'description' exceeds %d char limit", index, 255);
-            error = std::string(error_text);
+            error = prepare_error_message("description", 255, index);
             return false;
           }
           
-          // We check if a extended description have been included in each
+          // We check if an extended description have been included in each
           // alarms's JSON file.
           if (alarms_def_it->HasMember("extended description"))
           {
             JSON_GET_STRING_MEMBER(*alarms_def_it, "extended description", extended_description);
             if (extended_description.length() > 4096)
             {
-              char error_text[100];
-              sprintf(error_text, "alarm %d: 'extended description' exceeds %d char limit", index, 4096);
-              error = std::string(error_text);
+              error = prepare_error_message("extended_description", 4096, index);
               return false;
             }
           }
@@ -230,27 +221,21 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "cause", detailed_cause);
           if (detailed_cause.length() > 4096)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'cause' exceeds %d char limit", index, 4096);
-            error = std::string(error_text);
+            error = prepare_error_message("cause", 4096, index);
             return false;
           }
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "effect", effect);
           if (effect.length() > 4096)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'effect' exceeds %d char limit", index, 4096);
-            error = std::string(error_text);
+            error = prepare_error_message("effect", 4096, index);
             return false;
           }
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "action", action);
           if (action.length() > 4096)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'action' exceeds %d char limit", index, 4096);
-            error = std::string(error_text);
+            error = prepare_error_message("action", 4096, action);
             return false;
           }
 
@@ -281,14 +266,8 @@ namespace JSONAlarms
         }
         else 
         {
-          // Process the raw_name of each alarm (e.g. SPROUT_PROCESS_FAILURE)
-          // into a readable name (e.g. Sprout process failure) and use this in
-          // the AlarmDefinition
-          std::string name = raw_name;
-          std::replace(name.begin(), name.end(), '_', ' ');
-          std::transform(name.begin(), name.end(), name.begin(), ::tolower);
-          name[0] = toupper(name[0]);
-          AlarmDef::AlarmDefinition ad = {name,
+          // Here we use the human readable form of the alarm's name
+          AlarmDef::AlarmDefinition ad = {process_alarm_name(name),
                                           index,
                                           e_cause,
                                           severity_vec};
@@ -305,6 +284,24 @@ namespace JSONAlarms
     }
 
     return true;
+  }
+
+  // Function to transform the name of each alarm from e.g.
+  // "SPROUT_PROCESS_FAILURE" to a human readable format e.g. "Sprout process
+  // failure"
+  std::string process_alarm_name(std::string name)
+  {
+    std::replace(name.begin(), name.end(), '_', ' ');
+    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+    name[0] = toupper(name[0]);
+    return raw_name;
+  }
+
+  std::string prepare_error_message(std::string field, int max_length, int index)
+  {
+    char error_text[100];
+    sprintf(error_text, "alarm %d: '%s' exceeds %d char limit", index, field.c_str(), max_length);
+    return std::string(error_text);
   }
 
   // LCOV_EXCL_START - This function isn't tested in UTs
