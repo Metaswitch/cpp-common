@@ -36,7 +36,6 @@
 
 #include "json_alarms.h"
 #include <algorithm>
-#include <string>
 
 namespace JSONAlarms
 {
@@ -108,7 +107,7 @@ namespace JSONAlarms
       {
         int index;
         std::string cause;
-        std::string raw_name;
+        std::string name;
 
         JSON_GET_INT_MEMBER(*alarms_it, "index", index);
         JSON_GET_STRING_MEMBER(*alarms_it, "cause", cause);
@@ -121,8 +120,8 @@ namespace JSONAlarms
           return false;
         }
 
-        JSON_GET_STRING_MEMBER(*alarms_it, "name", raw_name);
-        header[raw_name] = index;
+        JSON_GET_STRING_MEMBER(*alarms_it, "name", name);
+        header[name] = index;
 
         JSON_ASSERT_CONTAINS(*alarms_it, "levels");
         JSON_ASSERT_ARRAY((*alarms_it)["levels"]);
@@ -281,13 +280,7 @@ namespace JSONAlarms
         }
         else 
         {
-          // Process the raw_name of each alarm (e.g. SPROUT_PROCESS_FAILURE)
-          // into a readable name (e.g. Sprout process failure) and use this in
-          // the AlarmDefinition
-          std::string name = raw_name;
-          std::replace(name.begin(), name.end(), '_', ' ');
-          std::transform(name.begin(), name.end(), name.begin(), ::tolower);
-          name[0] = toupper(name[0]);
+          // Here we use the human readable form of the alarm's name
           AlarmDef::AlarmDefinition ad = {name,
                                           index,
                                           e_cause,
@@ -305,6 +298,17 @@ namespace JSONAlarms
     }
 
     return true;
+  }
+
+  // Function to transform the name of each alarm from e.g.
+  // "SPROUT_PROCESS_FAILURE" to a human readable format e.g. "Sprout process
+  // failure"
+  std::string process_alarm_name(std::string raw_name)
+  {
+    std::replace(raw_name.begin(), raw_name.end(), '_', ' ');
+    std::transform(raw_name.begin(), raw_name.end(), raw_name.begin(), ::tolower);
+    raw_name[0] = toupper(raw_name[0]);
+    return raw_name;
   }
 
   // LCOV_EXCL_START - This function isn't tested in UTs
