@@ -177,9 +177,9 @@ namespace JSONAlarms
 
           // We check if any extended details have been included in each
           // alarms's JSON file.
-          if (alarms_def_it->HasMember("extended details"))
+          if (alarms_def_it->HasMember("extended_details"))
           {
-            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended details", extended_details);
+            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_details", extended_details);
             if (extended_details.length() > 4096)
             {
               error = prepare_error_message("extended_details", 4096, index);
@@ -202,9 +202,9 @@ namespace JSONAlarms
           
           // We check if an extended description have been included in each
           // alarms's JSON file.
-          if (alarms_def_it->HasMember("extended description"))
+          if (alarms_def_it->HasMember("extended_description"))
           {
-            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended description", extended_description);
+            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_description", extended_description);
             if (extended_description.length() > 4096)
             {
               error = prepare_error_message("extended_description", 4096, index);
@@ -235,7 +235,7 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "action", action);
           if (action.length() > 4096)
           {
-            error = prepare_error_message("action", 4096, action);
+            error = prepare_error_message("action", 4096, index);
             return false;
           }
 
@@ -294,7 +294,7 @@ namespace JSONAlarms
     std::replace(name.begin(), name.end(), '_', ' ');
     std::transform(name.begin(), name.end(), name.begin(), ::tolower);
     name[0] = toupper(name[0]);
-    return raw_name;
+    return name;
   }
 
   std::string prepare_error_message(std::string field, int max_length, int index)
