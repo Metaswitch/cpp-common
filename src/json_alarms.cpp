@@ -171,9 +171,7 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "details", details);
           if (details.length() > 255)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'details' exceeds %d char limit", index, 255);
-            error = std::string(error_text);
+            error = prepare_error_message("details", 255, index);
             return false;
           }
 
@@ -184,9 +182,7 @@ namespace JSONAlarms
             JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_details", extended_details);
             if (extended_details.length() > 4096)
             {
-              char error_text[100];
-              sprintf(error_text, "alarm %d: 'extended details' exceeds %d char limit", index, 4096);
-              error = std::string(error_text);
+              error = prepare_error_message("extended_details", 4096, index);
               return false;
             }
           }
@@ -200,9 +196,7 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "description", description);
           if (description.length() > 255)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'description' exceeds %d char limit", index, 255);
-            error = std::string(error_text);
+            error = prepare_error_message("description", 255, index);
             return false;
           }
           
@@ -213,9 +207,7 @@ namespace JSONAlarms
             JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_description", extended_description);
             if (extended_description.length() > 4096)
             {
-              char error_text[100];
-              sprintf(error_text, "alarm %d: 'extended description' exceeds %d char limit", index, 4096);
-              error = std::string(error_text);
+              error = prepare_error_message("extended_description", 4096, index);
               return false;
             }
           }
@@ -229,27 +221,21 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "cause", detailed_cause);
           if (detailed_cause.length() > 4096)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'cause' exceeds %d char limit", index, 4096);
-            error = std::string(error_text);
+            error = prepare_error_message("cause", 4096, index);
             return false;
           }
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "effect", effect);
           if (effect.length() > 4096)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'effect' exceeds %d char limit", index, 4096);
-            error = std::string(error_text);
+            error = prepare_error_message("effect", 4096, index);
             return false;
           }
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "action", action);
           if (action.length() > 4096)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'action' exceeds %d char limit", index, 4096);
-            error = std::string(error_text);
+            error = prepare_error_message("action", 4096, action);
             return false;
           }
 
@@ -281,7 +267,7 @@ namespace JSONAlarms
         else 
         {
           // Here we use the human readable form of the alarm's name
-          AlarmDef::AlarmDefinition ad = {name,
+          AlarmDef::AlarmDefinition ad = {process_alarm_name(name),
                                           index,
                                           e_cause,
                                           severity_vec};
@@ -303,12 +289,19 @@ namespace JSONAlarms
   // Function to transform the name of each alarm from e.g.
   // "SPROUT_PROCESS_FAILURE" to a human readable format e.g. "Sprout process
   // failure"
-  std::string process_alarm_name(std::string raw_name)
+  std::string process_alarm_name(std::string name)
   {
-    std::replace(raw_name.begin(), raw_name.end(), '_', ' ');
-    std::transform(raw_name.begin(), raw_name.end(), raw_name.begin(), ::tolower);
-    raw_name[0] = toupper(raw_name[0]);
+    std::replace(name.begin(), name.end(), '_', ' ');
+    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+    name[0] = toupper(name[0]);
     return raw_name;
+  }
+
+  std::string prepare_error_message(std::string field, int max_length, int index)
+  {
+    char error_text[100];
+    sprintf(error_text, "alarm %d: '%s' exceeds %d char limit", index, field.c_str(), max_length);
+    return std::string(error_text);
   }
 
   // LCOV_EXCL_START - This function isn't tested in UTs

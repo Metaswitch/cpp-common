@@ -77,6 +77,8 @@ namespace JSONAlarms
 
   std::string process_alarm_name(std::string raw_name);
 
+  std::string prepare_error_message(std::string field, int max_length, int index);
+
   // Writes a header file that includes the alarm IDs and their index
   void write_header_file(std::string name, std::map<std::string, int> alarms);
 };
