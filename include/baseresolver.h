@@ -40,6 +40,7 @@
 #include <list>
 #include <map>
 #include <vector>
+#include <sstream>
 #include <boost/regex.hpp>
 #include <pthread.h>
 
@@ -82,10 +83,30 @@ struct AddrInfo
   bool operator==(const AddrInfo& rhs) const
   {
     return (address.compare(rhs.address) == 0) &&
-           (port == rhs.port) &&
-           (transport == rhs.transport);
+      (port == rhs.port) &&
+      (transport == rhs.transport);
+  }
+
+  std::string address_and_port_to_string() const
+  {
+    std::stringstream os;
+    char buf[100];
+    os << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
+    os << ":" << port;
+    return os.str();
+  }
+
+  std::string to_string() const
+  {
+    std::stringstream os;
+    os << address_and_port_to_string() << " transport " << transport;
+    return os.str();
   }
 };
+
+/// Overrides Google Test default print method to avoid compatibility issues
+/// with valgrind
+void PrintTo(const AddrInfo& ai, std::ostream* os);
 
 /// The BaseResolver class provides common infrastructure for doing DNS
 /// resolution, but does not implement a full resolver for any particular
@@ -98,18 +119,35 @@ public:
   BaseResolver(DnsCachedResolver* dns_client);
   virtual ~BaseResolver();
 
-  void blacklist(const AddrInfo& ai) { blacklist(ai, _default_blacklist_duration); }
-  void blacklist(const AddrInfo& ai, int ttl);
-  bool blacklisted(const AddrInfo& ai);
+  virtual void blacklist(const AddrInfo& ai)
+  {
+    blacklist(ai, _default_blacklist_duration, _default_graylist_duration);
+  }
+  virtual void blacklist(const AddrInfo& ai, int blacklist_ttl)
+  {
+    blacklist(ai, blacklist_ttl, _default_graylist_duration);
+  }
+  virtual void blacklist(const AddrInfo& ai, int blacklist_ttl, int graylist_ttl);
+
+  /// Indicates that the given AddrInfo has responded.
+  virtual void success(const AddrInfo& ai);
+
+  /// Indicates that the calling thread has left the given AddrInfo untested.
+  virtual void untested(const AddrInfo& ai);
 
   /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
-  bool parse_ip_target(const std::string& target, IP46Address& address);
+  static bool parse_ip_target(const std::string& target, IP46Address& address);
 
   void clear_blacklist();
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
   void create_srv_cache();
-  void create_blacklist(int blacklist_duration);
+  void create_blacklist(int blacklist_duration)
+  {
+    // Defaults to not using graylisting
+    create_blacklist(blacklist_duration, 0);
+  }
+  void create_blacklist(int blacklist_duration, int graylist_duration);
   void destroy_naptr_cache();
   void destroy_srv_cache();
   void destroy_blacklist();
@@ -237,14 +275,96 @@ protected:
     std::vector<int> _tree;
   };
 
-  /// The global blacklist holds a list of transport/IP address/port
-  /// combinations which have been blacklisted because the destination is
-  /// unresponsive (either TCP connection attempts are failing or a UDP
-  /// destination is unreachable).
-  pthread_mutex_t _blacklist_lock;
-  typedef std::map<AddrInfo, time_t> Blacklist;
-  Blacklist _blacklist;
+  /// The global hosts map holds a list of IP/transport/port combinations which
+  /// have been blacklisted because the destination is unresponsive (either TCP
+  /// connection attempts are failing or a UDP destination is unreachable).
+  ///
+  /// Blacklisted hosts are not given out by the a_resolve method, unless
+  /// insufficient non-blacklisted hosts are available. A host remains on the
+  /// blacklist until a specified time has elapsed, after which it moves to the
+  /// graylist.
+  ///
+  /// Hosts on the graylist are given out by the a_resolve method to only one
+  /// client, unless insufficient non-blacklisted hosts are available. A host
+  /// moves to the whitelist if the client probing this host connects
+  /// successfully, or if a specified time elapses. If a client given a host for
+  /// probing and does not attempt to connect to it, it is made available for
+  /// giving out by a_resolve once more. If a client attempts but fails to
+  /// connect to a host, it is moved to the blacklist.
+
+  /// Private class to hold data and methods associated to an IP/transport/port
+  /// combination in the blacklist system. Each Host is associated with exactly
+  /// one such combination.
+  class Host
+  {
+  public:
+    /// Constructor
+    /// @param blacklist_ttl The time in seconds for the host to remain on the
+    ///                      blacklist before moving to the graylist
+    /// @param graylist_ttl  The time in seconds for the host to remain on the
+    ///                      graylist before moving to the whitelist
+    Host(int blacklist_ttl, int graylist_ttl);
+
+    /// Destructor
+    ~Host();
+
+    /// Enum representing the current state of a Host in the blacklist
+    /// system. Whitelisted, graylisted and not selected for probing, graylisted
+    /// and selected for probing, and blacklisted respectively.
+    enum struct State {WHITE, GRAY_NOT_PROBING, GRAY_PROBING, BLACK};
+
+    /// Returns a string representation of the given state.
+    static std::string state_to_string(State state);
+
+    /// Returns the state of this Host at the given time in seconds since the
+    /// epoch
+    State get_state() {return get_state(time(NULL));}
+    State get_state(time_t current_time);
+
+    /// Indicates that this Host has been successfully contacted.
+    void success();
+
+    /// Indicates that this Host is selected for probing by the given user.
+    void selected_for_probing(pthread_t user_id);
+
+    /// Indicates that this Host has gone untested by the given user.
+    void untested(pthread_t user_id);
+
+  private:
+    /// The time in seconds since the epoch at which this Host is to be removed
+    /// from the blacklist and placed onto the graylist.
+    time_t _blacklist_expiry_time;
+
+    /// The time in seconds since the epoch at which this Host is to be removed
+    /// from the graylist.
+    time_t _graylist_expiry_time;
+
+    /// Indicates that this Host is currently being probed.
+    bool _being_probed;
+
+    /// The ID of the thread currently probing this Host.
+    pthread_t _probing_user_id;
+  };
+
+  pthread_mutex_t _hosts_lock;
+  typedef std::map<AddrInfo, Host> Hosts;
+  Hosts _hosts;
+
+  /// Returns the state of the Host associated with the given AddrInfo, if it is
+  /// in the blacklist system, and Host::State::WHITE otherwise. _hosts_lock
+  /// must be held when calling this method.
+  Host::State host_state(const AddrInfo& ai) {return host_state(ai, time(NULL));}
+  Host::State host_state(const AddrInfo& ai, time_t current_time);
+
+  /// Returns false only if the associated Host has state State::WHITE
+  bool blacklisted(const AddrInfo& ai);
+
+  /// Indicates that the calling thread is selected to probe the given AddrInfo.
+  /// _hosts_lock must be held when calling this method.
+  void select_for_probing(const AddrInfo& ai);
+
   int _default_blacklist_duration;
+  int _default_graylist_duration;
 
   /// Stores a pointer to the DNS client this resolver should use.
   DnsCachedResolver* _dns_client;

@@ -586,7 +586,8 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
 
   // Try to get a decent connection - try each of the hosts in turn (although
   // we might quit early if we have too many HTTP-level failures).
-  for (std::vector<AddrInfo>::const_iterator i = targets.begin();
+  std::vector<AddrInfo>::const_iterator i;
+  for (i = targets.begin();
        i != targets.end();
        ++i)
   {
@@ -653,6 +654,7 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
       }
 
       // Success!
+      _resolver->success(*i);
       break;
     }
     else
@@ -665,6 +667,10 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
         _resolver->blacklist(*i);
+      }
+      else
+      {
+        _resolver->success(*i);
       }
 
       // Determine the failure mode and update the correct counter.
@@ -712,6 +718,14 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
         break;
       }
     }
+  }
+
+  // Report to the resolver that the remaining records were not tested.
+  ++i;
+  while(i < targets.end())
+  {
+    _resolver->untested(*i);
+    ++i;
   }
 
   // Check whether we should apply a penalty. We do this when:
