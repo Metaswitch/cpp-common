@@ -144,7 +144,7 @@ private:
     {
       snprint_objid(buf, sizeof(buf),
                     requests->requestvb->name, requests->requestvb->name_length);
-      TRC_INFO("Handling SNMP request for OID %s", buf);
+      TRC_DEBUG("Handling SNMP request for OID %s", buf);
 
       if (requests->processed)
       {
