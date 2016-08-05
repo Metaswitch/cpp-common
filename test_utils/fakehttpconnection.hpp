@@ -42,8 +42,12 @@
 #include <map>
 #include <string>
 
+#include "gmock/gmock.h"
 #include "httpconnection.h"
 
+// This class is a slightly unusual hybrid of a fake and a mock: it acts as a
+// fake for GET, PUT and DELETE methods, but a mock for POSTs.  Because: what
+// should a fake do with a POST?
 class FakeHttpConnection : public HttpConnection
 {
 public:
@@ -55,6 +59,15 @@ public:
   virtual long send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail);
   bool put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail);
   bool del(const std::string& uri, const std::string& username, SAS::TrailId trail);
+
+  MOCK_METHOD5(
+      send_post,
+      long(
+        const std::string& path,
+        std::map<std::string, std::string>& headers,
+        const std::string& body,
+        SAS::TrailId trail,
+        const std::string& username));
 
 private:
   std::map<std::string, std::string> _db;
