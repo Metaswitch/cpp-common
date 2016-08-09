@@ -171,7 +171,7 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "details", details);
           if (details.length() > 255)
           {
-            error = prepare_error_message("details", 255, index);
+            error = exceeded_character_limit_error("details", 255, index);
             return false;
           }
 
@@ -182,7 +182,7 @@ namespace JSONAlarms
             JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_details", extended_details);
             if (extended_details.length() > 4096)
             {
-              error = prepare_error_message("extended_details", 4096, index);
+              error = exceeded_character_limit_error("extended_details", 4096, index);
               return false;
             }
           }
@@ -196,18 +196,18 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "description", description);
           if (description.length() > 255)
           {
-            error = prepare_error_message("description", 255, index);
+            error = exceeded_character_limit_error("description", 255, index);
             return false;
           }
           
-          // We check if an extended description have been included in each
+          // We check if an extended description has been included in each
           // alarms's JSON file.
           if (alarms_def_it->HasMember("extended_description"))
           {
             JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_description", extended_description);
             if (extended_description.length() > 4096)
             {
-              error = prepare_error_message("extended_description", 4096, index);
+              error = exceeded_character_limit_error("extended_description", 4096, index);
               return false;
             }
           }
@@ -221,21 +221,21 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "cause", detailed_cause);
           if (detailed_cause.length() > 4096)
           {
-            error = prepare_error_message("cause", 4096, index);
+            error = exceeded_character_limit_error("cause", 4096, index);
             return false;
           }
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "effect", effect);
           if (effect.length() > 4096)
           {
-            error = prepare_error_message("effect", 4096, index);
+            error = exceeded_character_limit_error("effect", 4096, index);
             return false;
           }
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "action", action);
           if (action.length() > 4096)
           {
-            error = prepare_error_message("action", 4096, index);
+            error = exceeded_character_limit_error("action", 4096, index);
             return false;
           }
 
@@ -297,7 +297,7 @@ namespace JSONAlarms
     return name;
   }
 
-  std::string prepare_error_message(std::string field, int max_length, int index)
+  std::string exceeded_character_limit_error(std::string field, int max_length, int index)
   {
     char error_text[100];
     sprintf(error_text, "alarm %d: '%s' exceeds %d char limit", index, field.c_str(), max_length);
