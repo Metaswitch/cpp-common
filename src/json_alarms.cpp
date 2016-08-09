@@ -235,7 +235,7 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "action", action);
           if (action.length() > 4096)
           {
-            error = prepare_error_message("action", 4096, action);
+            error = prepare_error_message("action", 4096, index);
             return false;
           }
 
@@ -294,7 +294,7 @@ namespace JSONAlarms
     std::replace(name.begin(), name.end(), '_', ' ');
     std::transform(name.begin(), name.end(), name.begin(), ::tolower);
     name[0] = toupper(name[0]);
-    return raw_name;
+    return name;
   }
 
   std::string prepare_error_message(std::string field, int max_length, int index)
