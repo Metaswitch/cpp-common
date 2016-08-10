@@ -75,6 +75,14 @@ namespace JSONAlarms
                                  std::string& error,
                                  std::vector<AlarmDef::AlarmDefinition>& alarms);
 
+  // Processes the name of an alarm into a human readable format, for example
+  // "SPROUT_PROCESS_FAILURE" becomes "Sprout process failure"
+  std::string process_alarm_name(std::string raw_name);
+
+  // Prepares a string that can be used to report the error that a specific
+  // field has exceeded the character limit
+  std::string exceeded_character_limit_error(std::string field, int max_length, int index);
+
   // Writes a header file that includes the alarm IDs and their index
   void write_header_file(std::string name, std::map<std::string, int> alarms);
 };
