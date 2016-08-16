@@ -1,9 +1,9 @@
 /**
- * @file mock_connectionpool.h Mock ConnectionPool<int> for testing
- * ConnectionPool<T>
+ * @file memcachedconnectionpool.h  Declaration of derived class for memcached
+ * connection pooling
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015  Metaswitch Networks Ltd
+ * Copyright (C) 2013  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -35,16 +35,35 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "gmock/gmock.h"
+#ifndef MEMCACHEDCONNECTIONPOOL_H__
+#define MEMCACHEDCONNECTIONPOOL_H__
+
+// Compilation fails when surrounding these two includes with extern "C",
+// although it may cause problems not to. Compilation succeeds with extern "C"
+// provided <sstream> is included previously. We are unsure of the cause.
+#include <libmemcached/memcached.h>
+#include <libmemcached/util.h>
+
 #include "connectionpool.h"
 
-class MockConnectionPool : public ConnectionPool<int>
+class MemcachedConnectionPool : public ConnectionPool<memcached_st*>
 {
 public:
-  MockConnectionPool(time_t max_idle_time_s) : ConnectionPool<int>(max_idle_time_s) {}
-  ~MockConnectionPool() {}
+  MemcachedConnectionPool(time_t max_idle_time_s, std::string options) :
+    ConnectionPool<memcached_st*>(max_idle_time_s),
+    _options(options),
+    _max_connect_latency(50)
+  {
+  }
+
+  ~MemcachedConnectionPool() {}
 
 protected:
-  MOCK_METHOD1(create_connection, int(AddrInfo target));
-  MOCK_METHOD1(destroy_connection, void(int conn));
+  memcached_st* create_connection(AddrInfo target);
+  void destroy_connection(memcached_st* conn);
+
+  std::string _options;
+  unsigned int _max_connect_latency;
 };
+
+#endif

@@ -67,8 +67,6 @@ public:
   // we expect there to be servers.
   bool has_servers() { return true; };
 
-  void set_max_connect_latency(unsigned int ms);
-
 protected:
   // Whether this store is using the binary protocol (required for vbucket
   // support).

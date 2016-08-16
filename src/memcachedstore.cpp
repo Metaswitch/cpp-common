@@ -81,13 +81,6 @@ BaseMemcachedStore::~BaseMemcachedStore()
 {
 }
 
-
-void BaseMemcachedStore::set_max_connect_latency(unsigned int ms)
-{
-  _max_connect_latency_ms = ms;
-}
-
-
 memcached_return_t BaseMemcachedStore::get_from_replica(memcached_st* replica,
                                                         const char* key_ptr,
                                                         const size_t key_len,

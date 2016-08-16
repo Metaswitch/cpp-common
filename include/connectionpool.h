@@ -139,8 +139,6 @@ private:
   ConnectionPool<T>* _conn_pool_ptr;
 };
 
-#endif
-
 template<typename T>
 ConnectionPool<T>::ConnectionPool(time_t max_idle_time_s) :
   _max_idle_time_s(max_idle_time_s)
@@ -306,3 +304,5 @@ AddrInfo ConnectionHandle<T>::get_target()
 {
   return _conn_info.target;
 }
+
+#endif

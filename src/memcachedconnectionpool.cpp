@@ -1,9 +1,9 @@
 /**
- * @file mock_connectionpool.h Mock ConnectionPool<int> for testing
- * ConnectionPool<T>
+ * @file memcachedconnectionpool.cpp  Implementation of derived class for
+ * memcached connection pooling
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015  Metaswitch Networks Ltd
+ * Copyright (C) 2013  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -35,16 +35,19 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "gmock/gmock.h"
-#include "connectionpool.h"
+#include "memcachedconnectionpool.h"
 
-class MockConnectionPool : public ConnectionPool<int>
+memcached_st* MemcachedConnectionPool::create_connection(AddrInfo target)
 {
-public:
-  MockConnectionPool(time_t max_idle_time_s) : ConnectionPool<int>(max_idle_time_s) {}
-  ~MockConnectionPool() {}
+  memcached_st* conn = memcached(_options.c_str(), _options.length());
+  memcached_behavior_set(conn,
+                          MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT,
+                          _max_connect_latency);
+  memcached_server_add(conn, target.address.to_string().c_str(), target.port);
+  return conn;
+}
 
-protected:
-  MOCK_METHOD1(create_connection, int(AddrInfo target));
-  MOCK_METHOD1(destroy_connection, void(int conn));
-};
+void MemcachedConnectionPool::destroy_connection(memcached_st* conn)
+{
+  memcached_free(conn);
+}
