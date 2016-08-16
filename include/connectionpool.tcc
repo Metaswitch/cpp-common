@@ -56,7 +56,7 @@ struct ConnectionInfo
   T conn;
   AddrInfo target;
   time_t last_used_time_s;
-  ConnectionInfo(T conn, AddrInfo target, time_t last_used_time_s) :
+  ConnectionInfo(T conn, AddrInfo target) :
     conn(conn),
     target(target)
   {
@@ -122,18 +122,21 @@ public:
   // could cause the connection to get checked back in twice
   ConnectionHandle(const ConnectionHandle<T>&) = delete;
   ConnectionHandle<T>& operator= (const ConnectionHandle<T>&) = delete;
+  // Move constructors
+  ConnectionHandle<T>(ConnectionHandle<T>&& conn_handle);
+  ConnectionHandle<T>& operator= (ConnectionHandle<T>&&);
   // The destructor handles releasing the connection back into the pool.
   ~ConnectionHandle();
 
   // Gets the connection object contained within _conn_info
   T get_connection();
-  // Gets the AddrInfo object contained within _conn_pool
+  // Gets the AddrInfo object contained within _conn_info
   AddrInfo get_target();
 
 private:
   ConnectionInfo<T> _conn_info;
   // A pointer to the ConnectionPool that created this object
-  ConnectionPool<T>* _conn_pool;
+  ConnectionPool<T>* _conn_pool_ptr;
 };
 
 #endif
@@ -211,9 +214,11 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T> conn_info)
   pthread_mutex_lock(&_conn_pool_lock);
 
   // Put the connection back into the pool.
-  _conn_pool[conn_info.target].push_front();
+  _conn_pool[conn_info.target].push_front(conn_info);
 
   pthread_mutex_unlock(&_conn_pool_lock);
+
+  free_old_connection();
 }
 
 template<typename T>
@@ -239,13 +244,12 @@ void ConnectionPool<T>::free_old_connection()
         TRC_DEBUG("Free idle connection to IP: %s, port: %d (time now is %ld, last used %ld)",
                   oldest_conn_info.target.address.to_string().c_str(),
                   oldest_conn_info.target.port,
-                  ctime(current_time),
-                  ctime(oldest_conn_info.last_used_time_s));
+                  ctime(&current_time),
+                  ctime(&oldest_conn_info.last_used_time_s));
 
         // Delete the connection as it is too old
-        slot.pop_back();
+        slot->second.pop_back();
         destroy_connection(oldest_conn_info.conn);
-        oldest_conn_info.conn = NULL;
 
         // Delete the entire slot if it is now empty
         if (slot->second.empty())
@@ -264,16 +268,31 @@ void ConnectionPool<T>::free_old_connection()
 
 template <typename T>
 ConnectionHandle<T>::ConnectionHandle(ConnectionInfo<T> conn_info,
-                                      ConnectionPool<T>* conn_pool) :
+                                      ConnectionPool<T>* conn_pool_ptr) :
   _conn_info(conn_info),
-  _conn_pool(conn_pool)
+  _conn_pool_ptr(conn_pool_ptr)
 {
 }
 
 template <typename T>
 ConnectionHandle<T>::~ConnectionHandle()
 {
-  *_conn_pool.release_connection(_conn_info);
+  (*_conn_pool_ptr).release_connection(_conn_info);
+}
+
+template <typename T>
+ConnectionHandle<T>::ConnectionHandle(ConnectionHandle<T>&& conn_handle) :
+  _conn_info(conn_handle._conn_info),
+  _conn_pool_ptr(conn_handle._conn_pool_ptr)
+{
+}
+
+template <typename T>
+ConnectionHandle<T>& ConnectionHandle<T>::operator=(ConnectionHandle<T>&& conn_handle)
+{
+  _conn_info = conn_handle._conn_info;
+  _conn_pool_ptr = conn_handle._conn_pool_ptr;
+  return *this;
 }
 
 template <typename T>
