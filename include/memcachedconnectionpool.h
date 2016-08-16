@@ -56,7 +56,11 @@ public:
   {
   }
 
-  ~MemcachedConnectionPool() {}
+  ~MemcachedConnectionPool()
+  {
+    // This call is important to properly destroy the connection pool
+    destroy_connection_pool();
+  }
 
 protected:
   memcached_st* create_connection(AddrInfo target);

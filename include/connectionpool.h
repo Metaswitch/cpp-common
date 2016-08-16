@@ -81,7 +81,7 @@ class ConnectionPool
 
 public:
   ConnectionPool(time_t max_idle_time_s);
-  ~ConnectionPool() {}
+  virtual ~ConnectionPool() {}
 
   /// Retrieves a connection for the given target from the pool if it exists,
   /// and creates one otherwise. Returns this connection wrapped in a
