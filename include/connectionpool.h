@@ -171,8 +171,6 @@ void ConnectionPool<T>::destroy_connection_pool()
 template<typename T>
 ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
 {
-  ConnectionInfo<T>* conn_info;
-
   TRC_DEBUG("Request for connection to IP: %s, port: %d",
             target.address.to_string().c_str(),
             target.port);
@@ -181,22 +179,20 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
 
   typename Pool::iterator it = _conn_pool.find(target);
 
+  // This method should be refactored as the current arrangement is not ideal.
   if ((it != _conn_pool.end()) && (!it->second.empty()))
   {
-    conn_info = &(it->second.front());
+    ConnectionInfo<T> conn_info = it->second.front();
     it->second.pop_front();
     TRC_DEBUG("Found existing connection %p in pool", conn_info);
+    pthread_mutex_unlock(&_conn_pool_lock);
+    return ConnectionHandle<T>(conn_info, this);
   }
-  else
-  {
-    TRC_DEBUG("No existing connection in pool, create one");
-    conn_info = new ConnectionInfo<T>(create_connection(target), target);
-    TRC_DEBUG("Created new connection %p", conn_info);
-  }
-
+  TRC_DEBUG("No existing connection in pool, create one");
+  ConnectionInfo<T> conn_info = ConnectionInfo<T>(create_connection(target), target);
+  TRC_DEBUG("Created new connection %p", conn_info);
   pthread_mutex_unlock(&_conn_pool_lock);
-
-  return ConnectionHandle<T>(*conn_info, this);
+  return ConnectionHandle<T>(conn_info, this);
 }
 
 template<typename T>
