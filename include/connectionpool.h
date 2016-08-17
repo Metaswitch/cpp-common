@@ -46,14 +46,15 @@
 #include "log.h"
 
 // Required as AddrInfo is defined here
-#include "baseresolver.h"
+#include "utils.h"
 
 template <typename T>
 class ConnectionHandle;
 
-/// Abstract struct storing a connection object and associated information. T is
-/// required to be copy- and move- constructable; it is the intention that T
-/// will be a pointer to a connection object on the heap.
+/// Abstract struct storing a connection object and associated information. The
+/// underlying connection type T is required to be copy- and move- constructable;
+/// this condition is satisified by letting T be a pointer to a connection
+/// object on the heap.
 template <typename T>
 struct ConnectionInfo
 {
@@ -67,7 +68,8 @@ struct ConnectionInfo
 
   ConnectionInfo(T conn, AddrInfo target) :
     conn(conn),
-    target(target)
+    target(target),
+    last_used_time_s(0)
   {
   }
 };
@@ -82,6 +84,10 @@ struct ConnectionInfo
 ///
 /// Retrieved connections are wrapped in ConnectionHandle objects, which, when
 /// destroyed, handle returning the connection to the pool.
+///
+/// This class should be subclassed for a specific connection type, with the
+/// subclass responsible for implementing the creation and destruction of the
+/// type T connection object when required by the pool.
 template <typename T>
 class ConnectionPool
 {
@@ -94,6 +100,12 @@ class ConnectionPool
 
 public:
   ConnectionPool(time_t max_idle_time_s);
+
+  /// The pool cannot be safely emptied in this destructor, as an implementation
+  /// of the destroy_connection method is required to safely destroy type T
+  /// connection objects. Subclass destructors should call the
+  /// destroy_connection_pool method of this class to ensure the pool is
+  /// destroyed correctly.
   virtual ~ConnectionPool() {}
 
   /// Retrieves a connection for the given target from the pool if it exists,
@@ -171,12 +183,14 @@ template<typename T>
 void ConnectionPool<T>::destroy_connection_pool()
 {
   pthread_mutex_lock(&_conn_pool_lock);
-  // Iterate over the slots in the pool
+  // Iterate over the slots in the pool. The typename keyword is required to
+  // clarify the type declaration to the compiler.
   for (typename Pool::iterator slot_it = _conn_pool.begin();
        slot_it != _conn_pool.end();
        ++slot_it)
   {
-    // Iterate over the ConnectionInfo objects in the current slot
+    // Iterate over the ConnectionInfo objects in the current slot. The typename
+    // keyword is required to clarify the type declaration to the compiler.
     for (typename Slot::iterator conn_info_it = slot_it->second.begin();
          conn_info_it != slot_it->second.end();
          ++conn_info_it)
@@ -185,8 +199,7 @@ void ConnectionPool<T>::destroy_connection_pool()
       // ConnectionInfo
       destroy_connection((*conn_info_it)->conn);
       // Destroy the current ConnectionInfo
-      delete *conn_info_it;
-      *conn_info_it = NULL;
+      delete *conn_info_it; *conn_info_it = NULL;
     }
   }
   _conn_pool.clear();
@@ -265,18 +278,22 @@ void ConnectionPool<T>::free_old_connection()
       // oldest one is at the back
       ConnectionInfo<T>* oldest_conn_info_ptr = slot_it->second.back();
 
-      if(current_time > oldest_conn_info_ptr->last_used_time_s + _max_idle_time_s)
+      if (current_time > oldest_conn_info_ptr->last_used_time_s + _max_idle_time_s)
       {
-        TRC_DEBUG("Free idle connection to IP: %s, port: %d (time now is %ld, last used %ld)",
-                  oldest_conn_info_ptr->target.address.to_string().c_str(),
-                  oldest_conn_info_ptr->target.port,
-                  ctime(&current_time),
-                  ctime(&(oldest_conn_info_ptr->last_used_time_s)));
+        /// Create strings required for debug logging
+        std::string addr_info_str = oldest_conn_info_ptr->target.address_and_port_to_string();
+        std::string current_time_str = ctime(&current_time);
+        std::string last_used_time_s_str = ctime(&(oldest_conn_info_ptr->last_used_time_s));
+
+        TRC_DEBUG("Free idle connection to target: %s (time now is %s, last used %s)",
+                  addr_info_str.c_str(),
+                  current_time_str.c_str(),
+                  last_used_time_s_str.c_str());
 
         // Delete the connection as it is too old
         slot_it->second.pop_back();
         destroy_connection(oldest_conn_info_ptr->conn);
-        delete oldest_conn_info_ptr;
+        delete oldest_conn_info_ptr; oldest_conn_info_ptr = NULL;
 
         // Delete the entire slot if it is now empty
         if (slot_it->second.empty())
@@ -304,8 +321,13 @@ ConnectionHandle<T>::ConnectionHandle(ConnectionInfo<T>* conn_info_ptr,
 template <typename T>
 ConnectionHandle<T>::~ConnectionHandle()
 {
-  // On destruction, release the connection back into the pool
-  _conn_pool_ptr->release_connection(_conn_info_ptr);
+  // On destruction, release the connection back into the pool. If this object
+  // has been moved, the _conn_info_ptr will be null, so this case is checked
+  // for.
+  if (_conn_info_ptr)
+  {
+    _conn_pool_ptr->release_connection(_conn_info_ptr);
+  }
 }
 
 template <typename T>
@@ -313,13 +335,15 @@ ConnectionHandle<T>::ConnectionHandle(ConnectionHandle<T>&& conn_handle) :
   _conn_info_ptr(conn_handle._conn_info_ptr),
   _conn_pool_ptr(conn_handle._conn_pool_ptr)
 {
+  conn_handle._conn_info_ptr = NULL;
+  conn_handle._conn_pool_ptr = NULL;
 }
 
 template <typename T>
 ConnectionHandle<T>& ConnectionHandle<T>::operator=(ConnectionHandle<T>&& conn_handle)
 {
-  _conn_info_ptr = conn_handle._conn_info_ptr;
-  _conn_pool_ptr = conn_handle._conn_pool_ptr;
+  _conn_info_ptr = conn_handle._conn_info_ptr; conn_handle._conn_info_ptr = NULL;
+  _conn_pool_ptr = conn_handle._conn_pool_ptr; conn_handle._conn_pool_ptr = NULL;
   return *this;
 }
 

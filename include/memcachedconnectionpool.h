@@ -38,8 +38,10 @@
 #ifndef MEMCACHEDCONNECTIONPOOL_H__
 #define MEMCACHEDCONNECTIONPOOL_H__
 
-// Compilation fails when surrounding these two includes with extern "C". The
-// code seems to work without it, but this may cause problems in future.
+// Compilation fails when surrounding these two includes with extern "C", due to
+// what seems to be conflicting definitions of a C function. It is unknown why
+// this fails here but works in memcachedstore.h, but it appears to work without
+// extern "C". Beware that omitting this may cause problems in future.
 #include <libmemcached/memcached.h>
 #include <libmemcached/util.h>
 
@@ -51,7 +53,7 @@ public:
   MemcachedConnectionPool(time_t max_idle_time_s, std::string options) :
     ConnectionPool<memcached_st*>(max_idle_time_s),
     _options(options),
-    _max_connect_latency(50)
+    _max_connect_latency_ms(50)
   {
   }
 
@@ -66,7 +68,7 @@ protected:
   void destroy_connection(memcached_st* conn);
 
   std::string _options;
-  unsigned int _max_connect_latency;
+  unsigned int _max_connect_latency_ms;
 };
 
 #endif

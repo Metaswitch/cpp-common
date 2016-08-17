@@ -42,8 +42,8 @@ memcached_st* MemcachedConnectionPool::create_connection(AddrInfo target)
   // Create and set up a memcached connection
   memcached_st* conn = memcached(_options.c_str(), _options.length());
   memcached_behavior_set(conn,
-                          MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT,
-                          _max_connect_latency);
+                         MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT,
+                         _max_connect_latency_ms);
   memcached_server_add(conn, target.address.to_string().c_str(), target.port);
 
   return conn;
