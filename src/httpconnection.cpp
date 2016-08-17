@@ -481,8 +481,10 @@ std::string HttpConnection::request_type_to_string(RequestType request_type)
     return "POST";
   case RequestType::GET:
     return "GET";
+  // LCOV_EXCL_START
   default:
-    return "ERROR";
+    return "UNKNOWN";
+  // LCOV_EXCL_STOP
   }
 }
 
