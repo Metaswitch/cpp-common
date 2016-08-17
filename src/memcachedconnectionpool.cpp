@@ -37,6 +37,7 @@
 
 #include "memcachedconnectionpool.h"
 
+// LCOV_EXCL_START
 memcached_st* MemcachedConnectionPool::create_connection(AddrInfo target)
 {
   // Create and set up a memcached connection
@@ -53,3 +54,4 @@ void MemcachedConnectionPool::destroy_connection(memcached_st* conn)
 {
   memcached_free(conn);
 }
+// LCOV_EXCL_STOP

@@ -38,11 +38,14 @@
 #include "gmock/gmock.h"
 #include "connectionpool.h"
 
-class MockConnectionPool : public ConnectionPool<int>
+class TestableConnectionPool : public ConnectionPool<int>
 {
 public:
-  MockConnectionPool(time_t max_idle_time_s) : ConnectionPool<int>(max_idle_time_s) {}
-  ~MockConnectionPool() {}
+  TestableConnectionPool(time_t max_idle_time_s) : ConnectionPool<int>(max_idle_time_s) {}
+  ~TestableConnectionPool()
+  {
+    destroy_connection_pool();
+  }
 
 protected:
   MOCK_METHOD1(create_connection, int(AddrInfo target));
