@@ -38,9 +38,8 @@
 #ifndef MEMCACHEDCONNECTIONPOOL_H__
 #define MEMCACHEDCONNECTIONPOOL_H__
 
-// Compilation fails when surrounding these two includes with extern "C",
-// although it may cause problems not to. Compilation succeeds with extern "C"
-// provided <sstream> is included previously. We are unsure of the cause.
+// Compilation fails when surrounding these two includes with extern "C". The
+// code seems to work without it, but this may cause problems in future.
 #include <libmemcached/memcached.h>
 #include <libmemcached/util.h>
 

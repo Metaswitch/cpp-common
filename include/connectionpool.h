@@ -49,13 +49,20 @@
 template <typename T>
 class ConnectionHandle;
 
-/// Abstract struct storing a connection object and associated information
+/// Abstract struct storing a connection object and associated information. T is
+/// required to be copy- and move- constructable; it is the intention that T
+/// will be a pointer to a connection object on the heap.
 template <typename T>
 struct ConnectionInfo
 {
   T conn;
+
+  // An AddrInfo object storing details of the target of the connection
   AddrInfo target;
+
+  // The time in seconds that the connection was last used
   time_t last_used_time_s;
+
   ConnectionInfo(T conn, AddrInfo target) :
     conn(conn),
     target(target)
@@ -76,7 +83,7 @@ class ConnectionPool
   // method of this class.
   friend class ConnectionHandle<T>;
 
-  using Slot = std::deque<ConnectionInfo<T>>;
+  using Slot = std::deque<ConnectionInfo<T>*>;
   using Pool = std::map<AddrInfo, Slot>;
 
 public:
@@ -91,18 +98,20 @@ public:
 protected:
   /// Creates a type T connection for the given target
   virtual T create_connection(AddrInfo target) = 0;
+
   /// Safely destroys a type T connection
   virtual void destroy_connection(T conn) = 0;
-  /// Safely destroys the connection pool. This method must be called from the
-  /// destructor of all subclasses
+
+  /// Safely destroys the connection pool, leaving it empty. This method must be
+  /// called from the destructor of all subclasses
   void destroy_connection_pool();
 
   /// Releases the given connection back into the pool
-  void release_connection(ConnectionInfo<T> conn_info);
+  void release_connection(ConnectionInfo<T>* conn_info);
 
 private:
-  /// Removes one connection that has gone unused for the max idle time, if any
-  /// exist
+  /// Removes one connection that has gone unused for more than the max idle
+  /// time, if any such connections exist
   void free_old_connection();
 
   Pool _conn_pool;
@@ -110,31 +119,37 @@ private:
   time_t _max_idle_time_s;
 };
 
-/// Template class storing a connection object. On destruction of the handle,
-/// this class handles correctly returning the connection to the pool that it
-/// was drawn from.
+/// Template class storing a connection in a ConnectionInfo object. On
+/// destruction of the handle, this class handles correctly returning the
+/// connection to the pool that it was drawn from.
 template <typename T>
 class ConnectionHandle
 {
 public:
-  ConnectionHandle(ConnectionInfo<T> conn_info, ConnectionPool<T>* conn_pool);
+  ConnectionHandle(ConnectionInfo<T>* conn_info_ptr, ConnectionPool<T>* conn_pool);
+
   // The copy constructor is deleted to avoid having copies of the handle, which
   // could cause the connection to get checked back in twice
   ConnectionHandle(const ConnectionHandle<T>&) = delete;
   ConnectionHandle<T>& operator= (const ConnectionHandle<T>&) = delete;
+
   // Move constructors
   ConnectionHandle<T>(ConnectionHandle<T>&& conn_handle);
   ConnectionHandle<T>& operator= (ConnectionHandle<T>&&);
+
   // The destructor handles releasing the connection back into the pool.
   ~ConnectionHandle();
 
   // Gets the connection object contained within _conn_info
   T get_connection();
+
   // Gets the AddrInfo object contained within _conn_info
   AddrInfo get_target();
 
 private:
-  ConnectionInfo<T> _conn_info;
+  // A ConnectionInfo containing the connection
+  ConnectionInfo<T>* _conn_info_ptr;
+
   // A pointer to the ConnectionPool that created this object
   ConnectionPool<T>* _conn_pool_ptr;
 };
@@ -151,20 +166,24 @@ void ConnectionPool<T>::destroy_connection_pool()
 {
   pthread_mutex_lock(&_conn_pool_lock);
   // Iterate over the slots in the pool
-  for (typename Pool::iterator slot = _conn_pool.begin();
-       slot != _conn_pool.end();
-       ++slot)
+  for (typename Pool::iterator slot_it = _conn_pool.begin();
+       slot_it != _conn_pool.end();
+       ++slot_it)
   {
-    // Iterate over the current slot
-    for (typename Slot::iterator conn_info = slot->second.begin();
-         conn_info != slot->second.end();
-         ++conn_info)
+    // Iterate over the ConnectionInfo objects in the current slot
+    for (typename Slot::iterator conn_info_it = slot_it->second.begin();
+         conn_info_it != slot_it->second.end();
+         ++conn_info_it)
     {
       // Safely destroy the connection object contained in the current
       // ConnectionInfo
-      destroy_connection((*conn_info).conn);
+      destroy_connection((*conn_info_it)->conn);
+      // Destroy the current ConnectionInfo
+      delete *conn_info_it;
+      *conn_info_it = NULL;
     }
   }
+  _conn_pool.clear();
   pthread_mutex_unlock(&_conn_pool_lock);
 }
 
@@ -177,38 +196,42 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
 
   pthread_mutex_lock(&_conn_pool_lock);
 
-  typename Pool::iterator it = _conn_pool.find(target);
+  typename Pool::iterator slot_it = _conn_pool.find(target);
 
-  // This method should be refactored as the current arrangement is not ideal.
-  if ((it != _conn_pool.end()) && (!it->second.empty()))
+  ConnectionInfo<T>* conn_info_ptr;
+
+  if ((slot_it != _conn_pool.end()) && (!slot_it->second.empty()))
   {
-    ConnectionInfo<T> conn_info = it->second.front();
-    it->second.pop_front();
-    TRC_DEBUG("Found existing connection %p in pool", conn_info);
-    pthread_mutex_unlock(&_conn_pool_lock);
-    return ConnectionHandle<T>(conn_info, this);
+    conn_info_ptr = slot_it->second.front();
+    slot_it->second.pop_front();
+    TRC_DEBUG("Found existing connection %p in pool", conn_info_ptr);
   }
-  TRC_DEBUG("No existing connection in pool, create one");
-  ConnectionInfo<T> conn_info = ConnectionInfo<T>(create_connection(target), target);
-  TRC_DEBUG("Created new connection %p", conn_info);
+  else
+  {
+    TRC_DEBUG("No existing connection in pool, create one");
+    conn_info_ptr = new ConnectionInfo<T>(create_connection(target), target);
+    TRC_DEBUG("Created new connection %p", conn_info_ptr);
+  }
+
   pthread_mutex_unlock(&_conn_pool_lock);
-  return ConnectionHandle<T>(conn_info, this);
+
+  return ConnectionHandle<T>(conn_info_ptr, this);
 }
 
 template<typename T>
-void ConnectionPool<T>::release_connection(ConnectionInfo<T> conn_info)
+void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr)
 {
   TRC_DEBUG("Release connection to IP: %s, port: %d",
-            conn_info.target.address.to_string().c_str(),
-            conn_info.target.port);
+            conn_info_ptr->target.address.to_string().c_str(),
+            conn_info_ptr->target.port);
 
   // Update the last used time of the connection
-  conn_info.last_used_time_s = time(NULL);
+  conn_info_ptr->last_used_time_s = time(NULL);
 
   pthread_mutex_lock(&_conn_pool_lock);
 
   // Put the connection back into the pool.
-  _conn_pool[conn_info.target].push_front(conn_info);
+  _conn_pool[conn_info_ptr->target].push_front(conn_info_ptr);
 
   pthread_mutex_unlock(&_conn_pool_lock);
 
@@ -223,32 +246,33 @@ void ConnectionPool<T>::free_old_connection()
   pthread_mutex_lock(&_conn_pool_lock);
 
   // Iterate over the slots
-  for (typename Pool::iterator slot = _conn_pool.begin();
-       slot != _conn_pool.end();
-       ++slot)
+  for (typename Pool::iterator slot_it = _conn_pool.begin();
+       slot_it != _conn_pool.end();
+       ++slot_it)
   {
-    if (!slot->second.empty())
+    if (!slot_it->second.empty())
     {
       // Connections are always checked in/out at the front of the slot, so the
       // oldest one is at the back
-      ConnectionInfo<T> oldest_conn_info = slot->second.back();
+      ConnectionInfo<T>* oldest_conn_info_ptr = slot_it->second.back();
 
-      if(current_time > oldest_conn_info.last_used_time_s + _max_idle_time_s)
+      if(current_time > oldest_conn_info_ptr->last_used_time_s + _max_idle_time_s)
       {
         TRC_DEBUG("Free idle connection to IP: %s, port: %d (time now is %ld, last used %ld)",
-                  oldest_conn_info.target.address.to_string().c_str(),
-                  oldest_conn_info.target.port,
+                  oldest_conn_info_ptr->target.address.to_string().c_str(),
+                  oldest_conn_info_ptr->target.port,
                   ctime(&current_time),
-                  ctime(&oldest_conn_info.last_used_time_s));
+                  ctime(&(oldest_conn_info_ptr->last_used_time_s)));
 
         // Delete the connection as it is too old
-        slot->second.pop_back();
-        destroy_connection(oldest_conn_info.conn);
+        slot_it->second.pop_back();
+        destroy_connection(oldest_conn_info_ptr->conn);
+        delete oldest_conn_info_ptr;
 
         // Delete the entire slot if it is now empty
-        if (slot->second.empty())
+        if (slot_it->second.empty())
         {
-          _conn_pool.erase(slot);
+          _conn_pool.erase(slot_it);
         }
 
         // We have deleted one old connection, so we stop here
@@ -261,9 +285,9 @@ void ConnectionPool<T>::free_old_connection()
 }
 
 template <typename T>
-ConnectionHandle<T>::ConnectionHandle(ConnectionInfo<T> conn_info,
+ConnectionHandle<T>::ConnectionHandle(ConnectionInfo<T>* conn_info_ptr,
                                       ConnectionPool<T>* conn_pool_ptr) :
-  _conn_info(conn_info),
+  _conn_info_ptr(conn_info_ptr),
   _conn_pool_ptr(conn_pool_ptr)
 {
 }
@@ -271,12 +295,12 @@ ConnectionHandle<T>::ConnectionHandle(ConnectionInfo<T> conn_info,
 template <typename T>
 ConnectionHandle<T>::~ConnectionHandle()
 {
-  (*_conn_pool_ptr).release_connection(_conn_info);
+  _conn_pool_ptr->release_connection(_conn_info_ptr);
 }
 
 template <typename T>
 ConnectionHandle<T>::ConnectionHandle(ConnectionHandle<T>&& conn_handle) :
-  _conn_info(conn_handle._conn_info),
+  _conn_info_ptr(conn_handle._conn_info_ptr),
   _conn_pool_ptr(conn_handle._conn_pool_ptr)
 {
 }
@@ -284,7 +308,7 @@ ConnectionHandle<T>::ConnectionHandle(ConnectionHandle<T>&& conn_handle) :
 template <typename T>
 ConnectionHandle<T>& ConnectionHandle<T>::operator=(ConnectionHandle<T>&& conn_handle)
 {
-  _conn_info = conn_handle._conn_info;
+  _conn_info_ptr = conn_handle._conn_info_ptr;
   _conn_pool_ptr = conn_handle._conn_pool_ptr;
   return *this;
 }
@@ -292,13 +316,13 @@ ConnectionHandle<T>& ConnectionHandle<T>::operator=(ConnectionHandle<T>&& conn_h
 template <typename T>
 T ConnectionHandle<T>::get_connection()
 {
-  return _conn_info.conn;
+  return _conn_info_ptr->conn;
 }
 
 template <typename T>
 AddrInfo ConnectionHandle<T>::get_target()
 {
-  return _conn_info.target;
+  return _conn_info_ptr->target;
 }
 
 #endif
