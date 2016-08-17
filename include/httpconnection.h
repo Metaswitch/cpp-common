@@ -165,15 +165,6 @@ public:
                          SAS::TrailId trail,                          //< SAS trail
                          const std::string& username = "");           //< Username to assert (if assertUser was true, else ignored)
 
-  virtual long send_request(const std::string& path,
-                            std::string body,
-                            std::string& doc,
-                            const std::string& username,
-                            SAS::TrailId trail,
-                            const std::string& method_str,
-                            std::vector<std::string> headers,
-                            CURL* curl);
-
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
@@ -239,6 +230,20 @@ private:
     int record_data(curl_infotype type, char *data, size_t size);
   };
 
+  /// Enum of HTTP request types that are used in this class
+  enum struct RequestType {DELETE, PUT, POST, GET};
+
+  /// Converts RequestType to string for logging
+  static std::string request_type_to_string(RequestType request_type);
+
+  virtual long send_request(RequestType request_type,
+                            const std::string& path,
+                            std::string body,
+                            std::string& doc,
+                            const std::string& username,
+                            SAS::TrailId trail,
+                            std::vector<std::string> headers,
+                            std::map<std::string, std::string>* response_headers);
 
   void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
 
