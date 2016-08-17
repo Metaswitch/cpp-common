@@ -1045,7 +1045,7 @@ TopologyNeutralMemcachedStore(const std::string& target_domain,
   _target_domain(target_domain),
   _resolver(resolver),
   _attempts(2),
-  _conn_pool(30, _options)
+  _conn_pool(60, _options)
 {}
 
 memcached_return_t TopologyNeutralMemcachedStore::iterate_through_targets(
@@ -1128,8 +1128,9 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
   //
   // The code that does the GET operation is passed as a lambda that captures
   // all necessary variables by reference.
-  rc = iterate_through_targets(targets, trail, [&](ConnectionHandle<memcached_st*>& conn) {
-     return get_from_replica(conn.get_connection(),
+  rc = iterate_through_targets(targets, trail,
+                               [&](ConnectionHandle<memcached_st*>& conn_handle) {
+     return get_from_replica(conn_handle.get_connection(),
                              fqkey.data(),
                              fqkey.length(),
                              data,
@@ -1263,7 +1264,8 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
   //
   // The code that does the operation is passed as a lambda that captures all
   // necessary variables by reference.
-  rc = iterate_through_targets(targets, trail, [&](ConnectionHandle<memcached_st*>& conn) {
+  rc = iterate_through_targets(targets, trail,
+                               [&](ConnectionHandle<memcached_st*>& conn_handle) {
     memcached_return_t rc;
 
     if (cas == 0)
@@ -1271,7 +1273,7 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
       // New record, so attempt to add (but overwrite any tombstones we
       // encounter).  This will fail if someone else got there first and some
       // data already exists in memcached for this key.
-      rc = add_overwriting_tombstone(conn.get_connection(),
+      rc = add_overwriting_tombstone(conn_handle.get_connection(),
                                      fqkey.data(),
                                      fqkey.length(),
                                      0,
@@ -1284,7 +1286,7 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
     {
       // This is an update to an existing record, so use memcached_cas
       // to make sure it is atomic.
-      rc = memcached_cas_vb(conn.get_connection(),
+      rc = memcached_cas_vb(conn_handle.get_connection(),
                             fqkey.data(),
                             fqkey.length(),
                             0,
@@ -1385,16 +1387,17 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
   //
   // The code that does the operation is passed as a lambda that captures all
   // necessary variables by reference.
-  rc = iterate_through_targets(targets, trail, [&](ConnectionHandle<memcached_st*>& conn) {
+  rc = iterate_through_targets(targets, trail,
+                               [&](ConnectionHandle<memcached_st*>& conn_handle) {
     memcached_return_t rc;
 
     if (_tombstone_lifetime == 0)
     {
-      rc = memcached_delete(conn.get_connection(), fqkey.data(), fqkey.length(), 0);
+      rc = memcached_delete(conn_handle.get_connection(), fqkey.data(), fqkey.length(), 0);
     }
     else
     {
-      rc = memcached_set_vb(conn.get_connection(),
+      rc = memcached_set_vb(conn_handle.get_connection(),
                             fqkey.data(),
                             fqkey.length(),
                             0,

@@ -44,6 +44,8 @@
 #include <time.h>
 
 #include "log.h"
+
+// Required as AddrInfo is defined here
 #include "baseresolver.h"
 
 template <typename T>
@@ -71,11 +73,15 @@ struct ConnectionInfo
 };
 
 /// Abstract template class storing a pool of connection objects, in "slots",
-/// with each distinct target having its own slot.
+/// with each distinct target having its own slot. Each connection is wrapped in
+/// a ConnectionInfo, and stored in the pool as a pointer.
 ///
 /// Connections can be retrieved from and replaced in the pool, at the front of
 /// the slot. Connections that have gone unused for a while are removed
 /// periodically from the back of the slots.
+///
+/// Retrieved connections are wrapped in ConnectionHandle objects, which, when
+/// destroyed, handle returning the connection to the pool.
 template <typename T>
 class ConnectionPool
 {
@@ -194,20 +200,23 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
             target.address.to_string().c_str(),
             target.port);
 
+  ConnectionInfo<T>* conn_info_ptr;
+
   pthread_mutex_lock(&_conn_pool_lock);
 
   typename Pool::iterator slot_it = _conn_pool.find(target);
 
-  ConnectionInfo<T>* conn_info_ptr;
-
   if ((slot_it != _conn_pool.end()) && (!slot_it->second.empty()))
   {
+    // If there is a connection in the pool for the given AddrInfo, retrieve it
     conn_info_ptr = slot_it->second.front();
     slot_it->second.pop_front();
     TRC_DEBUG("Found existing connection %p in pool", conn_info_ptr);
   }
   else
   {
+    // If there is no connection in the pool for the given AddrInfo, create a
+    // new one
     TRC_DEBUG("No existing connection in pool, create one");
     conn_info_ptr = new ConnectionInfo<T>(create_connection(target), target);
     TRC_DEBUG("Created new connection %p", conn_info_ptr);
@@ -295,6 +304,7 @@ ConnectionHandle<T>::ConnectionHandle(ConnectionInfo<T>* conn_info_ptr,
 template <typename T>
 ConnectionHandle<T>::~ConnectionHandle()
 {
+  // On destruction, release the connection back into the pool
   _conn_pool_ptr->release_connection(_conn_info_ptr);
 }
 
