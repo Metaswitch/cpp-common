@@ -245,6 +245,29 @@ private:
                             std::vector<std::string> headers,
                             std::map<std::string, std::string>* response_headers);
 
+  /// Helper function that sets up curl headers in send_request
+  struct curl_slist* setup_headers(std::vector<std::string> headers_to_add,
+                                   bool assert_user,
+                                   const std::string& username);
+
+  /// Helper function that determines whether to recycle the connection in
+  /// send_request, based on the pool entry associated with it
+  bool recycle_conn(PoolEntry* entry);
+
+  /// Helper function that prepares the list of targets in send_request
+  void prepare_targets(std::vector<AddrInfo>& targets, bool recycle_conn);
+
+  /// Helper function that determines the failure mode, and updates logging,
+  /// when an attempt fails in send_request. Returns true if send_request should
+  /// stop retrying.
+  bool failure(long http_rc,
+               CURLcode rc,
+               int& num_http_503_responses,
+               int& num_http_504_responses,
+               int& num_timeouts_or_io_errors,
+               SAS::TrailId trail);
+
+
   void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
 
   void sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info);
