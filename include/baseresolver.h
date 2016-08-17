@@ -139,6 +139,45 @@ public:
   static bool parse_ip_target(const std::string& target, IP46Address& address);
 
   void clear_blacklist();
+
+  class Iterator
+  {
+  public:
+    Iterator(DnsResult dns_result,
+             BaseResolver* resolver,
+             int port,
+             int transport,
+             SAS::TrailId trail);
+
+    /// Returns a vector containing (at most) targets_count AddrInfo targets
+    std::vector<AddrInfo> take(int targets_count);
+
+    /// If any targets are available, sets target to the next one and returns
+    /// true. Returns false otherwise.
+    bool next(AddrInfo &target);
+
+  private:
+    // Contains the results of a DNS query
+    DnsResult _dns_result;
+
+    // A copy of the DNS query results that will be modified
+    std::vector<DnsRRecord*> _results;
+
+    // Used to store blacklisted records
+    std::vector<DnsRRecord*> _blacklist;
+
+    // True if the iterator has not yet been called, and false otherwise
+    bool _first_call;
+
+    // A pointer to the BaseResolver that created this iterator
+    BaseResolver* _resolver;
+
+    int _port;
+    int _transport;
+
+    SAS::TrailId _trail;
+  };
+
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
   void create_srv_cache();
