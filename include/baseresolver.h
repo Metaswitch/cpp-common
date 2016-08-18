@@ -50,60 +50,6 @@
 #include "utils.h"
 #include "sas.h"
 
-struct AddrInfo
-{
-  IP46Address address;
-  int port;
-  int transport;
-  int priority;
-  int weight;
-
-  AddrInfo():
-    priority(1),
-    weight(1) {};
-
-  bool operator<(const AddrInfo& rhs) const
-  {
-    int addr_cmp = address.compare(rhs.address);
-
-    if (addr_cmp < 0)
-    {
-      return true;
-    }
-    else if (addr_cmp > 0)
-    {
-      return false;
-    }
-    else
-    {
-      return (port < rhs.port) || ((port == rhs.port) && (transport < rhs.transport));
-    }
-  }
-
-  bool operator==(const AddrInfo& rhs) const
-  {
-    return (address.compare(rhs.address) == 0) &&
-      (port == rhs.port) &&
-      (transport == rhs.transport);
-  }
-
-  std::string address_and_port_to_string() const
-  {
-    std::stringstream os;
-    char buf[100];
-    os << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
-    os << ":" << port;
-    return os.str();
-  }
-
-  std::string to_string() const
-  {
-    std::stringstream os;
-    os << address_and_port_to_string() << " transport " << transport;
-    return os.str();
-  }
-};
-
 /// Overrides Google Test default print method to avoid compatibility issues
 /// with valgrind
 void PrintTo(const AddrInfo& ai, std::ostream* os);
@@ -143,7 +89,7 @@ public:
   class Iterator
   {
   public:
-    Iterator(DnsResult dns_result,
+    Iterator(DnsResult&& dns_result,
              BaseResolver* resolver,
              int port,
              int transport,
@@ -163,20 +109,25 @@ public:
     // A copy of the DNS query results that will be modified
     std::vector<DnsRRecord*> _results;
 
-    // Used to store blacklisted records
-    std::vector<DnsRRecord*> _blacklist;
-
-    // True if the iterator has not yet been called, and false otherwise
-    bool _first_call;
+    // Used to store DNS results corresponding to unhealthy hosts
+    std::vector<AddrInfo> _unhealthy_targets;
 
     // A pointer to the BaseResolver that created this iterator
     BaseResolver* _resolver;
 
+    std::string _hostname;
     int _port;
     int _transport;
 
     SAS::TrailId _trail;
+
+    // True if the iterator has not yet been called, and false otherwise
+    bool _first_call;
   };
+
+  // Iterator must access the private host_state method of BaseResolver, which
+  // it is desirable not to expose
+  friend class Iterator;
 
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
@@ -203,7 +154,7 @@ protected:
 
   /// Does an A/AAAA record resolution for the specified name, selecting
   /// appropriate targets.
-  void a_resolve(const std::string& name,
+  void a_resolve(const std::string& hostname,
                  int af,
                  int port,
                  int transport,
@@ -211,6 +162,13 @@ protected:
                  std::vector<AddrInfo>& targets,
                  int& ttl,
                  SAS::TrailId trail);
+
+  Iterator a_resolve_iter(const std::string& hostname,
+                          int af,
+                          int port,
+                          int transport,
+                          int& ttl,
+                          SAS::TrailId trail);
 
   /// Converts a DNS A or AAAA record to an IP46Address structure.
   IP46Address to_ip46(const DnsRRecord* rr);

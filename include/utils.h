@@ -47,6 +47,7 @@
 #include <vector>
 #include <cctype>
 #include <string.h>
+#include <sstream>
 #include <arpa/inet.h>
 
 #include "log.h"
@@ -118,6 +119,60 @@ struct IP46Address
     {
       return "unknown";
     }
+  }
+};
+
+struct AddrInfo
+{
+  IP46Address address;
+  int port;
+  int transport;
+  int priority;
+  int weight;
+
+  AddrInfo():
+    priority(1),
+    weight(1) {};
+
+  bool operator<(const AddrInfo& rhs) const
+  {
+    int addr_cmp = address.compare(rhs.address);
+
+    if (addr_cmp < 0)
+    {
+      return true;
+    }
+    else if (addr_cmp > 0)
+    {
+      return false;
+    }
+    else
+    {
+      return (port < rhs.port) || ((port == rhs.port) && (transport < rhs.transport));
+    }
+  }
+
+  bool operator==(const AddrInfo& rhs) const
+  {
+    return (address.compare(rhs.address) == 0) &&
+      (port == rhs.port) &&
+      (transport == rhs.transport);
+  }
+
+  std::string address_and_port_to_string() const
+  {
+    std::stringstream os;
+    char buf[100];
+    os << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
+    os << ":" << port;
+    return os.str();
+  }
+
+  std::string to_string() const
+  {
+    std::stringstream os;
+    os << address_and_port_to_string() << " transport " << transport;
+    return os.str();
   }
 };
 

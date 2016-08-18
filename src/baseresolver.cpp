@@ -337,6 +337,143 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   _srv_cache->dec_ref(srv_name);
 }
 
+BaseResolver::Iterator::Iterator(DnsResult&& dns_result,
+                       BaseResolver* resolver,
+                       int port,
+                       int transport,
+                       SAS::TrailId trail) :
+  _dns_result(dns_result),
+  _resolver(resolver),
+  _port(port),
+  _transport(transport),
+  _trail(trail),
+  _first_call(true)
+{
+  _results = _dns_result.records();
+  std::random_shuffle(_results.begin(), _results.end());
+  _hostname = dns_result.domain();
+}
+
+std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
+{
+  std::vector<AddrInfo> targets;
+
+  AddrInfo target;
+  target.port = _port;
+  target.transport = _transport;
+
+  std::string targets_str;
+  std::string unhealthy_targets_str;
+  std::string added_from_unhealthy_str;
+
+  pthread_mutex_lock(&(_resolver->_hosts_lock));
+
+  // If this is the first call to take, the first record returned should be a
+  // graylisted record, if one exists
+  if (_first_call)
+  {
+    _first_call = false;
+
+    // Iterate over the records
+    for (std::vector<DnsRRecord*>::iterator record_it = _results.begin();
+         record_it != _results.end();
+         ++record_it)
+    {
+      target.address = _resolver->to_ip46(*record_it);
+
+      if (_resolver->host_state(target) == Host::State::GRAY_NOT_PROBING)
+      {
+        // Add the record to the targets list
+        _resolver->select_for_probing(target);
+        targets.push_back(target);
+        targets_str = targets_str + (*record_it)->to_string() + ";";
+        TRC_DEBUG("Added a server, now have %ld of %d",
+                  targets.size(),
+                  targets_count);
+
+        // Remove the record from the results list
+        _results.erase(record_it);
+        break;
+      }
+    }
+  }
+
+  while ((_results.size() > 0) && (targets.size() < (size_t)targets_count))
+  {
+    // Pop a record from the end of _results
+    DnsRRecord* record = _results.back();
+    _results.pop_back();
+
+    target.address = _resolver->to_ip46(record);
+
+    if (_resolver->host_state(target) == Host::State::WHITE)
+    {
+      // Add the record to the targets list
+      targets.push_back(target);
+      targets_str = targets_str + record->to_string() + ";";
+      TRC_DEBUG("Added a server, now have %ld of %d",
+                targets.size(),
+                targets_count);
+    }
+    else
+    {
+      // Add the record to the list of unhealthy targets
+      _unhealthy_targets.push_back(target);
+      unhealthy_targets_str = unhealthy_targets_str + record->to_string() + ";";
+    }
+  }
+
+  pthread_mutex_unlock(&(_resolver->_hosts_lock));
+
+  // If the targets vector does not yet contain enough targets, add unhealthy
+  // targets
+  while ((_unhealthy_targets.size() > 0) && (targets.size() < (size_t)targets_count))
+  {
+    // Pop a target from the end of _unhealthy_targets
+    AddrInfo target = _unhealthy_targets.back();
+    _unhealthy_targets.pop_back();
+
+    // Add the record to the targets list
+    targets.push_back(target);
+    std::string blacklist_str = "[" + target.address_and_port_to_string() + "]";
+    added_from_unhealthy_str = added_from_unhealthy_str + blacklist_str;
+    TRC_DEBUG("Added an unhealthy server, now have %ld of %d",
+              targets.size(),
+              targets_count);
+  }
+
+  if (_trail != 0)
+  {
+    // Is the second parameter here still correct?
+    SAS::Event event(_trail, SASEvent::BASERESOLVE_A_RESULT, 0);
+    event.add_var_param(_hostname);
+    event.add_var_param(targets_str);
+    event.add_var_param(unhealthy_targets_str);
+    event.add_var_param(added_from_unhealthy_str);
+    SAS::report_event(event);
+  }
+
+  return targets;
+}
+
+bool BaseResolver::Iterator::next(AddrInfo &target)
+{
+  bool value_set;
+  std::vector<AddrInfo> next_one = take(1);
+
+  if (!next_one.empty())
+  {
+    target = next_one.front();
+    value_set = true;
+  }
+  else
+  {
+    value_set = false;
+  }
+
+  return value_set;
+}
+
 /// Does A/AAAA record queries for the specified hostname.
 void BaseResolver::a_resolve(const std::string& hostname,
                              int af,
@@ -347,123 +484,23 @@ void BaseResolver::a_resolve(const std::string& hostname,
                              int& ttl,
                              SAS::TrailId trail)
 {
-  // Clear the list of targets just in case.
-  targets.clear();
+  Iterator it = a_resolve_iter(hostname, af, port, transport, ttl, trail);
+  targets = it.take(retries);
+}
 
-  // Accumulate unhealthy (that is, black or graylisted) targets in case they
-  // are needed.
-  std::vector<AddrInfo> unhealthy_targets;
-
-  // Do A/AAAA lookup.
+BaseResolver::Iterator BaseResolver::a_resolve_iter(const std::string& hostname,
+                                                    int af,
+                                                    int port,
+                                                    int transport,
+                                                    int& ttl,
+                                                    SAS::TrailId trail)
+{
   DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa, trail);
   ttl = result.ttl();
 
-  // Randomize the records in the result.
-  TRC_DEBUG("Found %ld A/AAAA records, randomizing", result.records().size());
-  std::random_shuffle(result.records().begin(), result.records().end());
+  TRC_DEBUG("Found %ld A/AAAA records, creating iterator", result.records().size());
 
-  AddrInfo ai;
-  ai.transport = transport;
-  ai.port = port;
-  std::string targetlist_str;
-  std::string unhealthy_str;
-  std::string added_from_unhealthy_str;
-  time_t current_time = time(NULL);
-
-  pthread_mutex_lock(&_hosts_lock);
-
-  // If there are any graylisted targets not being probed, we want to return one
-  // as the first target.
-  std::vector<DnsRRecord*>::const_iterator result_to_probe;
-  for (result_to_probe = result.records().begin();
-       result_to_probe != result.records().end();
-      ++result_to_probe)
-  {
-    ai.address = to_ip46(*result_to_probe);
-    if (host_state(ai, current_time) == Host::State::GRAY_NOT_PROBING)
-    {
-      select_for_probing(ai);
-      targets.push_back(ai);
-      targetlist_str = targetlist_str + (*result_to_probe)->to_string() + ";";
-      TRC_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
-      break;
-    }
-  }
-
-  // Loop through the records in the result picking healthy targets
-  for (std::vector<DnsRRecord*>::const_iterator current_result = result.records().begin();
-       current_result != result.records().end();
-       ++current_result)
-  {
-    if (current_result != result_to_probe)
-    {
-      ai.address = to_ip46(*current_result);
-      if (host_state(ai, current_time) == Host::State::WHITE)
-      {
-        // Host is healthy, so copy across to the target list.
-        targets.push_back(ai);
-        targetlist_str = targetlist_str + (*current_result)->to_string() + ";";
-        TRC_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
-      }
-      else
-      {
-        // Host is unhealthy, so copy to unhealthy list.
-        unhealthy_targets.push_back(ai);
-        unhealthy_str = unhealthy_str + (*current_result)->to_string() + ";";
-      }
-
-      if (targets.size() >= (size_t)retries)
-      {
-        // We have enough targets so stop looking at records.
-        TRC_DEBUG("Have enough targets");
-
-        if (trail != 0)
-        {
-          SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
-          event.add_var_param(hostname);
-          event.add_var_param(targetlist_str);
-          event.add_var_param(unhealthy_str);
-          event.add_var_param(added_from_unhealthy_str);
-          SAS::report_event(event);
-        }
-
-        break;
-      }
-    }
-  }
-
-  pthread_mutex_unlock(&_hosts_lock);
-
-  // If we've gone through the whole set of A/AAAA record and haven't found
-  // enough healthy targets, add unhealthy targets.
-  if (targets.size() < (size_t)retries)
-  {
-    size_t to_copy = (size_t)retries - targets.size();
-    if (to_copy > unhealthy_targets.size())
-    {
-      to_copy = unhealthy_targets.size();
-    }
-
-    TRC_DEBUG("Adding %ld servers from blacklist", to_copy);
-
-    for (size_t ii = 0; ii < to_copy; ++ii)
-    {
-      targets.push_back(unhealthy_targets[ii]);
-      std::string unhealthy_target = unhealthy_targets[ii].address_and_port_to_string();
-      std::string bl = "[" + unhealthy_target + "]";
-      added_from_unhealthy_str = added_from_unhealthy_str + bl;
-    }
-  }
-
-  if (trail != 0)
-  {
-    SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
-    event.add_var_param(hostname);
-    event.add_var_param(targetlist_str);
-    event.add_var_param(unhealthy_str);
-    event.add_var_param(added_from_unhealthy_str);
-    SAS::report_event(event);
-  }
+  return Iterator(std::move(result), this, port, transport, trail);
 }
 
 /// Converts a DNS A or AAAA record to an IP46Address structure.
