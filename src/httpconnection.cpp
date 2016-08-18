@@ -498,16 +498,11 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
                                       std::vector<std::string> headers_to_add, //< Extra headers to add to the request
                                       std::map<std::string, std::string>* response_headers)
 {
-
-// BEGIN REFACTOR INTO HEADER SETUP METHOD -------------------------------------
-  struct curl_slist *extra_headers = NULL;
-  extra_headers = curl_slist_append(extra_headers, "Content-Type: application/json");
+  HTTPCode http_code;
 
   // Create a UUID to use for SAS correlation and add it to the HTTP message.
   boost::uuids::uuid uuid = get_random_uuid();
   std::string uuid_str = boost::uuids::to_string(uuid);
-  extra_headers = curl_slist_append(extra_headers,
-                                    (SASEvent::HTTP_BRANCH_HEADER_NAME + ": " + uuid_str).c_str());
 
   // Now log the marker to SAS. Flag that SAS should not reactivate the trail
   // group as a result of associations on this marker (doing so after the call
@@ -515,29 +510,6 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
   SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
-
-  // By default cURL will add `Expect: 100-continue` to certain requests. This
-  // causes the HTTP stack to send 100 Continue responses, which messes up the
-  // SAS call flow. To prevent this add an empty Expect header, which stops
-  // cURL from adding its own.
-  extra_headers = curl_slist_append(extra_headers, "Expect:");
-
-
-  // Add in any extra headers
-  for (std::vector<std::string>::const_iterator i = headers_to_add.begin();
-                                                i != headers_to_add.end();
-                                                ++i)
-  {
-    extra_headers = curl_slist_append(extra_headers, (*i).c_str());
-  }
-
-  // Add the user's identity (if required).
-  if (_assert_user)
-  {
-    extra_headers = curl_slist_append(extra_headers,
-                                      ("X-XCAP-Asserted-Identity: " + username).c_str());
-  }
-// END REFACTOR INTO HEADER SETUP METHOD ---------------------------------------
 
   CURL* curl = get_curl_handle();
 
@@ -559,7 +531,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
   std::vector<AddrInfo> targets;
   _resolver->resolve(_host, _port, MAX_TARGETS, targets, trail);
 
-// BEGIN REFACTOR INTO PREPARE TARGETS METHOD ----------------------------------
+// BEGIN PREPARE TARGETS ------------------------------------------------------
   // If we're not recycling the connection, try to get the current connection
   // IP address and add it to the front of the target list (if it was there)
   if (!recycle_conn)
@@ -587,7 +559,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
   {
     targets.push_back(targets[0]);
   }
-// END REFACTOR INTO PREPARE TARGETS METHOD ------------------------------------
+// END PREPARE TARGETS ---------------------------------------------------------
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
   // or I/O errors.
@@ -607,39 +579,22 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
     // Reset the handle
     reset_curl_handle(curl);
 
-    // Set general CURL options
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
-
-    if (!body.empty())
-    {
-      curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-    }
+    // Add extra headers
+    struct curl_slist* extra_headers = build_headers(headers_to_add,
+                                                     _assert_user,
+                                                     username,
+                                                     uuid_str);
 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
 
-    // Set request type specific CURL options
-    switch (request_type)
-    {
-    case RequestType::DELETE:
-      curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
-      break;
-    case RequestType::PUT:
-      curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
-      curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
-      curl_easy_setopt(curl, CURLOPT_WRITEHEADER, response_headers);
-      break;
-    case RequestType::POST:
-      curl_easy_setopt(curl, CURLOPT_POST, 1);
-      curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
-      curl_easy_setopt(curl, CURLOPT_WRITEHEADER, response_headers);
-      break;
-    case RequestType::GET:
-      curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
-      break;
-    }
+    // Set general curl options
+    set_curl_options_general(curl, body, doc);
 
-    // Set address specific CURL options
-    curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, recycle_conn ? 1L : 0L);
+    // Set response header curl options
+    set_curl_options_response(curl, response_headers);
+
+    //Set request-type specific curl options
+    set_curl_options_request(curl, request_type);
 
     // Convert the target IP address into a string and fix up the URL.  It
     // would be nice to use curl_easy_setopt(CURL_RESOLVE) here, but its
@@ -649,6 +604,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
                           &target_it->address.addr,
                           buf,
                           sizeof(buf));
+
     std::string ip_url;
     if (target_it->address.af == AF_INET6)
     {
@@ -658,7 +614,9 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
     {
       ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(target_it->port) + path;
     }
-    curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
+
+    // Set address specific curl options
+    set_curl_options_address(curl, recycle_conn, ip_url);
 
     // Create and register an object to record the HTTP transaction.
     Recorder recorder;
@@ -698,6 +656,10 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
       sas_log_curl_error(trail, remote_ip, target_it->port, method_str, url, rc, 0);
     }
 
+    http_code = curl_code_to_http_code(curl, rc);
+    // At this point, we are finished with the curl object.
+    curl_slist_free_all(extra_headers);
+
     // Update the connection recycling and retry algorithms.
     if ((rc == CURLE_OK) && !(http_rc >= 400))
     {
@@ -726,9 +688,9 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
         _resolver->success(*target_it);
       }
 
-// BEGIN REFACTOR INTO FAILURE MODE METHOD -------------------------------------
       // Determine the failure mode and update the correct counter.
       bool fatal_http_error = false;
+// BEGIN REFACTOR INTO FAILURE MODE METHOD -------------------------------------
       if (http_rc >= 400)
       {
         if (http_rc == 503)
@@ -757,6 +719,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
       {
         num_timeouts_or_io_errors++;
       }
+// END REFACTOR INTO FAILURE MODE METHOD ---------------------------------------
 
       // Decide whether to keep trying.
       if ((num_http_503_responses + num_timeouts_or_io_errors >= 2) ||
@@ -771,7 +734,6 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
         sas_log_http_abort(trail, reason, 0);
         break;
       }
-// END REFACTOR INTO FAILURE MODE METHOD ---------------------------------------
     }
   }
 
@@ -789,6 +751,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
   //  - the error is a 504, which means that the node downsteam of the node
   //    we're connecting to currently has reported that it is overloaded/was
   //    unresponsive.
+// BEGIN REFACTOR INTO APPLY PENALTIES METHOD ----------------------------------
   if (((num_http_503_responses >= 2) ||
        (num_http_504_responses >= 1)) &&
       (_load_monitor != NULL))
@@ -823,16 +786,102 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
       _comm_monitor->inform_failure(now_ms);
     }
   }
-
-  HTTPCode http_code = curl_code_to_http_code(curl, rc);
+// END REFACTOR INTO APPLY PENALTIES METHOD ------------------------------------
 
   if (((rc != CURLE_OK) && (rc != CURLE_REMOTE_FILE_NOT_FOUND)) || (http_code >= 400))
   {
     TRC_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
   }
 
-  curl_slist_free_all(extra_headers);
   return http_code;
+}
+
+struct curl_slist* HttpConnection::build_headers(std::vector<std::string> headers_to_add,
+                                                 bool assert_user,
+                                                 const std::string& username,
+                                                 std::string uuid_str)
+{
+  struct curl_slist* extra_headers = NULL;
+  extra_headers = curl_slist_append(extra_headers, "Content-Type: application/json");
+
+  // Add the UUID for SAS correlation to the HTTP message.
+  extra_headers = curl_slist_append(extra_headers,
+                                    (SASEvent::HTTP_BRANCH_HEADER_NAME + ": " + uuid_str).c_str());
+
+  // By default cURL will add `Expect: 100-continue` to certain requests. This
+  // causes the HTTP stack to send 100 Continue responses, which messes up the
+  // SAS call flow. To prevent this add an empty Expect header, which stops
+  // cURL from adding its own.
+  extra_headers = curl_slist_append(extra_headers, "Expect:");
+
+
+  // Add in any extra headers
+  for (std::vector<std::string>::const_iterator i = headers_to_add.begin();
+       i != headers_to_add.end();
+       ++i)
+  {
+    extra_headers = curl_slist_append(extra_headers, (*i).c_str());
+  }
+
+  // Add the user's identity (if required).
+  if (assert_user)
+  {
+    extra_headers = curl_slist_append(extra_headers,
+                                      ("X-XCAP-Asserted-Identity: " + username).c_str());
+  }
+  return extra_headers;
+}
+
+void HttpConnection::set_curl_options_general(CURL* curl,
+                                              std::string body,
+                                              std::string& doc)
+{
+  curl_easy_setopt(curl, CURLOPT_WRITEDATA, &doc);
+
+  if (!body.empty())
+  {
+    curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+  }
+}
+
+void HttpConnection::set_curl_options_response(CURL* curl,
+                               std::map<std::string, std::string>* response_headers)
+{
+  // If response_headers is not null, the headers returned by the curl request
+  // should be stored there.
+  if (response_headers)
+  {
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &HttpConnection::write_headers);
+    curl_easy_setopt(curl, CURLOPT_WRITEHEADER, response_headers);
+  }
+}
+
+void HttpConnection::set_curl_options_request(CURL* curl, RequestType request_type)
+{
+  switch (request_type)
+  {
+  case RequestType::DELETE:
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+    break;
+  case RequestType::PUT:
+    curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+    break;
+  case RequestType::POST:
+    curl_easy_setopt(curl, CURLOPT_POST, 1);
+    break;
+  case RequestType::GET:
+    curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
+    break;
+  }
+}
+
+void HttpConnection::set_curl_options_address(CURL* curl,
+                                              bool recycle_conn,
+                                              std::string ip_url)
+{
+  curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, recycle_conn ? 1L : 0L);
+
+  curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 }
 
 /// cURL helper - write data into string.

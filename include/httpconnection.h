@@ -242,31 +242,32 @@ private:
                             std::string& doc,
                             const std::string& username,
                             SAS::TrailId trail,
-                            std::vector<std::string> headers,
+                            std::vector<std::string> headers_to_add,
                             std::map<std::string, std::string>* response_headers);
 
-  /// Helper function that sets up curl headers in send_request
-  struct curl_slist* setup_headers(std::vector<std::string> headers_to_add,
+  /// Helper function that builds the curl header in the set_curl_options
+  /// method.
+  struct curl_slist* build_headers(std::vector<std::string> headers_to_add,
                                    bool assert_user,
-                                   const std::string& username);
+                                   const std::string& username,
+                                   std::string uuid_str);
 
-  /// Helper function that determines whether to recycle the connection in
-  /// send_request, based on the pool entry associated with it
-  bool recycle_conn(PoolEntry* entry);
+  /// Helper function that sets the general curl options in send_request
+  void set_curl_options_general(CURL* curl, std::string body, std::string& doc);
 
-  /// Helper function that prepares the list of targets in send_request
-  void prepare_targets(std::vector<AddrInfo>& targets, bool recycle_conn);
+  /// Helper function that sets response header curl options, if required, in
+  /// send_request
+  void set_curl_options_response(CURL* curl,
+                                 std::map<std::string, std::string>* response_headers);
 
-  /// Helper function that determines the failure mode, and updates logging,
-  /// when an attempt fails in send_request. Returns true if send_request should
-  /// stop retrying.
-  bool failure(long http_rc,
-               CURLcode rc,
-               int& num_http_503_responses,
-               int& num_http_504_responses,
-               int& num_timeouts_or_io_errors,
-               SAS::TrailId trail);
+  /// Helper function that sets request-type specific curl options in
+  /// send_request
+  void set_curl_options_request(CURL* curl, RequestType request_type);
 
+  /// Helper function that sets address specific curl options in send_request
+  void set_curl_options_address(CURL* curl,
+                                bool recycle_conn,
+                                std::string ip_url);
 
   void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
 
