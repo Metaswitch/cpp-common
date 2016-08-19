@@ -57,8 +57,6 @@ HttpResolver::~HttpResolver()
   destroy_blacklist();
 }
 
-/// Resolve a destination host and realm name to a list of IP addresses,
-/// transports and ports.  HTTP is pretty simple - just look up the A records.
 void HttpResolver::resolve(const std::string& host,
                            int port,
                            int max_targets,
@@ -84,6 +82,15 @@ void HttpResolver::resolve(const std::string& host,
   }
   else
   {
-    a_resolve(host, _address_family, port, TRANSPORT, max_targets, targets, dummy_ttl, trail);
+    Iterator it = a_resolve_iter(host, _address_family, port, TRANSPORT, dummy_ttl, trail);
+    targets = it.take(max_targets);
   }
+}
+
+BaseResolver::Iterator HttpResolver::resolve_iter(const std::string& host,
+                                                 int port,
+                                                 SAS::TrailId trail)
+{
+  int dummy_ttl = 0;
+  return a_resolve_iter(host, _address_family, port, TRANSPORT, dummy_ttl, trail);
 }
