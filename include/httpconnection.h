@@ -92,6 +92,26 @@ public:
 
   virtual ~HttpConnection();
 
+  /// Sends a HTTP GET request to _host with the specified parameters
+  ///
+  /// @param path           Absolute path to request from server - must start
+  ///                       with "/"
+  /// @param headers        Location to store the header part of the retrieved
+  ///                       data
+  /// @param response       Location to store retrieved data
+  /// @param username       Username to assert if assertUser is true, else
+  ///                       ignored
+  /// @param headers_to_add Extra headers to add to the request
+  /// @param trail          SAS trail to use
+  ///
+  /// @returns              HTTP code representing outcome of request
+  virtual long send_get(const std::string& path,
+                        std::map<std::string, std::string>& headers,
+                        std::string& response,
+                        const std::string& username,
+                        std::vector<std::string> headers_to_add,
+                        SAS::TrailId trail);
+
   virtual long send_get(const std::string& path,
                         std::string& response,
                         std::vector<std::string> headers,
@@ -106,12 +126,26 @@ public:
                         std::string& response,
                         const std::string& username,
                         SAS::TrailId trail);
-  virtual long send_get(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                        std::map<std::string, std::string>& headers, //< Map of headers from the response
-                        std::string& response,                       //< Retrieved document
-                        const std::string& username,                 //< Username to assert (if assertUser was true, else ignored)
-                        std::vector<std::string> headers_to_add,     //< Extra headers to add to the request
-                        SAS::TrailId trail);                         //< SAS trail
+
+  /// Sends a HTTP DELETE request to _host with the specified parameters
+  ///
+  /// @param path     Absolute path to request from server - must start
+  ///                 with "/"
+  /// @param headers  Location to store the header part of the retrieved
+  ///                 data
+  /// @param response Location to store retrieved data
+  /// @param trail    SAS trail to use
+  /// @param body     Body to send on the request
+  /// @param username Username to assert if assertUser is true, else
+  ///                 ignored
+  ///
+  /// @returns        HTTP code representing outcome of request
+  virtual long send_delete(const std::string& path,
+                           std::map<std::string, std::string>& headers,
+                           std::string& response,
+                           SAS::TrailId trail,
+                           const std::string& body = "",
+                           const std::string& username = "");
 
   virtual long send_delete(const std::string& path,
                            SAS::TrailId trail,
@@ -124,12 +158,28 @@ public:
                            SAS::TrailId trail,
                            const std::string& body,
                            std::string& response);
-  virtual long send_delete(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                           std::map<std::string, std::string>& headers, //< Map of headers from the response
-                           std::string& response,                       //< Retrieved document
-                           SAS::TrailId trail,                          //< SAS trail
-                           const std::string& body = "",                //< Body to send in request
-                           const std::string& username = "");           //< Username to assert (if assertUser was true, else ignored)
+
+  /// Sends a HTTP PUT request to _host with the specified parameters
+  ///
+  /// @param path              Absolute path to request from server - must start
+  ///                          with "/"
+  /// @param headers           Location to store the header part of the retrieved
+  ///                          data
+  /// @param response          Location to store retrieved data
+  /// @param body              Body to send on the request
+  /// @param extra_req_headers Extra headers to add to the request
+  /// @param trail             SAS trail to use
+  /// @param username          Username to assert if assertUser is true, else
+  ///                          ignored
+  ///
+  /// @returns                 HTTP code representing outcome of request
+  virtual long send_put(const std::string& path,
+                        std::map<std::string, std::string>& headers,
+                        std::string& response,
+                        const std::string& body,
+                        const std::vector<std::string>& extra_req_headers,
+                        SAS::TrailId trail,
+                        const std::string& username = "");
 
   virtual long send_put(const std::string& path,
                         const std::string& body,
@@ -145,25 +195,33 @@ public:
                         const std::string& body,
                         SAS::TrailId trail,
                         const std::string& username = "");
-  virtual long send_put(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                        std::map<std::string, std::string>& headers, //< Map of headers from the response
-                        std::string& response,                       //< Retrieved document
-                        const std::string& body,                     //< Body to send in request
-                        const std::vector<std::string>& extra_req_headers, //< Extra headers to add to the request.
-                        SAS::TrailId trail,                          //< SAS trail
-                        const std::string& username = "");           //< Username to assert (if assertUser was true, else ignored)
+
+  /// Sends a HTTP POST request to _host with the specified parameters
+  ///
+  /// @param path     Absolute path to request from server - must start
+  ///                 with "/"
+  /// @param headers  Location to store the header part of the retrieved
+  ///                 data
+  /// @param response Location to store retrieved data
+  /// @param body     Body to send on the request
+  /// @param trail    SAS trail to use
+  /// @param username Username to assert if assertUser is true, else
+  ///                 ignored
+  ///
+  /// @returns                HTTP code representing outcome of request
+  virtual long send_post(const std::string& path,
+                         std::map<std::string, std::string>& headers,
+                         std::string& response,
+                         const std::string& body,
+                         SAS::TrailId trail,
+                         const std::string& username = "");
 
   virtual long send_post(const std::string& path,
                          std::map<std::string, std::string>& headers,
                          const std::string& body,
                          SAS::TrailId trail,
                          const std::string& username = "");
-  virtual long send_post(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                         std::map<std::string, std::string>& headers, //< Map of headers from the response
-                         std::string& response,                       //< Retrieved document
-                         const std::string& body,                     //< Body to send in request
-                         SAS::TrailId trail,                          //< SAS trail
-                         const std::string& username = "");           //< Username to assert (if assertUser was true, else ignored)
+
 
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
@@ -236,10 +294,25 @@ private:
   /// Converts RequestType to string for logging
   static std::string request_type_to_string(RequestType request_type);
 
+  /// Sends a HTTP request to _host with the specified parameters
+  ///
+  /// @param request_type     The type of HTTP request to send
+  /// @param path             Absolute path to request from server - must start
+  ///                         with "/"
+  /// @param body             Body to send on the request
+  /// @param response         Location to store retrieved data
+  /// @param username         Username to assert if assertUser is true, else
+  ///                         ignored
+  /// @param trail            SAS trail to use
+  /// @param headers_to_add   Extra headers to add to the request
+  /// @param response_headers Location to store the header part of the retrieved
+  ///                         data
+  ///
+  /// @returns                HTTP code representing outcome of request
   virtual long send_request(RequestType request_type,
                             const std::string& path,
                             std::string body,
-                            std::string& doc,
+                            std::string& response,
                             const std::string& username,
                             SAS::TrailId trail,
                             std::vector<std::string> headers_to_add,

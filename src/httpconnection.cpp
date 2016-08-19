@@ -369,13 +369,13 @@ HTTPCode HttpConnection::send_put(const std::string& path,
                                   username);
 }
 
-HTTPCode HttpConnection::send_put(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                                  std::map<std::string, std::string>& headers, //< Map of headers from the response
-                                  std::string& response,                       //< Retrieved document
-                                  const std::string& body,                     //< Body to send in request
-                                  const std::vector<std::string>& extra_req_headers, //< Extra headers to add to the request.
-                                  SAS::TrailId trail,                          //< SAS trail
-                                  const std::string& username)                 //< Username to assert (if assertUser was true, else ignored)
+HTTPCode HttpConnection::send_put(const std::string& path,
+                                  std::map<std::string, std::string>& headers,
+                                  std::string& response,
+                                  const std::string& body,
+                                  const std::vector<std::string>& extra_req_headers,
+                                  SAS::TrailId trail,
+                                  const std::string& username)
 {
   HTTPCode status = send_request(RequestType::PUT,
                                  path,
@@ -398,12 +398,12 @@ HTTPCode HttpConnection::send_post(const std::string& path,
   return HttpConnection::send_post(path, headers, unused_response, body, trail, username);
 }
 
-HTTPCode HttpConnection::send_post(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                                   std::map<std::string, std::string>& headers, //< Map of headers from the response
-                                   std::string& response,                       //< Retrieved document
-                                   const std::string& body,                     //< Body to send in request
-                                   SAS::TrailId trail,                          //< SAS trail
-                                   const std::string& username)                 //< Username to assert (if assertUser was true, else ignored).
+HTTPCode HttpConnection::send_post(const std::string& path,
+                                   std::map<std::string, std::string>& headers,
+                                   std::string& response,
+                                   const std::string& body,
+                                   SAS::TrailId trail,
+                                   const std::string& username)
 {
   std::vector<std::string> unused_extra_headers;
   HTTPCode status = send_request(RequestType::POST,
@@ -453,12 +453,12 @@ HTTPCode HttpConnection::send_get(const std::string& path,
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_get(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                                  std::map<std::string, std::string>& headers, //< Map of headers from the response
-                                  std::string& response,                       //< Retrieved document
-                                  const std::string& username,                 //< Username to assert (if assertUser was true, else ignored)
-                                  std::vector<std::string> headers_to_add,     //< Extra headers to add to the request
-                                  SAS::TrailId trail)                          //< SAS trail
+HTTPCode HttpConnection::send_get(const std::string& path,
+                                  std::map<std::string, std::string>& headers,
+                                  std::string& response,
+                                  const std::string& username,
+                                  std::vector<std::string> headers_to_add,
+                                  SAS::TrailId trail)
 {
   return send_request(RequestType::GET,
                       path,
@@ -482,6 +482,7 @@ std::string HttpConnection::request_type_to_string(RequestType request_type)
   case RequestType::GET:
     return "GET";
   // LCOV_EXCL_START
+  // The above cases are exhaustive by the definition of RequestType
   default:
     return "UNKNOWN";
   // LCOV_EXCL_STOP
@@ -489,13 +490,13 @@ std::string HttpConnection::request_type_to_string(RequestType request_type)
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_request(RequestType request_type,                //< Type of request
-                                      const std::string& path,                 //< Absolute path to request from server - must start with "/"
-                                      std::string body,                        //< Body to send on the request
-                                      std::string& doc,                        //< OUT: Retrieved document
-                                      const std::string& username,             //< Username to assert (if assertUser was true, else ignored).
-                                      SAS::TrailId trail,                      //< SAS trail to use
-                                      std::vector<std::string> headers_to_add, //< Extra headers to add to the request
+HTTPCode HttpConnection::send_request(RequestType request_type,
+                                      const std::string& path,
+                                      std::string body,
+                                      std::string& response,
+                                      const std::string& username,
+                                      SAS::TrailId trail,
+                                      std::vector<std::string> headers_to_add,
                                       std::map<std::string, std::string>* response_headers)
 {
   HTTPCode http_code;
@@ -511,13 +512,13 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
 
+  // Get a curl handle and the associated pool entry
   CURL* curl = get_curl_handle();
 
   PoolEntry* entry;
   CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
   assert(rc == CURLE_OK);
 
-// BEGIN REFACTOR INTO RECYCLE CONNECTION METHOD -------------------------------
   // Determine whether to recycle the connection, based on
   // previously-calculated deadline.
   struct timespec tp;
@@ -525,13 +526,11 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
   assert(rv == 0);
   unsigned long now_ms = tp.tv_sec * 1000 + (tp.tv_nsec / 1000000);
   bool recycle_conn = entry->is_connection_expired(now_ms);
-// END REFACTOR INTO RECYCLE CONNECTION METHOD ---------------------------------
 
   // Resolve the host.
   std::vector<AddrInfo> targets;
   _resolver->resolve(_host, _port, MAX_TARGETS, targets, trail);
 
-// BEGIN PREPARE TARGETS ------------------------------------------------------
   // If we're not recycling the connection, try to get the current connection
   // IP address and add it to the front of the target list (if it was there)
   if (!recycle_conn)
@@ -559,7 +558,6 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
   {
     targets.push_back(targets[0]);
   }
-// END PREPARE TARGETS ---------------------------------------------------------
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
   // or I/O errors.
@@ -579,7 +577,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
     // Reset the handle
     reset_curl_handle(curl);
 
-    // Add extra headers
+    // Construct and add extra headers
     struct curl_slist* extra_headers = build_headers(headers_to_add,
                                                      _assert_user,
                                                      username,
@@ -657,6 +655,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
     }
 
     http_code = curl_code_to_http_code(curl, rc);
+
     // At this point, we are finished with the curl object.
     curl_slist_free_all(extra_headers);
 
@@ -690,7 +689,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
 
       // Determine the failure mode and update the correct counter.
       bool fatal_http_error = false;
-// BEGIN REFACTOR INTO FAILURE MODE METHOD -------------------------------------
+
       if (http_rc >= 400)
       {
         if (http_rc == 503)
@@ -719,7 +718,6 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
       {
         num_timeouts_or_io_errors++;
       }
-// END REFACTOR INTO FAILURE MODE METHOD ---------------------------------------
 
       // Decide whether to keep trying.
       if ((num_http_503_responses + num_timeouts_or_io_errors >= 2) ||
@@ -751,7 +749,6 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
   //  - the error is a 504, which means that the node downsteam of the node
   //    we're connecting to currently has reported that it is overloaded/was
   //    unresponsive.
-// BEGIN REFACTOR INTO APPLY PENALTIES METHOD ----------------------------------
   if (((num_http_503_responses >= 2) ||
        (num_http_504_responses >= 1)) &&
       (_load_monitor != NULL))
@@ -786,7 +783,6 @@ HTTPCode HttpConnection::send_request(RequestType request_type,                /
       _comm_monitor->inform_failure(now_ms);
     }
   }
-// END REFACTOR INTO APPLY PENALTIES METHOD ------------------------------------
 
   if (((rc != CURLE_OK) && (rc != CURLE_REMOTE_FILE_NOT_FOUND)) || (http_code >= 400))
   {
