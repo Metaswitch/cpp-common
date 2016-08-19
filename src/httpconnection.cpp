@@ -47,11 +47,12 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
-/// Total time to wait for a response from the server as a multiple of the
+/// Total time to wait for a response from a single server as a multiple of the
 /// configured target latency before giving up.  This is the value that affects
 /// the user experience, so should be set to what we consider acceptable.
-/// Covers lookup, possibly multiple connection attempts, request, and
-/// response.
+/// Covers connection attempt, request and response.  Note that we normally
+/// make two requests before giving up, so the maximum total latency is twice
+/// this.
 static const int TIMEOUT_LATENCY_MULTIPLIER = 5;
 static const int DEFAULT_LATENCY_US = 100000;
 

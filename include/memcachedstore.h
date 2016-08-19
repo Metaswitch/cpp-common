@@ -56,6 +56,7 @@ extern "C" {
 #include "sasevent.h"
 #include "communicationmonitor.h"
 #include "astaire_resolver.h"
+#include "memcachedconnectionpool.h"
 
 class BaseMemcachedStore : public Store
 {
@@ -66,8 +67,6 @@ public:
   // working out whether there are any servers configured. However, by default
   // we expect there to be servers.
   bool has_servers() { return true; };
-
-  void set_max_connect_latency(unsigned int ms);
 
 protected:
   // Whether this store is using the binary protocol (required for vbucket
@@ -318,7 +317,7 @@ public:
                                 AstaireResolver* resolver,
                                 BaseCommunicationMonitor* comm_monitor = NULL);
 
-  ~TopologyNeutralMemcachedStore();
+  ~TopologyNeutralMemcachedStore() {}
 
   /// Gets the data for the specified table and key.
   Store::Status get_data(const std::string& table,
@@ -350,91 +349,7 @@ protected:
   // How many time to retry a memcached operation.
   const size_t _attempts;
 
-  struct Connection
-  {
-    // Constructor.
-    //
-    // @param target_param - The target that this connection is to.
-    // @param st_param -     An initialized memcached_st object.
-    Connection(AddrInfo& target_param, memcached_st* st_param);
-
-    ~Connection();
-
-    // Underlying libmemcached object for the connection.
-    memcached_st* st;
-
-    // The address of the remote host.
-    AddrInfo target;
-
-    // The time (in seconds since the epoch) at which the connection was last
-    // used. Used to close idle connections.
-    int64_t last_used_time_s;
-
-    // The length of time (in seconds) that a connection can remain idle
-    // before it is automatically closed.
-    const static int64_t MAX_IDLE_TIME_S = 60;
-  };
-
-  // A handle to a connection object that has been retrieved from the pool.
-  // This prevents store code from checking out a connection and forgetting to
-  // check it back in again.
-  class ConnectionHandle
-  {
-  public:
-    // Constructor
-    //
-    // @param conn -  The connection that this object wraps.
-    // @param store - The store that owns the connection.
-    //
-    ConnectionHandle(Connection* conn, TopologyNeutralMemcachedStore* store);
-
-    // Move constructor.
-    ConnectionHandle(ConnectionHandle&& rhs);
-
-    // Destructor.
-    ~ConnectionHandle();
-
-    // Get the underlying connection.
-    Connection* get();
-
-  private:
-    // Delete the copy constructor to avoid having copies of the handle (which
-    // could cause the connection to get checked back in twice!)
-    ConnectionHandle(ConnectionHandle& rhs) = delete;
-
-    Connection* _conn;
-    TopologyNeutralMemcachedStore* _store;
-  };
-
-  // A pool of connections that are available for use. Connections are stored
-  // in "slots", with each distinct target having its own slot.
-  //
-  // Threads that need a connection to a particular host check a connection out
-  // of this pool (creating one if necessary) and replace it when they are done.
-  // Connections are checked in/out at the back of the slot, so least active
-  // connection is always at he front of the slot.
-  //
-  // The associated lock must be held when accessing this pool.
-  typedef std::deque<Connection*> ConnectionPoolSlot;
-  typedef std::map<AddrInfo, ConnectionPoolSlot> ConnectionPool;
-  ConnectionPool _conn_pool;
-  pthread_mutex_t _conn_pool_lock;
-
-  // Get a connection to the specified target.
-  ConnectionHandle get_connection(AddrInfo& target);
-
-  // Release the specified connection back to the pool.
-  //
-  // This function is called automatically when the `ConnectionHandle` object
-  // is destroyed. Other methods in the store should not call this method
-  // directly.
-  void _release_connection(Connection* conn);
-
-  // Free at most one connection that has been idle sufficiently long to be
-  // aged out.
-  //
-  // The connection pool lock MUST be held when this function is called.
-  void free_old_connection(struct timespec now);
+  MemcachedConnectionPool _conn_pool;
 
   // Determine if for a given memcached return code it is worth retrying a
   // request to a different server in the domain.
@@ -476,7 +391,7 @@ protected:
   memcached_return_t iterate_through_targets(
     std::vector<AddrInfo>& targets,
     SAS::TrailId trail,
-    std::function<memcached_return_t(ConnectionHandle&)> fn);
+    std::function<memcached_return_t(ConnectionHandle<memcached_st*>&)> fn);
 };
 
 // Preserve the old name for backwards compatibility
