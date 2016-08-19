@@ -280,15 +280,18 @@ void ConnectionPool<T>::free_old_connection()
 
       if (current_time > oldest_conn_info_ptr->last_used_time_s + _max_idle_time_s)
       {
-        /// Create strings required for debug logging
-        std::string addr_info_str = oldest_conn_info_ptr->target.address_and_port_to_string();
-        std::string current_time_str = ctime(&current_time);
-        std::string last_used_time_s_str = ctime(&(oldest_conn_info_ptr->last_used_time_s));
+        if (Log::enabled(Log::DEBUG_LEVEL))
+        {
+          /// Create strings required for debug logging
+          std::string addr_info_str = oldest_conn_info_ptr->target.address_and_port_to_string();
+          std::string current_time_str = ctime(&current_time);
+          std::string last_used_time_s_str = ctime(&(oldest_conn_info_ptr->last_used_time_s));
 
-        TRC_DEBUG("Free idle connection to target: %s (time now is %s, last used %s)",
-                  addr_info_str.c_str(),
-                  current_time_str.c_str(),
-                  last_used_time_s_str.c_str());
+          TRC_DEBUG("Free idle connection to target: %s (time now is %s, last used %s)",
+                    addr_info_str.c_str(),
+                    current_time_str.c_str(),
+                    last_used_time_s_str.c_str());
+        }
 
         // Delete the connection as it is too old
         slot_it->second.pop_back();
