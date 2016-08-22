@@ -40,6 +40,7 @@
 
 #include <curl/curl.h>
 #include "load_monitor.h"
+#include "snmp_ip_count_table.h"
 
 #include "connectionpool.h"
 
@@ -70,11 +71,11 @@ static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
 /// the pool
 static const double MAX_IDLE_TIME_MS = 60 * 1000.0;
 
-
 class HttpConnectionPool : public ConnectionPool<CURL*>
 {
 public:
-  HttpConnectionPool(LoadMonitor* load_monitor);
+  HttpConnectionPool(LoadMonitor* load_monitor,
+                     SNMP::IPCountTable* stat_table);
 
   ~HttpConnectionPool()
   {
@@ -84,6 +85,7 @@ public:
 
 protected:
   CURL* create_connection(AddrInfo target) override;
+  void destroy_connection_with_target(AddrInfo target, CURL* conn) override;
   void destroy_connection(CURL* conn) override;
 
   // Reset the CURL handle to the default state, then release it into the pool
@@ -91,5 +93,6 @@ protected:
                           bool return_to_pool) override;
 
   long _timeout_ms;
+  SNMP::IPCountTable* _stat_table;
 };
 #endif

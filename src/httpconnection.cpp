@@ -74,7 +74,7 @@ HttpConnection::HttpConnection(const std::string& server,
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor)
+  _conn_pool(load_monitor, stat_table)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
@@ -529,6 +529,9 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
+        // The CURL connection should not be returned to the pool if it failed
+        conn_handle.set_return_to_pool(false);
+
         _resolver->blacklist(*target_it);
       }
       else

@@ -39,8 +39,10 @@
 #include "httpconnection.h"
 
 // LCOV_EXCL_START
-HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor) :
-  ConnectionPool<CURL*>(MAX_IDLE_TIME_MS)
+HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
+                                       SNMP::IPCountTable* stat_table) :
+  ConnectionPool<CURL*>(MAX_IDLE_TIME_MS),
+  _stat_table(stat_table)
 {
   _timeout_ms = HttpConnection::calc_req_timeout_from_latency((load_monitor != NULL) ?
                                                               load_monitor->get_target_latency_us() :
@@ -91,7 +93,42 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
 
     curl_easy_setopt(conn, CURLOPT_VERBOSE, 1L);
 
+    if (_stat_table)
+    {
+      // Increment the statistic
+      char buf[100];
+      const char* ip_address = inet_ntop(target.address.af,
+                                         &target.address.addr,
+                                         buf,
+                                         sizeof(buf));
+      // The lock is held in the base class when this method is called, so it is
+      // safe to access the table
+      _stat_table->get(ip_address)->increment();
+    }
+
     return conn;
+}
+
+void HttpConnectionPool::destroy_connection_with_target(AddrInfo target,
+                                                        CURL* conn)
+{
+  if (_stat_table)
+  {
+    // Decrement the statistic
+      char buf[100];
+      const char* ip_address = inet_ntop(target.address.af,
+                                         &target.address.addr,
+                                         buf,
+                                         sizeof(buf));
+      // The lock is held in the base class when this method is called, so it is
+      // safe to access the table
+      if (_stat_table->get(ip_address)->decrement() == 0)
+      {
+        // If the statistic is now zero, remove from the table
+        _stat_table->remove(ip_address);
+      }
+  }
+  destroy_connection(conn);
 }
 
 void HttpConnectionPool::destroy_connection(CURL* conn)
@@ -114,6 +151,7 @@ void HttpConnectionPool::release_connection(ConnectionInfo<CURL*>* conn_info,
     curl_easy_setopt(conn, CURLOPT_HEADERFUNCTION, NULL);
     curl_easy_setopt(conn, CURLOPT_POST, 0);
   }
+  else
   ConnectionPool<CURL*>::release_connection(conn_info, return_to_pool);
 }
 // LCOV_EXCL_STOP

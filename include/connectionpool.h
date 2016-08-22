@@ -117,6 +117,10 @@ protected:
   /// Creates a type T connection for the given target
   virtual T create_connection(AddrInfo target) = 0;
 
+  /// Safely destroys a type T connection, which targets the given AddrInfo,
+  /// using the destroy_connection method
+  virtual void destroy_connection_with_target(AddrInfo target, T conn);
+
   /// Safely destroys a type T connection
   virtual void destroy_connection(T conn) = 0;
 
@@ -128,6 +132,7 @@ protected:
   /// to the pool or safely destroys it as specified by the second parameter.
   virtual void release_connection(ConnectionInfo<T>* conn_info,
                                   bool return_to_pool);
+
 private:
   /// Removes one connection that has gone unused for more than the max idle
   /// time, if any such connections exist
@@ -165,7 +170,7 @@ public:
   // Gets the AddrInfo object contained within _conn_info
   AddrInfo get_target();
 
-  void set_release_to_pool(bool return_to_pool);
+  void set_return_to_pool(bool return_to_pool);
 
 private:
   // A ConnectionInfo containing the connection
@@ -204,7 +209,7 @@ void ConnectionPool<T>::destroy_connection_pool()
     {
       // Safely destroy the connection object contained in the current
       // ConnectionInfo
-      destroy_connection((*conn_info_it)->conn);
+      destroy_connection_with_target((*conn_info_it)->target, (*conn_info_it)->conn);
       // Destroy the current ConnectionInfo
       delete *conn_info_it; *conn_info_it = NULL;
     }
@@ -248,6 +253,13 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
 }
 
 template<typename T>
+void ConnectionPool<T>::destroy_connection_with_target(AddrInfo target,
+                                                       T conn)
+{
+  destroy_connection(conn);
+}
+
+template<typename T>
 void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
                                            bool return_to_pool)
 {
@@ -271,7 +283,7 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
   else
   {
     // Safely destroy the connection and its associated ConnectionInfo
-    destroy_connection(conn_info_ptr->conn);
+    destroy_connection_with_target(conn_info_ptr->target, conn_info_ptr->conn);
     delete conn_info_ptr; conn_info_ptr = NULL;
   }
 
@@ -313,7 +325,7 @@ void ConnectionPool<T>::free_old_connection()
 
         // Delete the connection as it is too old
         slot_it->second.pop_back();
-        destroy_connection(oldest_conn_info_ptr->conn);
+        destroy_connection_with_target(oldest_conn_info_ptr->target, oldest_conn_info_ptr->conn);
         delete oldest_conn_info_ptr; oldest_conn_info_ptr = NULL;
 
         // Delete the entire slot if it is now empty
@@ -382,7 +394,7 @@ AddrInfo ConnectionHandle<T>::get_target()
 }
 
 template <typename T>
-void ConnectionHandle<T>::set_release_to_pool(bool release_to_pool)
+void ConnectionHandle<T>::set_return_to_pool(bool release_to_pool)
 {
   _release_to_pool = release_to_pool;
 }
