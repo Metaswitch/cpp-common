@@ -90,7 +90,6 @@ HttpConnection::HttpConnection(const std::string& server,
   TRC_STATUS("  Connection created for server %s", _server.c_str());
 }
 
-
 /// Create an HTTP connection object.
 ///
 /// @param server Server to send HTTP requests to.
@@ -402,11 +401,6 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
 
-  struct timespec tp;
-  int rv = clock_gettime(CLOCK_MONOTONIC, &tp);
-  assert(rv == 0);
-  unsigned long now_ms = tp.tv_sec * 1000 + (tp.tv_nsec / 1000000);
-
   // Resolve the host.
   std::vector<AddrInfo> targets;
   _resolver->resolve(_host, _port, MAX_TARGETS, targets, trail);
@@ -473,8 +467,8 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
       ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(target_it->port) + path;
     }
 
-    // Set address specific curl options
-    set_curl_options_address(curl, ip_url);
+    // Set the curl target URL
+    curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 
     // Create and register an object to record the HTTP transaction.
     Recorder recorder;
@@ -516,7 +510,8 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
 
     http_code = curl_code_to_http_code(curl, rc);
 
-    // At this point, we are finished with the curl object.
+    // At this point, we are finished with the curl object, so it is safe to
+    // free the headers
     curl_slist_free_all(extra_headers);
 
     // Update the connection recycling and retry algorithms.
@@ -609,6 +604,12 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
   {
     _load_monitor->incr_penalties();
   }
+
+  // Get the current time in ms
+  struct timespec tp;
+  int rv = clock_gettime(CLOCK_MONOTONIC, &tp);
+  assert(rv == 0);
+  unsigned long now_ms = tp.tv_sec * 1000 + (tp.tv_nsec / 1000000);
 
   if (rc == CURLE_OK)
   {
@@ -719,12 +720,6 @@ void HttpConnection::set_curl_options_request(CURL* curl, RequestType request_ty
     curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
     break;
   }
-}
-
-void HttpConnection::set_curl_options_address(CURL* curl,
-                                              std::string ip_url)
-{
-  curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 }
 
 /// cURL helper - write data into string.

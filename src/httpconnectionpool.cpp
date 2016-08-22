@@ -57,11 +57,8 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
     // Retrieved data will always be written to a string.
     curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, &HttpConnection::string_store);
 
-    // Only keep one TCP connection to a Homestead per thread, to
-    // avoid using unnecessary resources. We only try a different
-    // Homestead when one fails, or after we've had it open for a
-    // while, and in neither case do we want to keep the old
-    // connection around.
+    // Only keep one TCP connection to a Homestead per CURL, to
+    // avoid using unnecessary resources.
     curl_easy_setopt(conn, CURLOPT_MAXCONNECTS, 1L);
 
     // Maximum time to wait for a response.  This is the target latency for
@@ -102,17 +99,21 @@ void HttpConnectionPool::destroy_connection(CURL* conn)
   curl_easy_cleanup(conn);
 }
 
-void HttpConnectionPool::release_connection(ConnectionInfo<CURL*>* conn_info)
+void HttpConnectionPool::release_connection(ConnectionInfo<CURL*>* conn_info,
+                                            bool return_to_pool)
 {
-  // Reset the CURL handle to the default state, so that settings from one
-  // request don't leak into another
-  CURL* conn = conn_info->conn;
-  curl_easy_setopt(conn, CURLOPT_HTTPHEADER, NULL);
-  curl_easy_setopt(conn, CURLOPT_CUSTOMREQUEST, NULL);
-  curl_easy_setopt(conn, CURLOPT_WRITEHEADER, NULL);
-  curl_easy_setopt(conn, CURLOPT_POSTFIELDS, NULL);
-  curl_easy_setopt(conn, CURLOPT_HEADERFUNCTION, NULL);
-  curl_easy_setopt(conn, CURLOPT_POST, 0);
-  ConnectionPool<CURL*>::release_connection(conn_info);
+  if (return_to_pool)
+  {
+    // Reset the CURL handle to the default state, so that settings from one
+    // request don't leak into another
+    CURL* conn = conn_info->conn;
+    curl_easy_setopt(conn, CURLOPT_HTTPHEADER, NULL);
+    curl_easy_setopt(conn, CURLOPT_CUSTOMREQUEST, NULL);
+    curl_easy_setopt(conn, CURLOPT_WRITEHEADER, NULL);
+    curl_easy_setopt(conn, CURLOPT_POSTFIELDS, NULL);
+    curl_easy_setopt(conn, CURLOPT_HEADERFUNCTION, NULL);
+    curl_easy_setopt(conn, CURLOPT_POST, 0);
+  }
+  ConnectionPool<CURL*>::release_connection(conn_info, return_to_pool);
 }
 // LCOV_EXCL_STOP

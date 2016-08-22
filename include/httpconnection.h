@@ -305,10 +305,6 @@ private:
   /// send_request
   void set_curl_options_request(CURL* curl, RequestType request_type);
 
-  /// Helper function that sets address specific curl options in send_request
-  void set_curl_options_address(CURL* curl,
-                                std::string ip_url);
-
   void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
 
   void sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info);

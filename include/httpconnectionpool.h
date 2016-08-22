@@ -87,7 +87,8 @@ protected:
   void destroy_connection(CURL* conn) override;
 
   // Reset the CURL handle to the default state, then release it into the pool
-  void release_connection(ConnectionInfo<CURL*>* conn_info) override;
+  void release_connection(ConnectionInfo<CURL*>* conn_info,
+                          bool return_to_pool) override;
 
   long _timeout_ms;
 };
