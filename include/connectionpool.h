@@ -125,7 +125,7 @@ protected:
   void destroy_connection_pool();
 
   /// Releases the given connection back into the pool
-  void release_connection(ConnectionInfo<T>* conn_info);
+  virtual void release_connection(ConnectionInfo<T>* conn_info);
 
 private:
   /// Removes one connection that has gone unused for more than the max idle

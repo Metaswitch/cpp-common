@@ -47,35 +47,6 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
-/// Total time to wait for a response from a single server as a multiple of the
-/// configured target latency before giving up.  This is the value that affects
-/// the user experience, so should be set to what we consider acceptable.
-/// Covers connection attempt, request and response.  Note that we normally
-/// make two requests before giving up, so the maximum total latency is twice
-/// this.
-static const int TIMEOUT_LATENCY_MULTIPLIER = 5;
-static const int DEFAULT_LATENCY_US = 100000;
-
-/// Approximate length of time to wait before giving up on a
-/// connection attempt to a single address (in milliseconds).  cURL
-/// may wait more or less than this depending on the number of
-/// addresses to be tested and where this address falls in the
-/// sequence. A connection will take longer than this to establish if
-/// multiple addresses must be tried. This includes only the time to
-/// perform the DNS lookup and establish the connection, not to send
-/// the request or receive the response.
-///
-/// We set this quite short to ensure we quickly move on to another
-/// server. A connection should be very fast to establish (a few
-/// milliseconds) in the success case.
-static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
-
-/// Mean age of a connection before we recycle it. Ensures we respect
-/// DNS changes, and that we rebalance load when servers come back up
-/// after failure. Actual connection recycle events are
-/// Poisson-distributed with this mean inter-arrival time.
-static const double CONNECTION_AGE_MS = 60 * 1000.0;
-
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
@@ -99,22 +70,24 @@ HttpConnection::HttpConnection(const std::string& server,
   _port(port_from_server(server)),
   _assert_user(assert_user),
   _resolver(resolver),
+  _load_monitor(load_monitor),
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
-  _stat_table(stat_table)
+  _stat_table(stat_table),
+  _conn_pool(load_monitor)
 {
-  pthread_key_create(&_curl_thread_local, cleanup_curl);
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
-  std::vector<std::string> no_stats;
+
   _load_monitor = load_monitor;
-  _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
-                               load_monitor->get_target_latency_us() :
-                               DEFAULT_LATENCY_US);
+  if (_load_monitor)
+  {
+  std::vector<std::string> no_stats;
+  }
+
   TRC_STATUS("Configuring HTTP Connection");
   TRC_STATUS("  Connection created for server %s", _server.c_str());
-  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
 
 
@@ -129,38 +102,18 @@ HttpConnection::HttpConnection(const std::string& server,
                                HttpResolver* resolver,
                                SASEvent::HttpLogLevel sas_log_level,
                                BaseCommunicationMonitor* comm_monitor) :
-  _server(server),
-  _host(host_from_server(server)),
-  _port(port_from_server(server)),
-  _assert_user(assert_user),
-  _resolver(resolver),
-  _sas_log_level(sas_log_level),
-  _comm_monitor(comm_monitor),
-  _stat_table(NULL)
+  HttpConnection(server,
+                 assert_user,
+                 resolver,
+                 NULL,
+                 NULL,
+                 sas_log_level,
+                 comm_monitor)
 {
-  pthread_key_create(&_curl_thread_local, cleanup_curl);
-  pthread_key_create(&_uuid_thread_local, cleanup_uuid);
-  pthread_mutex_init(&_lock, NULL);
-  curl_global_init(CURL_GLOBAL_DEFAULT);
-  _load_monitor = NULL;
-  _timeout_ms = calc_req_timeout_from_latency(DEFAULT_LATENCY_US);
-  TRC_STATUS("Configuring HTTP Connection");
-  TRC_STATUS("  Connection created for server %s", _server.c_str());
-  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
 
 HttpConnection::~HttpConnection()
 {
-  // Clean up this thread's connection now, rather than waiting for
-  // pthread_exit.  This is to support use by single-threaded code
-  // (e.g., UTs), where pthread_exit is never called.
-  CURL* curl = pthread_getspecific(_curl_thread_local);
-  if (curl != NULL)
-  {
-    pthread_setspecific(_curl_thread_local, NULL);
-    cleanup_curl(curl); curl = NULL;
-  }
-
   RandomUUIDGenerator* uuid_gen =
     (RandomUUIDGenerator*)pthread_getspecific(_uuid_thread_local);
 
@@ -170,60 +123,7 @@ HttpConnection::~HttpConnection()
     cleanup_uuid(uuid_gen); uuid_gen = NULL;
   }
 
-  pthread_key_delete(_curl_thread_local);
   pthread_key_delete(_uuid_thread_local);
-}
-
-/// Get the thread-local curl handle if it exists, and create it if not.
-CURL* HttpConnection::get_curl_handle()
-{
-  CURL* curl = pthread_getspecific(_curl_thread_local);
-  if (curl == NULL)
-  {
-    curl = curl_easy_init();
-    TRC_DEBUG("Allocated CURL handle %p", curl);
-    pthread_setspecific(_curl_thread_local, curl);
-
-    // Create our private data
-    PoolEntry* entry = new PoolEntry(this);
-    curl_easy_setopt(curl, CURLOPT_PRIVATE, entry);
-
-    // Retrieved data will always be written to a string.
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &string_store);
-
-    // Only keep one TCP connection to a Homestead per thread, to
-    // avoid using unnecessary resources. We only try a different
-    // Homestead when one fails, or after we've had it open for a
-    // while, and in neither case do we want to keep the old
-    // connection around.
-    curl_easy_setopt(curl, CURLOPT_MAXCONNECTS, 1L);
-
-    // Maximum time to wait for a response.  This is the target latency for
-    // this node plus a delta
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, _timeout_ms);
-
-    // Time to wait until we establish a TCP connection to a single host.
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, SINGLE_CONNECT_TIMEOUT_MS);
-
-    // We mustn't reuse DNS responses, because cURL does no shuffling
-    // of DNS entries and we rely on this for load balancing.
-    curl_easy_setopt(curl, CURLOPT_DNS_CACHE_TIMEOUT, 0L);
-
-    // Nagle is not required. Probably won't bite us, but can't hurt
-    // to turn it off.
-    curl_easy_setopt(curl, CURLOPT_TCP_NODELAY, 1L);
-
-    // We are a multithreaded app using C-Ares. This is the
-    // recommended setting.
-    curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
-
-    // Register a debug callback to record the HTTP transaction.  We also need
-    // to set the verbose option (otherwise setting the debug function has no
-    // effect).
-    curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, Recorder::debug_callback);
-    curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
-  }
-  return curl;
 }
 
 // Map the CURLcode into a sensible HTTP return code.
@@ -254,18 +154,6 @@ HTTPCode HttpConnection::curl_code_to_http_code(CURL* curl, CURLcode code)
     return HTTP_SERVER_ERROR;
   // LCOV_EXCL_STOP
   }
-}
-
-// Reset the cURL handle to a default state, so that settings from one
-// request don't leak into another
-void HttpConnection::reset_curl_handle(CURL* curl)
-{
-  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, NULL);
-  curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
-  curl_easy_setopt(curl, CURLOPT_WRITEHEADER, NULL);
-  curl_easy_setopt(curl, CURLOPT_POSTFIELDS, NULL);
-  curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, NULL);
-  curl_easy_setopt(curl, CURLOPT_POST, 0);
 }
 
 HTTPCode HttpConnection::send_delete(const std::string& path,
@@ -494,13 +382,14 @@ std::string HttpConnection::request_type_to_string(RequestType request_type)
 HTTPCode HttpConnection::send_request(RequestType request_type,
                                       const std::string& path,
                                       std::string body,
-                                      std::string& response,
+                                      std::string& doc,
                                       const std::string& username,
                                       SAS::TrailId trail,
                                       std::vector<std::string> headers_to_add,
                                       std::map<std::string, std::string>* response_headers)
 {
   HTTPCode http_code;
+  CURLcode rc;
 
   // Create a UUID to use for SAS correlation and add it to the HTTP message.
   boost::uuids::uuid uuid = get_random_uuid();
@@ -513,45 +402,14 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
 
-  // Get a curl handle and the associated pool entry
-  CURL* curl = get_curl_handle();
-
-  PoolEntry* entry;
-  CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
-  assert(rc == CURLE_OK);
-
-  // Determine whether to recycle the connection, based on
-  // previously-calculated deadline.
   struct timespec tp;
   int rv = clock_gettime(CLOCK_MONOTONIC, &tp);
   assert(rv == 0);
   unsigned long now_ms = tp.tv_sec * 1000 + (tp.tv_nsec / 1000000);
-  bool recycle_conn = entry->is_connection_expired(now_ms);
 
   // Resolve the host.
   std::vector<AddrInfo> targets;
   _resolver->resolve(_host, _port, MAX_TARGETS, targets, trail);
-
-  // If we're not recycling the connection, try to get the current connection
-  // IP address and add it to the front of the target list (if it was there)
-  if (!recycle_conn)
-  {
-    char* primary_ip;
-    if (curl_easy_getinfo(curl, CURLINFO_PRIMARY_IP, &primary_ip) == CURLE_OK)
-    {
-      AddrInfo ai;
-      _resolver->parse_ip_target(primary_ip, ai.address);
-      ai.port = (_port != 0) ? _port : 80;
-      ai.transport = IPPROTO_TCP;
-
-      int initialSize = targets.size();
-      targets.erase(std::remove(targets.begin(), targets.end(), ai), targets.end());
-      if ((int)targets.size() < initialSize)
-      {
-        targets.insert(targets.begin(), ai);
-      }
-    }
-  }
 
   // If the list of targets only contains 1 target, clone it - we always want
   // to retry at least once.
@@ -575,8 +433,9 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
 
   for (target_it = targets.begin(); target_it != targets.end(); ++target_it)
   {
-    // Reset the handle
-    reset_curl_handle(curl);
+    // Get a curl handle and the associated pool entry
+    ConnectionHandle<CURL*> conn_handle = _conn_pool.get_connection(*target_it);
+    CURL* curl = conn_handle.get_connection();
 
     // Construct and add extra headers
     struct curl_slist* extra_headers = build_headers(headers_to_add,
@@ -615,7 +474,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
     }
 
     // Set address specific curl options
-    set_curl_options_address(curl, recycle_conn, ip_url);
+    set_curl_options_address(curl, ip_url);
 
     // Create and register an object to record the HTTP transaction.
     Recorder recorder;
@@ -630,7 +489,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
     // Send the request.
     std::string url = "http://" + _server + path;
     doc.clear();
-    TRC_DEBUG("Sending HTTP request : %s (trying %s) %s", url.c_str(), remote_ip, (recycle_conn) ? "on new connection" : "");
+    TRC_DEBUG("Sending HTTP request : %s (trying %s)", url.c_str(), remote_ip);
     rc = curl_easy_perform(curl);
 
     // If a request was sent, log it to SAS.
@@ -663,21 +522,15 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
     // Update the connection recycling and retry algorithms.
     if ((rc == CURLE_OK) && !(http_rc >= 400))
     {
-      if (recycle_conn)
-      {
-        entry->update_deadline(now_ms);
-      }
-
       // Success!
       _resolver->success(*target_it);
       break;
     }
     else
     {
-      // If we forced a new connection and we failed even to establish an HTTP
+      // If we failed to even to establish an HTTP
       // connection, blacklist this IP address.
-      if (recycle_conn &&
-          !(http_rc >= 400) &&
+      if (!(http_rc >= 400) &&
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
@@ -759,8 +612,6 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
 
   if (rc == CURLE_OK)
   {
-    entry->set_remote_ip(remote_ip);
-
     if (_comm_monitor)
     {
       // If both attempts fail due to overloaded downstream nodes, consider
@@ -777,8 +628,6 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
   }
   else
   {
-    entry->set_remote_ip("");
-
     if (_comm_monitor)
     {
       _comm_monitor->inform_failure(now_ms);
@@ -873,11 +722,8 @@ void HttpConnection::set_curl_options_request(CURL* curl, RequestType request_ty
 }
 
 void HttpConnection::set_curl_options_address(CURL* curl,
-                                              bool recycle_conn,
                                               std::string ip_url)
 {
-  curl_easy_setopt(curl, CURLOPT_FRESH_CONNECT, recycle_conn ? 1L : 0L);
-
   curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 }
 
@@ -886,116 +732,6 @@ size_t HttpConnection::string_store(void* ptr, size_t size, size_t nmemb, void* 
 {
   ((std::string*)stream)->append((char*)ptr, size * nmemb);
   return (size * nmemb);
-}
-
-
-/// Called to clean up the cURL handle.
-void HttpConnection::cleanup_curl(void* curlptr)
-{
-  CURL* curl = (CURL*)curlptr;
-
-  PoolEntry* entry;
-  CURLcode rc = curl_easy_getinfo(curl, CURLINFO_PRIVATE, (char**)&entry);
-  if (rc == CURLE_OK)
-  {
-    // Connection has closed.
-    entry->set_remote_ip("");
-    delete entry;
-  }
-
-  curl_easy_cleanup(curl);
-}
-
-
-/// PoolEntry constructor
-HttpConnection::PoolEntry::PoolEntry(HttpConnection* parent) :
-  _parent(parent),
-  _deadline_ms(0L),
-  _rand(1.0 / CONNECTION_AGE_MS)
-{
-}
-
-
-/// PoolEntry destructor
-HttpConnection::PoolEntry::~PoolEntry()
-{
-}
-
-
-/// Is it time to recycle the connection? Expects CLOCK_MONOTONIC
-/// current time, in milliseconds.
-bool HttpConnection::PoolEntry::is_connection_expired(unsigned long now_ms)
-{
-  return (now_ms > _deadline_ms);
-}
-
-
-/// Update deadline to next appropriate value. Expects
-/// CLOCK_MONOTONIC current time, in milliseconds.  Call on
-/// successful connection.
-void HttpConnection::PoolEntry::update_deadline(unsigned long now_ms)
-{
-  // Get the next desired inter-arrival time. Take a random sample
-  // from an exponential distribution so as to avoid spikes.
-  unsigned long interval_ms = (unsigned long)_rand();
-
-  if ((_deadline_ms == 0L) ||
-      ((_deadline_ms + interval_ms) < now_ms))
-  {
-    // This is the first request, or the new arrival time has
-    // already passed (in which case things must be pretty
-    // quiet). Just bump the next deadline into the future.
-    _deadline_ms = now_ms + interval_ms;
-  }
-  else
-  {
-    // The new arrival time is yet to come. Schedule it relative to
-    // the last intended time, so as not to skew the mean
-    // upwards.
-
-    // We don't recycle any connections in the UTs. (We could do this
-    // by manipulating time, but would have no way of checking it
-    // worked.)
-    _deadline_ms += interval_ms; // LCOV_EXCL_LINE
-  }
-}
-
-
-/// Set the remote IP, and update statistics.
-void HttpConnection::PoolEntry::set_remote_ip(const std::string& value)  //< Remote IP, or "" if no connection.
-{
-  if (value == _remote_ip)
-  {
-    return;
-  }
-
-
-  if (_parent->_stat_table != NULL)
-  {
-    update_snmp_ip_counts(value);
-  }
-
-  _remote_ip = value;
-}
-
-void HttpConnection::PoolEntry::update_snmp_ip_counts(const std::string& value)  //< Remote IP, or "" if no connection.
-{
-  pthread_mutex_lock(&_parent->_lock);
-
-  if (!_remote_ip.empty())
-  {
-      if (_parent->_stat_table->get(_remote_ip)->decrement() == 0)
-      {
-        _parent->_stat_table->remove(_remote_ip);
-      }
-  }
-
-  if (!value.empty())
-  {
-      _parent->_stat_table->get(value)->increment();
-  }
-
-  pthread_mutex_unlock(&_parent->_lock);
 }
 
 size_t HttpConnection::write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers)

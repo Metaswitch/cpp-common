@@ -51,6 +51,7 @@
 #include "sasevent.h"
 #include "communicationmonitor.h"
 #include "snmp_ip_count_table.h"
+#include "httpconnectionpool.h"
 
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
@@ -229,39 +230,6 @@ public:
 
 private:
 
-  /// A single entry in the connection pool. Stored inside a cURL handle.
-  class PoolEntry
-  {
-  public:
-    PoolEntry(HttpConnection* parent);
-    ~PoolEntry();
-
-    void set_remote_ip(const std::string& value);
-    const std::string& get_remote_ip() const { return _remote_ip; };
-
-    bool is_connection_expired(unsigned long now_ms);
-    void update_deadline(unsigned long now_ms);
-
-  private:
-    void update_snmp_ip_counts(const std::string& value);
-
-    /// Parent HttpConnection object.
-    HttpConnection* _parent;
-
-    /// Time beyond which this connection should be recycled, in
-    // CLOCK_MONOTONIC milliseconds, or 0 for ASAP.
-    unsigned long _deadline_ms;
-
-    /// Random distribution to use for determining connection lifetimes.
-    /// Use an exponential distribution because it is memoryless. This
-    /// gives us a Poisson distribution of recycle events, both for
-    /// individual threads and for the overall application.
-    Utils::ExponentialDistribution _rand;
-
-    /// Server IP we're connected to, if any.
-    std::string _remote_ip;
-  };
-
   /// Class used to record HTTP transactions.
   class Recorder
   {
@@ -339,7 +307,6 @@ private:
 
   /// Helper function that sets address specific curl options in send_request
   void set_curl_options_address(CURL* curl,
-                                bool recycle_conn,
                                 std::string ip_url);
 
   void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
@@ -385,8 +352,6 @@ private:
                           HttpErrorResponseTypes reason,
                           uint32_t instance_id);
 
-  CURL* get_curl_handle();
-  void reset_curl_handle(CURL* curl);
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
   static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
   static void host_port_from_server(const std::string& server, std::string& host, int& port);
@@ -401,18 +366,15 @@ private:
   std::string _host;
   int _port;
   const bool _assert_user;
-  pthread_key_t _curl_thread_local;
   pthread_key_t _uuid_thread_local;
 
   HttpResolver* _resolver;
   LoadMonitor* _load_monitor;
-  long _timeout_ms;
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock
   SASEvent::HttpLogLevel _sas_log_level;
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::IPCountTable* _stat_table;
-
-  friend class PoolEntry; // so it can update stats
+  HttpConnectionPool _conn_pool;
 };
 
