@@ -151,7 +151,6 @@ void HttpConnectionPool::release_connection(ConnectionInfo<CURL*>* conn_info,
     curl_easy_setopt(conn, CURLOPT_HEADERFUNCTION, NULL);
     curl_easy_setopt(conn, CURLOPT_POST, 0);
   }
-  else
   ConnectionPool<CURL*>::release_connection(conn_info, return_to_pool);
 }
 // LCOV_EXCL_STOP
