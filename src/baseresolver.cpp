@@ -965,8 +965,13 @@ void BaseResolver::Host::untested(pthread_t user_id)
 BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t current_time)
 {
   Host::State state;
-  std::string ai_str = ai.to_string();
   Hosts::iterator i = _hosts.find(ai);
+  std::string ai_str;
+
+  if (Log::enabled(Log::DEBUG_LEVEL))
+  {
+    ai_str = ai.to_string();
+  }
 
   if (i != _hosts.end())
   {
@@ -974,7 +979,6 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
     if (state == Host::State::WHITE)
     {
       TRC_DEBUG("%s graylist time elapsed", ai_str.c_str());
-
       _hosts.erase(i);
     }
   }
@@ -983,17 +987,22 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
     state = Host::State::WHITE;
   }
 
-
-  std::string state_str = Host::state_to_string(state);
-  TRC_DEBUG("%s has state: %s", ai_str.c_str(), state_str.c_str());
+  if (Log::enabled(Log::DEBUG_LEVEL))
+  {
+    std::string state_str = Host::state_to_string(state);
+    TRC_DEBUG("%s has state: %s", ai_str.c_str(), state_str.c_str());
+  }
 
   return state;
 }
 
 void BaseResolver::success(const AddrInfo& ai)
 {
-  std::string ai_str = ai.to_string();
-  TRC_DEBUG("Successful response from  %s", ai_str.c_str());
+  if (Log::enabled(Log::DEBUG_LEVEL))
+  {
+    std::string ai_str = ai.to_string();
+    TRC_DEBUG("Successful response from  %s", ai_str.c_str());
+  }
 
   pthread_mutex_lock(&_hosts_lock);
 
