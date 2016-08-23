@@ -421,6 +421,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
   // resolve the host, so default to that.
   const char *remote_ip = NULL;
   rc = CURLE_COULDNT_RESOLVE_HOST;
+  http_code = HTTP_NOT_FOUND;
 
   std::vector<AddrInfo>::const_iterator target_it;
 

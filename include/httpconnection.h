@@ -77,6 +77,10 @@ static const long HTTP_GATEWAY_TIMEOUT = 504;
 class HttpConnection
 {
 public:
+  // HttpConnectionPool requires access to the private Recorder class and
+  // calc_req_timeout_from_latency method
+  friend class HttpConnectionPool;
+
   HttpConnection(const std::string& server,
                  bool assert_user,
                  HttpResolver* resolver,
