@@ -118,7 +118,9 @@ protected:
   virtual T create_connection(AddrInfo target) = 0;
 
   /// Safely destroys a type T connection, which targets the given AddrInfo,
-  /// using the destroy_connection method
+  /// using the destroy_connection method. Can be overloaded when the target is
+  /// required for logging purposes etc, and should call the destroy_connection
+  /// method
   virtual void destroy_connection_with_target(AddrInfo target, T conn);
 
   /// Safely destroys a type T connection
@@ -179,8 +181,8 @@ private:
   // A pointer to the ConnectionPool that created this object
   ConnectionPool<T>* _conn_pool_ptr;
 
-  // True if the connection should be released to the pool on destruction, and
-  // false if it should be destroyed. Defaults to true.
+  // True if the connection should be released to the pool on destruction of the
+  // handle, and false if it should be destroyed. Defaults to true.
   bool _release_to_pool;
 };
 

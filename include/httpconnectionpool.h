@@ -39,9 +39,9 @@
 #define HTTPCONNECTIONPOOL_H__
 
 #include <curl/curl.h>
+
 #include "load_monitor.h"
 #include "snmp_ip_count_table.h"
-
 #include "connectionpool.h"
 
 /// Total time to wait for a response from a single server as a multiple of the

@@ -80,7 +80,6 @@ HttpConnection::HttpConnection(const std::string& server,
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
 
-  _load_monitor = load_monitor;
   if (_load_monitor)
   {
   std::vector<std::string> no_stats;
@@ -523,13 +522,13 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
     }
     else
     {
-      // If we failed to even to establish an HTTP
-      // connection, blacklist this IP address.
+      // If we failed to even to establish an HTTP connection, blacklist this IP
+      // address.
       if (!(http_rc >= 400) &&
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
-        // The CURL connection should not be returned to the pool if it failed
+        // The CURL connection should not be returned to the pool
         conn_handle.set_return_to_pool(false);
 
         _resolver->blacklist(*target_it);
