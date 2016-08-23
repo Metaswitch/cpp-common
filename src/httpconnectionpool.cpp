@@ -93,24 +93,26 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
 
     curl_easy_setopt(conn, CURLOPT_VERBOSE, 1L);
 
-    if (_stat_table)
-    {
-      // Increment the statistic
-      char buf[100];
-      const char* ip_address = inet_ntop(target.address.af,
-                                         &target.address.addr,
-                                         buf,
-                                         sizeof(buf));
-      // The lock is held in the base class when this method is called, so it is
-      // safe to access the table
-      _stat_table->get(ip_address)->increment();
-    }
-
     return conn;
 }
 
-void HttpConnectionPool::destroy_connection_with_target(AddrInfo target,
-                                                        CURL* conn)
+void HttpConnectionPool::increment_statistic(AddrInfo target, CURL* conn)
+{
+  if (_stat_table)
+  {
+    // Increment the statistic
+    char buf[100];
+    const char* ip_address = inet_ntop(target.address.af,
+                                       &target.address.addr,
+                                       buf,
+                                       sizeof(buf));
+    // The lock is held in the base class when this method is called, so it is
+    // safe to access the table
+    _stat_table->get(ip_address)->increment();
+  }
+}
+
+void HttpConnectionPool::decrement_statistic(AddrInfo target, CURL* conn)
 {
   if (_stat_table)
   {
@@ -128,7 +130,6 @@ void HttpConnectionPool::destroy_connection_with_target(AddrInfo target,
         _stat_table->remove(ip_address);
       }
   }
-  destroy_connection(conn);
 }
 
 void HttpConnectionPool::destroy_connection(CURL* conn)

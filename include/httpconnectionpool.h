@@ -85,7 +85,9 @@ public:
 
 protected:
   CURL* create_connection(AddrInfo target) override;
-  void destroy_connection_with_target(AddrInfo target, CURL* conn) override;
+  void increment_statistic(AddrInfo target, CURL* conn) override;
+
+  void decrement_statistic(AddrInfo target, CURL* conn) override;
   void destroy_connection(CURL* conn) override;
 
   // Reset the CURL handle to the default state, then release it into the pool
