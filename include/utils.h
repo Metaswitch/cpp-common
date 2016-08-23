@@ -43,6 +43,7 @@
 #include <algorithm>
 #include <functional>
 #include <string>
+#include <sstream>
 #include <list>
 #include <vector>
 #include <cctype>
