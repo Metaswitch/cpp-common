@@ -44,9 +44,9 @@ HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
   ConnectionPool<CURL*>(MAX_IDLE_TIME_MS),
   _stat_table(stat_table)
 {
-  _timeout_ms = HttpConnection::calc_req_timeout_from_latency((load_monitor != NULL) ?
-                                                              load_monitor->get_target_latency_us() :
-                                                              DEFAULT_LATENCY_US);
+  _timeout_ms = HttpClient::calc_req_timeout_from_latency((load_monitor != NULL) ?
+                                                          load_monitor->get_target_latency_us() :
+                                                          DEFAULT_LATENCY_US);
 
   TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
 }
@@ -57,7 +57,7 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
     TRC_DEBUG("Allocated CURL handle %p", conn);
 
     // Retrieved data will always be written to a string.
-    curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, &HttpConnection::string_store);
+    curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, &HttpClient::string_store);
 
     // Only keep one TCP connection to a Homestead per CURL, to
     // avoid using unnecessary resources.
@@ -89,7 +89,7 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
     // effect).
     curl_easy_setopt(conn,
                      CURLOPT_DEBUGFUNCTION,
-                     HttpConnection::Recorder::debug_callback);
+                     HttpClient::Recorder::debug_callback);
 
     curl_easy_setopt(conn, CURLOPT_VERBOSE, 1L);
 
