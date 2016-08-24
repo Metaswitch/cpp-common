@@ -3,7 +3,7 @@
  * connection pooling.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2016 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -38,7 +38,6 @@
 #include "httpconnectionpool.h"
 #include "httpconnection.h"
 
-// LCOV_EXCL_START
 HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
                                        SNMP::IPCountTable* stat_table) :
   ConnectionPool<CURL*>(MAX_IDLE_TIME_MS),
@@ -48,52 +47,52 @@ HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
                                                               load_monitor->get_target_latency_us() :
                                                               DEFAULT_LATENCY_US);
 
-  TRC_STATUS("  Connection will use a response timeout of %ldms", _timeout_ms);
+  TRC_STATUS("Connection pool will use a response timeout of %ldms", _timeout_ms);
 }
 
 CURL* HttpConnectionPool::create_connection(AddrInfo target)
 {
-    CURL* conn = curl_easy_init();
-    TRC_DEBUG("Allocated CURL handle %p", conn);
+  CURL* conn = curl_easy_init();
+  TRC_DEBUG("Allocated CURL handle %p", conn);
 
-    // Retrieved data will always be written to a string.
-    curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, &HttpConnection::string_store);
+  // Retrieved data will always be written to a string.
+  curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, &HttpConnection::string_store);
 
-    // Only keep one TCP connection to a Homestead per CURL, to
-    // avoid using unnecessary resources.
-    curl_easy_setopt(conn, CURLOPT_MAXCONNECTS, 1L);
+  // Only keep one TCP connection to a Homestead per CURL, to
+  // avoid using unnecessary resources.
+  curl_easy_setopt(conn, CURLOPT_MAXCONNECTS, 1L);
 
-    // Maximum time to wait for a response.  This is the target latency for
-    // this node plus a delta
-    curl_easy_setopt(conn, CURLOPT_TIMEOUT_MS, _timeout_ms);
+  // Maximum time to wait for a response.  This is the target latency for
+  // this node plus a delta
+  curl_easy_setopt(conn, CURLOPT_TIMEOUT_MS, _timeout_ms);
 
-    // Time to wait until we establish a TCP connection to a single host.
-    curl_easy_setopt(conn,
-                     CURLOPT_CONNECTTIMEOUT_MS,
-                     SINGLE_CONNECT_TIMEOUT_MS);
+  // Time to wait until we establish a TCP connection to a single host.
+  curl_easy_setopt(conn,
+                   CURLOPT_CONNECTTIMEOUT_MS,
+                   SINGLE_CONNECT_TIMEOUT_MS);
 
-    // We mustn't reuse DNS responses, because cURL does no shuffling
-    // of DNS entries and we rely on this for load balancing.
-    curl_easy_setopt(conn, CURLOPT_DNS_CACHE_TIMEOUT, 0L);
+  // We mustn't reuse DNS responses, because cURL does no shuffling
+  // of DNS entries and we rely on this for load balancing.
+  curl_easy_setopt(conn, CURLOPT_DNS_CACHE_TIMEOUT, 0L);
 
-    // Nagle is not required. Probably won't bite us, but can't hurt
-    // to turn it off.
-    curl_easy_setopt(conn, CURLOPT_TCP_NODELAY, 1L);
+  // Nagle is not required. Probably won't bite us, but can't hurt
+  // to turn it off.
+  curl_easy_setopt(conn, CURLOPT_TCP_NODELAY, 1L);
 
-    // We are a multithreaded app using C-Ares. This is the
-    // recommended setting.
-    curl_easy_setopt(conn, CURLOPT_NOSIGNAL, 1L);
+  // We are a multithreaded app using C-Ares. This is the
+  // recommended setting.
+  curl_easy_setopt(conn, CURLOPT_NOSIGNAL, 1L);
 
-    // Register a debug callback to record the HTTP transaction.  We also need
-    // to set the verbose option (otherwise setting the debug function has no
-    // effect).
-    curl_easy_setopt(conn,
-                     CURLOPT_DEBUGFUNCTION,
-                     HttpConnection::Recorder::debug_callback);
+  // Register a debug callback to record the HTTP transaction.  We also need
+  // to set the verbose option (otherwise setting the debug function has no
+  // effect).
+  curl_easy_setopt(conn,
+                   CURLOPT_DEBUGFUNCTION,
+                   HttpConnection::Recorder::debug_callback);
 
-    curl_easy_setopt(conn, CURLOPT_VERBOSE, 1L);
+  curl_easy_setopt(conn, CURLOPT_VERBOSE, 1L);
 
-    return conn;
+  return conn;
 }
 
 void HttpConnectionPool::increment_statistic(AddrInfo target, CURL* conn)
@@ -117,18 +116,18 @@ void HttpConnectionPool::decrement_statistic(AddrInfo target, CURL* conn)
   if (_stat_table)
   {
     // Decrement the statistic
-      char buf[100];
-      const char* ip_address = inet_ntop(target.address.af,
-                                         &target.address.addr,
-                                         buf,
-                                         sizeof(buf));
-      // The lock is held in the base class when this method is called, so it is
-      // safe to access the table
-      if (_stat_table->get(ip_address)->decrement() == 0)
-      {
-        // If the statistic is now zero, remove from the table
-        _stat_table->remove(ip_address);
-      }
+    char buf[100];
+    const char* ip_address = inet_ntop(target.address.af,
+                                       &target.address.addr,
+                                       buf,
+                                       sizeof(buf));
+    // The lock is held in the base class when this method is called, so it is
+    // safe to access the table
+    if (_stat_table->get(ip_address)->decrement() == 0)
+    {
+      // If the statistic is now zero, remove from the table
+      _stat_table->remove(ip_address);
+    }
   }
 }
 
@@ -154,4 +153,3 @@ void HttpConnectionPool::release_connection(ConnectionInfo<CURL*>* conn_info,
   }
   ConnectionPool<CURL*>::release_connection(conn_info, return_to_pool);
 }
-// LCOV_EXCL_STOP

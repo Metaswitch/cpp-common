@@ -389,7 +389,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
   HTTPCode http_code;
   CURLcode rc;
 
-  // Create a UUID to use for SAS correlation and add it to the HTTP message.
+  // Create a UUID to use for SAS correlation.
   boost::uuids::uuid uuid = get_random_uuid();
   std::string uuid_str = boost::uuids::to_string(uuid);
 
@@ -445,7 +445,7 @@ HTTPCode HttpConnection::send_request(RequestType request_type,
     // Set response header curl options
     set_curl_options_response(curl, response_headers);
 
-    //Set request-type specific curl options
+    // Set request-type specific curl options
     set_curl_options_request(curl, request_type);
 
     // Convert the target IP address into a string and fix up the URL.  It

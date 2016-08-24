@@ -3,7 +3,7 @@
  * ConnectionPool<T>
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015  Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -50,7 +50,6 @@ public:
 protected:
   MOCK_METHOD1(create_connection, int(AddrInfo target));
   MOCK_METHOD2(increment_statistic, void(AddrInfo target, int conn));
-
   MOCK_METHOD2(decrement_statistic, void(AddrInfo target, int conn));
   MOCK_METHOD1(destroy_connection, void(int conn));
 };

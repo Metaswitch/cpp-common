@@ -3,7 +3,7 @@
  * pooling
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -180,6 +180,9 @@ public:
   // Gets the AddrInfo object contained within _conn_info
   AddrInfo get_target();
 
+  // Sets the value of the return to pool flag. When true, the connection is
+  // returned to the pool on destruction of the handle, and when false, the
+  // connection is destroyed on destruction of the handle.
   void set_return_to_pool(bool return_to_pool);
 
 private:
@@ -189,9 +192,9 @@ private:
   // A pointer to the ConnectionPool that created this object
   ConnectionPool<T>* _conn_pool_ptr;
 
-  // True if the connection should be released to the pool on destruction of the
+  // True if the connection should be returned to the pool on destruction of the
   // handle, and false if it should be destroyed. Defaults to true.
-  bool _release_to_pool;
+  bool _return_to_pool;
 };
 
 template<typename T>
@@ -368,7 +371,7 @@ ConnectionHandle<T>::ConnectionHandle(ConnectionInfo<T>* conn_info_ptr,
                                       ConnectionPool<T>* conn_pool_ptr) :
   _conn_info_ptr(conn_info_ptr),
   _conn_pool_ptr(conn_pool_ptr),
-  _release_to_pool(true)
+  _return_to_pool(true)
 {
 }
 
@@ -380,7 +383,7 @@ ConnectionHandle<T>::~ConnectionHandle()
   // case is checked for.
   if (_conn_info_ptr)
   {
-    _conn_pool_ptr->release_connection(_conn_info_ptr, _release_to_pool);
+    _conn_pool_ptr->release_connection(_conn_info_ptr, _return_to_pool);
   }
 }
 
@@ -414,8 +417,8 @@ AddrInfo ConnectionHandle<T>::get_target()
 }
 
 template <typename T>
-void ConnectionHandle<T>::set_return_to_pool(bool release_to_pool)
+void ConnectionHandle<T>::set_return_to_pool(bool return_to_pool)
 {
-  _release_to_pool = release_to_pool;
+  _return_to_pool = return_to_pool;
 }
 #endif
