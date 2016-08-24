@@ -35,8 +35,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef CONNECTIONPOOL_H__
-#define CONNECTIONPOOL_H__
+#ifndef CONNECTION_POOL_H__
+#define CONNECTION_POOL_H__
 
 #include <map>
 #include <deque>

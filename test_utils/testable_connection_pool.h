@@ -36,7 +36,7 @@
  */
 
 #include "gmock/gmock.h"
-#include "connectionpool.h"
+#include "connection_pool.h"
 
 class TestableConnectionPool : public ConnectionPool<int>
 {

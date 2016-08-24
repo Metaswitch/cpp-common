@@ -1,6 +1,6 @@
 /**
- * @file memcachedconnectionpool.cpp  Implementation of derived class for
- * memcached connection pooling
+ * @file memcachedconnectionpool.h  Declaration of derived class for memcached
+ * connection pooling
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2016  Metaswitch Networks Ltd
@@ -35,23 +35,40 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "memcachedconnectionpool.h"
+#ifndef MEMCACHED_CONNECTION_POOL_H__
+#define MEMCACHED_CONNECTION_POOL_H__
 
-// LCOV_EXCL_START
-memcached_st* MemcachedConnectionPool::create_connection(AddrInfo target)
+// Compilation fails when surrounding these two includes with extern "C", due to
+// what seems to be conflicting definitions of a C function. It is unknown why
+// this fails here but works in memcachedstore.h, but it appears to work without
+// extern "C". Beware that omitting this may cause problems in future.
+#include <libmemcached/memcached.h>
+#include <libmemcached/util.h>
+
+#include "connection_pool.h"
+
+class MemcachedConnectionPool : public ConnectionPool<memcached_st*>
 {
-  // Create and set up a memcached connection
-  memcached_st* conn = memcached(_options.c_str(), _options.length());
-  memcached_behavior_set(conn,
-                         MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT,
-                         _max_connect_latency_ms);
-  memcached_server_add(conn, target.address.to_string().c_str(), target.port);
+public:
+  MemcachedConnectionPool(time_t max_idle_time_s, std::string options) :
+    ConnectionPool<memcached_st*>(max_idle_time_s),
+    _options(options),
+    _max_connect_latency_ms(50)
+  {
+  }
 
-  return conn;
-}
+  ~MemcachedConnectionPool()
+  {
+    // This call is important to properly destroy the connection pool
+    destroy_connection_pool();
+  }
 
-void MemcachedConnectionPool::destroy_connection(memcached_st* conn)
-{
-  memcached_free(conn);
-}
-// LCOV_EXCL_STOP
+protected:
+  memcached_st* create_connection(AddrInfo target);
+  void destroy_connection(memcached_st* conn);
+
+  std::string _options;
+  unsigned int _max_connect_latency_ms;
+};
+
+#endif

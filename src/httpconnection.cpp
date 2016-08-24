@@ -960,11 +960,6 @@ void HttpConnection::change_server(std::string override_server)
 // This function determines an appropriate absolute HTTP request timeout
 // (in ms) given the target latency for requests that the downstream components
 // will be using.
-long HttpConnection::calc_req_timeout_from_latency(int latency_us)
-{
-  return std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
-}
-
 HttpConnection::Recorder::Recorder() {}
 
 HttpConnection::Recorder::~Recorder() {}

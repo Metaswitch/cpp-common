@@ -1,5 +1,5 @@
 /**
- * @file httpconnectionpool.cpp  Implementation of derived class for HTTP
+ * @file http_connection_pool.cpp  Implementation of derived class for HTTP
  * connection pooling.
  *
  * Project Clearwater - IMS in the Cloud
@@ -35,7 +35,7 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "httpconnectionpool.h"
+#include "http_connection_pool.h"
 #include "httpconnection.h"
 
 HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
@@ -43,7 +43,7 @@ HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
   ConnectionPool<CURL*>(MAX_IDLE_TIME_MS),
   _stat_table(stat_table)
 {
-  _timeout_ms = HttpConnection::calc_req_timeout_from_latency((load_monitor != NULL) ?
+  _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                                               load_monitor->get_target_latency_us() :
                                                               DEFAULT_LATENCY_US);
 
@@ -152,4 +152,9 @@ void HttpConnectionPool::release_connection(ConnectionInfo<CURL*>* conn_info,
     curl_easy_setopt(conn, CURLOPT_POST, 0);
   }
   ConnectionPool<CURL*>::release_connection(conn_info, return_to_pool);
+}
+
+long HttpConnectionPool::calc_req_timeout_from_latency(int latency_us)
+{
+  return std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
 }

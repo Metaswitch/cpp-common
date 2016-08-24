@@ -1,5 +1,5 @@
 /**
- * @file httpconnectionpool.h  Declaration of derived class for HTTP connection
+ * @file http_connection_pool.h  Declaration of derived class for HTTP connection
  * pooling.
  *
  * Project Clearwater - IMS in the Cloud
@@ -35,14 +35,14 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef HTTPCONNECTIONPOOL_H__
-#define HTTPCONNECTIONPOOL_H__
+#ifndef HTTP_CONNECTION_POOL_H__
+#define HTTP_CONNECTION_POOL_H__
 
 #include <curl/curl.h>
 
 #include "load_monitor.h"
 #include "snmp_ip_count_table.h"
-#include "connectionpool.h"
+#include "connection_pool.h"
 
 /// Total time to wait for a response from a single server as a multiple of the
 /// configured target latency before giving up.  This is the value that affects
@@ -96,5 +96,9 @@ protected:
 
   long _timeout_ms;
   SNMP::IPCountTable* _stat_table;
+
+  // Determines an appropriate absolute HTTP request timeout in ms given the
+  // target latency for requests that the downstream components will be using
+  static long calc_req_timeout_from_latency(int latency_us);
 };
 #endif
