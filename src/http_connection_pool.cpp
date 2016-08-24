@@ -92,6 +92,8 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
 
   curl_easy_setopt(conn, CURLOPT_VERBOSE, 1L);
 
+  increment_statistic(target, conn);
+
   return conn;
 }
 
@@ -131,8 +133,9 @@ void HttpConnectionPool::decrement_statistic(AddrInfo target, CURL* conn)
   }
 }
 
-void HttpConnectionPool::destroy_connection(CURL* conn)
+void HttpConnectionPool::destroy_connection(AddrInfo target, CURL* conn)
 {
+  decrement_statistic(target, conn);
   curl_easy_cleanup(conn);
 }
 

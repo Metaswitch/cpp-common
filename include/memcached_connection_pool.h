@@ -65,7 +65,7 @@ public:
 
 protected:
   memcached_st* create_connection(AddrInfo target);
-  void destroy_connection(memcached_st* conn);
+  void destroy_connection(AddrInfo target, memcached_st* conn);
 
   std::string _options;
   unsigned int _max_connect_latency_ms;

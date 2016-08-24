@@ -50,7 +50,7 @@ memcached_st* MemcachedConnectionPool::create_connection(AddrInfo target)
   return conn;
 }
 
-void MemcachedConnectionPool::destroy_connection(memcached_st* conn)
+void MemcachedConnectionPool::destroy_connection(AddrInfo target, memcached_st* conn)
 {
   memcached_free(conn);
 }

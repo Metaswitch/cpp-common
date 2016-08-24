@@ -49,7 +49,5 @@ public:
 
 protected:
   MOCK_METHOD1(create_connection, int(AddrInfo target));
-  MOCK_METHOD2(increment_statistic, void(AddrInfo target, int conn));
-  MOCK_METHOD2(decrement_statistic, void(AddrInfo target, int conn));
-  MOCK_METHOD1(destroy_connection, void(int conn));
+  MOCK_METHOD2(destroy_connection, void(AddrInfo target, int conn));
 };

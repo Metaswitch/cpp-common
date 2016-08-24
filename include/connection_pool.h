@@ -117,16 +117,8 @@ protected:
   /// Creates a type T connection for the given target
   virtual T create_connection(AddrInfo target) = 0;
 
-  /// Called just after a connection is created - can be overridden to increment
-  /// a relevant statistic
-  virtual void increment_statistic(AddrInfo target, T conn) {}
-
-  /// Called just before a connection is destroyed - can be overridden to
-  /// decrement a relevant statistic
-  virtual void decrement_statistic(AddrInfo target, T conn) {}
-
-  /// Safely destroys a type T connection
-  virtual void destroy_connection(T conn) = 0;
+  /// Safely destroys a type T connection with the given target
+  virtual void destroy_connection(AddrInfo target, T conn) = 0;
 
   /// Safely destroys the connection pool, leaving it empty. This method must be
   /// called from the destructor of all subclasses
@@ -141,12 +133,6 @@ private:
   /// Removes one connection that has gone unused for more than the max idle
   /// time, if any such connections exist
   void free_old_connection();
-
-  /// Creates a type T connection and calls increment statistic
-  T create_connection_and_incr(AddrInfo target);
-
-  /// Destroys a type T connection and calls decrement statistic
-  void destroy_connection_and_decr(AddrInfo target, T conn);
 
   Pool _conn_pool;
   pthread_mutex_t _conn_pool_lock;
@@ -222,7 +208,7 @@ void ConnectionPool<T>::destroy_connection_pool()
     {
       // Safely destroy the connection object contained in the current
       // ConnectionInfo
-      destroy_connection_and_decr((*conn_info_it)->target, (*conn_info_it)->conn);
+      destroy_connection((*conn_info_it)->target, (*conn_info_it)->conn);
       // Destroy the current ConnectionInfo
       delete *conn_info_it; *conn_info_it = NULL;
     }
@@ -256,8 +242,7 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
     // If there is no connection in the pool for the given AddrInfo, create a
     // new one
     TRC_DEBUG("No existing connection in pool, create one");
-    conn_info_ptr = new ConnectionInfo<T>(create_connection_and_incr(target),
-                                          target);
+    conn_info_ptr = new ConnectionInfo<T>(create_connection(target), target);
     TRC_DEBUG("Created new connection %p", conn_info_ptr);
   }
 
@@ -290,7 +275,7 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
   else
   {
     // Safely destroy the connection and its associated ConnectionInfo
-    destroy_connection_and_decr(conn_info_ptr->target, conn_info_ptr->conn);
+    destroy_connection(conn_info_ptr->target, conn_info_ptr->conn);
     delete conn_info_ptr; conn_info_ptr = NULL;
   }
 
@@ -332,8 +317,7 @@ void ConnectionPool<T>::free_old_connection()
 
         // Delete the connection as it is too old
         slot_it->second.pop_back();
-        destroy_connection_and_decr(oldest_conn_info_ptr->target,
-                                    oldest_conn_info_ptr->conn);
+        destroy_connection(oldest_conn_info_ptr->target, oldest_conn_info_ptr->conn);
         delete oldest_conn_info_ptr; oldest_conn_info_ptr = NULL;
 
         // Delete the entire slot if it is now empty
@@ -349,21 +333,6 @@ void ConnectionPool<T>::free_old_connection()
   }
 
   pthread_mutex_unlock(&_conn_pool_lock);
-}
-
-template <typename T>
-T ConnectionPool<T>::create_connection_and_incr(AddrInfo target)
-{
-  T conn = create_connection(target);
-  increment_statistic(target, conn);
-  return conn;
-}
-
-template <typename T>
-void ConnectionPool<T>::destroy_connection_and_decr(AddrInfo target, T conn)
-{
-  decrement_statistic(target, conn);
-  destroy_connection(conn);
 }
 
 template <typename T>
