@@ -80,11 +80,6 @@ HttpConnection::HttpConnection(const std::string& server,
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
 
-  if (_load_monitor)
-  {
-  std::vector<std::string> no_stats;
-  }
-
   TRC_STATUS("Configuring HTTP Connection");
   TRC_STATUS("  Connection created for server %s", _server.c_str());
 }
