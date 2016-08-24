@@ -89,7 +89,7 @@ public:
   class Iterator
   {
   public:
-    Iterator(DnsResult&& dns_result,
+    Iterator(DnsResult& dns_result,
              BaseResolver* resolver,
              int port,
              int transport,
@@ -103,21 +103,21 @@ public:
     bool next(AddrInfo &target);
 
   private:
-    // Contains the results of a DNS query
-    DnsResult _dns_result;
+    // Contains the results of a DNS query as AddrInfo objects
+    std::vector<AddrInfo> _query_results;
 
-    // A copy of the DNS query results that will be modified
-    std::vector<DnsRRecord*> _results;
+    // A vector that initially contains a pointer to each element of the query
+    // results vector. As results are returned from the take method, or moved to
+    // the vector of unhealthy results, they are removed from this vector
+    std::vector<AddrInfo*> _unused_results;
 
     // Used to store DNS results corresponding to unhealthy hosts
-    std::vector<AddrInfo> _unhealthy_targets;
+    std::vector<AddrInfo*> _unhealthy_results;
 
     // A pointer to the BaseResolver that created this iterator
     BaseResolver* _resolver;
 
     std::string _hostname;
-    int _port;
-    int _transport;
 
     SAS::TrailId _trail;
 

@@ -337,30 +337,49 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   _srv_cache->dec_ref(srv_name);
 }
 
-BaseResolver::Iterator::Iterator(DnsResult&& dns_result,
+BaseResolver::Iterator::Iterator(DnsResult& dns_result,
                        BaseResolver* resolver,
                        int port,
                        int transport,
                        SAS::TrailId trail) :
-  _dns_result(dns_result),
   _resolver(resolver),
-  _port(port),
-  _transport(transport),
   _trail(trail),
   _first_call(true)
 {
-  _results = _dns_result.records();
-  std::random_shuffle(_results.begin(), _results.end());
   _hostname = dns_result.domain();
+
+  AddrInfo ai;
+  ai.port = port;
+  ai.transport = transport;
+
+  // Create an AddrInfo object for each returned DnsRRecord, and add them to the
+  // query results vector
+  for (std::vector<DnsRRecord*>::const_iterator result_it = dns_result.records().begin();
+       result_it != dns_result.records().end();
+       ++result_it)
+  {
+    ai.address = _resolver->to_ip46(*result_it);
+    _query_results.push_back(ai);
+  }
+
+  // Set up the unused results vector to contain pointers to each AddrInfo in
+  // query results. Note that this cannot be done during the previous loop as
+  // the locations of elements of the query results vector can change due to
+  // reallocation
+  for (std::vector<AddrInfo>::iterator result_it = _query_results.begin();
+       result_it != _query_results.end();
+       ++result_it)
+  {
+    _unused_results.push_back(&(*result_it));
+  }
+
+  // Shuffle the results for load balancing purposes
+  std::random_shuffle(_unused_results.begin(), _unused_results.end());
 }
 
 std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
 {
   std::vector<AddrInfo> targets;
-
-  AddrInfo target;
-  target.port = _port;
-  target.transport = _transport;
 
   std::string targets_str;
   std::string unhealthy_targets_str;
@@ -375,51 +394,47 @@ std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
     _first_call = false;
 
     // Iterate over the records
-    for (std::vector<DnsRRecord*>::iterator record_it = _results.begin();
-         record_it != _results.end();
-         ++record_it)
+    for (std::vector<AddrInfo*>::iterator result_it = _unused_results.begin();
+         result_it != _unused_results.end();
+         ++result_it)
     {
-      target.address = _resolver->to_ip46(*record_it);
-
-      if (_resolver->host_state(target) == Host::State::GRAY_NOT_PROBING)
+      if (_resolver->host_state(**result_it) == Host::State::GRAY_NOT_PROBING)
       {
         // Add the record to the targets list
-        _resolver->select_for_probing(target);
-        targets.push_back(target);
-        targets_str = targets_str + (*record_it)->to_string() + ";";
-        TRC_DEBUG("Added a server, now have %ld of %d",
+        _resolver->select_for_probing(**result_it);
+        targets.push_back(**result_it);
+        targets_str = targets_str + (*result_it)->address_and_port_to_string() + ";";
+        TRC_DEBUG("Added a graylisted server, now have %ld of %d",
                   targets.size(),
                   targets_count);
 
         // Remove the record from the results list
-        _results.erase(record_it);
+        _unused_results.erase(result_it);
         break;
       }
     }
   }
 
-  while ((_results.size() > 0) && (targets.size() < (size_t)targets_count))
+  while ((_unused_results.size() > 0) && (targets.size() < (size_t)targets_count))
   {
     // Pop a record from the end of _results
-    DnsRRecord* record = _results.back();
-    _results.pop_back();
+    AddrInfo* result = _unused_results.back();
+    _unused_results.pop_back();
 
-    target.address = _resolver->to_ip46(record);
-
-    if (_resolver->host_state(target) == Host::State::WHITE)
+    if (_resolver->host_state(*result) == Host::State::WHITE)
     {
       // Add the record to the targets list
-      targets.push_back(target);
-      targets_str = targets_str + record->to_string() + ";";
-      TRC_DEBUG("Added a server, now have %ld of %d",
+      targets.push_back(*result);
+      targets_str = targets_str + result->address_and_port_to_string() + ";";
+      TRC_DEBUG("Added a whitelisted server, now have %ld of %d",
                 targets.size(),
                 targets_count);
     }
     else
     {
       // Add the record to the list of unhealthy targets
-      _unhealthy_targets.push_back(target);
-      unhealthy_targets_str = unhealthy_targets_str + record->to_string() + ";";
+      _unhealthy_results.push_back(result);
+      unhealthy_targets_str = unhealthy_targets_str + result->address_and_port_to_string() + ";";
     }
   }
 
@@ -427,15 +442,15 @@ std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
 
   // If the targets vector does not yet contain enough targets, add unhealthy
   // targets
-  while ((_unhealthy_targets.size() > 0) && (targets.size() < (size_t)targets_count))
+  while ((_unhealthy_results.size() > 0) && (targets.size() < (size_t)targets_count))
   {
     // Pop a target from the end of _unhealthy_targets
-    AddrInfo target = _unhealthy_targets.back();
-    _unhealthy_targets.pop_back();
+    AddrInfo* result = _unhealthy_results.back();
+    _unhealthy_results.pop_back();
 
     // Add the record to the targets list
-    targets.push_back(target);
-    std::string blacklist_str = "[" + target.address_and_port_to_string() + "]";
+    targets.push_back(*result);
+    std::string blacklist_str = "[" + result->address_and_port_to_string() + "]";
     added_from_unhealthy_str = added_from_unhealthy_str + blacklist_str;
     TRC_DEBUG("Added an unhealthy server, now have %ld of %d",
               targets.size(),
@@ -500,7 +515,7 @@ BaseResolver::Iterator BaseResolver::a_resolve_iter(const std::string& hostname,
 
   TRC_DEBUG("Found %ld A/AAAA records, creating iterator", result.records().size());
 
-  return Iterator(std::move(result), this, port, transport, trail);
+  return Iterator(result, this, port, transport, trail);
 }
 
 /// Converts a DNS A or AAAA record to an IP46Address structure.

@@ -64,7 +64,6 @@ void HttpResolver::resolve(const std::string& host,
                            SAS::TrailId trail)
 {
   AddrInfo ai;
-  int dummy_ttl = 0;
 
   TRC_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
             host.c_str(), port, _address_family);
@@ -82,7 +81,7 @@ void HttpResolver::resolve(const std::string& host,
   }
   else
   {
-    Iterator it = a_resolve_iter(host, _address_family, port, TRANSPORT, dummy_ttl, trail);
+    Iterator it = resolve_iter(host, port, trail);
     targets = it.take(max_targets);
   }
 }
