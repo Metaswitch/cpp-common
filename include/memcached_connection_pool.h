@@ -1,9 +1,9 @@
 /**
- * @file mock_connectionpool.h Mock ConnectionPool<int> for testing
- * ConnectionPool<T>
+ * @file memcachedconnectionpool.h  Declaration of derived class for memcached
+ * connection pooling
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015  Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -35,22 +35,40 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "gmock/gmock.h"
-#include "connectionpool.h"
+#ifndef MEMCACHED_CONNECTION_POOL_H__
+#define MEMCACHED_CONNECTION_POOL_H__
 
-class TestableConnectionPool : public ConnectionPool<int>
+// Compilation fails when surrounding these two includes with extern "C", due to
+// what seems to be conflicting definitions of a C function. It is unknown why
+// this fails here but works in memcachedstore.h, but it appears to work without
+// extern "C". Beware that omitting this may cause problems in future.
+#include <libmemcached/memcached.h>
+#include <libmemcached/util.h>
+
+#include "connection_pool.h"
+
+class MemcachedConnectionPool : public ConnectionPool<memcached_st*>
 {
 public:
-  TestableConnectionPool(time_t max_idle_time_s) : ConnectionPool<int>(max_idle_time_s) {}
-  ~TestableConnectionPool()
+  MemcachedConnectionPool(time_t max_idle_time_s, std::string options) :
+    ConnectionPool<memcached_st*>(max_idle_time_s),
+    _options(options),
+    _max_connect_latency_ms(50)
   {
+  }
+
+  ~MemcachedConnectionPool()
+  {
+    // This call is important to properly destroy the connection pool
     destroy_connection_pool();
   }
 
 protected:
-  MOCK_METHOD1(create_connection, int(AddrInfo target));
-  MOCK_METHOD2(increment_statistic, void(AddrInfo target, int conn));
+  memcached_st* create_connection(AddrInfo target);
+  void destroy_connection(AddrInfo target, memcached_st* conn);
 
-  MOCK_METHOD2(decrement_statistic, void(AddrInfo target, int conn));
-  MOCK_METHOD1(destroy_connection, void(int conn));
+  std::string _options;
+  unsigned int _max_connect_latency_ms;
 };
+
+#endif

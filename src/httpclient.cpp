@@ -74,11 +74,6 @@ HttpClient::HttpClient(bool assert_user,
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
-
-  if (_load_monitor)
-  {
-  std::vector<std::string> no_stats;
-  }
 }
 
 /// Create an HTTP client object.
@@ -363,7 +358,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   HTTPCode http_code;
   CURLcode rc;
 
-  // Create a UUID to use for SAS correlation and add it to the HTTP message.
+  // Create a UUID to use for SAS correlation.
   boost::uuids::uuid uuid = get_random_uuid();
   std::string uuid_str = boost::uuids::to_string(uuid);
 
@@ -431,7 +426,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // Set response header curl options
     set_curl_options_response(curl, response_headers);
 
-    //Set request-type specific curl options
+    // Set request-type specific curl options
     set_curl_options_request(curl, request_type);
 
     // Convert the target IP address into a string and fix up the URL.  It
@@ -930,14 +925,6 @@ int HttpClient::port_from_server(const std::string& server)
   int port;
   host_port_from_server(server, host, port);
   return port;
-}
-
-// This function determines an appropriate absolute HTTP request timeout
-// (in ms) given the target latency for requests that the downstream components
-// will be using.
-long HttpClient::calc_req_timeout_from_latency(int latency_us)
-{
-  return std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
 }
 
 HttpClient::Recorder::Recorder() {}

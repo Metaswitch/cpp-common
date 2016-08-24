@@ -51,7 +51,7 @@
 #include "sasevent.h"
 #include "communicationmonitor.h"
 #include "snmp_ip_count_table.h"
-#include "httpconnectionpool.h"
+#include "http_connection_pool.h"
 
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
@@ -76,8 +76,7 @@ static const long HTTP_GATEWAY_TIMEOUT = 504;
 class HttpClient
 {
 public:
-  // HttpConnectionPool requires access to the private Recorder class and
-  // calc_req_timeout_from_latency method
+  // HttpConnectionPool requires access to the private Recorder class
   friend class HttpConnectionPool;
 
   HttpClient(bool assert_user,
@@ -340,7 +339,6 @@ private:
   static void host_port_from_server(const std::string& server, std::string& host, int& port);
   static std::string host_from_server(const std::string& server);
   static int port_from_server(const std::string& server);
-  static long calc_req_timeout_from_latency(int latency_us);
 
   boost::uuids::uuid get_random_uuid();
 
