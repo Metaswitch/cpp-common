@@ -359,18 +359,7 @@ BaseResolver::Iterator::Iterator(DnsResult& dns_result,
        ++result_it)
   {
     ai.address = _resolver->to_ip46(*result_it);
-    _query_results.push_back(ai);
-  }
-
-  // Set up the unused results vector to contain pointers to each AddrInfo in
-  // query results. Note that this cannot be done during the previous loop as
-  // the locations of elements of the query results vector can change due to
-  // reallocation
-  for (std::vector<AddrInfo>::iterator result_it = _query_results.begin();
-       result_it != _query_results.end();
-       ++result_it)
-  {
-    _unused_results.push_back(&(*result_it));
+    _unused_results.push_back(ai);
   }
 
   // Shuffle the results for load balancing purposes
@@ -394,16 +383,16 @@ std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
     _first_call = false;
 
     // Iterate over the records
-    for (std::vector<AddrInfo*>::iterator result_it = _unused_results.begin();
+    for (std::vector<AddrInfo>::iterator result_it = _unused_results.begin();
          result_it != _unused_results.end();
          ++result_it)
     {
-      if (_resolver->host_state(**result_it) == Host::State::GRAY_NOT_PROBING)
+      if (_resolver->host_state(*result_it) == Host::State::GRAY_NOT_PROBING)
       {
         // Add the record to the targets list
-        _resolver->select_for_probing(**result_it);
-        targets.push_back(**result_it);
-        targets_str = targets_str + (*result_it)->address_and_port_to_string() + ";";
+        _resolver->select_for_probing(*result_it);
+        targets.push_back(*result_it);
+        targets_str = targets_str + result_it->address_and_port_to_string() + ";";
         TRC_DEBUG("Added a graylisted server, now have %ld of %d",
                   targets.size(),
                   targets_count);
@@ -418,14 +407,14 @@ std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
   while ((_unused_results.size() > 0) && (targets.size() < (size_t)targets_count))
   {
     // Pop a record from the end of _results
-    AddrInfo* result = _unused_results.back();
+    AddrInfo result = _unused_results.back();
     _unused_results.pop_back();
 
-    if (_resolver->host_state(*result) == Host::State::WHITE)
+    if (_resolver->host_state(result) == Host::State::WHITE)
     {
       // Add the record to the targets list
-      targets.push_back(*result);
-      targets_str = targets_str + result->address_and_port_to_string() + ";";
+      targets.push_back(result);
+      targets_str = targets_str + result.address_and_port_to_string() + ";";
       TRC_DEBUG("Added a whitelisted server, now have %ld of %d",
                 targets.size(),
                 targets_count);
@@ -434,7 +423,7 @@ std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
     {
       // Add the record to the list of unhealthy targets
       _unhealthy_results.push_back(result);
-      unhealthy_targets_str = unhealthy_targets_str + result->address_and_port_to_string() + ";";
+      unhealthy_targets_str = unhealthy_targets_str + result.address_and_port_to_string() + ";";
     }
   }
 
@@ -445,12 +434,12 @@ std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
   while ((_unhealthy_results.size() > 0) && (targets.size() < (size_t)targets_count))
   {
     // Pop a target from the end of _unhealthy_targets
-    AddrInfo* result = _unhealthy_results.back();
+    AddrInfo result = _unhealthy_results.back();
     _unhealthy_results.pop_back();
 
     // Add the record to the targets list
-    targets.push_back(*result);
-    std::string blacklist_str = "[" + result->address_and_port_to_string() + "]";
+    targets.push_back(result);
+    std::string blacklist_str = "[" + result.address_and_port_to_string() + "]";
     added_from_unhealthy_str = added_from_unhealthy_str + blacklist_str;
     TRC_DEBUG("Added an unhealthy server, now have %ld of %d",
               targets.size(),

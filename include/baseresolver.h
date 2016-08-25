@@ -103,16 +103,13 @@ public:
     bool next(AddrInfo &target);
 
   private:
-    // Contains the results of a DNS query as AddrInfo objects
-    std::vector<AddrInfo> _query_results;
-
-    // A vector that initially contains a pointer to each element of the query
-    // results vector. As results are returned from the take method, or moved to
-    // the vector of unhealthy results, they are removed from this vector
-    std::vector<AddrInfo*> _unused_results;
+    // A vector that initially contains the results of a DNS query. As results
+    // are returned from the take method, or moved to the vector of unhealthy
+    // results, they are removed from this vector
+    std::vector<AddrInfo> _unused_results;
 
     // Used to store DNS results corresponding to unhealthy hosts
-    std::vector<AddrInfo*> _unhealthy_results;
+    std::vector<AddrInfo> _unhealthy_results;
 
     // A pointer to the BaseResolver that created this iterator
     BaseResolver* _resolver;
