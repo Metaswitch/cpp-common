@@ -1,5 +1,5 @@
 /**
- * @file mockhttpresolver.h Mock HttpResolver
+ * @file mock_iterator.h Mock BaseResolver::Iterator
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2015  Metaswitch Networks Ltd
@@ -34,26 +34,18 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCKHTTPRESOLVER_H__
-#define MOCKHTTPRESOLVER_H__
+#ifndef MOCK_ITERATOR_H__
+#define MOCK_ITERATOR_H__
 
 #include "gmock/gmock.h"
-#include "httpresolver.h"
+#include "baseresolver.h"
 
-using ::testing::SetArgReferee;
-
-class MockHttpResolver : public HttpResolver
+class MockIterator : public BaseResolver::Iterator
 {
 public:
-  MockHttpResolver() : HttpResolver(nullptr,0,0,0) {}
-  ~MockHttpResolver() {}
+  MockIterator() {}
 
-  MOCK_METHOD3(BaseResolver::Iterator resolve_iter(const std::string& host,
-                                                   int port,
-                                                   SAS::TrailId trail));
-  MOCK_METHOD1(blacklist, void(const AddrInfo& ai));
-  MOCK_METHOD1(success, void(const AddrInfo& ai));
-  MOCK_METHOD1(untested, void(const AddrInfo& ai));
+  MOCK_METHOD1(take, std::vector<AddrInfo>(int targets_count));
 };
 
 #endif

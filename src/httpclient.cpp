@@ -382,15 +382,11 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   int port = port_from_server(server);
 
   // Resolve the host.
-  std::vector<AddrInfo> targets;
-  _resolver->resolve(host, port, MAX_TARGETS, targets, trail);
-
-  // If the list of targets only contains 1 target, clone it - we always want
-  // to retry at least once.
-  if (targets.size() == 1)
-  {
-    targets.push_back(targets[0]);
-  }
+#ifdef UNIT_TEST
+  BaseResolver::Iterator target_it = _resolver->resolve_iter(host, port, trail);
+#else
+  MockIterator target_it = _resolver->resolve_iter(host, port, trail);
+#endif
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
   // or I/O errors.
@@ -404,12 +400,17 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   rc = CURLE_COULDNT_RESOLVE_HOST;
   http_code = HTTP_NOT_FOUND;
 
-  std::vector<AddrInfo>::const_iterator target_it;
+  AddrInfo target;
 
-  for (target_it = targets.begin(); target_it != targets.end(); ++target_it)
+  // Iterate over the targets returned by target_it until a successful
+  // connection is made, a number of failures is reached, or the targets are
+  // exhausted. If only one target is available, it should be tried twice.
+  for (int attempts = 0;
+       target_it.next(target) || attempts == 1;
+       ++attempts)
   {
     // Get a curl handle and the associated pool entry
-    ConnectionHandle<CURL*> conn_handle = _conn_pool.get_connection(*target_it);
+    ConnectionHandle<CURL*> conn_handle = _conn_pool.get_connection(target);
     CURL* curl = conn_handle.get_connection();
 
     // Construct and add extra headers
@@ -433,19 +434,19 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // would be nice to use curl_easy_setopt(CURL_RESOLVE) here, but its
     // implementation is incomplete.
     char buf[100];
-    remote_ip = inet_ntop(target_it->address.af,
-                          &target_it->address.addr,
+    remote_ip = inet_ntop(target.address.af,
+                          &target.address.addr,
                           buf,
                           sizeof(buf));
 
     std::string ip_url;
-    if (target_it->address.af == AF_INET6)
+    if (target.address.af == AF_INET6)
     {
-      ip_url = "http://[" + std::string(remote_ip) + "]:" + std::to_string(target_it->port) + path;
+      ip_url = "http://[" + std::string(remote_ip) + "]:" + std::to_string(target.port) + path;
     }
     else
     {
-      ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(target_it->port) + path;
+      ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(target.port) + path;
     }
 
     // Set the curl target URL
@@ -485,7 +486,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     {
       TRC_ERROR("%s failed at server %s : %s (%d) : fatal",
                 url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
-      sas_log_curl_error(trail, remote_ip, target_it->port, method_str, url, rc, 0);
+      sas_log_curl_error(trail, remote_ip, target.port, method_str, url, rc, 0);
     }
 
     http_code = curl_code_to_http_code(curl, rc);
@@ -498,7 +499,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     if ((rc == CURLE_OK) && !(http_rc >= 400))
     {
       // Success!
-      _resolver->success(*target_it);
+      _resolver->success(target);
       break;
     }
     else
@@ -512,11 +513,11 @@ HTTPCode HttpClient::send_request(RequestType request_type,
         // The CURL connection should not be returned to the pool
         conn_handle.set_return_to_pool(false);
 
-        _resolver->blacklist(*target_it);
+        _resolver->blacklist(target);
       }
       else
       {
-        _resolver->success(*target_it);
+        _resolver->success(target);
       }
 
       // Determine the failure mode and update the correct counter.
@@ -565,14 +566,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
         break;
       }
     }
-  }
-
-  // Report to the resolver that the remaining records were not tested.
-  ++target_it;
-  while (target_it < targets.end())
-  {
-    _resolver->untested(*target_it);
-    ++target_it;
   }
 
   // Check whether we should apply a penalty. We do this when:

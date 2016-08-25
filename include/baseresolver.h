@@ -102,6 +102,10 @@ public:
     /// true. Returns false otherwise.
     bool next(AddrInfo &target);
 
+  protected:
+    // Default constructor for use in derived test classes
+    Iterator() {}
+
   private:
     // A vector that initially contains the results of a DNS query. As results
     // are returned from the take method, or moved to the vector of unhealthy
