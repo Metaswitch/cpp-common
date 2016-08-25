@@ -3,7 +3,7 @@
  * pooling
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -35,8 +35,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef CONNECTIONPOOL_H__
-#define CONNECTIONPOOL_H__
+#ifndef CONNECTION_POOL_H__
+#define CONNECTION_POOL_H__
 
 #include <map>
 #include <deque>
@@ -117,15 +117,17 @@ protected:
   /// Creates a type T connection for the given target
   virtual T create_connection(AddrInfo target) = 0;
 
-  /// Safely destroys a type T connection
-  virtual void destroy_connection(T conn) = 0;
+  /// Safely destroys a type T connection with the given target
+  virtual void destroy_connection(AddrInfo target, T conn) = 0;
 
   /// Safely destroys the connection pool, leaving it empty. This method must be
   /// called from the destructor of all subclasses
   void destroy_connection_pool();
 
-  /// Releases the given connection back into the pool
-  void release_connection(ConnectionInfo<T>* conn_info);
+  /// Called when releasing a connection from its handle. Returns the connection
+  /// to the pool or safely destroys it as specified by the second parameter.
+  virtual void release_connection(ConnectionInfo<T>* conn_info,
+                                  bool return_to_pool);
 
 private:
   /// Removes one connection that has gone unused for more than the max idle
@@ -164,12 +166,21 @@ public:
   // Gets the AddrInfo object contained within _conn_info
   AddrInfo get_target();
 
+  // Sets the value of the return to pool flag. When true, the connection is
+  // returned to the pool on destruction of the handle, and when false, the
+  // connection is destroyed on destruction of the handle.
+  void set_return_to_pool(bool return_to_pool);
+
 private:
   // A ConnectionInfo containing the connection
   ConnectionInfo<T>* _conn_info_ptr;
 
   // A pointer to the ConnectionPool that created this object
   ConnectionPool<T>* _conn_pool_ptr;
+
+  // True if the connection should be returned to the pool on destruction of the
+  // handle, and false if it should be destroyed. Defaults to true.
+  bool _return_to_pool;
 };
 
 template<typename T>
@@ -197,7 +208,7 @@ void ConnectionPool<T>::destroy_connection_pool()
     {
       // Safely destroy the connection object contained in the current
       // ConnectionInfo
-      destroy_connection((*conn_info_it)->conn);
+      destroy_connection((*conn_info_it)->target, (*conn_info_it)->conn);
       // Destroy the current ConnectionInfo
       delete *conn_info_it; *conn_info_it = NULL;
     }
@@ -241,21 +252,32 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
 }
 
 template<typename T>
-void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr)
+void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
+                                           bool return_to_pool)
 {
-  TRC_DEBUG("Release connection to IP: %s, port: %d",
+  TRC_DEBUG("Release connection to IP: %s, port: %d %s",
             conn_info_ptr->target.address.to_string().c_str(),
-            conn_info_ptr->target.port);
+            conn_info_ptr->target.port,
+            return_to_pool ? "to pool" : "and destroy");
 
-  // Update the last used time of the connection
-  conn_info_ptr->last_used_time_s = time(NULL);
+  if (return_to_pool)
+  {
+    // Update the last used time of the connection
+    conn_info_ptr->last_used_time_s = time(NULL);
 
-  pthread_mutex_lock(&_conn_pool_lock);
+    pthread_mutex_lock(&_conn_pool_lock);
 
-  // Put the connection back into the pool.
-  _conn_pool[conn_info_ptr->target].push_front(conn_info_ptr);
+    // Put the connection back into the pool.
+    _conn_pool[conn_info_ptr->target].push_front(conn_info_ptr);
 
-  pthread_mutex_unlock(&_conn_pool_lock);
+    pthread_mutex_unlock(&_conn_pool_lock);
+  }
+  else
+  {
+    // Safely destroy the connection and its associated ConnectionInfo
+    destroy_connection(conn_info_ptr->target, conn_info_ptr->conn);
+    delete conn_info_ptr; conn_info_ptr = NULL;
+  }
 
   free_old_connection();
 }
@@ -295,7 +317,7 @@ void ConnectionPool<T>::free_old_connection()
 
         // Delete the connection as it is too old
         slot_it->second.pop_back();
-        destroy_connection(oldest_conn_info_ptr->conn);
+        destroy_connection(oldest_conn_info_ptr->target, oldest_conn_info_ptr->conn);
         delete oldest_conn_info_ptr; oldest_conn_info_ptr = NULL;
 
         // Delete the entire slot if it is now empty
@@ -317,19 +339,20 @@ template <typename T>
 ConnectionHandle<T>::ConnectionHandle(ConnectionInfo<T>* conn_info_ptr,
                                       ConnectionPool<T>* conn_pool_ptr) :
   _conn_info_ptr(conn_info_ptr),
-  _conn_pool_ptr(conn_pool_ptr)
+  _conn_pool_ptr(conn_pool_ptr),
+  _return_to_pool(true)
 {
 }
 
 template <typename T>
 ConnectionHandle<T>::~ConnectionHandle()
 {
-  // On destruction, release the connection back into the pool. If this object
-  // has been moved, the _conn_info_ptr will be null, so this case is checked
-  // for.
+  // On destruction, release the connection back into the pool, or destroy it.
+  // If this object has been moved, the _conn_info_ptr will be null, so this
+  // case is checked for.
   if (_conn_info_ptr)
   {
-    _conn_pool_ptr->release_connection(_conn_info_ptr);
+    _conn_pool_ptr->release_connection(_conn_info_ptr, _return_to_pool);
   }
 }
 
@@ -362,4 +385,9 @@ AddrInfo ConnectionHandle<T>::get_target()
   return _conn_info_ptr->target;
 }
 
+template <typename T>
+void ConnectionHandle<T>::set_return_to_pool(bool return_to_pool)
+{
+  _return_to_pool = return_to_pool;
+}
 #endif

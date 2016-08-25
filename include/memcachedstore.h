@@ -56,7 +56,7 @@ extern "C" {
 #include "sasevent.h"
 #include "communicationmonitor.h"
 #include "astaire_resolver.h"
-#include "memcachedconnectionpool.h"
+#include "memcached_connection_pool.h"
 
 class BaseMemcachedStore : public Store
 {
