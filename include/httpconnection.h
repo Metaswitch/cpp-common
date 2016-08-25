@@ -51,6 +51,7 @@
 #include "sasevent.h"
 #include "communicationmonitor.h"
 #include "snmp_ip_count_table.h"
+#include "http_connection_pool.h"
 
 typedef long HTTPCode;
 static const long HTTP_OK = 200;
@@ -76,6 +77,9 @@ static const long HTTP_GATEWAY_TIMEOUT = 504;
 class HttpConnection
 {
 public:
+  // HttpConnectionPool requires access to the private Recorder class
+  friend class HttpConnectionPool;
+
   HttpConnection(const std::string& server,
                  bool assert_user,
                  HttpResolver* resolver,
@@ -92,6 +96,26 @@ public:
 
   virtual ~HttpConnection();
 
+  /// Sends a HTTP GET request to _host with the specified parameters
+  ///
+  /// @param path           Absolute path to request from server - must start
+  ///                       with "/"
+  /// @param headers        Location to store the header part of the retrieved
+  ///                       data
+  /// @param response       Location to store retrieved data
+  /// @param username       Username to assert if assertUser is true, else
+  ///                       ignored
+  /// @param headers_to_add Extra headers to add to the request
+  /// @param trail          SAS trail to use
+  ///
+  /// @returns              HTTP code representing outcome of request
+  virtual long send_get(const std::string& path,
+                        std::map<std::string, std::string>& headers,
+                        std::string& response,
+                        const std::string& username,
+                        std::vector<std::string> headers_to_add,
+                        SAS::TrailId trail);
+
   virtual long send_get(const std::string& path,
                         std::string& response,
                         std::vector<std::string> headers,
@@ -106,12 +130,26 @@ public:
                         std::string& response,
                         const std::string& username,
                         SAS::TrailId trail);
-  virtual long send_get(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                        std::map<std::string, std::string>& headers, //< Map of headers from the response
-                        std::string& response,                       //< Retrieved document
-                        const std::string& username,                 //< Username to assert (if assertUser was true, else ignored)
-                        std::vector<std::string> headers_to_add,     //< Extra headers to add to the request
-                        SAS::TrailId trail);                         //< SAS trail
+
+  /// Sends a HTTP DELETE request to _host with the specified parameters
+  ///
+  /// @param path     Absolute path to request from server - must start
+  ///                 with "/"
+  /// @param headers  Location to store the header part of the retrieved
+  ///                 data
+  /// @param response Location to store retrieved data
+  /// @param trail    SAS trail to use
+  /// @param body     Body to send on the request
+  /// @param username Username to assert if assertUser is true, else
+  ///                 ignored
+  ///
+  /// @returns        HTTP code representing outcome of request
+  virtual long send_delete(const std::string& path,
+                           std::map<std::string, std::string>& headers,
+                           std::string& response,
+                           SAS::TrailId trail,
+                           const std::string& body = "",
+                           const std::string& username = "");
 
   virtual long send_delete(const std::string& path,
                            SAS::TrailId trail,
@@ -124,12 +162,28 @@ public:
                            SAS::TrailId trail,
                            const std::string& body,
                            std::string& response);
-  virtual long send_delete(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                           std::map<std::string, std::string>& headers, //< Map of headers from the response
-                           std::string& response,                       //< Retrieved document
-                           SAS::TrailId trail,                          //< SAS trail
-                           const std::string& body = "",                //< Body to send in request
-                           const std::string& username = "");           //< Username to assert (if assertUser was true, else ignored)
+
+  /// Sends a HTTP PUT request to _host with the specified parameters
+  ///
+  /// @param path              Absolute path to request from server - must start
+  ///                          with "/"
+  /// @param headers           Location to store the header part of the retrieved
+  ///                          data
+  /// @param response          Location to store retrieved data
+  /// @param body              Body to send on the request
+  /// @param extra_req_headers Extra headers to add to the request
+  /// @param trail             SAS trail to use
+  /// @param username          Username to assert if assertUser is true, else
+  ///                          ignored
+  ///
+  /// @returns                 HTTP code representing outcome of request
+  virtual long send_put(const std::string& path,
+                        std::map<std::string, std::string>& headers,
+                        std::string& response,
+                        const std::string& body,
+                        const std::vector<std::string>& extra_req_headers,
+                        SAS::TrailId trail,
+                        const std::string& username = "");
 
   virtual long send_put(const std::string& path,
                         const std::string& body,
@@ -145,73 +199,39 @@ public:
                         const std::string& body,
                         SAS::TrailId trail,
                         const std::string& username = "");
-  virtual long send_put(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                        std::map<std::string, std::string>& headers, //< Map of headers from the response
-                        std::string& response,                       //< Retrieved document
-                        const std::string& body,                     //< Body to send in request
-                        const std::vector<std::string>& extra_req_headers, //< Extra headers to add to the request.
-                        SAS::TrailId trail,                          //< SAS trail
-                        const std::string& username = "");           //< Username to assert (if assertUser was true, else ignored)
+
+  /// Sends a HTTP POST request to _host with the specified parameters
+  ///
+  /// @param path     Absolute path to request from server - must start
+  ///                 with "/"
+  /// @param headers  Location to store the header part of the retrieved
+  ///                 data
+  /// @param response Location to store retrieved data
+  /// @param body     Body to send on the request
+  /// @param trail    SAS trail to use
+  /// @param username Username to assert if assertUser is true, else
+  ///                 ignored
+  ///
+  /// @returns                HTTP code representing outcome of request
+  virtual long send_post(const std::string& path,
+                         std::map<std::string, std::string>& headers,
+                         std::string& response,
+                         const std::string& body,
+                         SAS::TrailId trail,
+                         const std::string& username = "");
 
   virtual long send_post(const std::string& path,
                          std::map<std::string, std::string>& headers,
                          const std::string& body,
                          SAS::TrailId trail,
                          const std::string& username = "");
-  virtual long send_post(const std::string& path,                     //< Absolute path to request from server - must start with "/"
-                         std::map<std::string, std::string>& headers, //< Map of headers from the response
-                         std::string& response,                       //< Retrieved document
-                         const std::string& body,                     //< Body to send in request
-                         SAS::TrailId trail,                          //< SAS trail
-                         const std::string& username = "");           //< Username to assert (if assertUser was true, else ignored)
 
-  virtual long send_request(const std::string& path,
-                            std::string body,
-                            std::string& doc,
-                            const std::string& username,
-                            SAS::TrailId trail,
-                            const std::string& method_str,
-                            std::vector<std::string> headers,
-                            CURL* curl);
 
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
 
 private:
-
-  /// A single entry in the connection pool. Stored inside a cURL handle.
-  class PoolEntry
-  {
-  public:
-    PoolEntry(HttpConnection* parent);
-    ~PoolEntry();
-
-    void set_remote_ip(const std::string& value);
-    const std::string& get_remote_ip() const { return _remote_ip; };
-
-    bool is_connection_expired(unsigned long now_ms);
-    void update_deadline(unsigned long now_ms);
-
-  private:
-    void update_snmp_ip_counts(const std::string& value);
-
-    /// Parent HttpConnection object.
-    HttpConnection* _parent;
-
-    /// Time beyond which this connection should be recycled, in
-    // CLOCK_MONOTONIC milliseconds, or 0 for ASAP.
-    unsigned long _deadline_ms;
-
-    /// Random distribution to use for determining connection lifetimes.
-    /// Use an exponential distribution because it is memoryless. This
-    /// gives us a Poisson distribution of recycle events, both for
-    /// individual threads and for the overall application.
-    Utils::ExponentialDistribution _rand;
-
-    /// Server IP we're connected to, if any.
-    std::string _remote_ip;
-  };
 
   /// Class used to record HTTP transactions.
   class Recorder
@@ -239,6 +259,54 @@ private:
     int record_data(curl_infotype type, char *data, size_t size);
   };
 
+  /// Enum of HTTP request types that are used in this class
+  enum struct RequestType {DELETE, PUT, POST, GET};
+
+  /// Converts RequestType to string for logging
+  static std::string request_type_to_string(RequestType request_type);
+
+  /// Sends a HTTP request to _host with the specified parameters
+  ///
+  /// @param request_type     The type of HTTP request to send
+  /// @param path             Absolute path to request from server - must start
+  ///                         with "/"
+  /// @param body             Body to send on the request
+  /// @param response         Location to store retrieved data
+  /// @param username         Username to assert if assertUser is true, else
+  ///                         ignored
+  /// @param trail            SAS trail to use
+  /// @param headers_to_add   Extra headers to add to the request
+  /// @param response_headers Location to store the header part of the retrieved
+  ///                         data
+  ///
+  /// @returns                HTTP code representing outcome of request
+  virtual long send_request(RequestType request_type,
+                            const std::string& path,
+                            std::string body,
+                            std::string& response,
+                            const std::string& username,
+                            SAS::TrailId trail,
+                            std::vector<std::string> headers_to_add,
+                            std::map<std::string, std::string>* response_headers);
+
+  /// Helper function that builds the curl header in the set_curl_options
+  /// method.
+  struct curl_slist* build_headers(std::vector<std::string> headers_to_add,
+                                   bool assert_user,
+                                   const std::string& username,
+                                   std::string uuid_str);
+
+  /// Helper function that sets the general curl options in send_request
+  void set_curl_options_general(CURL* curl, std::string body, std::string& doc);
+
+  /// Helper function that sets response header curl options, if required, in
+  /// send_request
+  void set_curl_options_response(CURL* curl,
+                                 std::map<std::string, std::string>* response_headers);
+
+  /// Helper function that sets request-type specific curl options in
+  /// send_request
+  void set_curl_options_request(CURL* curl, RequestType request_type);
 
   void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
 
@@ -283,14 +351,11 @@ private:
                           HttpErrorResponseTypes reason,
                           uint32_t instance_id);
 
-  CURL* get_curl_handle();
-  void reset_curl_handle(CURL* curl);
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
   static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
   static void host_port_from_server(const std::string& server, std::string& host, int& port);
   static std::string host_from_server(const std::string& server);
   static int port_from_server(const std::string& server);
-  static long calc_req_timeout_from_latency(int latency_us);
   void change_server(std::string override_server);
 
   boost::uuids::uuid get_random_uuid();
@@ -299,18 +364,15 @@ private:
   std::string _host;
   int _port;
   const bool _assert_user;
-  pthread_key_t _curl_thread_local;
   pthread_key_t _uuid_thread_local;
 
   HttpResolver* _resolver;
   LoadMonitor* _load_monitor;
-  long _timeout_ms;
   pthread_mutex_t _lock;
   std::map<std::string, int> _server_count;  // must access under _lock
   SASEvent::HttpLogLevel _sas_log_level;
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::IPCountTable* _stat_table;
-
-  friend class PoolEntry; // so it can update stats
+  HttpConnectionPool _conn_pool;
 };
 
