@@ -331,7 +331,7 @@ bool Utils::split_host_port(const std::string& host_port,
   {
     // IPv6 connection.  Split the string on ']', which removes any white
     // space from the start and the end, then remove the '[' from the
-    // start of the IP addreess string and the start of the ':' from the start
+    // start of the IP address string and the start of the ':' from the start
     // of the port string.
     Utils::split_string(host_port, ']', host_port_parts);
     if ((host_port_parts.size() != 2) ||
@@ -597,7 +597,16 @@ Utils::IPAddressType Utils::parse_ip_address(std::string address)
   std::string host;
   int port;
   bool with_port = Utils::split_host_port(address, host, port);
+
+  // We only want the host part of the address.
   host = with_port ? host : address;
+
+  // Check if we're surrounded by []
+  bool with_brackets = ((host.size() >= 2) &&
+                        (host[0] == '[') &&
+                        (host[host.size() - 1] == ']'));
+
+  host = with_brackets ? host.substr(1, host.size() - 2) : host;
 
   // Check if we're IPv4/IPv6/invalid
   struct in_addr dummy_ipv4_addr;
@@ -611,7 +620,8 @@ Utils::IPAddressType Utils::parse_ip_address(std::string address)
   else if (inet_pton(AF_INET6, host.c_str(), &dummy_ipv6_addr) == 1)
   {
     return (with_port) ? IPAddressType::IPV6_ADDRESS_WITH_PORT :
-                         IPAddressType::IPV6_ADDRESS;
+                         ((with_brackets) ? IPAddressType::IPV6_ADDRESS_BRACKETED :
+                                            IPAddressType::IPV6_ADDRESS);
   }
   else
   {

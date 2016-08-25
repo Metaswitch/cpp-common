@@ -307,7 +307,7 @@ namespace Utils
                     const int max_tokens = 0,  //< max number of tokens to push; last token will be tail of string (delimiters will not be parsed in this section)
                     bool trim = false,  //< trim the string at both ends before splitting?
                     bool check_for_quotes = false,
-                    bool count_empty_tokens = false) //< whether empty tokens are counted
+                    bool include_empty_tokens = false) //< whether empty tokens are counted
   {
     std::string token;
 
@@ -335,15 +335,12 @@ namespace Utils
             (num_tokens < (max_tokens-1))))
     {
       token = s.substr(token_start_pos, token_end_pos - token_start_pos);
-      if (token.length() > 0)
+      if ((token.length() > 0) || (include_empty_tokens))
       {
         tokens.push_back(token);
         num_tokens++;
       }
-      else if (count_empty_tokens)
-      {
-        tokens.push_back("");
-      }
+
       token_start_pos = token_end_pos + 1;
       if (check_for_quotes)
       {
@@ -356,13 +353,9 @@ namespace Utils
     }
 
     token = s.substr(token_start_pos);
-    if (token.length() > 0)
+    if ((token.length() > 0) || (include_empty_tokens))
     {
       tokens.push_back(token);
-    }
-    else if (count_empty_tokens)
-    {
-      tokens.push_back("");
     }
   }
 
@@ -570,6 +563,7 @@ namespace Utils
     IPV4_ADDRESS,
     IPV4_ADDRESS_WITH_PORT,
     IPV6_ADDRESS,
+    IPV6_ADDRESS_BRACKETED,
     IPV6_ADDRESS_WITH_PORT,
     INVALID
   };
