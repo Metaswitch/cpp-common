@@ -299,14 +299,15 @@ namespace Utils
   }
 
   /// Split the string s using delimiter and store the resulting tokens in order
-  /// at the end of tokens. Only non-empty tokens will be stored; empty tokens are ignored (and not counted).
+  /// at the end of tokens.
   template <class T>  //< container that has T::push_back(std::string)
   void split_string(const std::string& str_in,  //< string to scan (will not be changed)
                     char delimiter,  //< delimiter to use
                     T& tokens,  //< tokens will be added to this list
                     const int max_tokens = 0,  //< max number of tokens to push; last token will be tail of string (delimiters will not be parsed in this section)
                     bool trim = false,  //< trim the string at both ends before splitting?
-                    bool check_for_quotes = false) //< only use delimiters not in quotes
+                    bool check_for_quotes = false,
+                    bool count_empty_tokens = false) //< whether empty tokens are counted
   {
     std::string token;
 
@@ -339,6 +340,10 @@ namespace Utils
         tokens.push_back(token);
         num_tokens++;
       }
+      else if (count_empty_tokens)
+      {
+        tokens.push_back("");
+      }
       token_start_pos = token_end_pos + 1;
       if (check_for_quotes)
       {
@@ -354,6 +359,10 @@ namespace Utils
     if (token.length() > 0)
     {
       tokens.push_back(token);
+    }
+    else if (count_empty_tokens)
+    {
+      tokens.push_back("");
     }
   }
 
@@ -556,6 +565,18 @@ namespace Utils
                         std::string& log_directory,
                         int log_level,
                         bool log_to_file);
+
+  enum IPAddressType {
+    IPV4_ADDRESS,
+    IPV4_ADDRESS_WITH_PORT,
+    IPV6_ADDRESS,
+    IPV6_ADDRESS_WITH_PORT,
+    INVALID
+  };
+
+  // Takes a string and reports what type of IP address it is
+  IPAddressType parse_ip_address(std::string address);
+
 } // namespace Utils
 
 #endif /* UTILS_H_ */
