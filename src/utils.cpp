@@ -320,7 +320,7 @@ bool Utils::split_host_port(const std::string& host_port,
   if (close_bracket == host_port.npos)
   {
     // IPv4 connection.  Split the string on the colon.
-    Utils::split_string(host_port, ':', host_port_parts);
+    Utils::split_string(host_port, ':', host_port_parts, 0, false, false, true);
     if (host_port_parts.size() != 2)
     {
       TRC_DEBUG("Malformed host/port %s", host_port.c_str());
@@ -331,7 +331,7 @@ bool Utils::split_host_port(const std::string& host_port,
   {
     // IPv6 connection.  Split the string on ']', which removes any white
     // space from the start and the end, then remove the '[' from the
-    // start of the IP addreess string and the start of the ':' from the start
+    // start of the IP address string and the start of the ':' from the start
     // of the port string.
     Utils::split_string(host_port, ']', host_port_parts);
     if ((host_port_parts.size() != 2) ||
@@ -589,4 +589,42 @@ void Utils::daemon_log_setup(int argc,
   }
 
   TRC_STATUS("Log level set to %d", log_level);
+}
+
+Utils::IPAddressType Utils::parse_ip_address(std::string address)
+{
+  // Check if we have a port
+  std::string host;
+  int port;
+  bool with_port = Utils::split_host_port(address, host, port);
+
+  // We only want the host part of the address.
+  host = with_port ? host : address;
+
+  // Check if we're surrounded by []
+  bool with_brackets = ((host.size() >= 2) &&
+                        (host[0] == '[') &&
+                        (host[host.size() - 1] == ']'));
+
+  host = with_brackets ? host.substr(1, host.size() - 2) : host;
+
+  // Check if we're IPv4/IPv6/invalid
+  struct in_addr dummy_ipv4_addr;
+  struct in6_addr dummy_ipv6_addr;
+
+  if (inet_pton(AF_INET, host.c_str(), &dummy_ipv4_addr) == 1)
+  {
+    return (with_port) ? IPAddressType::IPV4_ADDRESS_WITH_PORT :
+                         IPAddressType::IPV4_ADDRESS;
+  }
+  else if (inet_pton(AF_INET6, host.c_str(), &dummy_ipv6_addr) == 1)
+  {
+    return (with_port) ? IPAddressType::IPV6_ADDRESS_WITH_PORT :
+                         ((with_brackets) ? IPAddressType::IPV6_ADDRESS_BRACKETED :
+                                            IPAddressType::IPV6_ADDRESS);
+  }
+  else
+  {
+    return IPAddressType::INVALID;
+  }
 }
