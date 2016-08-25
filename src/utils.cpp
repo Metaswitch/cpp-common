@@ -593,6 +593,8 @@ void Utils::daemon_log_setup(int argc,
 
 Utils::IPAddressType Utils::parse_ip_address(std::string address)
 {
+  Utils::trim(address);
+
   // Check if we have a port
   std::string host;
   int port;

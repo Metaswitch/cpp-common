@@ -527,13 +527,18 @@ bool BaseResolver::parse_ip_target(const std::string& target, IP46Address& addre
   std::string ip_target = target;
   Utils::trim(ip_target);
 
-  if (inet_pton(AF_INET6, ip_target.c_str(), &address.addr.ipv6) == 1)
+  Utils::IPAddressType address_type = Utils::parse_ip_address(target);
+
+  if ((address_type == Utils::IPAddressType::IPV6_ADDRESS) ||
+      (address_type == Utils::IPAddressType::IPV6_ADDRESS_WITH_PORT) ||
+      (address_type == Utils::IPAddressType::IPV6_ADDRESS_BRACKETED))
   {
     // Parsed the address as a valid IPv6 address.
     address.af = AF_INET6;
     rc = true;
   }
-  else if (inet_pton(AF_INET, ip_target.c_str(), &address.addr.ipv4) == 1)
+  else if ((address_type == Utils::IPAddressType::IPV4_ADDRESS) ||
+           (address_type == Utils::IPAddressType::IPV4_ADDRESS_WITH_PORT))
   {
     // Parsed the address as a valid IPv4 address.
     address.af = AF_INET;
