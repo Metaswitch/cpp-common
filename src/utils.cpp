@@ -591,6 +591,38 @@ void Utils::daemon_log_setup(int argc,
   TRC_STATUS("Log level set to %d", log_level);
 }
 
+std::string Utils::uri_ip_address(std::string address, int default_port)
+{
+  Utils::IPAddressType addrtype = parse_ip_address(address);
+
+  if (default_port == 0)
+  {
+    if (addrtype == IPAddressType::IPV6_ADDRESS)
+    {
+      address = "[" + address + "]";
+    }
+  }
+  else
+  {
+    std::string port = std::to_string(default_port);
+
+    if (addrtype == IPAddressType::IPV4_ADDRESS)
+    {
+      address = address + ":" + port;
+    }
+    else if (addrtype == IPAddressType::IPV6_ADDRESS)
+    {
+      address = "[" + address + "]:" + port;
+    }
+    else if (addrtype == IPAddressType::IPV6_ADDRESS_BRACKETED)
+    {
+      address = address + ":" + port;
+    }
+  }
+
+  return address;
+}
+
 Utils::IPAddressType Utils::parse_ip_address(std::string address)
 {
   // Check if we have a port

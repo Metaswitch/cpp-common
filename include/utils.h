@@ -571,6 +571,12 @@ namespace Utils
   // Takes a string and reports what type of IP address it is
   IPAddressType parse_ip_address(std::string address);
 
+  // Takes an IP address and returns it suitable for use in a URI,
+  // i.e, an IPv6 address will be returned in brackets.
+  // If the optional port is passed, this will be appended if the address
+  // doesn't include a port.
+  std::string uri_ip_address(std::string address, int default_port = 0);
+
 } // namespace Utils
 
 #endif /* UTILS_H_ */
