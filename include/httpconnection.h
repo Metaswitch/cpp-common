@@ -109,11 +109,6 @@ public:
                         SAS::TrailId trail);
   virtual long send_get(const std::string& path,
                         std::string& response,
-                        std::vector<std::string> headers,
-                        const std::string& override_server,
-                        SAS::TrailId trail);
-  virtual long send_get(const std::string& path,
-                        std::string& response,
                         const std::string& username,
                         SAS::TrailId trail);
   virtual long send_get(const std::string& path,
@@ -141,11 +136,6 @@ public:
                            SAS::TrailId trail,
                            const std::string& body = "",
                            const std::string& username = "");
-
-  virtual long send_delete(const std::string& path,
-                           SAS::TrailId trail,
-                           const std::string& body,
-                           const std::string& override_server);
   virtual long send_delete(const std::string& path,
                            SAS::TrailId trail,
                            const std::string& body = "");

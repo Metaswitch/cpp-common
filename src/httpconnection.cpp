@@ -50,16 +50,6 @@ HTTPCode HttpConnection::send_delete(const std::string& path,
 HTTPCode HttpConnection::send_delete(const std::string& path,
                                      SAS::TrailId trail,
                                      const std::string& body,
-                                     const std::string& override_server)
-{
-  return _client.send_delete(SCHEME_PREFIX + override_server + path,
-                             trail,
-                             body);
-}
-
-HTTPCode HttpConnection::send_delete(const std::string& path,
-                                     SAS::TrailId trail,
-                                     const std::string& body,
                                      std::string& response)
 {
   return _client.send_delete(SCHEME_PREFIX + _server + path,
@@ -174,19 +164,6 @@ HTTPCode HttpConnection::send_get(const std::string& path,
   return _client.send_get(SCHEME_PREFIX + _server + path,
                           response,
                           username,
-                          trail);
-}
-
-/// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_get(const std::string& path,
-                                  std::string& response,
-                                  std::vector<std::string> headers,
-                                  const std::string& override_server,
-                                  SAS::TrailId trail)
-{
-  return _client.send_get(SCHEME_PREFIX + override_server + path,
-                          response,
-                          headers,
                           trail);
 }
 
