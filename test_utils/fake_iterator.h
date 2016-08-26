@@ -1,8 +1,8 @@
 /**
- * @file httpresolver.h  Declaration of HTTP DNS resolver class.
+ * @file fake_iterator.h Fake BaseResolver::Iterator
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,44 +34,28 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef HTTPRESOLVER_H_
-#define HTTPRESOLVER_H_
+#ifndef FAKE_ITERATOR_H__
+#define FAKE_ITERATOR_H__
 
 #include "baseresolver.h"
-#include "sas.h"
 
-class HttpResolver : public BaseResolver
+class FakeIterator : public BaseResolver::Iterator
 {
 public:
-  HttpResolver(DnsCachedResolver* dns_client,
-               int address_family,
-               int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
-               int graylist_duration = DEFAULT_GRAYLIST_DURATION);
-  ~HttpResolver();
+  FakeIterator(std::vector<AddrInfo> targets) : _targets(targets) {}
 
-  // Resolve a destination host and realm name to a list of IP addresses,
-  // transports, and ports using an A record lookup.
-  virtual void resolve(const std::string& host,
-                       int port,
-                       int max_targets,
-                       std::vector<AddrInfo>& targets,
-                       SAS::TrailId trail);
+  virtual std::vector<AddrInfo> take(int targets_count)
+  {
+    int actual_targets_count = std::min(targets_count, int(_targets.size()));
+    std::vector<AddrInfo>::iterator targets_it = _targets.begin();
+    std::advance(targets_it, actual_targets_count);
 
-  // Lazily resolve a destination host and realm name to a list of IP addresses,
-  // transports, and ports using an A record lookup.
-  BaseResolver::Iterator resolve_iter(const std::string& host,
-                                      int port,
-                                      SAS::TrailId trail);
+    std::vector<AddrInfo> targets(_targets.begin(), targets_it);
+    _targets = std::vector<AddrInfo>(targets_it, _targets.end());
 
-  /// Default duration to blacklist hosts after we fail to connect to them.
-  static const int DEFAULT_BLACKLIST_DURATION = 30;
-  static const int DEFAULT_GRAYLIST_DURATION = 30;
+    return targets;
+  }
 
-  static const int DEFAULT_PORT = 80;
-  static const int TRANSPORT = IPPROTO_TCP;
-
-private:
-  int _address_family;
+  std::vector<AddrInfo> _targets;
 };
-
 #endif

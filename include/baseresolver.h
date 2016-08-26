@@ -89,6 +89,7 @@ public:
   class Iterator
   {
   public:
+    // Constructor. resolver must not be null.
     Iterator(DnsResult& dns_result,
              BaseResolver* resolver,
              int port,
@@ -96,15 +97,20 @@ public:
              SAS::TrailId trail);
 
     /// Returns a vector containing (at most) targets_count AddrInfo targets
-    std::vector<AddrInfo> take(int targets_count);
+    virtual std::vector<AddrInfo> take(int targets_count);
 
     /// If any targets are available, sets target to the next one and returns
     /// true. Returns false otherwise.
     bool next(AddrInfo &target);
 
   protected:
-    // Default constructor for use in derived test classes
-    Iterator() {}
+    // Default constructor for use in derived test classes. As resolver is
+    // created as NULL, the take method must be overridden by derived classes
+    // using this constructor.
+    Iterator()
+    {
+      TRC_DEBUG("Default constructed BaseResolver::Iterator");
+    }
 
   private:
     // A vector that initially contains the results of a DNS query. As results

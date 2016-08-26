@@ -39,6 +39,7 @@
 
 #include "gmock/gmock.h"
 #include "httpresolver.h"
+#include "fake_iterator.h"
 
 using ::testing::SetArgReferee;
 
@@ -48,12 +49,52 @@ public:
   MockHttpResolver() : HttpResolver(nullptr,0,0,0) {}
   ~MockHttpResolver() {}
 
-  MOCK_METHOD3(BaseResolver::Iterator resolve_iter(const std::string& host,
-                                                   int port,
-                                                   SAS::TrailId trail));
+  FakeIterator resolve_iter(const std::string& host,
+                            int port,
+                            SAS::TrailId trail)
+  {
+
+    for (std::vector<AddrInfo>::iterator it = targets.begin();
+         it != targets.end();
+         ++it)
+    {
+      it->port = (port != 0) ? port : 80;
+    }
+
+    return FakeIterator(targets);
+  }
+
   MOCK_METHOD1(blacklist, void(const AddrInfo& ai));
   MOCK_METHOD1(success, void(const AddrInfo& ai));
   MOCK_METHOD1(untested, void(const AddrInfo& ai));
+
+  std::vector<AddrInfo> targets;
+
+  /// Creates a single AddrInfo target from the given IP address string, and
+  /// optional port.
+  static AddrInfo create_target(std::string address_str, int port = 80)
+  {
+    AddrInfo ai;
+    BaseResolver::parse_ip_target(address_str, ai.address);
+    ai.port = port;
+    ai.transport = IPPROTO_TCP;
+    return ai;
+  }
+
+  /// Creates a vector of count AddrInfo targets, beginning from 3.0.0.0 and
+  /// incrementing by one each time.
+  static std::vector<AddrInfo> create_targets(int count)
+  {
+    std::vector<AddrInfo> targets;
+    std::stringstream os;
+    for (int i = 0; i < count; ++i)
+    {
+      os << "3.0.0." << i;
+      targets.push_back(create_target(os.str()));
+      os.str(std::string());
+    }
+    return targets;
+  }
 };
 
 #endif

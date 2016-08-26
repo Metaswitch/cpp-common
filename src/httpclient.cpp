@@ -47,6 +47,10 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
+// For testing purposes
+#include "fake_iterator.h"
+#include "mockhttpresolver.h"
+
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
@@ -383,9 +387,10 @@ HTTPCode HttpClient::send_request(RequestType request_type,
 
   // Resolve the host.
 #ifdef UNIT_TEST
-  BaseResolver::Iterator target_it = _resolver->resolve_iter(host, port, trail);
+  TRC_DEBUG("Using FakeIterator");
+  FakeIterator target_it = dynamic_cast<MockHttpResolver*>(_resolver)->resolve_iter(host, port, trail);
 #else
-  MockIterator target_it = _resolver->resolve_iter(host, port, trail);
+  BaseResolver::Iterator target_it = _resolver->resolve_iter(host, port, trail);
 #endif
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
