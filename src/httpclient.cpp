@@ -47,9 +47,11 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
+#ifdef UNIT_TEST
 // For testing purposes
 #include "fake_iterator.h"
-#include "mockhttpresolver.h"
+#include "mock_http_resolver.h"
+#endif
 
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
@@ -385,11 +387,14 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   std::string host = host_from_server(server);
   int port = port_from_server(server);
 
-  // Resolve the host.
 #ifdef UNIT_TEST
+  // Resolve the host using a MockHttpResolver. Here we rely on _resolver being
+  // a MockHttpResolver during unit testing. This is not particularly nice, but
+  // does enable the use of a FakeIterator.
   TRC_DEBUG("Using FakeIterator");
   FakeIterator target_it = dynamic_cast<MockHttpResolver*>(_resolver)->resolve_iter(host, port, trail);
 #else
+  // Resolve the host.
   BaseResolver::Iterator target_it = _resolver->resolve_iter(host, port, trail);
 #endif
 

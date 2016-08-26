@@ -1,8 +1,8 @@
 /**
- * @file fakehttpresolver.hpp Header file for fake HTTP resolver (for testing).
+ * @file mock_http_resolver.h Mock HttpResolver
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,58 +34,65 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef FAKEHTTPRESOLVER_H_
-#define FAKEHTTPRESOLVER_H_
+#ifndef MOCK_HTTP_RESOLVER_H__
+#define MOCK_HTTP_RESOLVER_H__
 
-#include <string>
-#include "log.h"
-#include "sas.h"
+#include "gmock/gmock.h"
 #include "httpresolver.h"
+#include "fake_iterator.h"
 
-/// HttpResolver that always returns hard-coded IP address.
-class FakeHttpResolver : public HttpResolver
+class MockHttpResolver : public HttpResolver
 {
 public:
-  FakeHttpResolver() :
-    HttpResolver(NULL, AF_INET), _targets() {}
+  MockHttpResolver() : HttpResolver(nullptr,0,0,0) {}
+  ~MockHttpResolver() {}
 
-  FakeHttpResolver(const std::string& ip) :
-    HttpResolver(NULL, AF_INET), _targets()
+  FakeIterator resolve_iter(const std::string& host,
+                            int port,
+                            SAS::TrailId trail)
   {
-    AddrInfo ai;
-    ai.transport = IPPROTO_TCP;
-    parse_ip_target(ip, ai.address);
-    _targets.push_back(ai);
-  }
-
-  FakeHttpResolver(const std::string& ip1, const std::string& ip2) :
-    HttpResolver(NULL, AF_INET), _targets()
-  {
-    AddrInfo ai;
-    ai.transport = IPPROTO_TCP;
-    parse_ip_target(ip1, ai.address);
-    _targets.push_back(ai);
-    parse_ip_target(ip2, ai.address);
-    _targets.push_back(ai);
-  }
-
-  ~FakeHttpResolver() {}
-
-  void resolve(const std::string& host,
-               int port,
-               int max_targets,
-               std::vector<AddrInfo>& targets,
-               SAS::TrailId trail)
-  {
-    targets = _targets;
-    // Fix up ports.
-    for (std::vector<AddrInfo>::iterator i = targets.begin(); i != targets.end(); ++i)
+    // Set the port on the targets to be returned
+    for (std::vector<AddrInfo>::iterator it = targets.begin();
+         it != targets.end();
+         ++it)
     {
-      i->port = (port != 0) ? port : 80;
+      it->port = (port != 0) ? port : 80;
     }
+
+    return FakeIterator(targets);
   }
 
-  std::vector<AddrInfo> _targets;
+  MOCK_METHOD1(blacklist, void(const AddrInfo& ai));
+  MOCK_METHOD1(success, void(const AddrInfo& ai));
+  MOCK_METHOD1(untested, void(const AddrInfo& ai));
+
+  std::vector<AddrInfo> targets;
+
+  /// Creates a single AddrInfo target from the given IP address string, and
+  /// optional port.
+  static AddrInfo create_target(std::string address_str, int port = 80)
+  {
+    AddrInfo ai;
+    BaseResolver::parse_ip_target(address_str, ai.address);
+    ai.port = port;
+    ai.transport = IPPROTO_TCP;
+    return ai;
+  }
+
+  /// Creates a vector of count AddrInfo targets, beginning from 3.0.0.0 and
+  /// incrementing by one each time.
+  static std::vector<AddrInfo> create_targets(int count)
+  {
+    std::vector<AddrInfo> targets;
+    std::stringstream os;
+    for (int i = 0; i < count; ++i)
+    {
+      os << "3.0.0." << i;
+      targets.push_back(create_target(os.str()));
+      os.str(std::string());
+    }
+    return targets;
+  }
 };
 
 #endif
