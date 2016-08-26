@@ -577,6 +577,9 @@ namespace Utils
   // doesn't include a port.
   std::string uri_ip_address(std::string address, int default_port = 0);
 
+  // Removes the brackets from an IPv6 address - e.g. [::1] -> ::1
+  std::string remove_brackets_from_ip(std::string address);
+
 } // namespace Utils
 
 #endif /* UTILS_H_ */

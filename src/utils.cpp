@@ -591,6 +591,15 @@ void Utils::daemon_log_setup(int argc,
   TRC_STATUS("Log level set to %d", log_level);
 }
 
+std::string Utils::remove_brackets_from_ip(std::string address)
+{
+  bool with_brackets = ((address.size() >= 2) &&
+                        (address[0] == '[') &&
+                        (address[address.size() - 1] == ']'));
+
+  return with_brackets ? address.substr(1, address.size() - 2) : address;
+}
+
 std::string Utils::uri_ip_address(std::string address, int default_port)
 {
   Utils::IPAddressType addrtype = parse_ip_address(address);
