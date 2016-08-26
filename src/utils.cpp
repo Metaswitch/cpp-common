@@ -591,16 +591,19 @@ void Utils::daemon_log_setup(int argc,
   TRC_STATUS("Log level set to %d", log_level);
 }
 
-std::string Utils::remove_brackets_from_ip(std::string address)
+bool Utils::is_bracketed_address(const std::string& address)
 {
-  bool with_brackets = ((address.size() >= 2) &&
-                        (address[0] == '[') &&
-                        (address[address.size() - 1] == ']'));
-
-  return with_brackets ? address.substr(1, address.size() - 2) : address;
+  return ((address.size() >= 2) &&
+          (address[0] == '[') &&
+          (address[address.size() - 1] == ']'));
 }
 
-std::string Utils::uri_ip_address(std::string address, int default_port)
+std::string Utils::remove_brackets_from_ip(std::string address)
+{
+  return is_bracketed_address(address) ? address.substr(1, address.size() - 2) : address;
+}
+
+std::string Utils::uri_address(std::string address, int default_port)
 {
   Utils::IPAddressType addrtype = parse_ip_address(address);
 
@@ -615,17 +618,15 @@ std::string Utils::uri_ip_address(std::string address, int default_port)
   {
     std::string port = std::to_string(default_port);
 
-    if (addrtype == IPAddressType::IPV4_ADDRESS)
+    if (addrtype == IPAddressType::IPV4_ADDRESS ||
+        addrtype == IPAddressType::IPV6_ADDRESS_BRACKETED ||
+        addrtype == IPAddressType::INVALID)
     {
       address = address + ":" + port;
     }
     else if (addrtype == IPAddressType::IPV6_ADDRESS)
     {
       address = "[" + address + "]:" + port;
-    }
-    else if (addrtype == IPAddressType::IPV6_ADDRESS_BRACKETED)
-    {
-      address = address + ":" + port;
     }
   }
 
@@ -643,9 +644,7 @@ Utils::IPAddressType Utils::parse_ip_address(std::string address)
   host = with_port ? host : address;
 
   // Check if we're surrounded by []
-  bool with_brackets = ((host.size() >= 2) &&
-                        (host[0] == '[') &&
-                        (host[host.size() - 1] == ']'));
+  bool with_brackets = is_bracketed_address(host);
 
   host = with_brackets ? host.substr(1, host.size() - 2) : host;
 
@@ -666,6 +665,6 @@ Utils::IPAddressType Utils::parse_ip_address(std::string address)
   }
   else
   {
-    return IPAddressType::INVALID;
+    return (with_port) ? IPAddressType::INVALID_WITH_PORT : IPAddressType::INVALID;
   }
 }
