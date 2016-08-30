@@ -600,7 +600,9 @@ bool Utils::is_bracketed_address(const std::string& address)
 
 std::string Utils::remove_brackets_from_ip(std::string address)
 {
-  return is_bracketed_address(address) ? address.substr(1, address.size() - 2) : address;
+  bool bracketed = is_bracketed_address(address);
+  return bracketed ? address.substr(1, address.size() - 2) :
+                     address;
 }
 
 std::string Utils::uri_address(std::string address, int default_port)
@@ -665,6 +667,7 @@ Utils::IPAddressType Utils::parse_ip_address(std::string address)
   }
   else
   {
-    return (with_port) ? IPAddressType::INVALID_WITH_PORT : IPAddressType::INVALID;
+    return (with_port) ? IPAddressType::INVALID_WITH_PORT :
+                         IPAddressType::INVALID;
   }
 }
