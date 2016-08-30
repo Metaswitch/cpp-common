@@ -368,52 +368,61 @@ BaseResolver::Iterator::Iterator(DnsResult& dns_result,
 
 std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
 {
+  // Vector of targets to be returned
   std::vector<AddrInfo> targets;
 
+  // Strings for logging purposes.
   std::string targets_str;
   std::string unhealthy_targets_str;
   std::string added_from_unhealthy_str;
 
+  // This lock must be held to safely call the host_state method of
+  // BaseResolver.
   pthread_mutex_lock(&(_resolver->_hosts_lock));
 
-  // If this is the first call to take, the first record returned should be a
-  // graylisted record, if one exists
+  // If there are any graylisted records, the Iterator should return one first,
+  // and then no more.
   if (_first_call)
   {
     _first_call = false;
 
-    // Iterate over the records
+    // Iterate over the records.
     for (std::vector<AddrInfo>::iterator result_it = _unused_results.begin();
          result_it != _unused_results.end();
          ++result_it)
     {
       if (_resolver->host_state(*result_it) == Host::State::GRAY_NOT_PROBING)
       {
-        // Add the record to the targets list
+        // Add the record to the targets list.
         _resolver->select_for_probing(*result_it);
         targets.push_back(*result_it);
+
+        // Update logging.
         targets_str = targets_str + result_it->address_and_port_to_string() + ";";
         TRC_DEBUG("Added a graylisted server, now have %ld of %d",
                   targets.size(),
                   targets_count);
 
-        // Remove the record from the results list
+        // Remove the record from the results list.
         _unused_results.erase(result_it);
         break;
       }
     }
   }
 
+  // Targets should be added until the required number is reached, or the unused
+  // results are exhausted.
   while ((_unused_results.size() > 0) && (targets.size() < (size_t)targets_count))
   {
-    // Pop a record from the end of _results
     AddrInfo result = _unused_results.back();
     _unused_results.pop_back();
 
     if (_resolver->host_state(result) == Host::State::WHITE)
     {
-      // Add the record to the targets list
+      // Add the record to the targets list.
       targets.push_back(result);
+
+      // Update logging.
       targets_str = targets_str + result.address_and_port_to_string() + ";";
       TRC_DEBUG("Added a whitelisted server, now have %ld of %d",
                 targets.size(),
@@ -421,8 +430,10 @@ std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
     }
     else
     {
-      // Add the record to the list of unhealthy targets
+      // Add the record to the list of unhealthy targets.
       _unhealthy_results.push_back(result);
+
+      // Update logging.
       unhealthy_targets_str = unhealthy_targets_str + result.address_and_port_to_string() + ";";
     }
   }
@@ -433,12 +444,13 @@ std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
   // targets
   while ((_unhealthy_results.size() > 0) && (targets.size() < (size_t)targets_count))
   {
-    // Pop a target from the end of _unhealthy_targets
     AddrInfo result = _unhealthy_results.back();
     _unhealthy_results.pop_back();
 
     // Add the record to the targets list
     targets.push_back(result);
+
+    // Update logging.
     std::string blacklist_str = "[" + result.address_and_port_to_string() + "]";
     added_from_unhealthy_str = added_from_unhealthy_str + blacklist_str;
     TRC_DEBUG("Added an unhealthy server, now have %ld of %d",
@@ -448,7 +460,6 @@ std::vector<AddrInfo> BaseResolver::Iterator::take(int targets_count)
 
   if (_trail != 0)
   {
-    // Is the second parameter here still correct?
     SAS::Event event(_trail, SASEvent::BASERESOLVE_A_RESULT, 0);
     event.add_var_param(_hostname);
     event.add_var_param(targets_str);

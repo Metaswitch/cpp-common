@@ -89,14 +89,16 @@ public:
   class Iterator
   {
   public:
-    // Constructor. resolver must not be null.
+    // Constructor. The take method requires that resolver is not NULL.
     Iterator(DnsResult& dns_result,
              BaseResolver* resolver,
              int port,
              int transport,
              SAS::TrailId trail);
 
-    /// Returns a vector containing (at most) targets_count AddrInfo targets
+    /// Returns a vector containing (at most) targets_count AddrInfo targets,
+    /// selected based on their current state in the blacklist system of
+    /// resolver.
     virtual std::vector<AddrInfo> take(int targets_count);
 
     /// If any targets are available, sets target to the next one and returns
@@ -170,6 +172,8 @@ protected:
                  int& ttl,
                  SAS::TrailId trail);
 
+  /// Does an A/AAAA record resolution for the specified name, and returns an
+  /// Iterator that lazily selects appropriate targets.
   Iterator a_resolve_iter(const std::string& hostname,
                           int af,
                           int port,

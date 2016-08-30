@@ -388,8 +388,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   int port = port_from_server(server);
 
 #ifdef UNIT_TEST
-  // Resolve the host using a MockHttpResolver. Here we rely on _resolver being
-  // a MockHttpResolver during unit testing. This is not particularly nice, but
+  // Resolve the host using a FakeHttpResolver. Here we rely on _resolver being
+  // a FakeHttpResolver during unit testing. This is not particularly nice, but
   // does enable the use of a FakeIterator.
   TRC_DEBUG("Using FakeIterator");
   FakeIterator target_it = dynamic_cast<FakeHttpResolver*>(_resolver)->resolve_iter(host, port, trail);
