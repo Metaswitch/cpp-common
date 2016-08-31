@@ -47,12 +47,6 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
-#ifdef UNIT_TEST
-// For testing purposes
-#include "fake_iterator.h"
-#include "fakehttpresolver.hpp"
-#endif
-
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
@@ -387,16 +381,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   std::string host = host_from_server(server);
   int port = port_from_server(server);
 
-#ifdef UNIT_TEST
-  // Resolve the host using a FakeHttpResolver. Here we rely on _resolver being
-  // a FakeHttpResolver during unit testing. This is not particularly nice, but
-  // does enable the use of a FakeIterator.
-  TRC_DEBUG("Using FakeIterator");
-  FakeIterator target_it = dynamic_cast<FakeHttpResolver*>(_resolver)->resolve_iter(host, port, trail);
-#else
   // Resolve the host.
-  BaseResolver::Iterator target_it = _resolver->resolve_iter(host, port, trail);
-#endif
+  BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail);
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
   // or I/O errors.
@@ -416,7 +402,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   // connection is made, a number of failures is reached, or the targets are
   // exhausted. If only one target is available, it should be tried twice.
   for (int attempts = 0;
-       target_it.next(target) || attempts == 1;
+       target_it->next(target) || attempts == 1;
        ++attempts)
   {
     // Get a curl handle and the associated pool entry
@@ -577,6 +563,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       }
     }
   }
+
+  delete target_it;
 
   // Check whether we should apply a penalty. We do this when:
   //  - both attempts return 503 errors, which means the downstream node is

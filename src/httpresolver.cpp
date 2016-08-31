@@ -63,33 +63,36 @@ void HttpResolver::resolve(const std::string& host,
                            std::vector<AddrInfo>& targets,
                            SAS::TrailId trail)
 {
-  AddrInfo ai;
-
-  TRC_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
-            host.c_str(), port, _address_family);
-
-  port = (port != 0) ? port : DEFAULT_PORT;
-  targets.clear();
-
-  if (parse_ip_target(host, ai.address))
-  {
-    // The name is already an IP address, so no DNS resolution is possible.
-    TRC_DEBUG("Target is an IP address");
-    ai.port = port;
-    ai.transport = TRANSPORT;
-    targets.push_back(ai);
-  }
-  else
-  {
-    Iterator it = resolve_iter(host, port, trail);
-    targets = it.take(max_targets);
-  }
+  BaseAddrIterator* addr_it = resolve_iter(host, port, trail);
+  targets = addr_it->take(max_targets);
+  delete addr_it; addr_it = nullptr;
 }
 
-BaseResolver::Iterator HttpResolver::resolve_iter(const std::string& host,
+BaseAddrIterator* HttpResolver::resolve_iter(const std::string& host,
                                                  int port,
                                                  SAS::TrailId trail)
 {
+  BaseAddrIterator* addr_it;
+
+  TRC_DEBUG("HttpResolver::resolve_iter for host %s, port %d, family %d",
+            host.c_str(), port, _address_family);
+
+  port = (port != 0) ? port : DEFAULT_PORT;
+  AddrInfo ai;
+
+  if (parse_ip_target(host, ai.address))
+  {
+    // The name is already an IP address so no DNS resolution is possible.
+    TRC_DEBUG("Target is an IP address");
+    ai.port = port;
+    ai.transport = TRANSPORT;
+    addr_it = new SimpleAddrIterator(std::vector<AddrInfo>(1, ai));
+  }
+  else
+  {
   int dummy_ttl = 0;
-  return a_resolve_iter(host, _address_family, port, TRANSPORT, dummy_ttl, trail);
+  addr_it = a_resolve_iter(host, _address_family, port, TRANSPORT, dummy_ttl, trail);
+  }
+
+  return addr_it;
 }

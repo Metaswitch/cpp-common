@@ -39,7 +39,6 @@
 
 #include "gmock/gmock.h"
 #include "httpresolver.h"
-#include "fake_iterator.h"
 #include "fakehttpresolver.hpp"
 
 class MockHttpResolver : public FakeHttpResolver

@@ -177,6 +177,10 @@ struct AddrInfo
   }
 };
 
+/// Overrides Google Test default print method to avoid compatibility issues
+/// with valgrind
+void PrintTo(const AddrInfo& ai, std::ostream* os);
+
 namespace Utils
 {
   static const int MD5_HASH_SIZE = 16;

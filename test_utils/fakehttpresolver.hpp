@@ -38,7 +38,8 @@
 #define FAKEHTTPRESOLVER_H__
 
 #include "httpresolver.h"
-#include "fake_iterator.h"
+
+typedef SimpleAddrIterator FakeAddrIterator;
 
 class FakeHttpResolver : public HttpResolver
 {
@@ -59,9 +60,9 @@ public:
 
   ~FakeHttpResolver() {}
 
-  FakeIterator resolve_iter(const std::string& host,
-                            int port,
-                            SAS::TrailId trail)
+  virtual BaseAddrIterator* resolve_iter(const std::string& host,
+                                         int port,
+                                         SAS::TrailId trail)
   {
     std::vector<AddrInfo> targets = _targets;
 
@@ -73,19 +74,8 @@ public:
       it->port = (port != 0) ? port : 80;
     }
 
-    return FakeIterator(targets);
+    return new FakeAddrIterator(targets);
   }
-
-  virtual void resolve(const std::string& host,
-                       int port,
-                       int max_targets,
-                       std::vector<AddrInfo>& targets,
-                       SAS::TrailId trail)
-  {
-    FakeIterator iter = resolve_iter(host, port, trail);
-    targets = iter.take(max_targets);
-  }
-
 
   virtual void success(const AddrInfo& ai) {};
   virtual void blacklist(const AddrInfo& ai) {};

@@ -50,9 +50,8 @@
 #include "utils.h"
 #include "sas.h"
 
-/// Overrides Google Test default print method to avoid compatibility issues
-/// with valgrind
-void PrintTo(const AddrInfo& ai, std::ostream* os);
+class BaseAddrIterator;
+class LazyAddrIterator;
 
 /// The BaseResolver class provides common infrastructure for doing DNS
 /// resolution, but does not implement a full resolver for any particular
@@ -86,57 +85,10 @@ public:
 
   void clear_blacklist();
 
-  class Iterator
-  {
-  public:
-    // Constructor. The take method requires that resolver is not NULL.
-    Iterator(DnsResult& dns_result,
-             BaseResolver* resolver,
-             int port,
-             int transport,
-             SAS::TrailId trail);
 
-    /// Returns a vector containing (at most) targets_count AddrInfo targets,
-    /// selected based on their current state in the blacklist system of
-    /// resolver.
-    virtual std::vector<AddrInfo> take(int targets_count);
-
-    /// If any targets are available, sets target to the next one and returns
-    /// true. Returns false otherwise.
-    bool next(AddrInfo &target);
-
-  protected:
-    // Default constructor for use in derived test classes. As resolver is
-    // created as NULL, the take method must be overridden by derived classes
-    // using this constructor.
-    Iterator()
-    {
-      TRC_DEBUG("Default constructed BaseResolver::Iterator");
-    }
-
-  private:
-    // A vector that initially contains the results of a DNS query. As results
-    // are returned from the take method, or moved to the vector of unhealthy
-    // results, they are removed from this vector
-    std::vector<AddrInfo> _unused_results;
-
-    // Used to store DNS results corresponding to unhealthy hosts
-    std::vector<AddrInfo> _unhealthy_results;
-
-    // A pointer to the BaseResolver that created this iterator
-    BaseResolver* _resolver;
-
-    std::string _hostname;
-
-    SAS::TrailId _trail;
-
-    // True if the iterator has not yet been called, and false otherwise
-    bool _first_call;
-  };
-
-  // Iterator must access the private host_state method of BaseResolver, which
+  // LazyAddrIterator must access the private host_state method of BaseResolver, which
   // it is desirable not to expose
-  friend class Iterator;
+  friend class LazyAddrIterator;
 
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
@@ -174,12 +126,12 @@ protected:
 
   /// Does an A/AAAA record resolution for the specified name, and returns an
   /// Iterator that lazily selects appropriate targets.
-  Iterator a_resolve_iter(const std::string& hostname,
-                          int af,
-                          int port,
-                          int transport,
-                          int& ttl,
-                          SAS::TrailId trail);
+  virtual BaseAddrIterator* a_resolve_iter(const std::string& hostname,
+                                           int af,
+                                           int port,
+                                           int transport,
+                                           int& ttl,
+                                           SAS::TrailId trail);
 
   /// Converts a DNS A or AAAA record to an IP46Address structure.
   IP46Address to_ip46(const DnsRRecord* rr);
@@ -381,4 +333,73 @@ protected:
 
 };
 
+// Abstract base class for AddrInfo iterators used in target selection.
+class BaseAddrIterator
+{
+public:
+  BaseAddrIterator() {}
+  virtual ~BaseAddrIterator() {}
+
+  /// Should return a vector containing at most targets_count AddrInfo targets.
+  virtual std::vector<AddrInfo> take(int targets_count) = 0;
+
+  /// Calls the take method with targets_count set to one. If the returned
+  /// vector is empty, returns false, and if not, sets target to the element of
+  /// this vector and returns true.
+  virtual bool next(AddrInfo &target);
+};
+
+// AddrInfo iterator that simply returns the targets it is given in sequence.
+class SimpleAddrIterator : public BaseAddrIterator
+{
+public:
+  SimpleAddrIterator(std::vector<AddrInfo> targets) : _targets(targets) {}
+  virtual ~SimpleAddrIterator() {}
+
+  /// Returns a vector containing the first targets_count elements of _targets,
+  /// or all the elements of _targets if targets_count is greater than the size
+  /// of _targets.
+  virtual std::vector<AddrInfo> take(int targets_count);
+
+private:
+  std::vector<AddrInfo> _targets;
+};
+
+// AddrInfo iterator that uses the blacklist system of a BaseResolver to lazily
+// select targets.
+class LazyAddrIterator : public BaseAddrIterator
+{
+public:
+  // Constructor. The take method requires that resolver is not NULL.
+  LazyAddrIterator(DnsResult& dns_result,
+                   BaseResolver* resolver,
+                   int port,
+                   int transport,
+                   SAS::TrailId trail);
+  virtual ~LazyAddrIterator() {}
+
+  /// Returns a vector containing at most targets_count AddrInfo targets,
+  /// selected based on their current state in the blacklist system of
+  /// resolver.
+  virtual std::vector<AddrInfo> take(int targets_count);
+
+private:
+  // A vector that initially contains the results of a DNS query. As results
+  // are returned from the take method, or moved to the vector of unhealthy
+  // results, they are removed from this vector
+  std::vector<AddrInfo> _unused_results;
+
+  // Used to store DNS results corresponding to unhealthy hosts
+  std::vector<AddrInfo> _unhealthy_results;
+
+  // A pointer to the BaseResolver that created this iterator
+  BaseResolver* _resolver;
+
+  std::string _hostname;
+
+  SAS::TrailId _trail;
+
+  // True if the iterator has not yet been called, and false otherwise
+  bool _first_call;
+};
 #endif

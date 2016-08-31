@@ -59,9 +59,9 @@ public:
 
   // Lazily resolve a destination host and realm name to a list of IP addresses,
   // transports, and ports using an A record lookup.
-  BaseResolver::Iterator resolve_iter(const std::string& host,
-                                      int port,
-                                      SAS::TrailId trail);
+  virtual BaseAddrIterator* resolve_iter(const std::string& host,
+                                         int port,
+                                         SAS::TrailId trail);
 
   /// Default duration to blacklist hosts after we fail to connect to them.
   static const int DEFAULT_BLACKLIST_DURATION = 30;
