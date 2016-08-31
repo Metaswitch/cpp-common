@@ -570,12 +570,24 @@ namespace Utils
     IPV6_ADDRESS,
     IPV6_ADDRESS_BRACKETED,
     IPV6_ADDRESS_WITH_PORT,
-    INVALID
+    INVALID,
+    INVALID_WITH_PORT
   };
 
   // Takes a string and reports what type of IP address it is
   IPAddressType parse_ip_address(std::string address);
 
+  // Takes an IP address and returns it suitable for use in a URI,
+  // i.e, an IPv6 address will be returned in brackets.
+  // If the optional port is passed, this will be appended if the address
+  // doesn't include a port.
+  std::string uri_address(std::string address, int default_port = 0);
+
+  // Removes the brackets from an IPv6 address - e.g. [::1] -> ::1
+  std::string remove_brackets_from_ip(std::string address);
+
+  // Does the passed in address have brackets?
+  bool is_bracketed_address(const std::string& address);
 } // namespace Utils
 
 #endif /* UTILS_H_ */
