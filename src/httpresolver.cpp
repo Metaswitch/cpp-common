@@ -69,8 +69,8 @@ void HttpResolver::resolve(const std::string& host,
 }
 
 BaseAddrIterator* HttpResolver::resolve_iter(const std::string& host,
-                                                 int port,
-                                                 SAS::TrailId trail)
+                                             int port,
+                                             SAS::TrailId trail)
 {
   BaseAddrIterator* addr_it;
 
@@ -90,8 +90,8 @@ BaseAddrIterator* HttpResolver::resolve_iter(const std::string& host,
   }
   else
   {
-  int dummy_ttl = 0;
-  addr_it = a_resolve_iter(host, _address_family, port, TRANSPORT, dummy_ttl, trail);
+    int dummy_ttl = 0;
+    addr_it = a_resolve_iter(host, _address_family, port, TRANSPORT, dummy_ttl, trail);
   }
 
   return addr_it;

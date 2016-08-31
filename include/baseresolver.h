@@ -396,7 +396,6 @@ private:
   BaseResolver* _resolver;
 
   std::string _hostname;
-
   SAS::TrailId _trail;
 
   // True if the iterator has not yet been called, and false otherwise

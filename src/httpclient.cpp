@@ -399,8 +399,9 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   AddrInfo target;
 
   // Iterate over the targets returned by target_it until a successful
-  // connection is made, a number of failures is reached, or the targets are
-  // exhausted. If only one target is available, it should be tried twice.
+  // connection is made, a specified number of failures is reached, or the
+  // targets are exhausted. If only one target is available, it should be tried
+  // twice.
   for (int attempts = 0;
        target_it->next(target) || attempts == 1;
        ++attempts)

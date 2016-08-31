@@ -49,16 +49,15 @@ public:
                int graylist_duration = DEFAULT_GRAYLIST_DURATION);
   ~HttpResolver();
 
-  // Resolve a destination host and realm name to a list of IP addresses,
-  // transports, and ports using an A record lookup.
+  // Resolve a host name to a list of AddrInfo targets using an A record lookup.
   virtual void resolve(const std::string& host,
                        int port,
                        int max_targets,
                        std::vector<AddrInfo>& targets,
                        SAS::TrailId trail);
 
-  // Lazily resolve a destination host and realm name to a list of IP addresses,
-  // transports, and ports using an A record lookup.
+  // Lazily resolve a hostname to a list of AddrInfo targets using an A record
+  // lookup.
   virtual BaseAddrIterator* resolve_iter(const std::string& host,
                                          int port,
                                          SAS::TrailId trail);

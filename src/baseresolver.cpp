@@ -353,11 +353,11 @@ void BaseResolver::a_resolve(const std::string& hostname,
 }
 
 BaseAddrIterator* BaseResolver::a_resolve_iter(const std::string& hostname,
-                                                    int af,
-                                                    int port,
-                                                    int transport,
-                                                    int& ttl,
-                                                    SAS::TrailId trail)
+                                               int af,
+                                               int port,
+                                               int transport,
+                                               int& ttl,
+                                               SAS::TrailId trail)
 {
   DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa, trail);
   ttl = result.ttl();
@@ -760,8 +760,8 @@ int BaseResolver::SRVWeightedSelector::select()
   // Calculate the weight of the selected entry by subtracting the weight of
   // its left and right subtrees.
   int weight = _tree[ii] -
-               (((2*ii + 1) < _tree.size()) ? _tree[2*ii + 1] : 0) -
-               (((2*ii + 2) < _tree.size()) ? _tree[2*ii + 2] : 0);
+    (((2*ii + 1) < _tree.size()) ? _tree[2*ii + 1] : 0) -
+    (((2*ii + 2) < _tree.size()) ? _tree[2*ii + 2] : 0);
 
   // Update the tree to set the weight of the selection to zero so it isn't
   // selected again.
@@ -805,10 +805,10 @@ std::string BaseResolver::Host::state_to_string(State state)
     return "GRAY_PROBING";
   case State::BLACK:
     return "BLACK";
-  // LCOV_EXCL_START
+    // LCOV_EXCL_START
   default:
     return "UNKNOWN";
-  // LCOV_EXCL_STOP
+    // LCOV_EXCL_STOP
   }
 }
 
@@ -980,10 +980,10 @@ std::vector<AddrInfo> SimpleAddrIterator::take(int targets_count)
 }
 
 LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
-                       BaseResolver* resolver,
-                       int port,
-                       int transport,
-                       SAS::TrailId trail) :
+                                   BaseResolver* resolver,
+                                   int port,
+                                   int transport,
+                                   SAS::TrailId trail) :
   _resolver(resolver),
   _trail(trail),
   _first_call(true)
@@ -1052,8 +1052,9 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
     }
   }
 
-  // Targets should be added until the required number is reached, or the unused
-  // results are exhausted.
+  // Add whitelisted records to the vector of targets to return, and unhealthy
+  // records to the unhealthy results vector. Targets should be added until the
+  // required number is reached, or the unused results are exhausted.
   while ((_unused_results.size() > 0) && (targets.size() < (size_t)targets_count))
   {
     AddrInfo result = _unused_results.back();
