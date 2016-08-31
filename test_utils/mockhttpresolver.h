@@ -1,5 +1,5 @@
 /**
- * @file mock_http_resolver.h Mock HttpResolver
+ * @file mockhttpresolver.h Mock HttpResolver
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2016  Metaswitch Networks Ltd
@@ -34,8 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef MOCK_HTTP_RESOLVER_H__
-#define MOCK_HTTP_RESOLVER_H__
+#ifndef MOCKHTTPRESOLVER_H__
+#define MOCKHTTPRESOLVER_H__
 
 #include "gmock/gmock.h"
 #include "httpresolver.h"
