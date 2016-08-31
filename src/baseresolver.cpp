@@ -994,8 +994,11 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
   ai.port = port;
   ai.transport = transport;
 
+  // Reserve memory for the unused results vector to avoid reallocation.
+  _unused_results.reserve(dns_result.records().size());
+
   // Create an AddrInfo object for each returned DnsRRecord, and add them to the
-  // query results vector
+  // query results vector.
   for (std::vector<DnsRRecord*>::const_iterator result_it = dns_result.records().begin();
        result_it != dns_result.records().end();
        ++result_it)
@@ -1014,9 +1017,11 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
   std::vector<AddrInfo> targets;
 
   // Strings for logging purposes.
-  std::string targets_str;
-  std::string unhealthy_targets_str;
-  std::string added_from_unhealthy_str;
+  std::string graylisted_targets_str;
+  std::string whitelisted_targets_str;
+  std::string blacklisted_targets_str;
+
+  std::string found_blacklisted_str;
 
   // This lock must be held to safely call the host_state method of
   // BaseResolver.
@@ -1040,7 +1045,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
         targets.push_back(*result_it);
 
         // Update logging.
-        targets_str = targets_str + result_it->address_and_port_to_string() + ";";
+        graylisted_targets_str += result_it->address_and_port_to_string() + ";";
         TRC_DEBUG("Added a graylisted server, now have %ld of %d",
                   targets.size(),
                   targets_count);
@@ -1066,7 +1071,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
       targets.push_back(result);
 
       // Update logging.
-      targets_str = targets_str + result.address_and_port_to_string() + ";";
+      whitelisted_targets_str += result.address_and_port_to_string() + ";";
       TRC_DEBUG("Added a whitelisted server, now have %ld of %d",
                 targets.size(),
                 targets_count);
@@ -1077,7 +1082,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
       _unhealthy_results.push_back(result);
 
       // Update logging.
-      unhealthy_targets_str = unhealthy_targets_str + result.address_and_port_to_string() + ";";
+      found_blacklisted_str += result.address_and_port_to_string() + ";";
     }
   }
 
@@ -1094,8 +1099,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
     targets.push_back(result);
 
     // Update logging.
-    std::string blacklist_str = "[" + result.address_and_port_to_string() + "]";
-    added_from_unhealthy_str = added_from_unhealthy_str + blacklist_str;
+    blacklisted_targets_str += result.address_and_port_to_string() + ";";
     TRC_DEBUG("Added an unhealthy server, now have %ld of %d",
               targets.size(),
               targets_count);
@@ -1103,11 +1107,12 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
 
   if (_trail != 0)
   {
-    SAS::Event event(_trail, SASEvent::BASERESOLVE_A_RESULT, 0);
+    SAS::Event event(_trail, SASEvent::BASERESOLVE_TARGET_SELECT, 0);
     event.add_var_param(_hostname);
-    event.add_var_param(targets_str);
-    event.add_var_param(unhealthy_targets_str);
-    event.add_var_param(added_from_unhealthy_str);
+    event.add_var_param(graylisted_targets_str);
+    event.add_var_param(whitelisted_targets_str);
+    event.add_var_param(blacklisted_targets_str);
+    event.add_var_param(found_blacklisted_str);
     SAS::report_event(event);
   }
 
