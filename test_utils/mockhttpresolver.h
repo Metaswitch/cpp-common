@@ -39,13 +39,16 @@
 
 #include "gmock/gmock.h"
 #include "httpresolver.h"
-#include "fakehttpresolver.hpp"
 
-class MockHttpResolver : public FakeHttpResolver
+class MockHttpResolver : public HttpResolver
 {
 public:
-  MockHttpResolver() : FakeHttpResolver() {}
+  MockHttpResolver() : HttpResolver(nullptr, 0, 0, 0) {}
   ~MockHttpResolver() {}
+
+  MOCK_METHOD3(resolve_iter, BaseAddrIterator*(const std::string& host,
+                                               int port,
+                                               SAS::TrailId trail));
 
   MOCK_METHOD1(blacklist, void(const AddrInfo& ai));
   MOCK_METHOD1(success, void(const AddrInfo& ai));
