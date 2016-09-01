@@ -51,7 +51,6 @@
 #include "sas.h"
 
 class BaseAddrIterator;
-class LazyAddrIterator;
 
 /// The BaseResolver class provides common infrastructure for doing DNS
 /// resolution, but does not implement a full resolver for any particular
@@ -84,7 +83,6 @@ public:
   static bool parse_ip_target(const std::string& target, IP46Address& address);
 
   void clear_blacklist();
-
 
   // LazyAddrIterator must access the private host_state method of BaseResolver, which
   // it is desirable not to expose
@@ -340,12 +338,13 @@ public:
   BaseAddrIterator() {}
   virtual ~BaseAddrIterator() {}
 
-  /// Should return a vector containing at most targets_count AddrInfo targets.
-  virtual std::vector<AddrInfo> take(int targets_count) = 0;
+  /// Should return a vector containing at most num_requested_targets AddrInfo
+  /// targets.
+  virtual std::vector<AddrInfo> take(int num_requested_targets) = 0;
 
-  /// Calls the take method with targets_count set to one. If the returned
-  /// vector is empty, returns false, and if not, sets target to the element of
-  /// this vector and returns true.
+  /// If any unused targets remain, sets the value of target to the next one and
+  /// returns true. Otherwise returns false and leaves the value of target
+  /// unchanged.
   virtual bool next(AddrInfo &target);
 };
 
@@ -356,10 +355,10 @@ public:
   SimpleAddrIterator(std::vector<AddrInfo> targets) : _targets(targets) {}
   virtual ~SimpleAddrIterator() {}
 
-  /// Returns a vector containing the first targets_count elements of _targets,
-  /// or all the elements of _targets if targets_count is greater than the size
-  /// of _targets.
-  virtual std::vector<AddrInfo> take(int targets_count);
+  /// Returns a vector containing the first num_requested_targets elements of
+  /// _targets, or all the elements of _targets if num_requested_targets is
+  /// greater than the size of _targets.
+  virtual std::vector<AddrInfo> take(int num_requested_targets);
 
 private:
   std::vector<AddrInfo> _targets;
@@ -378,10 +377,10 @@ public:
                    SAS::TrailId trail);
   virtual ~LazyAddrIterator() {}
 
-  /// Returns a vector containing at most targets_count AddrInfo targets,
+  /// Returns a vector containing at most num_requested_targets AddrInfo targets,
   /// selected based on their current state in the blacklist system of
   /// resolver.
-  virtual std::vector<AddrInfo> take(int targets_count);
+  virtual std::vector<AddrInfo> take(int num_requested_targets);
 
 private:
   // A vector that initially contains the results of a DNS query. As results

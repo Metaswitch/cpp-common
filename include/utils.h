@@ -160,6 +160,11 @@ struct AddrInfo
       (transport == rhs.transport);
   }
 
+  bool operator!=(const AddrInfo& rhs) const
+  {
+    return !(operator==(rhs));
+  }
+
   std::string address_and_port_to_string() const
   {
     std::stringstream os;

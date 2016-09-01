@@ -963,15 +963,15 @@ bool BaseAddrIterator::next(AddrInfo &target)
   return value_set;
 }
 
-std::vector<AddrInfo> SimpleAddrIterator::take(int targets_count)
+std::vector<AddrInfo> SimpleAddrIterator::take(int num_requested_targets)
 {
   // Determine the number of elements to be returned, and create an iterator
   // pointing to the location at which to split _targets.
-  int actual_targets_count = std::min(targets_count, int(_targets.size()));
+  int num_targets_to_return = std::min(num_requested_targets, int(_targets.size()));
   std::vector<AddrInfo>::iterator targets_it = _targets.begin();
-  std::advance(targets_it, actual_targets_count);
+  std::advance(targets_it, num_targets_to_return);
 
-  // Set targets to the first actual_targets_count elements of _targets, and
+  // Set targets to the first actual_num_requested_targets elements of _targets, and
   // remove those elements from _targets.
   std::vector<AddrInfo> targets(_targets.begin(), targets_it);
   _targets = std::vector<AddrInfo>(targets_it, _targets.end());
@@ -1011,7 +1011,7 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
   std::random_shuffle(_unused_results.begin(), _unused_results.end());
 }
 
-std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
+std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 {
   // Vector of targets to be returned
   std::vector<AddrInfo> targets;
@@ -1033,9 +1033,11 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
   {
     _first_call = false;
 
-    // Iterate over the records.
-    for (std::vector<AddrInfo>::iterator result_it = _unused_results.begin();
-         result_it != _unused_results.end();
+    // Iterate over the records. Since the records are in random order anyway,
+    // iterate in reverse order; it is faster to remove elements from near the
+    // end of the vector.
+    for (std::vector<AddrInfo>::reverse_iterator result_it = _unused_results.rbegin();
+         result_it != _unused_results.rend();
          ++result_it)
     {
       if (_resolver->host_state(*result_it) == BaseResolver::Host::State::GRAY_NOT_PROBING)
@@ -1048,10 +1050,10 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
         graylisted_targets_str += result_it->address_and_port_to_string() + ";";
         TRC_DEBUG("Added a graylisted server, now have %ld of %d",
                   targets.size(),
-                  targets_count);
+                  num_requested_targets);
 
         // Remove the record from the results list.
-        _unused_results.erase(result_it);
+        _unused_results.erase(std::next(result_it).base());
         break;
       }
     }
@@ -1060,7 +1062,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
   // Add whitelisted records to the vector of targets to return, and unhealthy
   // records to the unhealthy results vector. Targets should be added until the
   // required number is reached, or the unused results are exhausted.
-  while ((_unused_results.size() > 0) && (targets.size() < (size_t)targets_count))
+  while ((_unused_results.size() > 0) && (targets.size() < (size_t)num_requested_targets))
   {
     AddrInfo result = _unused_results.back();
     _unused_results.pop_back();
@@ -1074,7 +1076,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
       whitelisted_targets_str += result.address_and_port_to_string() + ";";
       TRC_DEBUG("Added a whitelisted server, now have %ld of %d",
                 targets.size(),
-                targets_count);
+                num_requested_targets);
     }
     else
     {
@@ -1090,7 +1092,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
 
   // If the targets vector does not yet contain enough targets, add unhealthy
   // targets
-  while ((_unhealthy_results.size() > 0) && (targets.size() < (size_t)targets_count))
+  while ((_unhealthy_results.size() > 0) && (targets.size() < (size_t)num_requested_targets))
   {
     AddrInfo result = _unhealthy_results.back();
     _unhealthy_results.pop_back();
@@ -1102,12 +1104,12 @@ std::vector<AddrInfo> LazyAddrIterator::take(int targets_count)
     blacklisted_targets_str += result.address_and_port_to_string() + ";";
     TRC_DEBUG("Added an unhealthy server, now have %ld of %d",
               targets.size(),
-              targets_count);
+              num_requested_targets);
   }
 
   if (_trail != 0)
   {
-    SAS::Event event(_trail, SASEvent::BASERESOLVE_TARGET_SELECT, 0);
+    SAS::Event event(_trail, SASEvent::BASERESOLVE_A_RESULT_TARGET_SELECT, 0);
     event.add_var_param(_hostname);
     event.add_var_param(graylisted_targets_str);
     event.add_var_param(whitelisted_targets_str);
