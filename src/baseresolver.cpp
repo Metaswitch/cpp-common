@@ -60,7 +60,6 @@ BaseResolver::BaseResolver(DnsCachedResolver* dns_client) :
   _hosts(),
   _dns_client(dns_client)
 {
-  WeightedSelector<BaseResolver::SRV> s(std::vector<BaseResolver::SRV>());
 }
 
 BaseResolver::~BaseResolver()
