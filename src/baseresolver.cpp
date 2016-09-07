@@ -45,6 +45,7 @@
 #include "baseresolver.h"
 #include "sas.h"
 #include "sasevent.h"
+#include "weightedselector.h"
 
 void PrintTo(const AddrInfo& ai, std::ostream* os)
 {
@@ -177,7 +178,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       srvs.reserve(i->second.size());
 
       // Build a cumulative weighted tree for this priority level.
-      SRVWeightedSelector selector(i->second);
+      WeightedSelector<SRV> selector(i->second);
 
       // Select entries while there are any with non-zero weights.
       while (selector.total_weight() > 0)
@@ -801,83 +802,6 @@ bool BaseResolver::SRVCacheFactory::compare_srv_priority(DnsRRecord* r1,
                                                          DnsRRecord* r2)
 {
   return (((DnsSrvRecord*)r1)->priority() < ((DnsSrvRecord*)r2)->priority());
-}
-
-
-BaseResolver::SRVWeightedSelector::SRVWeightedSelector(const std::vector<SRV>& srvs) :
-  _tree(srvs.size())
-{
-  // Copy the weights to the tree.
-  for (size_t ii = 0; ii < srvs.size(); ++ii)
-  {
-    _tree[ii] = srvs[ii].weight;
-  }
-
-  // Work backwards up the tree accumulating the weights.
-  for (size_t ii = _tree.size() - 1; ii >= 1; --ii)
-  {
-    _tree[(ii - 1)/2] += _tree[ii];
-  }
-}
-
-BaseResolver::SRVWeightedSelector::~SRVWeightedSelector()
-{
-}
-
-int BaseResolver::SRVWeightedSelector::select()
-{
-  // Search the tree to find the item with the smallest cumulative weight that
-  // is greater than a random number between zero and the total weight of the
-  // tree.
-  int s = rand() % _tree[0];
-  size_t ii = 0;
-
-  while (true)
-  {
-    // Find the left and right children using the usual tree => array mappings.
-    size_t l = 2*ii + 1;
-    size_t r = 2*ii + 2;
-
-    if ((l < _tree.size()) && (s < _tree[l]))
-    {
-      // Selection is somewhere in left subtree.
-      ii = l;
-    }
-    else if ((r < _tree.size()) && (s >= _tree[ii] - _tree[r]))
-    {
-      // Selection is somewhere in right subtree.
-      s -= (_tree[ii] - _tree[r]);
-      ii = r;
-    }
-    else
-    {
-      // Found the selection.
-      break;
-    }
-  }
-
-  // Calculate the weight of the selected entry by subtracting the weight of
-  // its left and right subtrees.
-  int weight = _tree[ii] -
-               (((2*ii + 1) < _tree.size()) ? _tree[2*ii + 1] : 0) -
-               (((2*ii + 2) < _tree.size()) ? _tree[2*ii + 2] : 0);
-
-  // Update the tree to set the weight of the selection to zero so it isn't
-  // selected again.
-  _tree[ii] -= weight;
-  int p = ii;
-  while (p > 0)
-  {
-    p = (p - 1)/2;
-    _tree[p] -= weight;
-  }
-
-  return ii;
-}
-
-int BaseResolver::SRVWeightedSelector::total_weight()
-{
-  return _tree[0];
 }
 
 BaseResolver::Host::Host(int blacklist_ttl,int graylist_ttl) :
