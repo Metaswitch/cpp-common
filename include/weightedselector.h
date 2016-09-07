@@ -1,4 +1,4 @@
-  /**
+/**
  * @file weightedselector.h  Declaration of base class for DNS resolution.
  *
  * Project Clearwater - IMS in the Cloud
@@ -40,12 +40,11 @@
 #include <vector>
 
 #include "utils.h"
-#include "baseresolver.h"
 
-  /// The WeightedSelector class is a class used to implement resource
-  /// selection between a number of different options at a single priority
-  /// level according to the weighting of each record.
-  /// T is a class with a visible member weight.
+/// The WeightedSelector class is used to implement resource
+/// selection between a number of different options at a single priority
+/// level according to the weighting of each record.
+/// T is a class with a visible member weight.
 template <class T> 
 class WeightedSelector
 {

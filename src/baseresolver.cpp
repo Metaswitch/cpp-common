@@ -178,7 +178,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       srvs.reserve(i->second.size());
 
       // Build a cumulative weighted tree for this priority level.
-      WeightedSelector<BaseResolver::SRV> selector(i->second);
+      WeightedSelector<SRV> selector(i->second);
 
       // Select entries while there are any with non-zero weights.
       while (selector.total_weight() > 0)
