@@ -170,6 +170,7 @@ protected:
     int port;
     int priority;
     int weight;
+    int get_weight() const {return weight;};
   };
   typedef std::map<int, std::vector<SRV> > SRVPriorityList;
 

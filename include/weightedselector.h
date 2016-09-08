@@ -45,7 +45,7 @@
 /// selection between a number of different options at a single priority
 /// level according to the weighting of each record.
 /// T is a class with a visible member weight.
-template <class T> 
+template <class T>
 class WeightedSelector
 {
 public:
@@ -64,9 +64,9 @@ public:
   /// Returns the current total weight of the items in the selector.
   int total_weight();
 
-  // function to generate a random number.  Implememted separately 
-  // to allow mocking in tests.  
-  virtual int get_rand_node();
+  // function to generate a random number.  Implememted separately
+  // to allow mocking in tests.
+  virtual int get_rand();
 
 private:
   std::vector<int> _tree;
@@ -74,14 +74,14 @@ private:
 
 // We have to declare the functions inline in the header, as this is
 // a template class
-template <class T> 
+template <class T>
 WeightedSelector<T>::WeightedSelector(const std::vector<T>& srvs) :
   _tree(srvs.size())
 {
   // Copy the weights to the tree.
   for (size_t ii = 0; ii < srvs.size(); ++ii)
   {
-    _tree[ii] = srvs[ii].weight;
+    _tree[ii] = srvs[ii].get_weight();
   }
 
   // Work backwards up the tree accumulating the weights.
@@ -91,18 +91,18 @@ WeightedSelector<T>::WeightedSelector(const std::vector<T>& srvs) :
   }
 }
 
-template <class T> 
+template <class T>
 WeightedSelector<T>::~WeightedSelector()
 {
 }
 
-template <class T> 
+template <class T>
 int WeightedSelector<T>::select()
 {
   // Search the tree to find the item with the smallest cumulative weight that
   // is greater than a random number between zero and the total weight of the
   // tree.
-  int s = get_rand_node();
+  int s = get_rand();
   size_t ii = 0;
 
   while (true)
@@ -148,14 +148,14 @@ int WeightedSelector<T>::select()
   return ii;
 }
 
-template <class T> 
+template <class T>
 int WeightedSelector<T>::total_weight()
 {
   return _tree[0];
 }
 
-template <class T> 
-int WeightedSelector<T>::get_rand_node()
+template <class T>
+int WeightedSelector<T>::get_rand()
 {
   int s = rand() % _tree[0];
   return s;
