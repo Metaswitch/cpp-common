@@ -57,33 +57,42 @@ HttpResolver::~HttpResolver()
   destroy_blacklist();
 }
 
-/// Resolve a destination host and realm name to a list of IP addresses,
-/// transports and ports.  HTTP is pretty simple - just look up the A records.
 void HttpResolver::resolve(const std::string& host,
                            int port,
                            int max_targets,
                            std::vector<AddrInfo>& targets,
                            SAS::TrailId trail)
 {
-  AddrInfo ai;
-  int dummy_ttl = 0;
+  BaseAddrIterator* addr_it = resolve_iter(host, port, trail);
+  targets = addr_it->take(max_targets);
+  delete addr_it; addr_it = nullptr;
+}
 
-  TRC_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
+BaseAddrIterator* HttpResolver::resolve_iter(const std::string& host,
+                                             int port,
+                                             SAS::TrailId trail)
+{
+  BaseAddrIterator* addr_it;
+
+  TRC_DEBUG("HttpResolver::resolve_iter for host %s, port %d, family %d",
             host.c_str(), port, _address_family);
 
   port = (port != 0) ? port : DEFAULT_PORT;
-  targets.clear();
+  AddrInfo ai;
 
   if (parse_ip_target(host, ai.address))
   {
-    // The name is already an IP address, so no DNS resolution is possible.
+    // The name is already an IP address so no DNS resolution is possible.
     TRC_DEBUG("Target is an IP address");
     ai.port = port;
     ai.transport = TRANSPORT;
-    targets.push_back(ai);
+    addr_it = new SimpleAddrIterator(std::vector<AddrInfo>(1, ai));
   }
   else
   {
-    a_resolve(host, _address_family, port, TRANSPORT, max_targets, targets, dummy_ttl, trail);
+    int dummy_ttl = 0;
+    addr_it = a_resolve_iter(host, _address_family, port, TRANSPORT, dummy_ttl, trail);
   }
+
+  return addr_it;
 }

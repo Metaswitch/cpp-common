@@ -48,6 +48,7 @@
 #include <vector>
 #include <cctype>
 #include <string.h>
+#include <sstream>
 #include <arpa/inet.h>
 
 #include "log.h"
@@ -159,6 +160,11 @@ struct AddrInfo
       (transport == rhs.transport);
   }
 
+  bool operator!=(const AddrInfo& rhs) const
+  {
+    return !(operator==(rhs));
+  }
+
   std::string address_and_port_to_string() const
   {
     std::stringstream os;
@@ -175,6 +181,10 @@ struct AddrInfo
     return os.str();
   }
 };
+
+/// Overrides Google Test default print method to avoid compatibility issues
+/// with valgrind
+void PrintTo(const AddrInfo& ai, std::ostream* os);
 
 namespace Utils
 {

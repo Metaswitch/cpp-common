@@ -1,8 +1,8 @@
 /**
- * @file fakehttpresolver.hpp Header file for fake HTTP resolver (for testing).
+ * @file fakehttpresolver.hpp Fake HttpResolver for testing
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2014  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,58 +34,80 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef FAKEHTTPRESOLVER_H_
-#define FAKEHTTPRESOLVER_H_
+#ifndef FAKEHTTPRESOLVER_H__
+#define FAKEHTTPRESOLVER_H__
 
-#include <string>
-#include "log.h"
-#include "sas.h"
 #include "httpresolver.h"
 
-/// HttpResolver that always returns hard-coded IP address.
+typedef SimpleAddrIterator FakeAddrIterator;
+
 class FakeHttpResolver : public HttpResolver
 {
 public:
-  FakeHttpResolver() :
-    HttpResolver(NULL, AF_INET), _targets() {}
+  FakeHttpResolver() : HttpResolver(nullptr, AF_INET) {}
 
-  FakeHttpResolver(const std::string& ip) :
-    HttpResolver(NULL, AF_INET), _targets()
+  FakeHttpResolver(const std::string& ip) : HttpResolver(nullptr, AF_INET)
   {
-    AddrInfo ai;
-    ai.transport = IPPROTO_TCP;
-    parse_ip_target(ip, ai.address);
-    _targets.push_back(ai);
+    _targets.push_back(FakeHttpResolver::create_target(ip));
   }
 
   FakeHttpResolver(const std::string& ip1, const std::string& ip2) :
-    HttpResolver(NULL, AF_INET), _targets()
+    HttpResolver(nullptr, 0)
   {
-    AddrInfo ai;
-    ai.transport = IPPROTO_TCP;
-    parse_ip_target(ip1, ai.address);
-    _targets.push_back(ai);
-    parse_ip_target(ip2, ai.address);
-    _targets.push_back(ai);
+    _targets.push_back(FakeHttpResolver::create_target(ip1));
+    _targets.push_back(FakeHttpResolver::create_target(ip2));
   }
 
   ~FakeHttpResolver() {}
 
-  void resolve(const std::string& host,
-               int port,
-               int max_targets,
-               std::vector<AddrInfo>& targets,
-               SAS::TrailId trail)
+  virtual BaseAddrIterator* resolve_iter(const std::string& host,
+                                         int port,
+                                         SAS::TrailId trail)
   {
-    targets = _targets;
-    // Fix up ports.
-    for (std::vector<AddrInfo>::iterator i = targets.begin(); i != targets.end(); ++i)
+    std::vector<AddrInfo> targets = _targets;
+
+    // Set the port on the targets to be returned
+    for (std::vector<AddrInfo>::iterator it = targets.begin();
+         it != targets.end();
+         ++it)
     {
-      i->port = (port != 0) ? port : 80;
+      it->port = (port != 0) ? port : 80;
     }
+
+    return new FakeAddrIterator(targets);
   }
 
+  virtual void success(const AddrInfo& ai) {};
+  virtual void blacklist(const AddrInfo& ai) {};
+  virtual void untested(const AddrInfo& ai) {};
+
   std::vector<AddrInfo> _targets;
+
+  /// Creates a single AddrInfo target from the given IP address string, and
+  /// optional port.
+  static AddrInfo create_target(std::string address_str, int port = 80)
+  {
+    AddrInfo ai;
+    BaseResolver::parse_ip_target(address_str, ai.address);
+    ai.port = port;
+    ai.transport = IPPROTO_TCP;
+    return ai;
+  }
+
+  /// Creates a vector of count AddrInfo targets, beginning from 3.0.0.0 and
+  /// incrementing by one each time.
+  static std::vector<AddrInfo> create_targets(int count)
+  {
+    std::vector<AddrInfo> targets;
+    std::stringstream os;
+    for (int i = 0; i < count; ++i)
+    {
+      os << "3.0.0." << i;
+      targets.push_back(create_target(os.str()));
+      os.str(std::string());
+    }
+    return targets;
+  }
 };
 
 #endif

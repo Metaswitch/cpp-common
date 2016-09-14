@@ -49,11 +49,18 @@ public:
                int graylist_duration = DEFAULT_GRAYLIST_DURATION);
   ~HttpResolver();
 
+  // Resolve a host name to a list of AddrInfo targets using an A record lookup.
   virtual void resolve(const std::string& host,
                        int port,
                        int max_targets,
                        std::vector<AddrInfo>& targets,
                        SAS::TrailId trail);
+
+  // Lazily resolve a hostname to a list of AddrInfo targets using an A record
+  // lookup.
+  virtual BaseAddrIterator* resolve_iter(const std::string& host,
+                                         int port,
+                                         SAS::TrailId trail);
 
   /// Default duration to blacklist hosts after we fail to connect to them.
   static const int DEFAULT_BLACKLIST_DURATION = 30;
