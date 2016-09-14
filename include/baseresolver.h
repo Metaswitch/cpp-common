@@ -49,6 +49,7 @@
 #include "ttlcache.h"
 #include "utils.h"
 #include "sas.h"
+#include "weightedselector.h"
 
 class BaseAddrIterator;
 
@@ -181,6 +182,10 @@ protected:
     int port;
     int priority;
     int weight;
+    int get_weight() const
+    {
+      return weight;
+    }
   };
   typedef std::map<int, std::vector<SRV> > SRVPriorityList;
 
@@ -207,31 +212,6 @@ protected:
   /// name (that is, a domain of the form _<service>._<transport>.<target>).
   typedef TTLCache<std::string, SRVPriorityList*> SRVCache;
   SRVCache* _srv_cache;
-
-  /// The SRVWeightedSelector class is a temporary class used to implemented
-  /// selection of SRV records at a single priority level according to the
-  /// weighting of each record.
-  class SRVWeightedSelector
-  {
-  public:
-    /// Constructor.
-    SRVWeightedSelector(const std::vector<SRV>& srvs);
-
-    /// Destructor.
-    ~SRVWeightedSelector();
-
-    /// Renders the current state of the tree as a string.
-    std::string to_string() const;
-
-    /// Selects an entry and sets its weight to zero.
-    int select();
-
-    /// Returns the current total weight of the items in the selector.
-    int total_weight();
-
-  private:
-    std::vector<int> _tree;
-  };
 
   /// The global hosts map holds a list of IP/transport/port combinations which
   /// have been blacklisted because the destination is unresponsive (either TCP
