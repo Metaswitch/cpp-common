@@ -40,7 +40,7 @@
 
 HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
                                        SNMP::IPCountTable* stat_table) :
-  ConnectionPool<CURL*>(MAX_IDLE_TIME_MS),
+  ConnectionPool<CURL*>(MAX_IDLE_TIME_S),
   _stat_table(stat_table)
 {
   _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
