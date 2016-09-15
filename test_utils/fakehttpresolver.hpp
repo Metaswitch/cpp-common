@@ -37,7 +37,7 @@
 #ifndef FAKEHTTPRESOLVER_H__
 #define FAKEHTTPRESOLVER_H__
 
-#include "httpresolver.h"
+#include "a_record_resolver.h"
 
 typedef SimpleAddrIterator FakeAddrIterator;
 

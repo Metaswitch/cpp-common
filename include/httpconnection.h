@@ -38,7 +38,7 @@
 
 #include <string>
 
-#include "httpresolver.h"
+#include "a_record_resolver.h"
 #include "snmp_ip_count_table.h"
 #include "load_monitor.h"
 #include "sasevent.h"

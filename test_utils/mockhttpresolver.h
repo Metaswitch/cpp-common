@@ -38,7 +38,7 @@
 #define MOCKHTTPRESOLVER_H__
 
 #include "gmock/gmock.h"
-#include "httpresolver.h"
+#include "a_record_resolver.h"
 
 class MockHttpResolver : public HttpResolver
 {

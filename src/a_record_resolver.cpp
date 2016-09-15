@@ -1,5 +1,5 @@
 /**
- * @file httpresolver.cpp  Implementation of HTTP DNS resolver class.
+ * @file a_record_resolver.cpp  Implementation of A record DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014 Metaswitch Networks Ltd
@@ -35,49 +35,51 @@
  */
 
 #include "log.h"
-#include "httpresolver.h"
+#include "a_record_resolver.h"
 
-HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
-                           int address_family,
-                           int blacklist_duration,
-                           int graylist_duration) :
+ARecordResolver::ARecordResolver(DnsCachedResolver* dns_client,
+                                 int address_family,
+                                 int blacklist_duration,
+                                 int graylist_duration,
+                                 const int default_port) :
   BaseResolver(dns_client),
-  _address_family(address_family)
+  _address_family(address_family),
+  _default_port(default_port)
 {
-  TRC_DEBUG("Creating HTTP resolver");
+  TRC_DEBUG("Creating ARecordResolver");
 
   // Create the blacklist.
   create_blacklist(blacklist_duration, graylist_duration);
 
-  TRC_STATUS("Created HTTP resolver");
+  TRC_STATUS("Created ARecordResolver");
 }
 
-HttpResolver::~HttpResolver()
+ARecordResolver::~ARecordResolver()
 {
   destroy_blacklist();
 }
 
-void HttpResolver::resolve(const std::string& host,
-                           int port,
-                           int max_targets,
-                           std::vector<AddrInfo>& targets,
-                           SAS::TrailId trail)
+void ARecordResolver::resolve(const std::string& host,
+                              int port,
+                              int max_targets,
+                              std::vector<AddrInfo>& targets,
+                              SAS::TrailId trail)
 {
   BaseAddrIterator* addr_it = resolve_iter(host, port, trail);
   targets = addr_it->take(max_targets);
   delete addr_it; addr_it = nullptr;
 }
 
-BaseAddrIterator* HttpResolver::resolve_iter(const std::string& host,
-                                             int port,
-                                             SAS::TrailId trail)
+BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
+                                                int port,
+                                                SAS::TrailId trail)
 {
   BaseAddrIterator* addr_it;
 
-  TRC_DEBUG("HttpResolver::resolve_iter for host %s, port %d, family %d",
+  TRC_DEBUG("ARecordResolver::resolve_iter for host %s, port %d, family %d",
             host.c_str(), port, _address_family);
 
-  port = (port != 0) ? port : DEFAULT_PORT;
+  port = (port != 0) ? port : _default_port;
   AddrInfo ai;
 
   if (parse_ip_target(host, ai.address))

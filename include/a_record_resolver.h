@@ -1,5 +1,5 @@
 /**
- * @file httpresolver.h  Declaration of HTTP DNS resolver class.
+ * @file a_record_resolver.h  Declaration of HTTP DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014 Metaswitch Networks Ltd
@@ -34,20 +34,21 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef HTTPRESOLVER_H_
-#define HTTPRESOLVER_H_
+#ifndef A_RECORD_RESOLVER_H_
+#define A_RECORD_RESOLVER_H_
 
 #include "baseresolver.h"
 #include "sas.h"
 
-class HttpResolver : public BaseResolver
+class ARecordResolver : public BaseResolver
 {
 public:
-  HttpResolver(DnsCachedResolver* dns_client,
-               int address_family,
-               int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
-               int graylist_duration = DEFAULT_GRAYLIST_DURATION);
-  ~HttpResolver();
+  ARecordResolver(DnsCachedResolver* dns_client,
+                  int address_family,
+                  int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
+                  int graylist_duration = DEFAULT_GRAYLIST_DURATION,
+                  const int default_port = DEFAULT_HTTP_PORT);
+  ~ARecordResolver();
 
   // Resolve a host name to a list of AddrInfo targets using an A record lookup.
   virtual void resolve(const std::string& host,
@@ -66,11 +67,15 @@ public:
   static const int DEFAULT_BLACKLIST_DURATION = 30;
   static const int DEFAULT_GRAYLIST_DURATION = 30;
 
-  static const int DEFAULT_PORT = 80;
+  static const int DEFAULT_HTTP_PORT = 80;
   static const int TRANSPORT = IPPROTO_TCP;
 
 private:
   int _address_family;
+  const int _default_port;
 };
+
+typedef ARecordResolver HttpResolver;
+typedef ARecordResolver CassandraResolver;
 
 #endif

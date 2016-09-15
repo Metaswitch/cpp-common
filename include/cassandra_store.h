@@ -72,6 +72,7 @@
 #include "utils.h"
 #include "sas.h"
 #include "communicationmonitor.h"
+#include "a_record_resolver.h"
 
 // Shortcut for the apache cassandra namespace.
 namespace cass = org::apache::cassandra;
@@ -457,9 +458,11 @@ public:
   /// @param comm_monitor      - A monitor to track communication with the local
   ///                            Cassandra instance, and set/clear alarms based
   ///                            on recent activity.
+  /// @param resolver          - The DNS resolver to use.
   virtual void configure_connection(std::string cass_hostname,
                                     uint16_t cass_port,
-                                    BaseCommunicationMonitor* comm_monitor = NULL);
+                                    BaseCommunicationMonitor* comm_monitor = NULL,
+                                    CassandraResolver* resolver = NULL);
 
   /// Tests the store.
   ///
@@ -568,6 +571,9 @@ private:
       // respond
     }
   };
+
+  // DNS resolver
+  CassandraResolver* _resolver;
 
   // The keyspace that the store connects to.
   const std::string _keyspace;

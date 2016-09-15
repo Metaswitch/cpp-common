@@ -149,7 +149,8 @@ Store::Store(const std::string& keyspace) :
 
 void Store::configure_connection(std::string cass_hostname,
                                  uint16_t cass_port,
-                                 BaseCommunicationMonitor* comm_monitor)
+                                 BaseCommunicationMonitor* comm_monitor,
+                                 CassandraResolver* resolver)
 {
   TRC_STATUS("Configuring store connection");
   TRC_STATUS("  Hostname:  %s", cass_hostname.c_str());
@@ -157,6 +158,7 @@ void Store::configure_connection(std::string cass_hostname,
   _cass_hostname = cass_hostname;
   _cass_port = cass_port;
   _comm_monitor = comm_monitor;
+  _resolver = resolver;
 }
 
 
@@ -286,9 +288,25 @@ Client* Store::get_client()
 
   if (client == NULL)
   {
+    //sr2sr2 we should pass in the trail ID here since we'll have one
+    BaseAddrIterator* target_it = _resolver->resolve_iter(_cass_hostname,
+                                                          _cass_port,
+                                                          0);
+
+    // For now, just use the first target
+    AddrInfo target;
+    target_it->next(target);
+
+    // Convert to string
+    char buf[100];
+    const char *remote_ip = inet_ntop(target.address.af,
+                                &target.address.addr,
+                                buf,
+                                sizeof(buf));
+
     TRC_DEBUG("No thread-local Client - creating one");
     boost::shared_ptr<TTransport> socket =
-      boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
+      boost::shared_ptr<TSocket>(new TSocket(std::string(remote_ip), target.port));
     boost::shared_ptr<TFramedTransport> transport =
       boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
     boost::shared_ptr<TProtocol> protocol =
