@@ -609,7 +609,7 @@ private:
   // - release_client() removes the client from thread-local storage and deletes
   //   it. It allows a thread to pro-actively delete it's client.
   pthread_key_t _thread_local;
-  virtual Client* get_client();
+  virtual Client* get_client(AddrInfo target);
   virtual void release_client();
   static void delete_client(void* client);
 };
