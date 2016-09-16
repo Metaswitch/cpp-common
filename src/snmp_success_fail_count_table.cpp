@@ -58,6 +58,11 @@ public:
     uint_fast32_t attempts = counts->attempts.load();
     uint_fast32_t successes = counts->successes.load();
     uint_fast32_t failures = counts->failures.load();
+    uint_fast32_t success_percent = 0;
+    if (successes + failures > 0)
+    {
+      success_percent = successes * 100000 / (successes + failures);
+    }
 
     // Construct and return a ColumnData with the appropriate values
     ColumnData ret;
@@ -65,6 +70,7 @@ public:
     ret[2] = Value::uint(attempts);
     ret[3] = Value::uint(successes);
     ret[4] = Value::uint(failures);
+    ret[5] = Value::uint(success_percent);
     return ret;
   }
 };
@@ -77,7 +83,7 @@ public:
     ManagedTable<SuccessFailCountRow, int>(name,
                                            tbl_oid,
                                            2,
-                                           4, // Only columns 2-4 should be visible
+                                           5, // Only columns 2-5 should be visible
                                            { ASN_INTEGER }), // Type of the index column
     five_second(5000),
     five_minute(300000)
