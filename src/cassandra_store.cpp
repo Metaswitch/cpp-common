@@ -62,14 +62,24 @@ const int32_t GET_SLICE_MAX_COLUMNS = 1000000;
 RealThriftClient::RealThriftClient(boost::shared_ptr<TProtocol> prot,
                                    boost::shared_ptr<TFramedTransport> transport) :
   _cass_client(prot),
-  _transport(transport)
+  _transport(transport),
+  _connected(false)
 {
-  _transport->open();
 }
 
 RealThriftClient::~RealThriftClient()
 {
   _transport->close();
+}
+
+bool RealThriftClient::is_connected()
+{
+  return _connected;
+}
+
+void RealThriftClient::connect()
+{
+  _transport->open();
 }
 
 void RealThriftClient::set_keyspace(const std::string& keyspace)
@@ -139,11 +149,8 @@ Store::Store(const std::string& keyspace) :
   _max_queue(0),
   _thread_pool(NULL),
   _comm_monitor(NULL),
-  _thread_local()
+  _conn_pool()
 {
-  // Create the thread-local storage that stores cassandra connections.
-  // delete_client is a destroy callback that is called when the thread exits.
-  pthread_key_create(&_thread_local, delete_client);
 }
 
 
@@ -171,6 +178,8 @@ ResultCode Store::connection_test()
   // cassandra is working properly.
   TRC_DEBUG("Testing cassandra connection");
 
+  Client* client = NULL;
+
   // Resolve the host
   BaseAddrIterator* target_it = _resolver->resolve_iter(_cass_hostname,
                                                         _cass_port,
@@ -182,10 +191,16 @@ ResultCode Store::connection_test()
   // targets.
   while ((target_it->next(target)) && !success)
   {
+    ConnectionHandle<Client*> conn_handle = get_client(target);
+    client = conn_handle.get_connection();
     try
     {
-      get_client(target);
-      release_client();
+      if (!client->is_connected())
+      {
+        TRC_DEBUG("Connecting to %s", target.to_string().c_str());
+        client->connect();
+        client->set_keyspace(_keyspace);
+      }
       success = true;
     }
     catch(TTransportException te)
@@ -208,6 +223,8 @@ ResultCode Store::connection_test()
       TRC_ERROR("Store caught unknown exception!");
       rc = UNKNOWN_ERROR;
     }
+
+    conn_handle.set_return_to_pool(false);
   }
 
   return rc;
@@ -286,64 +303,16 @@ Store::~Store()
     stop();
     wait_stopped();
   }
-
-  pthread_key_delete(_thread_local);
 }
 
 
-// LCOV_EXCL_START - UTs do not cover relationship of clients to threads.
-Client* Store::get_client(AddrInfo target)
+// LCOV_EXCL_START - UTs do not cover obtaining clients.
+ConnectionHandle<Client*> Store::get_client(AddrInfo target)
 {
-  // See if we've already got a client for this thread.  If not allocate a new
-  // one and write it back into thread-local storage.
-  TRC_DEBUG("Getting thread-local Client");
-  Client* client = (Client*)pthread_getspecific(_thread_local);
+  // Request a Client from the pool
+  ConnectionHandle<Client*> conn_handle = _conn_pool.get_connection(target);
 
-  if (client == NULL)
-  {
-    // We require the address as a string
-    char buf[100];
-    const char *remote_ip = inet_ntop(target.address.af,
-                                      &target.address.addr,
-                                      buf,
-                                      sizeof(buf));
-
-    TRC_DEBUG("No thread-local Client - creating one");
-    boost::shared_ptr<TTransport> socket =
-      boost::shared_ptr<TSocket>(new TSocket(std::string(remote_ip), target.port));
-    boost::shared_ptr<TFramedTransport> transport =
-      boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
-    boost::shared_ptr<TProtocol> protocol =
-      boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
-    client = new RealThriftClient(protocol, transport);
-    client->set_keyspace(_keyspace);
-    pthread_setspecific(_thread_local, client);
-  }
-
-  return client;
-}
-
-
-void Store::release_client()
-{
-  // If this thread already has a client delete it and remove it from
-  // thread-local storage.
-  TRC_DEBUG("Looking to release thread-local client");
-  Client* client = (Client*)pthread_getspecific(_thread_local);
-
-  if (client != NULL)
-  {
-    TRC_DEBUG("Found thread-local client - destroying");
-    delete_client(client);
-    client = NULL;
-    pthread_setspecific(_thread_local, NULL);
-  }
-}
-
-
-void Store::delete_client(void* client)
-{
-  delete (Client*)client; client = NULL;
+  return conn_handle;
 }
 // LCOV_EXCL_STOP
 
@@ -352,7 +321,7 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
 {
   bool success = false;
   Client* client = NULL;
-  ResultCode cass_result = OK;
+  ResultCode cass_result = UNKNOWN_ERROR;
   std::string cass_error_text = "";
 
   // Set up whether the perform should be retried on failure.
@@ -369,7 +338,7 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
   // Iterate over targets until either we succeed in connecting, run out of
   // targets or hit the maximum (2).
   // If there is only one target, try it twice.
-  while ((target_it->next(target) || attempt_count <= 1) &&
+  while ((target_it->next(target) || attempt_count == 1) &&
          retry &&
          attempt_count <= 2)
   {
@@ -377,12 +346,22 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
     cass_result = OK;
     attempt_count++;
 
+    // Get a client to execute the operation.
+    ConnectionHandle<Client*> conn_handle = get_client(target);
+
     // Call perform() to actually do the business logic of the request.  Catch
     // exceptions and turn them into return codes and error text.
     try
     {
-      // Get a client to execute the operation.
-      client = get_client(target);
+      // Ensure the client is connected and perform the operation
+      client = conn_handle.get_connection();
+
+      if (!client->is_connected())
+      {
+        TRC_DEBUG("Connecting to %s", target.to_string().c_str());
+        client->connect();
+        client->set_keyspace(_keyspace);
+      }
 
       success = op->perform(client, trail);
     }
@@ -397,9 +376,8 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
       event.add_var_param(cass_error_text);
       SAS::report_event(event);
 
-      release_client(); client = NULL;
-
-      retry = true;
+      // Tell the pool not to reuse this connection
+      conn_handle.set_return_to_pool(false);
 
       TRC_DEBUG("Connection error");
 

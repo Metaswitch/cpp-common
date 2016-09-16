@@ -73,6 +73,7 @@
 #include "sas.h"
 #include "communicationmonitor.h"
 #include "a_record_resolver.h"
+#include "cassandra_connection_pool.h"
 
 // Shortcut for the apache cassandra namespace.
 namespace cass = org::apache::cassandra;
@@ -150,6 +151,8 @@ class Client
 {
 public:
   virtual ~Client() {}
+  virtual bool is_connected() = 0;
+  virtual void connect() = 0;
   virtual void set_keyspace(const std::string& keyspace) = 0;
   virtual void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
                             const cass::ConsistencyLevel::type consistency_level) = 0;
@@ -390,6 +393,8 @@ public:
          boost::shared_ptr<apache::thrift::transport::TFramedTransport> transport);
   ~RealThriftClient();
 
+  bool is_connected();
+  void connect();
   void set_keyspace(const std::string& keyspace);
   void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
                     const cass::ConsistencyLevel::type consistency_level);
@@ -411,6 +416,7 @@ public:
 private:
   cass::CassandraClient _cass_client;
   boost::shared_ptr<apache::thrift::transport::TFramedTransport> _transport;
+  bool _connected;
 };
 
 /// The possible outcomes of a cassandra interaction.
@@ -599,19 +605,14 @@ private:
 
   // Cassandra connection management.
   //
-  // Each thread has it's own cassandra client. This is created only when
-  // required, and deleted when the thread exits.
+  // The CassandraConnectionPool manages the actual connections. Each thread
+  // requests a connection from the pool when it is needed, and returns it
+  // when it is finished.
   //
-  // - _thread_local stores the client as a thread-local variable.
-  // - get_client() creates and stores a new client.
-  // - delete_client() deletes a client (and is automatically called when the
-  //   thread exits).
-  // - release_client() removes the client from thread-local storage and deletes
-  //   it. It allows a thread to pro-actively delete it's client.
-  pthread_key_t _thread_local;
-  virtual Client* get_client(AddrInfo target);
-  virtual void release_client();
-  static void delete_client(void* client);
+  // - get_client() requests a client from the pool
+  CassandraConnectionPool _conn_pool;
+  virtual ConnectionHandle<Client*> get_client(AddrInfo target);
+
 };
 
 /// Base class for transactions used to perform asynchronous operations.
