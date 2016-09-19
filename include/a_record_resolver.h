@@ -1,5 +1,5 @@
 /**
- * @file a_record_resolver.h  Declaration of HTTP DNS resolver class.
+ * @file a_record_resolver.h  Declaration of A record DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014 Metaswitch Networks Ltd
