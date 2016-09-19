@@ -80,6 +80,7 @@ bool RealThriftClient::is_connected()
 void RealThriftClient::connect()
 {
   _transport->open();
+  _connected = true;
 }
 
 void RealThriftClient::set_keyspace(const std::string& keyspace)
@@ -171,7 +172,7 @@ void Store::configure_connection(std::string cass_hostname,
 
 ResultCode Store::connection_test()
 {
-  ResultCode rc = OK;
+  ResultCode rc = UNKNOWN_ERROR;
 
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the specified keyspace, so is a good test of whether
@@ -185,11 +186,10 @@ ResultCode Store::connection_test()
                                                         _cass_port,
                                                         0);
   AddrInfo target;
-  bool success = false;
 
   // Iterate over targets until either we succeed in connecting or run out of
   // targets.
-  while ((target_it->next(target)) && !success)
+  while (rc != OK && (target_it->next(target)))
   {
     ConnectionHandle<Client*> conn_handle = get_client(target);
     client = conn_handle.get_connection();
@@ -201,7 +201,7 @@ ResultCode Store::connection_test()
         client->connect();
         client->set_keyspace(_keyspace);
       }
-      success = true;
+      rc = OK;
     }
     catch(TTransportException te)
     {
@@ -338,9 +338,9 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
   // Iterate over targets until either we succeed in connecting, run out of
   // targets or hit the maximum (2).
   // If there is only one target, try it twice.
-  while ((target_it->next(target) || attempt_count == 1) &&
-         retry &&
-         attempt_count <= 2)
+  while (retry &&
+         attempt_count <= 2 &&
+         (target_it->next(target) || attempt_count == 1))
   {
     retry = false;
     cass_result = OK;
@@ -380,7 +380,7 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
       conn_handle.set_return_to_pool(false);
 
       TRC_DEBUG("Connection error");
-
+      retry = true;
     }
     catch(InvalidRequestException& ire)
     {

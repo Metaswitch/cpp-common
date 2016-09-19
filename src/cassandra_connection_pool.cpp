@@ -52,8 +52,11 @@ CassandraStore::Client* CassandraConnectionPool::create_connection(AddrInfo targ
                                     buf,
                                     sizeof(buf));
 
-  boost::shared_ptr<TTransport> socket =
+  boost::shared_ptr<TSocket> socket =
     boost::shared_ptr<TSocket>(new TSocket(std::string(remote_ip), target.port));
+  socket->setConnTimeout(TSOCKET_TIMEOUT_MS);
+  socket->setRecvTimeout(TSOCKET_TIMEOUT_MS);
+  socket->setSendTimeout(TSOCKET_TIMEOUT_MS);
   boost::shared_ptr<TFramedTransport> transport =
     boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
   boost::shared_ptr<TProtocol> protocol =

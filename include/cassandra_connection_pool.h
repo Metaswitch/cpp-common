@@ -56,6 +56,7 @@ namespace CassandraStore
 class Client;
 }
 
+static const int TSOCKET_TIMEOUT_MS = 50;
 
 class CassandraConnectionPool : public ConnectionPool<CassandraStore::Client*>
 {
