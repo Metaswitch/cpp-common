@@ -144,7 +144,7 @@ void cwtest_reset_time()
   pthread_mutex_unlock(&time_lock);
 }
 
-void cwtest_completely_control_time()
+void cwtest_completely_control_time(bool start_of_epoch)
 {
   if (!real_clock_gettime)
   {
@@ -167,8 +167,17 @@ void cwtest_completely_control_time()
        ++i)
   {
     clockid_t clock_id = supported_clock_ids[i];
-    real_clock_gettime(clock_id, &ts);
-    abs_timespecs[clock_id] = ts;
+    if (start_of_epoch)
+    {
+      ts.tv_sec = 0;
+      ts.tv_nsec = 0;
+      abs_timespecs[clock_id] = ts;
+    }
+    else
+    {
+      real_clock_gettime(clock_id, &ts);
+      abs_timespecs[clock_id] = ts;
+    }
   }
 
   abs_time = real_time(NULL);

@@ -43,7 +43,7 @@ void cwtest_add_host_mapping(std::string host, std::string target);
 void cwtest_clear_host_mapping();
 void cwtest_advance_time_ms(long delta_ms);
 void cwtest_reset_time();
-void cwtest_completely_control_time();
+void cwtest_completely_control_time(bool start_of_epoch = false);
 
 // Control file manipulation.
 void cwtest_control_fopen(FILE* fd);
