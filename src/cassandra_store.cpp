@@ -185,11 +185,17 @@ ResultCode Store::connection_test()
                                                         _cass_port,
                                                         0);
   AddrInfo target;
+  bool retry = true;
+  int attempt_count = 0;
 
-  // Iterate over targets until either we succeed in connecting or run out of
-  // targets.
-  while (rc != OK && (target_it->next(target)))
+  // Iterate over targets and try to connect. We only try the next target if
+  // there is a transport error, and we limit the loop to 2 targets.
+  while (retry && attempt_count < 2 && (target_it->next(target)))
   {
+    retry = false;
+    attempt_count++;
+    rc = OK;
+
     ConnectionHandle<Client*> conn_handle = get_client(target);
     client = conn_handle.get_connection();
     try
@@ -206,6 +212,7 @@ ResultCode Store::connection_test()
     {
       TRC_ERROR("Store caught TTransportException: %s", te.what());
       rc = CONNECTION_ERROR;
+      retry = true;
     }
     catch(NotFoundException nfe)
     {
