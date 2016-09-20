@@ -149,11 +149,10 @@ Store::Store(const std::string& keyspace) :
   _num_threads(0),
   _max_queue(0),
   _thread_pool(NULL),
-  _comm_monitor(NULL),
-  _conn_pool()
+  _comm_monitor(NULL)
 {
+  _conn_pool = new CassandraConnectionPool();
 }
-
 
 void Store::configure_connection(std::string cass_hostname,
                                  uint16_t cass_port,
@@ -303,6 +302,8 @@ Store::~Store()
     stop();
     wait_stopped();
   }
+
+  delete _conn_pool; _conn_pool = NULL;
 }
 
 
@@ -310,7 +311,7 @@ Store::~Store()
 ConnectionHandle<Client*> Store::get_client(AddrInfo target)
 {
   // Request a Client from the pool
-  ConnectionHandle<Client*> conn_handle = _conn_pool.get_connection(target);
+  ConnectionHandle<Client*> conn_handle = _conn_pool->get_connection(target);
 
   return conn_handle;
 }

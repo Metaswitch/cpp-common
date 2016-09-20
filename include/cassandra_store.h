@@ -610,7 +610,7 @@ private:
   // when it is finished.
   //
   // - get_client() requests a client from the pool
-  CassandraConnectionPool _conn_pool;
+  CassandraConnectionPool* _conn_pool;
   virtual ConnectionHandle<Client*> get_client(AddrInfo target);
 
 };
