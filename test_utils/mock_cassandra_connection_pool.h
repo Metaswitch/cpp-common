@@ -48,5 +48,5 @@ public:
 
 protected:
   MOCK_METHOD1(create_connection, CassandraStore::Client*(AddrInfo target));
-  MOCK_METHOD2(destroy_connection, void(AddrInfo target, CassandraStore::Client* conn));
+  MOCK_METHOD2(release_connection, void(ConnectionInfo<CassandraStore::Client*>*, bool));
 };
