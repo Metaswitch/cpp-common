@@ -38,6 +38,7 @@
 #include "cassandra_connection_pool.h"
 #include "cassandra_store.h"
 
+// LCOV_EXCL_START - UTs do not cover the creation/deletion on Clients
 CassandraConnectionPool::CassandraConnectionPool() :
   ConnectionPool<CassandraStore::Client*>(MAX_IDLE_TIME_S)
 {
@@ -69,4 +70,5 @@ void CassandraConnectionPool::destroy_connection(AddrInfo target, CassandraStore
 {
   delete conn; conn = NULL;
 }
+// LCOV_EXCL_STOP
 
