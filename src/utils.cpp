@@ -269,6 +269,22 @@ void Utils::create_random_token(size_t length,       //< Number of characters.
   }
 }
 
+std::string Utils::hex(const uint8_t* data, size_t len)
+{
+  static const char* const hex_lookup = "0123456789abcdef";
+  std::string result;
+  result.reserve(2 * len);
+  for (size_t ii = 0; ii < len; ++ii)
+  {
+    const uint8_t b = data[ii];
+    result.push_back(hex_lookup[b >> 4]);
+    result.push_back(hex_lookup[b & 0x0f]);
+  }
+  return result;
+}
+
+
+
 // This function is from RFC 2617
 void Utils::hashToHex(unsigned char *hash_char, unsigned char *hex_char)
 {

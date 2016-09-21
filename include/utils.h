@@ -205,6 +205,10 @@ namespace Utils
 
   void hashToHex(unsigned char *hash_char, unsigned char *hex_char);
 
+  // Converts binary data to an ASCII hex-encoded form, e.g. "\x19\xaf"
+  // becomes"19af"
+  std::string hex(const uint8_t* data, size_t len);
+
   /// Splits a URL of the form "http://<servername>[/<path>]" into
   /// servername and path.
   ///
