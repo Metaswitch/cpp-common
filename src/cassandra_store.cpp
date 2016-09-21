@@ -159,9 +159,9 @@ Store::Store(const std::string& keyspace) :
   _num_threads(0),
   _max_queue(0),
   _thread_pool(NULL),
-  _comm_monitor(NULL)
+  _comm_monitor(NULL),
+  _conn_pool(new CassandraConnectionPool())
 {
-  _conn_pool = new CassandraConnectionPool();
 }
 
 void Store::configure_connection(std::string cass_hostname,

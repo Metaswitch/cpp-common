@@ -38,7 +38,7 @@
 #include "gmock/gmock.h"
 #include "cassandra_connection_pool.h"
 
-class MockCassandraConnectionPool : public CassandraConnectionPool
+class MockCassandraConnectionPool : public CassandraStore::CassandraConnectionPool
 {
 public:
   MockCassandraConnectionPool(){}

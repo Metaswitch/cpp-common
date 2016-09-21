@@ -38,15 +38,24 @@
 #include "cassandra_connection_pool.h"
 #include "cassandra_store.h"
 
+namespace CassandraStore
+{
+
+static const int TSOCKET_TIMEOUT_MS = 50;
+
+// The length of time a connection can remain idle before it is removed from
+// the pool
+static const double MAX_IDLE_TIME_S = 60;
+
 // LCOV_EXCL_START - UTs do not cover the creation/deletion on Clients
 CassandraConnectionPool::CassandraConnectionPool() :
-  ConnectionPool<CassandraStore::Client*>(MAX_IDLE_TIME_S)
+  ConnectionPool<Client*>(MAX_IDLE_TIME_S)
 {
 }
 
-CassandraStore::Client* CassandraConnectionPool::create_connection(AddrInfo target)
+Client* CassandraConnectionPool::create_connection(AddrInfo target)
 {
-  //We require the address as a string
+  // We require the address as a string
   char buf[100];
   const char *remote_ip = inet_ntop(target.address.af,
                                     &target.address.addr,
@@ -63,12 +72,13 @@ CassandraStore::Client* CassandraConnectionPool::create_connection(AddrInfo targ
   boost::shared_ptr<TProtocol> protocol =
      boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
 
-  return new CassandraStore::RealThriftClient(protocol, transport);
+  return new RealThriftClient(protocol, transport);
 }
 
-void CassandraConnectionPool::destroy_connection(AddrInfo target, CassandraStore::Client* conn)
+void CassandraConnectionPool::destroy_connection(AddrInfo target, Client* conn)
 {
   delete conn; conn = NULL;
 }
 // LCOV_EXCL_STOP
 
+} // namespace CassandraStore

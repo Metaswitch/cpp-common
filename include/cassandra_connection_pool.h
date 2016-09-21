@@ -54,11 +54,8 @@ using namespace apache::thrift::protocol;
 namespace CassandraStore
 {
 class Client;
-}
 
-static const int TSOCKET_TIMEOUT_MS = 50;
-
-class CassandraConnectionPool : public ConnectionPool<CassandraStore::Client*>
+class CassandraConnectionPool : public ConnectionPool<Client*>
 {
 public:
   CassandraConnectionPool();
@@ -70,16 +67,12 @@ public:
   }
 
 protected:
-  CassandraStore::Client* create_connection(AddrInfo target) override;
+  Client* create_connection(AddrInfo target) override;
 
-  void destroy_connection(AddrInfo target, CassandraStore::Client* conn) override;
+  void destroy_connection(AddrInfo target, Client* conn) override;
 
   long _timeout_ms;
-
-private:
-  // The length of time a connection can remain idle before it is removed from
-  // the pool
-  const double MAX_IDLE_TIME_S = 60;
 };
 
+} // namespace CassandraStore
 #endif
