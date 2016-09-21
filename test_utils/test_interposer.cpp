@@ -169,9 +169,7 @@ void cwtest_completely_control_time(bool start_of_epoch)
     clockid_t clock_id = supported_clock_ids[i];
     if (start_of_epoch)
     {
-      ts.tv_sec = 0;
-      ts.tv_nsec = 0;
-      abs_timespecs[clock_id] = ts;
+      abs_timespecs[clock_id] = {0, 0};
     }
     else
     {
