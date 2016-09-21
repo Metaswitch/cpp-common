@@ -46,7 +46,7 @@
 #include <boost/uuid/uuid_generators.hpp>
 
 #include "utils.h"
-#include "a_record_resolver.h"
+#include "httpresolver.h"
 #include "load_monitor.h"
 #include "sasevent.h"
 #include "communicationmonitor.h"

@@ -47,7 +47,7 @@ public:
                   int address_family,
                   int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
                   int graylist_duration = DEFAULT_GRAYLIST_DURATION,
-                  const int default_port = DEFAULT_HTTP_PORT);
+                  const int default_port = 0);
   ~ARecordResolver();
 
   // Resolve a host name to a list of AddrInfo targets using an A record lookup.
@@ -67,7 +67,6 @@ public:
   static const int DEFAULT_BLACKLIST_DURATION = 30;
   static const int DEFAULT_GRAYLIST_DURATION = 30;
 
-  static const int DEFAULT_HTTP_PORT = 80;
   static const int TRANSPORT = IPPROTO_TCP;
 
 private:
@@ -75,7 +74,6 @@ private:
   const int _default_port;
 };
 
-typedef ARecordResolver HttpResolver;
 typedef ARecordResolver CassandraResolver;
 
 #endif
