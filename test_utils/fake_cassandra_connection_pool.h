@@ -1,5 +1,5 @@
 /**
- * @file mock_cassandra_connection_pool.h Mock CassandraConnectionPool for
+ * @file fake_cassandra_connection_pool.h Fake CassandraConnectionPool for
  * testing.
  *
  * Project Clearwater - IMS in the Cloud
@@ -35,18 +35,35 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "gmock/gmock.h"
 #include "cassandra_connection_pool.h"
 
-class MockCassandraConnectionPool : public CassandraStore::CassandraConnectionPool
+class FakeCassandraConnectionPool : public CassandraStore::CassandraConnectionPool
 {
 public:
-  MockCassandraConnectionPool(){}
-  ~MockCassandraConnectionPool()
+  FakeCassandraConnectionPool(){}
+  ~FakeCassandraConnectionPool()
   {
   }
 
+  // Use the same client for every get_connection() call
+  void set_client(CassandraStore::Client* client)
+  {
+    _client = client;
+  }
+
 protected:
-  MOCK_METHOD1(create_connection, CassandraStore::Client*(AddrInfo target));
-  MOCK_METHOD2(release_connection, void(ConnectionInfo<CassandraStore::Client*>*, bool));
+  void release_connection(ConnectionInfo<CassandraStore::Client*>* info, bool return_to_pool)
+  {
+    delete info; info = NULL;
+  }
+
+  ConnectionHandle<CassandraStore::Client*> get_connection(AddrInfo target)
+  {
+    ConnectionInfo<CassandraStore::Client*>* info =
+      new ConnectionInfo<CassandraStore::Client*>(_client, target);
+    return ConnectionHandle<CassandraStore::Client*>(info, this);
+  }
+
+private:
+  CassandraStore::Client* _client;
 };
