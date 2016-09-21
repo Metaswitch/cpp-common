@@ -54,6 +54,16 @@ namespace CassandraStore
 // set the limit very high instead.
 const int32_t GET_SLICE_MAX_COLUMNS = 1000000;
 
+// No-op operation class
+class NoOperation : public Operation
+{
+public:
+  bool perform(Client* client, SAS::TrailId trail)
+  {
+    return true;
+  }
+};
+
 //
 // Client methods
 //
@@ -171,68 +181,16 @@ void Store::configure_connection(std::string cass_hostname,
 
 ResultCode Store::connection_test()
 {
+  TRC_DEBUG("Testing cassandra connection");
+
   ResultCode rc = UNKNOWN_ERROR;
+  std::string cass_error_text = "";
 
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the specified keyspace, so is a good test of whether
   // cassandra is working properly.
-  TRC_DEBUG("Testing cassandra connection");
-
-  Client* client = NULL;
-
-  // Resolve the host
-  BaseAddrIterator* target_it = _resolver->resolve_iter(_cass_hostname,
-                                                        _cass_port,
-                                                        0);
-  AddrInfo target;
-  bool retry = true;
-  int attempt_count = 0;
-
-  // Iterate over targets and try to connect. We only try the next target if
-  // there is a transport error, and we limit the loop to 2 targets.
-  while (retry && attempt_count < 2 && (target_it->next(target)))
-  {
-    retry = false;
-    attempt_count++;
-    rc = OK;
-
-    ConnectionHandle<Client*> conn_handle = get_client(target);
-    client = conn_handle.get_connection();
-    try
-    {
-      if (!client->is_connected())
-      {
-        TRC_DEBUG("Connecting to %s", target.to_string().c_str());
-        client->connect();
-        client->set_keyspace(_keyspace);
-      }
-      rc = OK;
-    }
-    catch(TTransportException te)
-    {
-      TRC_ERROR("Store caught TTransportException: %s", te.what());
-      rc = CONNECTION_ERROR;
-      retry = true;
-    }
-    catch(NotFoundException nfe)
-    {
-      TRC_ERROR("Store caught NotFoundException: %s", nfe.what());
-      rc = NOT_FOUND;
-    }
-    catch(InvalidRequestException ire)
-    {
-      TRC_ERROR("Store caught InvalidRequestException: %s", ire.why.c_str());
-      rc = INVALID_REQUEST;
-    }
-    catch(...)
-    {
-      TRC_ERROR("Store caught unknown exception!");
-      rc = UNKNOWN_ERROR;
-    }
-
-    conn_handle.set_return_to_pool(false);
-  }
-
+  NoOperation no_op;
+  perform_op(&no_op, 0, rc, cass_error_text);
   return rc;
 }
 
@@ -314,26 +272,12 @@ Store::~Store()
 }
 
 
-// LCOV_EXCL_START - UTs do not cover obtaining clients.
-ConnectionHandle<Client*> Store::get_client(AddrInfo target)
-{
-  // Request a Client from the pool
-  ConnectionHandle<Client*> conn_handle = _conn_pool->get_connection(target);
-
-  return conn_handle;
-}
-// LCOV_EXCL_STOP
-
-
-bool Store::do_sync(Operation* op, SAS::TrailId trail)
+bool Store::perform_op(Operation* op,
+                       SAS::TrailId trail,
+                       ResultCode& cass_result,
+                       std::string& cass_error_text)
 {
   bool success = false;
-  Client* client = NULL;
-  ResultCode cass_result = UNKNOWN_ERROR;
-  std::string cass_error_text = "";
-
-  // Set up whether the perform should be retried on failure.
-  // Only retry on connection errors
   bool retry = true;
   int attempt_count = 0;
 
@@ -347,22 +291,24 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
   // targets or hit the maximum (2).
   // If there is only one target, try it twice.
   while (retry &&
-         attempt_count <= 2 &&
-         (target_it->next(target) || attempt_count == 1))
+         (attempt_count <= 2) &&
+         (target_it->next(target) || (attempt_count == 1)))
   {
-    retry = false;
     cass_result = OK;
     attempt_count++;
 
+    // Only retry on connection errors
+    retry = false;
+
     // Get a client to execute the operation.
-    ConnectionHandle<Client*> conn_handle = get_client(target);
+    ConnectionHandle<Client*> conn_handle = _conn_pool->get_connection(target);
 
     // Call perform() to actually do the business logic of the request.  Catch
     // exceptions and turn them into return codes and error text.
     try
     {
       // Ensure the client is connected and perform the operation
-      client = conn_handle.get_connection();
+      Client* client = conn_handle.get_connection();
 
       if (!client->is_connected())
       {
@@ -431,6 +377,17 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
       _resolver->success(target);
     }
   }
+  return success;
+}
+
+
+bool Store::do_sync(Operation* op, SAS::TrailId trail)
+{
+  ResultCode cass_result = UNKNOWN_ERROR;
+  std::string cass_error_text = "";
+
+  // perform_op() does the actual work
+  bool success  = perform_op(op, trail, cass_result, cass_error_text);
 
   if (cass_result == OK)
   {

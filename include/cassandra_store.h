@@ -482,8 +482,8 @@ public:
   /// until the operation is complete.  The result of the operation is stored
   /// on the operation object.
   ///
-  /// This method runs the perform() method on the underlying operation. It
-  /// also provides two additional features:
+  /// This method calls into perform_op(), which in turn runs perform() on the
+  /// underlying operation. It also provides two additional features:
   ///
   /// -  If the store cannot connect to cassandra, it will try to
   ///    re-establish it's connection and retry the operation (by calling
@@ -578,6 +578,12 @@ private:
     }
   };
 
+  // Private method that is used by do_sync() and connection_test()
+  bool perform_op(Operation* op,
+                  SAS::TrailId trail,
+                  ResultCode& cass_result,
+                  std::string& cass_error_text);
+
   // DNS resolver
   CassandraResolver* _resolver;
 
@@ -608,11 +614,7 @@ private:
   // The CassandraConnectionPool manages the actual connections. Each thread
   // requests a connection from the pool when it is needed, and returns it
   // when it is finished.
-  //
-  // - get_client() requests a client from the pool
   CassandraConnectionPool* _conn_pool;
-  virtual ConnectionHandle<Client*> get_client(AddrInfo target);
-
 };
 
 /// Base class for transactions used to perform asynchronous operations.
