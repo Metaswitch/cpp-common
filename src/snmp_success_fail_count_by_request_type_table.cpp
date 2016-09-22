@@ -60,9 +60,10 @@ public:
     uint_fast32_t successes = counts->successes.load();
     uint_fast32_t failures = counts->failures.load();
     uint_fast32_t success_percent = 0;
-    if (successes + failures > 0)
+    if (successes > 0)
     {
-      success_percent = successes * 100000 / (successes + failures);
+      // Units for Success Percent are actually 10,000's of a percent.
+      success_percent = (successes * 100 * 10000) / (successes + failures);
     }
 
     // Construct and return a ColumnData with the appropriate values
