@@ -1,8 +1,9 @@
 /**
- * @file httpresolver.h  Declaration of HTTP DNS resolver class.
+ * @file mock_cassandra_connection_pool.h Mock CassandraConnectionPool for
+ * testing.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,28 +35,29 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef HTTPRESOLVER_H_
-#define HTTPRESOLVER_H_
+#include "cassandra_connection_pool.h"
 
-#include "a_record_resolver.h"
-
-class HttpResolver : public ARecordResolver
+class MockCassandraConnectionPool : public CassandraStore::CassandraConnectionPool
 {
 public:
-  HttpResolver(DnsCachedResolver* dns_client,
-               int address_family,
-               int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
-               int graylist_duration = DEFAULT_GRAYLIST_DURATION)
-    : ARecordResolver(dns_client,
-                      address_family,
-                      blacklist_duration,
-                      graylist_duration,
-                      DEFAULT_HTTP_PORT)
+  MockCassandraConnectionPool(){}
+  ~MockCassandraConnectionPool()
   {
   }
 
-private:
-  static const int DEFAULT_HTTP_PORT = 80;
-};
+  MOCK_METHOD0(get_client, CassandraStore::Client*());
 
-#endif
+protected:
+  void release_connection(ConnectionInfo<CassandraStore::Client*>* info, bool return_to_pool)
+  {
+    delete info; info = NULL;
+  }
+
+  ConnectionHandle<CassandraStore::Client*> get_connection(AddrInfo target)
+  {
+    CassandraStore::Client* client = get_client();
+    ConnectionInfo<CassandraStore::Client*>* info =
+      new ConnectionInfo<CassandraStore::Client*>(client, target);
+    return ConnectionHandle<CassandraStore::Client*>(info, this);
+  }
+};

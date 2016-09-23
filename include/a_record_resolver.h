@@ -1,5 +1,5 @@
 /**
- * @file httpresolver.h  Declaration of HTTP DNS resolver class.
+ * @file a_record_resolver.h  Declaration of A record DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2014 Metaswitch Networks Ltd
@@ -34,28 +34,46 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef HTTPRESOLVER_H_
-#define HTTPRESOLVER_H_
+#ifndef A_RECORD_RESOLVER_H_
+#define A_RECORD_RESOLVER_H_
 
-#include "a_record_resolver.h"
+#include "baseresolver.h"
+#include "sas.h"
 
-class HttpResolver : public ARecordResolver
+class ARecordResolver : public BaseResolver
 {
 public:
-  HttpResolver(DnsCachedResolver* dns_client,
-               int address_family,
-               int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
-               int graylist_duration = DEFAULT_GRAYLIST_DURATION)
-    : ARecordResolver(dns_client,
-                      address_family,
-                      blacklist_duration,
-                      graylist_duration,
-                      DEFAULT_HTTP_PORT)
-  {
-  }
+  ARecordResolver(DnsCachedResolver* dns_client,
+                  int address_family,
+                  int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
+                  int graylist_duration = DEFAULT_GRAYLIST_DURATION,
+                  const int default_port = 0);
+  ~ARecordResolver();
+
+  // Resolve a host name to a list of AddrInfo targets using an A record lookup.
+  virtual void resolve(const std::string& host,
+                       int port,
+                       int max_targets,
+                       std::vector<AddrInfo>& targets,
+                       SAS::TrailId trail);
+
+  // Lazily resolve a hostname to a list of AddrInfo targets using an A record
+  // lookup.
+  virtual BaseAddrIterator* resolve_iter(const std::string& host,
+                                         int port,
+                                         SAS::TrailId trail);
+
+  /// Default duration to blacklist hosts after we fail to connect to them.
+  static const int DEFAULT_BLACKLIST_DURATION = 30;
+  static const int DEFAULT_GRAYLIST_DURATION = 30;
+
+  static const int TRANSPORT = IPPROTO_TCP;
 
 private:
-  static const int DEFAULT_HTTP_PORT = 80;
+  int _address_family;
+  const int _default_port;
 };
+
+typedef ARecordResolver CassandraResolver;
 
 #endif

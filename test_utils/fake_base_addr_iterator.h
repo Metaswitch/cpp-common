@@ -1,8 +1,8 @@
 /**
- * @file httpresolver.h  Declaration of HTTP DNS resolver class.
+ * @file fake_base_addr_iterator.h Fake BaseAddrIterator for testing.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,28 +34,22 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef HTTPRESOLVER_H_
-#define HTTPRESOLVER_H_
+#include "baseresolver.h"
 
-#include "a_record_resolver.h"
-
-class HttpResolver : public ARecordResolver
+class FakeBaseAddrIterator : public BaseAddrIterator
 {
 public:
-  HttpResolver(DnsCachedResolver* dns_client,
-               int address_family,
-               int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
-               int graylist_duration = DEFAULT_GRAYLIST_DURATION)
-    : ARecordResolver(dns_client,
-                      address_family,
-                      blacklist_duration,
-                      graylist_duration,
-                      DEFAULT_HTTP_PORT)
+  FakeBaseAddrIterator(AddrInfo target) : _target(target) {}
+  virtual ~FakeBaseAddrIterator() {}
+
+  virtual std::vector<AddrInfo> take(int num_requested_targets)
   {
+    std::vector<AddrInfo>  v;
+    v.push_back(_target);
+    return v;
   }
 
 private:
-  static const int DEFAULT_HTTP_PORT = 80;
+  AddrInfo _target;
 };
 
-#endif

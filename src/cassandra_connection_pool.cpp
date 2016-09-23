@@ -1,8 +1,9 @@
 /**
- * @file httpresolver.h  Declaration of HTTP DNS resolver class.
+ * @file cassandra_connection_pool.cpp  Implementation of derived class for
+ * Cassandra connection pooling.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2016 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,28 +35,50 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef HTTPRESOLVER_H_
-#define HTTPRESOLVER_H_
+#include "cassandra_connection_pool.h"
+#include "cassandra_store.h"
 
-#include "a_record_resolver.h"
-
-class HttpResolver : public ARecordResolver
+namespace CassandraStore
 {
-public:
-  HttpResolver(DnsCachedResolver* dns_client,
-               int address_family,
-               int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
-               int graylist_duration = DEFAULT_GRAYLIST_DURATION)
-    : ARecordResolver(dns_client,
-                      address_family,
-                      blacklist_duration,
-                      graylist_duration,
-                      DEFAULT_HTTP_PORT)
-  {
-  }
 
-private:
-  static const int DEFAULT_HTTP_PORT = 80;
-};
+static const int TSOCKET_TIMEOUT_MS = 50;
 
-#endif
+// The length of time a connection can remain idle before it is removed from
+// the pool
+static const double MAX_IDLE_TIME_S = 60;
+
+// LCOV_EXCL_START - UTs do not cover the creation/deletion on Clients
+CassandraConnectionPool::CassandraConnectionPool() :
+  ConnectionPool<Client*>(MAX_IDLE_TIME_S)
+{
+}
+
+Client* CassandraConnectionPool::create_connection(AddrInfo target)
+{
+  // We require the address as a string
+  char buf[100];
+  const char *remote_ip = inet_ntop(target.address.af,
+                                    &target.address.addr,
+                                    buf,
+                                    sizeof(buf));
+
+  boost::shared_ptr<TSocket> socket =
+    boost::shared_ptr<TSocket>(new TSocket(std::string(remote_ip), target.port));
+  socket->setConnTimeout(TSOCKET_TIMEOUT_MS);
+  socket->setRecvTimeout(TSOCKET_TIMEOUT_MS);
+  socket->setSendTimeout(TSOCKET_TIMEOUT_MS);
+  boost::shared_ptr<TFramedTransport> transport =
+    boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
+  boost::shared_ptr<TProtocol> protocol =
+     boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
+
+  return new RealThriftClient(protocol, transport);
+}
+
+void CassandraConnectionPool::destroy_connection(AddrInfo target, Client* conn)
+{
+  delete conn; conn = NULL;
+}
+// LCOV_EXCL_STOP
+
+} // namespace CassandraStore

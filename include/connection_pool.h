@@ -111,7 +111,8 @@ public:
   /// Retrieves a connection for the given target from the pool if it exists,
   /// and creates one otherwise. Returns this connection wrapped in a
   /// ConnectionHandle.
-  ConnectionHandle<T> get_connection(AddrInfo target);
+  /// (virtual to allow for testing)
+  virtual ConnectionHandle<T> get_connection(AddrInfo target);
 
 protected:
   /// Creates a type T connection for the given target
