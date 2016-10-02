@@ -283,8 +283,6 @@ std::string Utils::hex(const uint8_t* data, size_t len)
   return result;
 }
 
-
-
 // This function is from RFC 2617
 void Utils::hashToHex(unsigned char *hash_char, unsigned char *hex_char)
 {
