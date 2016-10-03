@@ -39,6 +39,7 @@
 
 #include <pthread.h>
 #include <string>
+#include <set>
 
 #include <evhtp.h>
 
@@ -66,10 +67,10 @@ public:
   {
   public:
     Request(HttpStack* stack, evhtp_request_t* req) :
-      _method(htp_method_UNKNOWN), 
-      _rx_body_set(false), 
-      _req(req), 
-      _stack(stack), 
+      _method(htp_method_UNKNOWN),
+      _rx_body_set(false),
+      _req(req),
+      _stack(stack),
       _stopwatch(),
       _track_latency(true)
     {
@@ -407,7 +408,9 @@ public:
     virtual void incr_http_rejected_overload() = 0;
   };
 
-  static inline HttpStack* get_instance() {return INSTANCE;};
+  HttpStack();
+  virtual ~HttpStack() {}
+
   virtual void initialize();
   virtual void configure(const std::string& bind_address,
                          unsigned short port,
@@ -434,16 +437,9 @@ public:
   static DefaultSasLogger DEFAULT_SAS_LOGGER;
   static NullSasLogger NULL_SAS_LOGGER;
 
-protected:
-  HttpStack();
-  virtual ~HttpStack() {}
-
 private:
-  static HttpStack* INSTANCE;
-  static HttpStack DEFAULT_INSTANCE;
-
   virtual void send_reply_internal(Request& req, int rc, SAS::TrailId trail);
-  static void handler_callback_fn(evhtp_request_t* req, void* handler);
+  static void handler_callback_fn(evhtp_request_t* req, void* handler_reg_param);
   static void* event_base_thread_fn(void* http_stack_ptr);
   void handler_callback(evhtp_request_t* req, HandlerInterface* handler);
   void event_base_thread_fn();
@@ -466,6 +462,23 @@ private:
   pthread_t _event_base_thread;
 
   static bool _ev_using_pthreads;
+
+  // Helper structure used to register handlers with libevhtp, while also
+  // allowing callbacks to get back to the HttpStack object.
+  struct HandlerRegistration
+  {
+    HttpStack* stack;
+    HandlerInterface* handler;
+
+    HandlerRegistration(): HandlerRegistration(nullptr, nullptr) {}
+    HandlerRegistration(HttpStack* stack_param, HandlerInterface* handler_param) :
+      stack(stack_param), handler(handler_param)
+    {}
+  };
+
+  // Active handler registrations - stored here so they can be freed when the
+  // stack is destroyed.
+  std::set<HandlerRegistration*> _handler_registrations;
 };
 
 #endif

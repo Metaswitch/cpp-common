@@ -38,8 +38,6 @@
 #include <cstring>
 #include "log.h"
 
-HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
-HttpStack HttpStack::DEFAULT_INSTANCE;
 bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
 HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
@@ -76,8 +74,8 @@ void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
 }
 
 
-void HttpStack::send_reply(Request& req, 
-                           int rc, 
+void HttpStack::send_reply(Request& req,
+                           int rc,
                            SAS::TrailId trail)
 {
   send_reply_internal(req, rc, trail);
@@ -149,10 +147,13 @@ void HttpStack::configure(const std::string& bind_address,
 void HttpStack::register_handler(const char* path,
                                  HttpStack::HandlerInterface* handler)
 {
+  HandlerRegistration* reg = new HandlerRegistration(this, handler);
+  _handler_registrations.insert(reg);
+
   evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp,
                                             path,
                                             handler_callback_fn,
-                                            (void*)handler);
+                                            (void*)reg);
   if (cb == NULL)
   {
     throw Exception("evhtp_set_cb", 0); // LCOV_EXCL_LINE
@@ -258,9 +259,11 @@ void HttpStack::wait_stopped()
   _evbase = NULL;
 }
 
-void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler)
+void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_reg_param)
 {
-  INSTANCE->handler_callback(req, (HttpStack::HandlerInterface*)handler);
+  HandlerRegistration* handler_reg =
+    static_cast<HandlerRegistration*>(handler_reg_param);
+  handler_reg->stack->handler_callback(req, handler_reg->handler);
 }
 
 void HttpStack::handler_callback(evhtp_request_t* req,
@@ -299,7 +302,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     // LCOV_EXCL_START
     CW_EXCEPT(_exception_handler)
     {
-      send_reply_internal(request, 500, trail); 
+      send_reply_internal(request, 500, trail);
 
       if (_num_threads == 1)
       {
