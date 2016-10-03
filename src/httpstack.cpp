@@ -233,6 +233,11 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
 void HttpStack::bind_unix_socket(const std::string& bind_path)
 {
   TRC_STATUS("Binding HTTP unix socket: path=%s", bind_path.c_str());
+
+  // libevhtp does not correctly remove any old socket before creating a new
+  // one, so we have to do this ourselves.
+  ::remove(bind_path.c_str());
+
   std::string full_bind_address = "unix:" + bind_path;
 
   int rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), 0, 1024);
