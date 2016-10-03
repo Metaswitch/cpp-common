@@ -408,17 +408,17 @@ public:
     virtual void incr_http_rejected_overload() = 0;
   };
 
-  HttpStack();
+  HttpStack(int num_threads,
+            ExceptionHandler* exception_handler,
+            AccessLogger* access_logger = NULL,
+            LoadMonitor* load_monitor = NULL,
+            StatsInterface* stats = NULL);
   virtual ~HttpStack();
 
   virtual void initialize();
-  virtual void configure(const std::string& bind_address,
-                         unsigned short port,
-                         int num_threads,
-                         ExceptionHandler* exception_handler,
-                         AccessLogger* access_logger = NULL,
-                         LoadMonitor* load_monitor = NULL,
-                         StatsInterface* stats = NULL);
+  virtual void bind_tcp_socket(const std::string& bind_address,
+                               unsigned short port);
+  virtual void bind_unix_socket(const std::string& bind_path);
   virtual void register_handler(const char* path, HandlerInterface* handler);
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
@@ -448,14 +448,12 @@ private:
   HttpStack(HttpStack const&);
   void operator=(HttpStack const&);
 
-  std::string _bind_address;
-  unsigned short _bind_port;
   int _num_threads;
 
   ExceptionHandler* _exception_handler;
   AccessLogger* _access_logger;
-  StatsInterface* _stats;
   LoadMonitor* _load_monitor;
+  StatsInterface* _stats;
 
   evbase_t* _evbase;
   evhtp_t* _evhtp;

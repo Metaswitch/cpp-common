@@ -42,12 +42,19 @@ bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
 HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 
-HttpStack::HttpStack() :
-  _exception_handler(NULL),
-  _access_logger(NULL),
-  _stats(NULL),
-  _load_monitor(NULL)
-{}
+HttpStack::HttpStack(int num_threads,
+                     ExceptionHandler* exception_handler,
+                     AccessLogger* access_logger,
+                     LoadMonitor* load_monitor,
+                     StatsInterface* stats) :
+  _num_threads(num_threads),
+  _exception_handler(exception_handler),
+  _access_logger(access_logger),
+  _load_monitor(load_monitor),
+  _stats(stats)
+{
+  TRC_STATUS("Constructing HTTP stack with %d threads", _num_threads);
+}
 
 HttpStack::~HttpStack()
 {
@@ -133,27 +140,6 @@ void HttpStack::initialize()
   }
 }
 
-void HttpStack::configure(const std::string& bind_address,
-                          unsigned short bind_port,
-                          int num_threads,
-                          ExceptionHandler* exception_handler,
-                          AccessLogger* access_logger,
-                          LoadMonitor* load_monitor,
-                          HttpStack::StatsInterface* stats)
-{
-  TRC_STATUS("Configuring HTTP stack");
-  TRC_STATUS("  Bind address: %s", bind_address.c_str());
-  TRC_STATUS("  Bind port:    %u", bind_port);
-  TRC_STATUS("  Num threads:  %d", num_threads);
-  _bind_address = bind_address;
-  _bind_port = bind_port;
-  _num_threads = num_threads;
-  _exception_handler = exception_handler;
-  _access_logger = access_logger;
-  _load_monitor = load_monitor;
-  _stats = stats;
-}
-
 void HttpStack::register_handler(const char* path,
                                  HttpStack::HandlerInterface* handler)
 {
@@ -170,15 +156,10 @@ void HttpStack::register_handler(const char* path,
   }
 }
 
-void HttpStack::start(evhtp_thread_init_cb init_cb)
+void HttpStack::bind_tcp_socket(const std::string& bind_address,
+                                unsigned short port)
 {
-  initialize();
-
-  int rc = evhtp_use_threads(_evhtp, init_cb, _num_threads, this);
-  if (rc != 0)
-  {
-    throw Exception("evhtp_use_threads", rc); // LCOV_EXCL_LINE
-  }
+  TRC_STATUS("Binding HTTP TCP socket: address=%s, port=%d", bind_address.c_str(), port);
 
   // If the bind address is IPv6 evhtp needs to be told by prepending ipv6 to
   // the  parameter.  Use getaddrinfo() to analyse the bind_address.
@@ -188,9 +169,9 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
   hints.ai_socktype = SOCK_STREAM;
   addrinfo* servinfo = NULL;
 
-  std::string full_bind_address = _bind_address;
+  std::string full_bind_address = bind_address;
   std::string local_bind_address = "127.0.0.1";
-  const int error_num = getaddrinfo(_bind_address.c_str(), NULL, &hints, &servinfo);
+  const int error_num = getaddrinfo(bind_address.c_str(), NULL, &hints, &servinfo);
 
   if ((error_num == 0) &&
       (servinfo->ai_family == AF_INET))
@@ -217,11 +198,13 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
 
   freeaddrinfo(servinfo);
 
-  rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), _bind_port, 1024);
+  int rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), port, 1024);
   if (rc != 0)
   {
     // LCOV_EXCL_START
-    TRC_ERROR("evhtp_bind_socket failed with address %s and port %d", full_bind_address.c_str(), _bind_port);
+    TRC_ERROR("evhtp_bind_socket failed with address %s and port %d",
+              full_bind_address.c_str(),
+              port);
     throw Exception("evhtp_bind_socket", rc);
     // LCOV_EXCL_STOP
   }
@@ -232,14 +215,30 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
   {
     // Listen on the local address as well as the main address (so long as the
     // main address isn't all)
-    rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), _bind_port, 1024);
+    rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), port, 1024);
     if (rc != 0)
     {
       // LCOV_EXCL_START
-      TRC_ERROR("evhtp_bind_socket failed with address %s and port %d", local_bind_address.c_str(), _bind_port);
+      TRC_ERROR("evhtp_bind_socket failed with address %s and port %d",
+                local_bind_address.c_str(),
+                port);
       throw Exception("evhtp_bind_socket - localhost", rc);
       // LCOV_EXCL_STOP
     }
+  }
+}
+
+void HttpStack::bind_unix_socket(const std::string& bind_path)
+{
+  // TODO
+}
+
+void HttpStack::start(evhtp_thread_init_cb init_cb)
+{
+  int rc = evhtp_use_threads(_evhtp, init_cb, _num_threads, this);
+  if (rc != 0)
+  {
+    throw Exception("evhtp_use_threads", rc); // LCOV_EXCL_LINE
   }
 
   rc = pthread_create(&_event_base_thread, NULL, event_base_thread_fn, this);
