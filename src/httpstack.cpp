@@ -49,6 +49,16 @@ HttpStack::HttpStack() :
   _load_monitor(NULL)
 {}
 
+HttpStack::~HttpStack()
+{
+  for(std::set<HandlerRegistration*>::iterator reg = _handler_registrations.begin();
+      reg != _handler_registrations.end();
+      ++reg)
+  {
+    delete *reg;
+  }
+}
+
 void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
 {
   _stopwatch.stop();

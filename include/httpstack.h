@@ -409,7 +409,7 @@ public:
   };
 
   HttpStack();
-  virtual ~HttpStack() {}
+  virtual ~HttpStack();
 
   virtual void initialize();
   virtual void configure(const std::string& bind_address,
