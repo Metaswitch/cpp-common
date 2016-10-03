@@ -205,7 +205,7 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
     TRC_ERROR("evhtp_bind_socket failed with address %s and port %d",
               full_bind_address.c_str(),
               port);
-    throw Exception("evhtp_bind_socket", rc);
+    throw Exception("evhtp_bind_socket (tcp)", rc);
     // LCOV_EXCL_STOP
   }
 
@@ -222,7 +222,7 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
       TRC_ERROR("evhtp_bind_socket failed with address %s and port %d",
                 local_bind_address.c_str(),
                 port);
-      throw Exception("evhtp_bind_socket - localhost", rc);
+      throw Exception("evhtp_bind_socket (tcp) - localhost", rc);
       // LCOV_EXCL_STOP
     }
   }
@@ -230,7 +230,18 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
 
 void HttpStack::bind_unix_socket(const std::string& bind_path)
 {
-  // TODO
+  TRC_STATUS("Binding HTTP unix socket: path=%s", bind_path.c_str());
+  std::string full_bind_address = "unix:" + bind_path;
+
+  int rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), 0, 1024);
+  if (rc != 0)
+  {
+    // LCOV_EXCL_START
+    TRC_ERROR("evhtp_bind_socket failed with path %s",
+              full_bind_address.c_str());
+    throw Exception("evhtp_bind_socket (unix)", rc);
+    // LCOV_EXCL_STOP
+  }
 }
 
 void HttpStack::start(evhtp_thread_init_cb init_cb)
