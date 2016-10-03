@@ -51,7 +51,9 @@ HttpStack::HttpStack(int num_threads,
   _exception_handler(exception_handler),
   _access_logger(access_logger),
   _load_monitor(load_monitor),
-  _stats(stats)
+  _stats(stats),
+  _evbase(nullptr),
+  _evhtp(nullptr)
 {
   TRC_STATUS("Constructing HTTP stack with %d threads", _num_threads);
 }
