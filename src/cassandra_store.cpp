@@ -129,6 +129,14 @@ void RealThriftClient::remove(const std::string& key,
 {
   _cass_client.remove(key, column_path, timestamp, consistency_level);
 }
+void RealThriftClient::get_range_slices(std::vector<KeySlice> & _return,
+                                        const ColumnParent& column_parent,
+                                        const SlicePredicate& predicate,
+                                        const KeyRange& range,
+                                        const ConsistencyLevel::type consistency_level)
+{
+  _cass_client.get_range_slices(_return, column_parent, predicate, range, consistency_level);
+}
 // LCOV_EXCL_STOP
 
 
