@@ -68,7 +68,7 @@ public:
       const char* val = evhtp_header_find(_req->headers_out, name.c_str());
       return std::string((val != NULL ? val : ""));
     }
-    void add_header_to_incoming_req(const std::string& name, 
+    void add_header_to_incoming_req(const std::string& name,
                                     const std::string& value)
     {
       // This takes the name and value for the new header. These
@@ -97,8 +97,12 @@ public:
     }
   };
 
+  MockHttpStack() : HttpStack(1, nullptr, nullptr, nullptr, nullptr) {}
+
   MOCK_METHOD0(initialize, void());
-  MOCK_METHOD7(configure, void(const std::string&, unsigned short, int, ExceptionHandler*, AccessLogger*, LoadMonitor*, StatsInterface*));
+  MOCK_METHOD2(bind_tcp_socket, void(const std::string& bind_address,
+                                     unsigned short port));
+  MOCK_METHOD1(bind_unix_socket, void(const std::string& bind_path));
   MOCK_METHOD2(register_handler, void(const char*, HandlerInterface*));
   MOCK_METHOD1(start, void(evhtp_thread_init_cb));
   MOCK_METHOD0(stop, void());
