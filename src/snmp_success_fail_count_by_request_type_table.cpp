@@ -60,7 +60,14 @@ public:
     uint_fast32_t successes = counts->successes.load();
     uint_fast32_t failures = counts->failures.load();
     uint_fast32_t success_percent = 0;
-    if (successes > 0)
+    if (attempts == uint_fast32_t(0))
+    {
+      // If there are no attempts made we report the Success Percent as being
+      // 100% to indicate that there have been no errors.
+      // Note that units for Success Percent are actually 10,000's of a percent.
+      success_percent = 100 * 10000;
+    }
+    else if (successes > 0)
     {
       // Units for Success Percent are actually 10,000's of a percent.
       success_percent = (successes * 100 * 10000) / (successes + failures);
