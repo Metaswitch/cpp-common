@@ -64,7 +64,6 @@ public:
       // If there are no attempts made we report the Success Percent as being
       // 100% to indicate that there have been no errors.
       // Note that units for Success Percent are actually 10,000's of a percent.
-      TRC_ERROR("\n\n@@@ame2 setting success percent to 100 \n\n");
       success_percent = 100 * 10000;
     }
     else if (successes > 0)
