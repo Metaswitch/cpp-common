@@ -77,7 +77,7 @@ public:
     ret[1] = Value::integer(_index);
     ret[2] = Value::uint(attempts);
     ret[3] = Value::uint(successes);
-    ret[4] = Value::uint(failures)
+    ret[4] = Value::uint(failures);
     ret[5] = Value::uint(success_percent_in_ten_thousands);
     return ret;
   }
