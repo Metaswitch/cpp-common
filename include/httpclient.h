@@ -68,6 +68,7 @@ static const long HTTP_CONFLICT = 409;
 static const long HTTP_TEMP_UNAVAILABLE = 480;
 static const long HTTP_SERVER_ERROR = 500;
 static const long HTTP_NOT_IMPLEMENTED = 501;
+static const long HTTP_BAD_GATEWAY = 502;
 static const long HTTP_SERVER_UNAVAILABLE = 503;
 static const long HTTP_GATEWAY_TIMEOUT = 504;
 

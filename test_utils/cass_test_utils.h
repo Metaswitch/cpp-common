@@ -188,7 +188,7 @@ const multiget_slice_t empty_slice_multiget;
 
 // Utility functions to make a slice from a map of column names => values.
 void make_slice(slice_t& slice,
-                std::map<std::string, std::string>& columns,
+                const std::map<std::string, std::string>& columns,
                 int32_t ttl = 0)
 {
   for(std::map<std::string, std::string>::const_iterator it = columns.begin();
@@ -944,6 +944,46 @@ MATCHER_P(ColumnsWithPrefix,
   if (arg.slice_range.finish != end_str)
   {
     *result_listener << "has incorrect finish (" << arg.slice_range.finish << ")";
+    return false;
+  }
+
+  return true;
+}
+
+// Matcher that checks that a key range has the right start and end keys
+// specified.
+MATCHER_P2(KeysInRange,
+           start_key,
+           end_key,
+           std::string("requests keys between ") + start_key + " and " + end_key)
+{
+  if (!arg.__isset.start_key || !arg.__isset.end_key)
+  {
+    *result_listener << "does not request a range of keys"; return false;
+  }
+  if (arg.__isset.start_token || arg.__isset.end_token)
+  {
+    *result_listener << "also specifies a token range"; return false;
+  }
+
+  if (start_key != arg.start_key)
+  {
+    *result_listener << "has incorrect start key (" << arg.start_key << ")"; return false;
+  }
+  if (start_key != arg.end_key)
+  {
+    *result_listener << "has incorrect end key (" << arg.end_key << ")"; return false;
+  }
+
+  return true;
+}
+
+// Matcher that checks that a key range specifies a particular maximum count.
+MATCHER_P(KeyRangeWithCount, count, std::string("requests ") + std::to_string(count) + " keys")
+{
+  if (count != arg.count)
+  {
+    *result_listener << "has incorrect count (expected " << count << " got " << arg.count;
     return false;
   }
 
