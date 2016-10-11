@@ -468,7 +468,7 @@ private:
     HttpStack* stack;
     HandlerInterface* handler;
 
-    HandlerRegistration(): HandlerRegistration(nullptr, nullptr) {}
+    HandlerRegistration() : HandlerRegistration(nullptr, nullptr) {}
     HandlerRegistration(HttpStack* stack_param, HandlerInterface* handler_param) :
       stack(stack_param), handler(handler_param)
     {}
