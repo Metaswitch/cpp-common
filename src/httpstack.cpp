@@ -252,8 +252,7 @@ void HttpStack::bind_unix_socket(const std::string& bind_path)
   }
 
   // Socket needs to be world-writeable for nginx to use it
-  mode_t all_access = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH;
-  chmod(full_bind_address.c_str(), all_access);
+  chmod(bind_path.c_str(), 0777);
 }
 
 void HttpStack::start(evhtp_thread_init_cb init_cb)
