@@ -539,9 +539,6 @@ int Utils::daemonize(std::string out, std::string err)
     return errno;
   }
 
-  // Clear any restricted umask
-  umask(0);
-
   // Second fork
   pid = fork();
   if (pid == -1)
