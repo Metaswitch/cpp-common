@@ -36,6 +36,7 @@
 
 #include "httpstack.h"
 #include <cstring>
+#include <sys/stat.h>
 #include "log.h"
 
 bool HttpStack::_ev_using_pthreads = false;
@@ -249,6 +250,10 @@ void HttpStack::bind_unix_socket(const std::string& bind_path)
     throw Exception("evhtp_bind_socket (unix)", rc);
     // LCOV_EXCL_STOP
   }
+
+  // Socket needs to be world-writeable for nginx to use it
+  mode_t all_access = S_IRUSR | S_IWUSR | S_IXUSR | S_IRGRP | S_IWGRP | S_IXGRP | S_IROTH | S_IWOTH | S_IXOTH;
+  chmod(full_bind_address.c_str(), all_access);
 }
 
 void HttpStack::start(evhtp_thread_init_cb init_cb)
