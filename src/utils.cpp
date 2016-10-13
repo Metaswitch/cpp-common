@@ -591,6 +591,9 @@ void Utils::daemon_log_setup(int argc,
       exit(0);
     }
   }
+  
+  mode_t old_umask = umask(0022);
+  TRC_STATUS("umask set to 022 (was %o)", old_umask);
 
   Log::setLoggingLevel(log_level);
 
