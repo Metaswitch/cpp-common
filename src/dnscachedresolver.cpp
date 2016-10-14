@@ -41,12 +41,18 @@
 
 #include <sstream>
 #include <iomanip>
+#include <fstream>
+
+#include "rapidjson/document.h"
+#include "rapidjson/error/en.h"
+#include "json_parse_utils.h"
 
 #include "log.h"
 #include "dnsparser.h"
 #include "dnscachedresolver.h"
 #include "sas.h"
 #include "sasevent.h"
+#include "cpp_common_pd_definitions.h"
 
 DnsResult::DnsResult(const std::string& domain,
                      int dnstype,
@@ -122,6 +128,9 @@ void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
   _dns_servers = dns_servers;
   _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 
+  // Read any static dns records from the config file
+  read_records_from_file();
+
   // Initialize the ares library.  This might have already been done by curl
   // but it's safe to do it twice.
   ares_library_init(ARES_LIB_INIT_ALL);
@@ -174,23 +183,33 @@ void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns
 }
 
 
-DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers) :
+DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers,
+                                     const std::string& filename) :
   _port(53),
-  _cache()
+  _cache(),
+  _dns_config_file(filename),
+  _static_records()
 {
   init(dns_servers);
 }
 
-DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
+DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers,
+                                     const std::string& filename) :
   _port(53),
-  _cache()
+  _cache(),
+  _dns_config_file(filename),
+  _static_records()
 {
   init_from_server_ips(dns_servers);
 }
 
-DnsCachedResolver::DnsCachedResolver(const std::string& dns_server, int port) :
+DnsCachedResolver::DnsCachedResolver(const std::string& dns_server,
+                                     int port,
+                                     const std::string& filename) :
   _port(port),
-  _cache()
+  _cache(),
+  _dns_config_file(filename),
+  _static_records()
 {
   init_from_server_ips({dns_server});
 }
@@ -207,6 +226,114 @@ DnsCachedResolver::~DnsCachedResolver()
 
   // Clear the cache.
   clear();
+
+  // Delete entries in the _static_records map
+  for (std::map<std::string, std::vector<DnsRRecord*>>::iterator m_iter = _static_records.begin();
+       m_iter != _static_records.end();
+       ++m_iter)
+  {
+    for (std::vector<DnsRRecord*>::iterator v_iter = m_iter->second.begin();
+         v_iter != m_iter->second.end();
+         ++v_iter)
+    {
+      delete *v_iter; *v_iter = NULL;
+    }
+  }
+}
+
+void DnsCachedResolver::read_records_from_file()
+{
+  std::ifstream fs(_dns_config_file.c_str());
+
+  if (!fs)
+  {
+    // File doesn't exist or can't be opened, just return
+    return;
+  }
+
+  // File exists and is ready for input
+  std::string dns_config((std::istreambuf_iterator<char>(fs)),
+                         std::istreambuf_iterator<char>());
+
+  rapidjson::Document doc;
+  doc.Parse<0>(dns_config.c_str());
+
+  if (doc.HasParseError())
+  {
+    TRC_ERROR("Unable to parse dns config file: %s\nError: %s",
+              dns_config.c_str(),
+              rapidjson::GetParseError_En(doc.GetParseError()));
+    CL_DNS_FILE_MALFORMED.log();
+    return;
+  }
+
+  try
+  {
+    for (rapidjson::Value::ConstMemberIterator hosts_it = doc.MemberBegin();
+         hosts_it != doc.MemberEnd();
+         ++hosts_it)
+    {
+      std::string hostname = hosts_it->name.GetString();
+
+      if (_static_records.find(hostname) != _static_records.end())
+      {
+        // Ignore duplicate hostname JSON objects
+        TRC_DEBUG("Duplicate entry found for hostname %s", hostname.c_str());
+        CL_DNS_FILE_DUPLICATES.log();
+        continue;
+      }
+
+      JSON_ASSERT_ARRAY(hosts_it->value);
+      rapidjson::Value& records_arr = doc[hostname.c_str()];
+      std::vector<DnsRRecord*> records = std::vector<DnsRRecord*>();
+
+      // We only allow one CNAME record per hostname
+      bool have_cname = false;
+
+      for (rapidjson::Value::ConstValueIterator records_it = records_arr.Begin();
+           records_it != records_arr.End();
+           ++records_it)
+      {
+        if ((records_it->HasMember("rrtype")) && ((*records_it)["rrtype"].IsString()))
+        {
+          std::string type = (*records_it)["rrtype"].GetString();
+
+          // Currently, we only support CNAME records
+          if (type == "CNAME")
+          {
+            // CNAME records should have a target, but only one per hostname is allowed
+            if (!have_cname)
+            {
+              if ((records_it->HasMember("target")) && ((*records_it)["target"].IsString()))
+              {
+                // Create a record and add to the vector of records for this hostname
+                std::string target = (*records_it)["target"].GetString();
+                DnsCNAMERecord* record = new DnsCNAMERecord(hostname, 0, target);
+                records.push_back(record);
+                have_cname = true;
+              }
+            }
+            else
+            {
+              TRC_DEBUG("Two CNAME entries found for hostname %s", hostname.c_str());
+              CL_DNS_FILE_DUPLICATES.log();
+            }
+          }
+          else
+          {
+            TRC_DEBUG("Found unsupported record type: %s", type.c_str());
+          }
+        }
+      }
+
+      _static_records.insert(std::make_pair(hostname, records));
+    }
+  }
+  catch (JsonFormatError err)
+  {
+    TRC_ERROR("Error parsing dns config file - records must be an array.");
+    CL_DNS_FILE_MALFORMED.log();
+  }
 }
 
 DnsResult DnsCachedResolver::dns_query(const std::string& domain,
@@ -224,10 +351,55 @@ DnsResult DnsCachedResolver::dns_query(const std::string& domain,
   return res.front();
 }
 
+
 void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                                   int dnstype,
                                   std::vector<DnsResult>& results,
                                   SAS::TrailId trail)
+{
+  std::vector<std::string> new_domains = std::vector<std::string>();
+
+  // First, check the _static_records map to see if there are any static records
+  // to use
+  for (std::vector<std::string>::const_iterator domain = domains.begin();
+       domain != domains.end();
+       ++domain)
+  {
+    std::string new_domain = *domain;
+
+    std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
+      _static_records.find(*domain);
+
+    if (map_iter != _static_records.end())
+    {
+      for (std::vector<DnsRRecord*>::const_iterator record_iter = map_iter->second.begin();
+           record_iter != map_iter->second.end();
+           ++record_iter)
+      {
+        // Only CNAME records are currently supported
+        if ((*record_iter)->rrtype() == ns_t_cname)
+        {
+          DnsCNAMERecord* record = (DnsCNAMERecord*)(*record_iter);
+          TRC_VERBOSE("Static CNAME record found: %s -> %s",
+                      (*domain).c_str(),
+                      record->target().c_str());
+          new_domain = record->target();
+          break;
+        }
+      }
+    }
+
+    new_domains.push_back(new_domain);
+  }
+
+  // Now do the actual lookup
+  inner_dns_query(new_domains, dnstype, results, trail);
+}
+
+void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
+                                        int dnstype,
+                                        std::vector<DnsResult>& results,
+                                        SAS::TrailId trail)
 {
   DnsChannel* channel = NULL;
 
@@ -261,7 +433,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
       // We have a result, but it has expired.  We should kick off a new
       // asynchronous query to update our DNS cache, unless we have another
       // thread already doing this query for us.
-      
+
       if (ce->pending_query)
       {
         TRC_DEBUG("Expired entry found in cache - asynchronous query to update it already in progress on another thread");
@@ -271,7 +443,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
         if (ce->records.empty())
         {
           wait_for_query_result = true;
-        } 
+        }
       }
       else
       {
