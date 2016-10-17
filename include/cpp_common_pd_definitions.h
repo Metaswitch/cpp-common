@@ -152,8 +152,11 @@ static const PDLog CL_DNS_FILE_MALFORMED
   PDLOG_ERR,
   "DNS config file is malformed.",
   "The DNS config file /etc/clearwater/dns_config is invalid JSON.",
-  "The DNS config file will be ignored.",
+  "The DNS config file will be ignored, and all DNS queries will be directed at "
+  "the DNS server rather than using any local overrides.",
   "(1). Check the DNS config file for correctness."
+  "(2). Upload the corrected config with "
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_config"
 );
 
 static const PDLog CL_DNS_FILE_DUPLICATES

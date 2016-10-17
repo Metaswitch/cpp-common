@@ -228,30 +228,45 @@ DnsCachedResolver::~DnsCachedResolver()
   clear();
 
   // Delete entries in the _static_records map
-  for (std::map<std::string, std::vector<DnsRRecord*>>::iterator m_iter = _static_records.begin();
-       m_iter != _static_records.end();
-       ++m_iter)
+  for (const std::pair<std::string, std::vector<DnsRRecord*>>& entry : _static_records)
   {
-    for (std::vector<DnsRRecord*>::iterator v_iter = m_iter->second.begin();
-         v_iter != m_iter->second.end();
-         ++v_iter)
+    for (DnsRRecord* record : entry.second)
     {
-      delete *v_iter; *v_iter = NULL;
+      delete record;
     }
   }
 }
 
+// Reads static dns records from the specified _dns_config_file.
+// The file has the format:
+//
+// {
+//   <hostname> : [
+//     <array of record objects>
+//   ],
+//   <hostname> : [
+//     <array of record objects>
+//   ]
+// }
+//
+// Currently, the only supported record object is CNAME:
+//
+// {
+//   "rrtype": "CNAME",
+//   "target": <target>
+// }
 void DnsCachedResolver::read_records_from_file()
 {
   std::ifstream fs(_dns_config_file.c_str());
 
   if (!fs)
   {
-    // File doesn't exist or can't be opened, just return
+    // File doesn't exist - expected if static records not in use
+    TRC_DEBUG("No static DNS records specified");
     return;
   }
 
-  // File exists and is ready for input
+  // File exists and is ready
   std::string dns_config((std::istreambuf_iterator<char>(fs)),
                          std::istreambuf_iterator<char>());
 
@@ -278,7 +293,7 @@ void DnsCachedResolver::read_records_from_file()
       if (_static_records.find(hostname) != _static_records.end())
       {
         // Ignore duplicate hostname JSON objects
-        TRC_DEBUG("Duplicate entry found for hostname %s", hostname.c_str());
+        TRC_ERROR("Duplicate entry found for hostname %s", hostname.c_str());
         CL_DNS_FILE_DUPLICATES.log();
         continue;
       }
@@ -294,9 +309,10 @@ void DnsCachedResolver::read_records_from_file()
            records_it != records_arr.End();
            ++records_it)
       {
-        if ((records_it->HasMember("rrtype")) && ((*records_it)["rrtype"].IsString()))
+        try
         {
-          std::string type = (*records_it)["rrtype"].GetString();
+          std::string type;
+          JSON_GET_STRING_MEMBER(*records_it, "rrtype", type);
 
           // Currently, we only support CNAME records
           if (type == "CNAME")
@@ -304,25 +320,28 @@ void DnsCachedResolver::read_records_from_file()
             // CNAME records should have a target, but only one per hostname is allowed
             if (!have_cname)
             {
-              if ((records_it->HasMember("target")) && ((*records_it)["target"].IsString()))
-              {
-                // Create a record and add to the vector of records for this hostname
-                std::string target = (*records_it)["target"].GetString();
-                DnsCNAMERecord* record = new DnsCNAMERecord(hostname, 0, target);
-                records.push_back(record);
-                have_cname = true;
-              }
+              std::string target;
+              JSON_GET_STRING_MEMBER(*records_it, "target", target);
+              DnsCNAMERecord* record = new DnsCNAMERecord(hostname, 0, target);
+              records.push_back(record);
+              have_cname = true;
             }
             else
             {
-              TRC_DEBUG("Two CNAME entries found for hostname %s", hostname.c_str());
+              TRC_ERROR("Multiple CNAME entries found for hostname %s", hostname.c_str());
               CL_DNS_FILE_DUPLICATES.log();
             }
           }
           else
           {
-            TRC_DEBUG("Found unsupported record type: %s", type.c_str());
+            TRC_ERROR("Found unsupported record type: %s", type.c_str());
           }
+        }
+        catch (JsonFormatError err)
+        {
+          TRC_ERROR("Bad DNS record specified for hostname %s in DNS config file %s",
+                    hostname.c_str(),
+                    _dns_config_file.c_str());
         }
       }
 
@@ -331,7 +350,7 @@ void DnsCachedResolver::read_records_from_file()
   }
   catch (JsonFormatError err)
   {
-    TRC_ERROR("Error parsing dns config file - records must be an array.");
+    TRC_ERROR("Error parsing dns config file %s.", _dns_config_file.c_str());
     CL_DNS_FILE_MALFORMED.log();
   }
 }
@@ -351,39 +370,37 @@ DnsResult DnsCachedResolver::dns_query(const std::string& domain,
   return res.front();
 }
 
-
 void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                                   int dnstype,
                                   std::vector<DnsResult>& results,
                                   SAS::TrailId trail)
 {
-  std::vector<std::string> new_domains = std::vector<std::string>();
+  std::vector<std::string> new_domains;
 
   // First, check the _static_records map to see if there are any static records
-  // to use
-  for (std::vector<std::string>::const_iterator domain = domains.begin();
-       domain != domains.end();
-       ++domain)
+  // to use in preference to an actual DNS lookup (these are specified in the
+  // _dns_config_file)
+  for (const std::string& domain : domains)
   {
-    std::string new_domain = *domain;
+    std::string new_domain = domain;
 
     std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
-      _static_records.find(*domain);
+      _static_records.find(domain);
 
     if (map_iter != _static_records.end())
     {
-      for (std::vector<DnsRRecord*>::const_iterator record_iter = map_iter->second.begin();
-           record_iter != map_iter->second.end();
-           ++record_iter)
+      for (DnsRRecord* record : map_iter->second)
       {
         // Only CNAME records are currently supported
-        if ((*record_iter)->rrtype() == ns_t_cname)
+        if (record->rrtype() == ns_t_cname)
         {
-          DnsCNAMERecord* record = (DnsCNAMERecord*)(*record_iter);
+          // For static CNAME records, just perform the DNS lookup on the target
+          // hostname instead.
+          DnsCNAMERecord* cname_record = (DnsCNAMERecord*)record;
           TRC_VERBOSE("Static CNAME record found: %s -> %s",
-                      (*domain).c_str(),
-                      record->target().c_str());
-          new_domain = record->target();
+                      domain.c_str(),
+                      cname_record->target().c_str());
+          new_domain = cname_record->target();
           break;
         }
       }
