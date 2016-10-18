@@ -129,7 +129,7 @@ void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
   _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 
   // Read any static dns records from the config file
-  read_records_from_file();
+  reload_static_records();
 
   // Initialize the ares library.  This might have already been done by curl
   // but it's safe to do it twice.
@@ -255,7 +255,7 @@ DnsCachedResolver::~DnsCachedResolver()
 //   "rrtype": "CNAME",
 //   "target": <target>
 // }
-void DnsCachedResolver::read_records_from_file()
+void DnsCachedResolver::reload_static_records()
 {
   std::ifstream fs(_dns_config_file.c_str());
 
@@ -284,13 +284,15 @@ void DnsCachedResolver::read_records_from_file()
 
   try
   {
+    std::map<std::string, std::vector<DnsRRecord*>> static_records;
+
     for (rapidjson::Value::ConstMemberIterator hosts_it = doc.MemberBegin();
          hosts_it != doc.MemberEnd();
          ++hosts_it)
     {
       std::string hostname = hosts_it->name.GetString();
 
-      if (_static_records.find(hostname) != _static_records.end())
+      if (static_records.find(hostname) != static_records.end())
       {
         // Ignore duplicate hostname JSON objects
         TRC_ERROR("Duplicate entry found for hostname %s", hostname.c_str());
@@ -345,7 +347,22 @@ void DnsCachedResolver::read_records_from_file()
         }
       }
 
-      _static_records.insert(std::make_pair(hostname, records));
+      static_records.insert(std::make_pair(hostname, records));
+    }
+
+    // Now swap out the old _static_records for the new one
+    {
+      boost::unique_lock<boost::shared_mutex> lock(_static_records_mutex);
+      std::swap(_static_records, static_records);
+    }
+
+    // Finally, clean up the now unused records
+    for (const std::pair<std::string, std::vector<DnsRRecord*>>& entry : static_records)
+    {
+      for (DnsRRecord* record : entry.second)
+      {
+        delete record;
+      }
     }
   }
   catch (JsonFormatError err)
@@ -380,33 +397,36 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // First, check the _static_records map to see if there are any static records
   // to use in preference to an actual DNS lookup (these are specified in the
   // _dns_config_file)
-  for (const std::string& domain : domains)
   {
-    std::string new_domain = domain;
-
-    std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
-      _static_records.find(domain);
-
-    if (map_iter != _static_records.end())
+    boost::shared_lock<boost::shared_mutex> lock(_static_records_mutex);
+    for (const std::string& domain : domains)
     {
-      for (DnsRRecord* record : map_iter->second)
+      std::string new_domain = domain;
+
+      std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
+        _static_records.find(domain);
+
+      if (map_iter != _static_records.end())
       {
-        // Only CNAME records are currently supported
-        if (record->rrtype() == ns_t_cname)
+        for (DnsRRecord* record : map_iter->second)
         {
-          // For static CNAME records, just perform the DNS lookup on the target
-          // hostname instead.
-          DnsCNAMERecord* cname_record = (DnsCNAMERecord*)record;
-          TRC_VERBOSE("Static CNAME record found: %s -> %s",
-                      domain.c_str(),
-                      cname_record->target().c_str());
-          new_domain = cname_record->target();
-          break;
+          // Only CNAME records are currently supported
+          if (record->rrtype() == ns_t_cname)
+          {
+            // For static CNAME records, just perform the DNS lookup on the target
+            // hostname instead.
+            DnsCNAMERecord* cname_record = (DnsCNAMERecord*)record;
+            TRC_VERBOSE("Static CNAME record found: %s -> %s",
+                        domain.c_str(),
+                        cname_record->target().c_str());
+            new_domain = cname_record->target();
+            break;
+          }
         }
       }
-    }
 
-    new_domains.push_back(new_domain);
+      new_domains.push_back(new_domain);
+    }
   }
 
   // Now do the actual lookup

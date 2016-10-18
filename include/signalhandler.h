@@ -193,6 +193,7 @@ template<int SIGNUM> sem_t SignalHandler<SIGNUM>::_sema;
 // Concrete instances of signal handers
 extern SignalHandler<SIGHUP> _sighup_handler;
 extern SignalHandler<SIGUSR1> _sigusr1_handler;
+extern SignalHandler<SIGUSR2> _sigusr2_handler;
 
 // This starts the signal handlers. This creates a new thread for each
 // handler, so this function must not be called before the process has
@@ -201,6 +202,7 @@ inline void start_signal_handlers()
 {
   _sighup_handler.start();
   _sigusr1_handler.start();
+  _sigusr2_handler.start();
 }
 
 #endif

@@ -49,6 +49,9 @@
 #include <arpa/nameser.h>
 #include <ares.h>
 
+#include <boost/thread/locks.hpp>
+#include <boost/thread/shared_mutex.hpp>
+
 #include "utils.h"
 #include "dnsrrecords.h"
 #include "sas.h"
@@ -104,6 +107,9 @@ public:
 
   /// Clear the cache
   void clear();
+
+  // Reads DNS records from _dns_config_file and stores them in _static_records
+  void reload_static_records();
 
 private:
   void init(const std::vector<IP46Address>& dns_server);
@@ -211,9 +217,7 @@ private:
 
   std::string _dns_config_file;
   std::map<std::string, std::vector<DnsRRecord*>> _static_records;
-
-  // Reads DNS records from _dns_config_file and stores them in _static_records
-  void read_records_from_file();
+  boost::shared_mutex _static_records_mutex;
 
   // Expiry is done efficiently by storing pointers to cache entries in a
   // multimap indexed on expiry time.
