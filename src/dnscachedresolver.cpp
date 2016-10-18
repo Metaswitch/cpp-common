@@ -241,11 +241,13 @@ DnsCachedResolver::~DnsCachedResolver()
 // The file has the format:
 //
 // {
-//   <hostname> : [
-//     <array of record objects>
-//   ],
-//   <hostname> : [
-//     <array of record objects>
+//   "hostnames": [
+//     {
+//       "name": <hostname>,
+//       "records": [
+//         <record objects>
+//       ]
+//     }
 //   ]
 // }
 //
@@ -286,11 +288,18 @@ void DnsCachedResolver::reload_static_records()
   {
     std::map<std::string, std::vector<DnsRRecord*>> static_records;
 
-    for (rapidjson::Value::ConstMemberIterator hosts_it = doc.MemberBegin();
-         hosts_it != doc.MemberEnd();
+    // We must have a "hostnames" array
+    JSON_ASSERT_CONTAINS(doc, "hostnames");
+    JSON_ASSERT_ARRAY(doc["hostnames"]);
+    rapidjson::Value& hosts_arr = doc["hostnames"];
+
+    for (rapidjson::Value::ConstValueIterator hosts_it = hosts_arr.Begin();
+         hosts_it != hosts_arr.End();
          ++hosts_it)
     {
-      std::string hostname = hosts_it->name.GetString();
+      // We must have a "name" member, which is the hostname
+      std::string hostname;
+      JSON_GET_STRING_MEMBER(*hosts_it, "name", hostname);
 
       if (static_records.find(hostname) != static_records.end())
       {
@@ -300,8 +309,11 @@ void DnsCachedResolver::reload_static_records()
         continue;
       }
 
-      JSON_ASSERT_ARRAY(hosts_it->value);
-      rapidjson::Value& records_arr = doc[hostname.c_str()];
+      // We must have a "records" member, which is an array
+      JSON_ASSERT_CONTAINS(*hosts_it, "records");
+      JSON_ASSERT_ARRAY((*hosts_it)["records"]);
+      const rapidjson::Value& records_arr = (*hosts_it)["records"];
+
       std::vector<DnsRRecord*> records = std::vector<DnsRRecord*>();
 
       // We only allow one CNAME record per hostname
@@ -313,6 +325,7 @@ void DnsCachedResolver::reload_static_records()
       {
         try
         {
+          // Each record object must have an "rrtype" member
           std::string type;
           JSON_GET_STRING_MEMBER(*records_it, "rrtype", type);
 
