@@ -268,6 +268,9 @@ void DnsCachedResolver::reload_static_records()
     return;
   }
 
+  TRC_DEBUG("Loading static DNS records from %s",
+            _dns_config_file.c_str());
+
   // File exists and is ready
   std::string dns_config((std::istreambuf_iterator<char>(fs)),
                          std::istreambuf_iterator<char>());
