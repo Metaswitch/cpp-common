@@ -256,12 +256,18 @@ DnsCachedResolver::~DnsCachedResolver()
 // }
 void DnsCachedResolver::reload_static_records()
 {
+  if (_dns_config_file == "")
+  {
+    // No config file specified, just return
+    return;
+  }
+
   std::ifstream fs(_dns_config_file.c_str());
 
   if (!fs)
   {
-    // File doesn't exist - expected if static records not in use
-    TRC_DEBUG("No static DNS records specified");
+    TRC_ERROR("DNS config file %s missing", _dns_config_file.c_str());
+    CL_DNS_FILE_MISSING.log();
     return;
   }
 
@@ -297,70 +303,82 @@ void DnsCachedResolver::reload_static_records()
          hosts_it != hosts_arr.End();
          ++hosts_it)
     {
-      // We must have a "name" member, which is the hostname
-      std::string hostname;
-      JSON_GET_STRING_MEMBER(*hosts_it, "name", hostname);
-
-      if (static_records.find(hostname) != static_records.end())
+      try
       {
-        // Ignore duplicate hostname JSON objects
-        TRC_ERROR("Duplicate entry found for hostname %s", hostname.c_str());
-        CL_DNS_FILE_DUPLICATES.log();
-        continue;
-      }
+        // We must have a "name" member, which is the hostname
+        std::string hostname;
+        JSON_GET_STRING_MEMBER(*hosts_it, "name", hostname);
 
-      // We must have a "records" member, which is an array
-      JSON_ASSERT_CONTAINS(*hosts_it, "records");
-      JSON_ASSERT_ARRAY((*hosts_it)["records"]);
-      const rapidjson::Value& records_arr = (*hosts_it)["records"];
-
-      std::vector<DnsRRecord*> records = std::vector<DnsRRecord*>();
-
-      // We only allow one CNAME record per hostname
-      bool have_cname = false;
-
-      for (rapidjson::Value::ConstValueIterator records_it = records_arr.Begin();
-           records_it != records_arr.End();
-           ++records_it)
-      {
-        try
+        if (static_records.find(hostname) != static_records.end())
         {
-          // Each record object must have an "rrtype" member
-          std::string type;
-          JSON_GET_STRING_MEMBER(*records_it, "rrtype", type);
+          // Ignore duplicate hostname JSON objects
+          TRC_ERROR("Duplicate entry found for hostname %s", hostname.c_str());
+          CL_DNS_FILE_DUPLICATES.log();
+          continue;
+        }
 
-          // Currently, we only support CNAME records
-          if (type == "CNAME")
+        // We must have a "records" member, which is an array
+        JSON_ASSERT_CONTAINS(*hosts_it, "records");
+        JSON_ASSERT_ARRAY((*hosts_it)["records"]);
+        const rapidjson::Value& records_arr = (*hosts_it)["records"];
+
+        std::vector<DnsRRecord*> records = std::vector<DnsRRecord*>();
+
+        // We only allow one CNAME record per hostname
+        bool have_cname = false;
+
+        for (rapidjson::Value::ConstValueIterator records_it = records_arr.Begin();
+             records_it != records_arr.End();
+             ++records_it)
+        {
+          try
           {
-            // CNAME records should have a target, but only one per hostname is allowed
-            if (!have_cname)
+            // Each record object must have an "rrtype" member
+            std::string type;
+            JSON_GET_STRING_MEMBER(*records_it, "rrtype", type);
+
+            // Currently, we only support CNAME records
+            if (type == "CNAME")
             {
-              std::string target;
-              JSON_GET_STRING_MEMBER(*records_it, "target", target);
-              DnsCNAMERecord* record = new DnsCNAMERecord(hostname, 0, target);
-              records.push_back(record);
-              have_cname = true;
+              // CNAME records should have a target, but only one per hostname is allowed
+              if (!have_cname)
+              {
+                std::string target;
+                JSON_GET_STRING_MEMBER(*records_it, "target", target);
+                DnsCNAMERecord* record = new DnsCNAMERecord(hostname, 0, target);
+                records.push_back(record);
+                have_cname = true;
+              }
+              else
+              {
+                TRC_ERROR("Multiple CNAME entries found for hostname %s", hostname.c_str());
+                CL_DNS_FILE_DUPLICATES.log();
+              }
             }
             else
             {
-              TRC_ERROR("Multiple CNAME entries found for hostname %s", hostname.c_str());
-              CL_DNS_FILE_DUPLICATES.log();
+              TRC_ERROR("Found unsupported record type: %s", type.c_str());
+              CL_DNS_FILE_BAD_ENTRY.log();
             }
           }
-          else
+          catch (JsonFormatError err)
           {
-            TRC_ERROR("Found unsupported record type: %s", type.c_str());
+            TRC_ERROR("Bad DNS record specified for hostname %s in DNS config file %s",
+                      hostname.c_str(),
+                      _dns_config_file.c_str());
+            CL_DNS_FILE_BAD_ENTRY.log();
           }
         }
-        catch (JsonFormatError err)
-        {
-          TRC_ERROR("Bad DNS record specified for hostname %s in DNS config file %s",
-                    hostname.c_str(),
-                    _dns_config_file.c_str());
-        }
-      }
 
-      static_records.insert(std::make_pair(hostname, records));
+        static_records.insert(std::make_pair(hostname, records));
+      }
+      catch (JsonFormatError err)
+      {
+        TRC_ERROR("Malformed entry in DNS config file %s. Each entry must have "
+                  "a \"name\" and \"records\" member",
+                  _dns_config_file.c_str());
+        CL_DNS_FILE_BAD_ENTRY.log();
+      }
     }
 
     // Now swap out the old _static_records for the new one. This needs to be

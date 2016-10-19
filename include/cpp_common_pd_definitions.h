@@ -167,6 +167,36 @@ static const PDLog CL_DNS_FILE_DUPLICATES
   "The DNS config file /etc/clearwater/dns_config contains duplicate entries.",
   "Only the first of the duplicates will be used - the others will be ignored.",
   "(1). Check the DNS config file for duplicates."
+  "(2). Upload the corrected config with "
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_config"
+);
+
+static const PDLog CL_DNS_FILE_MISSING
+(
+  PDLogBase::CL_CPP_COMMON_ID + 13,
+  PDLOG_ERR,
+  "DNS config file is missing.",
+  "The DNS config file /etc/clearwater/dns_config is not present.",
+  "The DNS config file will be ignored, and all DNS queries will be directed at "
+  "the DNS server rather than using any local overrides.",
+  "(1). Replace the missing DNS config file if desired."
+  "(2). Upload the corrected config with "
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_config "
+  "(if no config file is present, the empty file at "
+  "/etc/clearwater/sample/dns_config will be used)"
+);
+
+static const PDLog CL_DNS_FILE_BAD_ENTRY
+(
+  PDLogBase::CL_CPP_COMMON_ID + 14,
+  PDLOG_ERR,
+  "DNS config file has malformed entry.",
+  "The DNS config file /etc/clearwater/dns_config contains a malformed entry.",
+  "The malformed entry will be ignored. Other, correctly formed, entries will "
+  "still be used.",
+  "(1). Check the DNS config file for correctness."
+  "(2). Upload the corrected config with "
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_config"
 );
 
 #endif
