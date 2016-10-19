@@ -128,9 +128,6 @@ void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
   _dns_servers = dns_servers;
   _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
 
-  // Read any static dns records from the config file
-  reload_static_records();
-
   // Initialize the ares library.  This might have already been done by curl
   // but it's safe to do it twice.
   ares_library_init(ARES_LIB_INIT_ALL);
@@ -366,11 +363,11 @@ void DnsCachedResolver::reload_static_records()
       static_records.insert(std::make_pair(hostname, records));
     }
 
-    // Now swap out the old _static_records for the new one
-    {
-      boost::unique_lock<boost::shared_mutex> lock(_static_records_mutex);
-      std::swap(_static_records, static_records);
-    }
+    // Now swap out the old _static_records for the new one. This needs to be
+    // done under the cache lock
+    pthread_mutex_lock(&_cache_lock);
+    std::swap(_static_records, static_records);
+    pthread_mutex_unlock(&_cache_lock);
 
     // Finally, clean up the now unused records
     for (const std::pair<std::string, std::vector<DnsRRecord*>>& entry : static_records)
@@ -410,43 +407,43 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
 {
   std::vector<std::string> new_domains;
 
+  pthread_mutex_lock(&_cache_lock);
+
   // First, check the _static_records map to see if there are any static records
   // to use in preference to an actual DNS lookup (these are specified in the
   // _dns_config_file)
+  for (const std::string& domain : domains)
   {
-    boost::shared_lock<boost::shared_mutex> lock(_static_records_mutex);
-    for (const std::string& domain : domains)
+    std::string new_domain = domain;
+
+    std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
+      _static_records.find(domain);
+
+    if (map_iter != _static_records.end())
     {
-      std::string new_domain = domain;
-
-      std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
-        _static_records.find(domain);
-
-      if (map_iter != _static_records.end())
+      for (DnsRRecord* record : map_iter->second)
       {
-        for (DnsRRecord* record : map_iter->second)
+        // Only CNAME records are currently supported
+        if (record->rrtype() == ns_t_cname)
         {
-          // Only CNAME records are currently supported
-          if (record->rrtype() == ns_t_cname)
-          {
-            // For static CNAME records, just perform the DNS lookup on the target
-            // hostname instead.
-            DnsCNAMERecord* cname_record = (DnsCNAMERecord*)record;
-            TRC_VERBOSE("Static CNAME record found: %s -> %s",
-                        domain.c_str(),
-                        cname_record->target().c_str());
-            new_domain = cname_record->target();
-            break;
-          }
+          // For static CNAME records, just perform the DNS lookup on the target
+          // hostname instead.
+          DnsCNAMERecord* cname_record = (DnsCNAMERecord*)record;
+          TRC_VERBOSE("Static CNAME record found: %s -> %s",
+                      domain.c_str(),
+                      cname_record->target().c_str());
+          new_domain = cname_record->target();
+          break;
         }
       }
-
-      new_domains.push_back(new_domain);
     }
-  }
 
+    new_domains.push_back(new_domain);
+  }
   // Now do the actual lookup
   inner_dns_query(new_domains, dnstype, results, trail);
+
+  pthread_mutex_unlock(&_cache_lock);
 }
 
 void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
@@ -456,7 +453,8 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
 {
   DnsChannel* channel = NULL;
 
-  pthread_mutex_lock(&_cache_lock);
+  // We don't lock on cache_lock here because the wrapper function dns_query()
+  // already has the lock
 
   // Expire any cache entries that have passed their TTL.
   expire_cache();
@@ -591,8 +589,6 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
       results.push_back(DnsResult(*i, dnstype, 0));
     }
   }
-
-  pthread_mutex_unlock(&_cache_lock);
 }
 
 /// Adds or updates an entry in the cache.

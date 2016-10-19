@@ -49,9 +49,6 @@
 #include <arpa/nameser.h>
 #include <ares.h>
 
-#include <boost/thread/locks.hpp>
-#include <boost/thread/shared_mutex.hpp>
-
 #include "utils.h"
 #include "dnsrrecords.h"
 #include "sas.h"
@@ -217,7 +214,6 @@ private:
 
   std::string _dns_config_file;
   std::map<std::string, std::vector<DnsRRecord*>> _static_records;
-  boost::shared_mutex _static_records_mutex;
 
   // Expiry is done efficiently by storing pointers to cache entries in a
   // multimap indexed on expiry time.
