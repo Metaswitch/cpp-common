@@ -45,12 +45,6 @@
 #include <string>
 #include <syslog.h>
 
-// Namespace for common static ENT logging functions
-namespace PDLogStatic
-{
-  void init(char *pname);
-}
-
 // Defines common definitions for PDLog (Problem Definition Log) classes
 
 // A PDLogBase defines the base class containing:
