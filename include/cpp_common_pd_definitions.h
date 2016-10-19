@@ -190,7 +190,7 @@ static const PDLog CL_DNS_FILE_BAD_ENTRY
 (
   PDLogBase::CL_CPP_COMMON_ID + 14,
   PDLOG_ERR,
-  "DNS config file has malformed entry.",
+  "DNS config file has a malformed entry.",
   "The DNS config file /etc/clearwater/dns_config contains a malformed entry.",
   "The malformed entry will be ignored. Other, correctly formed, entries will "
   "still be used.",
