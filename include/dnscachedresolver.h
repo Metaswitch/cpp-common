@@ -77,9 +77,9 @@ private:
 class DnsCachedResolver
 {
 public:
-  DnsCachedResolver(const std::vector<IP46Address>& dns_servers);
-  DnsCachedResolver(const std::vector<std::string>& dns_servers);
-  DnsCachedResolver(const std::string& dns_server, int port);
+  DnsCachedResolver(const std::vector<IP46Address>& dns_servers, const std::string& filename = "");
+  DnsCachedResolver(const std::vector<std::string>& dns_servers, const std::string& filename = "");
+  DnsCachedResolver(const std::string& dns_server, int port, const std::string& filename = "");
   DnsCachedResolver(const std::string& dns_server) : DnsCachedResolver(dns_server, 53) {};
   ~DnsCachedResolver();
 
@@ -104,6 +104,9 @@ public:
 
   /// Clear the cache
   void clear();
+
+  // Reads DNS records from _dns_config_file and stores them in _static_records
+  void reload_static_records();
 
 private:
   void init(const std::vector<IP46Address>& dns_server);
@@ -169,6 +172,12 @@ private:
                    DnsCacheEntryPtr,
                    DnsCacheKeyCompare> DnsCache;
 
+  /// Performs the actual DNS query.
+  void inner_dns_query(const std::vector<std::string>& domains,
+                       int dnstype,
+                       std::vector<DnsResult>& results,
+                       SAS::TrailId trail);
+
   void dns_response(const std::string& domain,
                     int dnstype,
                     int status,
@@ -202,6 +211,9 @@ private:
   pthread_mutex_t _cache_lock;
   pthread_cond_t _got_reply_cond;
   DnsCache _cache;
+
+  std::string _dns_config_file;
+  std::map<std::string, std::vector<DnsRRecord*>> _static_records;
 
   // Expiry is done efficiently by storing pointers to cache entries in a
   // multimap indexed on expiry time.
