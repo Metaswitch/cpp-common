@@ -37,6 +37,7 @@
 #include <vector>
 #include <map>
 #include <string>
+#include "snmp_abstract_scalar.h"
 
 #ifndef SNMP_SCALAR_BY_SCOPE_TABLE_H
 #define SNMP_SCALAR_BY_SCOPE_TABLE_H
@@ -51,11 +52,11 @@
 
 namespace SNMP
 {
-class ScalarByScopeTable
+class ScalarByScopeTable: public AbstractScalar
 {
 public:
   static ScalarByScopeTable* create(std::string name, std::string oid);
-  virtual void set_value(uint32_t value) = 0;
+  virtual void set_value(unsigned long value) = 0;
   virtual ~ScalarByScopeTable() {};
 
 protected:

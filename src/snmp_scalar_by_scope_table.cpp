@@ -76,7 +76,7 @@ public:
     add("node");
   }
 
-  void set_value(uint32_t value)
+  void set_value(unsigned long value)
   {
     scalar.value = value;
   }

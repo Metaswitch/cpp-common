@@ -37,7 +37,7 @@
 #include "snmp_statistics_structures.h"
 #include "snmp_internal/snmp_time_period_table.h"
 #include "snmp_internal/snmp_time_period_and_scope_table.h"
-#include "snmp_continuous_accumulator_table.h"
+#include "snmp_continuous_accumulator_by_scope_table.h"
 #include "limits.h"
 
 namespace SNMP
@@ -50,13 +50,13 @@ public:
   ColumnData get_columns();
 };
 
-class ContinuousAccumulatorTableImpl: public ManagedTable<ContinuousAccumulatorRow, int>,
-                                      public ContinuousAccumulatorTable
+class ContinuousAccumulatorByScopeTableImpl: public ManagedTable<ContinuousAccumulatorByScopeRow, int>,
+                                             public ContinuousAccumulatorByScopeTable
 {
 public:
   ContinuousAccumulatorByScopeTableImpl(std::string name,
                                         std::string tbl_oid):
-                                        ManagedTable<ContinuousAccumulatorRow,int>
+                                        ManagedTable<ContinuousAccumulatorByScopeRow,int>
                                             (name,
                                             tbl_oid,
                                             3,
@@ -145,6 +145,7 @@ private:
     }
   };
 
+  int n;
 
   CurrentAndPrevious<ContinuousStatistics> five_second;
   CurrentAndPrevious<ContinuousStatistics> five_minute;
