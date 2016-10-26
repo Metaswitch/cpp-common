@@ -579,13 +579,13 @@ void Utils::daemon_log_setup(int argc,
   //
   // Note that we don't save syslog_identity here, and so we're technically leaking
   // this object. However, its effectively part of static initialisation of
-  // the process - it'll be freed on process exit - so its not leaked in practice.
-  std::string *syslog_identity = new std::string(prog_name);
+  // the process - it'll be freed on process exit - so it's not leaked in practice.
+  std::string* syslog_identity = new std::string(prog_name);
 
-  // Open a connection to syslog. This is used for different purposes -
-  // e.g. ENT logs and analytics logs. We use the same facility for all purposes
-  // because it's easier than calling openlog with a different facility each
-  // time we send a log to syslog.
+  // Open a connection to syslog. This is used for different purposes - e.g. ENT
+  // logs and analytics logs. We use the same facility for all purposes because
+  // calling openlog with a different facility each time we send a log to syslog
+  // is not trivial to make thread-safe.
   openlog(syslog_identity->c_str(), LOG_PID, LOG_LOCAL7);
 
   if (daemon)
