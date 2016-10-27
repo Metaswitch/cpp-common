@@ -43,27 +43,14 @@
 //
 
 #include <string>
-
-extern "C" {
-  // syslog_facade prevents name collisions between the existing
-  // Clearwater logging (LOG_) and the definitions in syslog.h
-#include "syslog_facade.h"
-}
-
-// Namespace for common static ENT logging functions
-namespace PDLogStatic
-{
-  void init(char *pname);
-}
+#include <syslog.h>
 
 // Defines common definitions for PDLog (Problem Definition Log) classes
 
 // A PDLogBase defines the base class containing:
 //   Identity - Identifies the log id to be used in the syslog id field.
 //   Severity - One of Emergency, Alert, Critical, Error, Warning, Notice,
-//              and Info.  Directly corresponds to the syslog severity types.
-//              Only Error and Notice are used.  See syslog_facade.h for
-//              definitions.
+//              and Info.  Only Error and Notice are used.
 //   Message - Formatted description of the condition.
 //   Cause - The cause of the condition.
 //   Effect - The effect the condition.
@@ -129,7 +116,7 @@ protected:
   // Unique identity for a PDLog, e.g. CL_CPP_COMMON + 1
   int         _log_id;
 
-  // Log severity, usually PDLOG_ERR or PDLOG_NOTICE
+  // Log severity, usually LOG_ERR or LOG_NOTICE
   int         _severity;
 
   std::string _msg;
