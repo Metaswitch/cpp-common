@@ -356,7 +356,6 @@ public:
   }
   Message& add_session_id(const std::string& session_id);
   const std::string get_session_id();
-  const std::string get_ue_addr();
 
   inline Message& add_app_id(const Dictionary::Application::Type type,
                              const Dictionary::Vendor& vendor,
