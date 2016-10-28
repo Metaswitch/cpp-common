@@ -37,31 +37,25 @@
 #ifndef HTTPRESOLVER_H_
 #define HTTPRESOLVER_H_
 
-#include "baseresolver.h"
-#include "sas.h"
+#include "a_record_resolver.h"
 
-class HttpResolver : public BaseResolver
+class HttpResolver : public ARecordResolver
 {
 public:
   HttpResolver(DnsCachedResolver* dns_client,
                int address_family,
-               int blacklist_duration = DEFAULT_BLACKLIST_DURATION);
-  ~HttpResolver();
-
-  virtual void resolve(const std::string& host,
-                       int port,
-                       int max_targets,
-                       std::vector<AddrInfo>& targets,
-                       SAS::TrailId trail);
-
-  /// Default duration to blacklist hosts after we fail to connect to them.
-  static const int DEFAULT_BLACKLIST_DURATION = 30;
-
-  static const int DEFAULT_PORT = 80;
-  static const int TRANSPORT = IPPROTO_TCP;
+               int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
+               int graylist_duration = DEFAULT_GRAYLIST_DURATION)
+    : ARecordResolver(dns_client,
+                      address_family,
+                      blacklist_duration,
+                      graylist_duration,
+                      DEFAULT_HTTP_PORT)
+  {
+  }
 
 private:
-  int _address_family;
+  static const int DEFAULT_HTTP_PORT = 80;
 };
 
 #endif

@@ -1,6 +1,4 @@
 /**
- * @file pdlog.cpp
- *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2016  Metaswitch Networks Ltd
  *
@@ -34,25 +32,13 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
-#include "pdlog.h"
-#include <boost/filesystem.hpp>
+#ifndef MOCK_SNMP_CONTINUOUS_ACCUMULATOR_TABLE_H__
+#define MOCK_SNMP_CONTINUOUS_ACCUMULATOR_TABLE_H__
 
-void PDLogStatic::init(char *pname)
+class MockContinuousAccumulatorTable : public SNMP::ContinuousAccumulatorTable
 {
-  // Get the full path of the executable from the first command line argument
-  boost::filesystem::path p = pname;
+public:
+  MOCK_METHOD1(accumulate, void(uint32_t));
+};
 
-  // Copy the filename to a string so that we can be sure of its lifespan -
-  // the memory passed to openlog must be valid for the duration of the program.
-  //
-  // Note that we don't save "filename" here, and so we're technically leaking
-  // this object.  However, its effectively part of static initialisation of
-  // the process - it'll be freed on process exit - so its not leaked in practice.
-  std::string *filename = new std::string(p.filename().c_str());
-
-  // Use logging facility for ENT logs
-  openlog(filename->c_str(), PDLOG_PID, PDLOG_LOCAL7);
-}
+#endif

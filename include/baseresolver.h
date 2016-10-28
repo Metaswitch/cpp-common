@@ -40,6 +40,7 @@
 #include <list>
 #include <map>
 #include <vector>
+#include <sstream>
 #include <boost/regex.hpp>
 #include <pthread.h>
 
@@ -48,44 +49,9 @@
 #include "ttlcache.h"
 #include "utils.h"
 #include "sas.h"
+#include "weightedselector.h"
 
-struct AddrInfo
-{
-  IP46Address address;
-  int port;
-  int transport;
-  int priority;
-  int weight;
-
-  AddrInfo():
-    priority(1),
-    weight(1) {};
-
-  bool operator<(const AddrInfo& rhs) const
-  {
-    int addr_cmp = address.compare(rhs.address);
-
-    if (addr_cmp < 0)
-    {
-      return true;
-    }
-    else if (addr_cmp > 0)
-    {
-      return false;
-    }
-    else
-    {
-      return (port < rhs.port) || ((port == rhs.port) && (transport < rhs.transport));
-    }
-  }
-
-  bool operator==(const AddrInfo& rhs) const
-  {
-    return (address.compare(rhs.address) == 0) &&
-           (port == rhs.port) &&
-           (transport == rhs.transport);
-  }
-};
+class BaseAddrIterator;
 
 /// The BaseResolver class provides common infrastructure for doing DNS
 /// resolution, but does not implement a full resolver for any particular
@@ -98,18 +64,40 @@ public:
   BaseResolver(DnsCachedResolver* dns_client);
   virtual ~BaseResolver();
 
-  void blacklist(const AddrInfo& ai) { blacklist(ai, _default_blacklist_duration); }
-  void blacklist(const AddrInfo& ai, int ttl);
-  bool blacklisted(const AddrInfo& ai);
+  virtual void blacklist(const AddrInfo& ai)
+  {
+    blacklist(ai, _default_blacklist_duration, _default_graylist_duration);
+  }
+  virtual void blacklist(const AddrInfo& ai, int blacklist_ttl)
+  {
+    blacklist(ai, blacklist_ttl, _default_graylist_duration);
+  }
+  virtual void blacklist(const AddrInfo& ai, int blacklist_ttl, int graylist_ttl);
+
+  /// Indicates that the given AddrInfo has responded.
+  virtual void success(const AddrInfo& ai);
+
+  /// Indicates that the calling thread has left the given AddrInfo untested.
+  virtual void untested(const AddrInfo& ai);
 
   /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
-  bool parse_ip_target(const std::string& target, IP46Address& address);
+  static bool parse_ip_target(const std::string& target, IP46Address& address);
 
   void clear_blacklist();
+
+  // LazyAddrIterator must access the private host_state method of BaseResolver, which
+  // it is desirable not to expose
+  friend class LazyAddrIterator;
+
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
   void create_srv_cache();
-  void create_blacklist(int blacklist_duration);
+  void create_blacklist(int blacklist_duration)
+  {
+    // Defaults to not using graylisting
+    create_blacklist(blacklist_duration, 0);
+  }
+  void create_blacklist(int blacklist_duration, int graylist_duration);
   void destroy_naptr_cache();
   void destroy_srv_cache();
   void destroy_blacklist();
@@ -126,7 +114,7 @@ protected:
 
   /// Does an A/AAAA record resolution for the specified name, selecting
   /// appropriate targets.
-  void a_resolve(const std::string& name,
+  void a_resolve(const std::string& hostname,
                  int af,
                  int port,
                  int transport,
@@ -134,6 +122,15 @@ protected:
                  std::vector<AddrInfo>& targets,
                  int& ttl,
                  SAS::TrailId trail);
+
+  /// Does an A/AAAA record resolution for the specified name, and returns an
+  /// Iterator that lazily selects appropriate targets.
+  virtual BaseAddrIterator* a_resolve_iter(const std::string& hostname,
+                                           int af,
+                                           int port,
+                                           int transport,
+                                           int& ttl,
+                                           SAS::TrailId trail);
 
   /// Converts a DNS A or AAAA record to an IP46Address structure.
   IP46Address to_ip46(const DnsRRecord* rr);
@@ -185,6 +182,10 @@ protected:
     int port;
     int priority;
     int weight;
+    int get_weight() const
+    {
+      return weight;
+    }
   };
   typedef std::map<int, std::vector<SRV> > SRVPriorityList;
 
@@ -212,39 +213,96 @@ protected:
   typedef TTLCache<std::string, SRVPriorityList*> SRVCache;
   SRVCache* _srv_cache;
 
-  /// The SRVWeightedSelector class is a temporary class used to implemented
-  /// selection of SRV records at a single priority level according to the
-  /// weighting of each record.
-  class SRVWeightedSelector
+  /// The global hosts map holds a list of IP/transport/port combinations which
+  /// have been blacklisted because the destination is unresponsive (either TCP
+  /// connection attempts are failing or a UDP destination is unreachable).
+  ///
+  /// Blacklisted hosts are not given out by the a_resolve method, unless
+  /// insufficient non-blacklisted hosts are available. A host remains on the
+  /// blacklist until a specified time has elapsed, after which it moves to the
+  /// graylist.
+  ///
+  /// Hosts on the graylist are given out by the a_resolve method to only one
+  /// client, unless insufficient non-blacklisted hosts are available. A host
+  /// moves to the whitelist if the client probing this host connects
+  /// successfully, or if a specified time elapses. If a client given a host for
+  /// probing and does not attempt to connect to it, it is made available for
+  /// giving out by a_resolve once more. If a client attempts but fails to
+  /// connect to a host, it is moved to the blacklist.
+
+  /// Private class to hold data and methods associated to an IP/transport/port
+  /// combination in the blacklist system. Each Host is associated with exactly
+  /// one such combination.
+  class Host
   {
   public:
-    /// Constructor.
-    SRVWeightedSelector(const std::vector<SRV>& srvs);
+    /// Constructor
+    /// @param blacklist_ttl The time in seconds for the host to remain on the
+    ///                      blacklist before moving to the graylist
+    /// @param graylist_ttl  The time in seconds for the host to remain on the
+    ///                      graylist before moving to the whitelist
+    Host(int blacklist_ttl, int graylist_ttl);
 
-    /// Destructor.
-    ~SRVWeightedSelector();
+    /// Destructor
+    ~Host();
 
-    /// Renders the current state of the tree as a string.
-    std::string to_string() const;
+    /// Enum representing the current state of a Host in the blacklist
+    /// system. Whitelisted, graylisted and not selected for probing, graylisted
+    /// and selected for probing, and blacklisted respectively.
+    enum struct State {WHITE, GRAY_NOT_PROBING, GRAY_PROBING, BLACK};
 
-    /// Selects an entry and sets its weight to zero.
-    int select();
+    /// Returns a string representation of the given state.
+    static std::string state_to_string(State state);
 
-    /// Returns the current total weight of the items in the selector.
-    int total_weight();
+    /// Returns the state of this Host at the given time in seconds since the
+    /// epoch
+    State get_state() {return get_state(time(NULL));}
+    State get_state(time_t current_time);
+
+    /// Indicates that this Host has been successfully contacted.
+    void success();
+
+    /// Indicates that this Host is selected for probing by the given user.
+    void selected_for_probing(pthread_t user_id);
+
+    /// Indicates that this Host has gone untested by the given user.
+    void untested(pthread_t user_id);
 
   private:
-    std::vector<int> _tree;
+    /// The time in seconds since the epoch at which this Host is to be removed
+    /// from the blacklist and placed onto the graylist.
+    time_t _blacklist_expiry_time;
+
+    /// The time in seconds since the epoch at which this Host is to be removed
+    /// from the graylist.
+    time_t _graylist_expiry_time;
+
+    /// Indicates that this Host is currently being probed.
+    bool _being_probed;
+
+    /// The ID of the thread currently probing this Host.
+    pthread_t _probing_user_id;
   };
 
-  /// The global blacklist holds a list of transport/IP address/port
-  /// combinations which have been blacklisted because the destination is
-  /// unresponsive (either TCP connection attempts are failing or a UDP
-  /// destination is unreachable).
-  pthread_mutex_t _blacklist_lock;
-  typedef std::map<AddrInfo, time_t> Blacklist;
-  Blacklist _blacklist;
+  pthread_mutex_t _hosts_lock;
+  typedef std::map<AddrInfo, Host> Hosts;
+  Hosts _hosts;
+
+  /// Returns the state of the Host associated with the given AddrInfo, if it is
+  /// in the blacklist system, and Host::State::WHITE otherwise. _hosts_lock
+  /// must be held when calling this method.
+  Host::State host_state(const AddrInfo& ai) {return host_state(ai, time(NULL));}
+  Host::State host_state(const AddrInfo& ai, time_t current_time);
+
+  /// Returns false only if the associated Host has state State::WHITE
+  bool blacklisted(const AddrInfo& ai);
+
+  /// Indicates that the calling thread is selected to probe the given AddrInfo.
+  /// _hosts_lock must be held when calling this method.
+  void select_for_probing(const AddrInfo& ai);
+
   int _default_blacklist_duration;
+  int _default_graylist_duration;
 
   /// Stores a pointer to the DNS client this resolver should use.
   DnsCachedResolver* _dns_client;
@@ -253,4 +311,73 @@ protected:
 
 };
 
+// Abstract base class for AddrInfo iterators used in target selection.
+class BaseAddrIterator
+{
+public:
+  BaseAddrIterator() {}
+  virtual ~BaseAddrIterator() {}
+
+  /// Should return a vector containing at most num_requested_targets AddrInfo
+  /// targets.
+  virtual std::vector<AddrInfo> take(int num_requested_targets) = 0;
+
+  /// If any unused targets remain, sets the value of target to the next one and
+  /// returns true. Otherwise returns false and leaves the value of target
+  /// unchanged.
+  virtual bool next(AddrInfo &target);
+};
+
+// AddrInfo iterator that simply returns the targets it is given in sequence.
+class SimpleAddrIterator : public BaseAddrIterator
+{
+public:
+  SimpleAddrIterator(std::vector<AddrInfo> targets) : _targets(targets) {}
+  virtual ~SimpleAddrIterator() {}
+
+  /// Returns a vector containing the first num_requested_targets elements of
+  /// _targets, or all the elements of _targets if num_requested_targets is
+  /// greater than the size of _targets.
+  virtual std::vector<AddrInfo> take(int num_requested_targets);
+
+private:
+  std::vector<AddrInfo> _targets;
+};
+
+// AddrInfo iterator that uses the blacklist system of a BaseResolver to lazily
+// select targets.
+class LazyAddrIterator : public BaseAddrIterator
+{
+public:
+  // Constructor. The take method requires that resolver is not NULL.
+  LazyAddrIterator(DnsResult& dns_result,
+                   BaseResolver* resolver,
+                   int port,
+                   int transport,
+                   SAS::TrailId trail);
+  virtual ~LazyAddrIterator() {}
+
+  /// Returns a vector containing at most num_requested_targets AddrInfo targets,
+  /// selected based on their current state in the blacklist system of
+  /// resolver.
+  virtual std::vector<AddrInfo> take(int num_requested_targets);
+
+private:
+  // A vector that initially contains the results of a DNS query. As results
+  // are returned from the take method, or moved to the vector of unhealthy
+  // results, they are removed from this vector
+  std::vector<AddrInfo> _unused_results;
+
+  // Used to store DNS results corresponding to unhealthy hosts
+  std::vector<AddrInfo> _unhealthy_results;
+
+  // A pointer to the BaseResolver that created this iterator
+  BaseResolver* _resolver;
+
+  std::string _hostname;
+  SAS::TrailId _trail;
+
+  // True if the iterator has not yet been called, and false otherwise
+  bool _first_call;
+};
 #endif

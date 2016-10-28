@@ -54,6 +54,16 @@ namespace CassandraStore
 // set the limit very high instead.
 const int32_t GET_SLICE_MAX_COLUMNS = 1000000;
 
+// No-op operation class
+class NoOperation : public Operation
+{
+public:
+  bool perform(Client* client, SAS::TrailId trail)
+  {
+    return true;
+  }
+};
+
 //
 // Client methods
 //
@@ -62,14 +72,25 @@ const int32_t GET_SLICE_MAX_COLUMNS = 1000000;
 RealThriftClient::RealThriftClient(boost::shared_ptr<TProtocol> prot,
                                    boost::shared_ptr<TFramedTransport> transport) :
   _cass_client(prot),
-  _transport(transport)
+  _transport(transport),
+  _connected(false)
 {
-  _transport->open();
 }
 
 RealThriftClient::~RealThriftClient()
 {
   _transport->close();
+}
+
+bool RealThriftClient::is_connected()
+{
+  return _connected;
+}
+
+void RealThriftClient::connect()
+{
+  _transport->open();
+  _connected = true;
 }
 
 void RealThriftClient::set_keyspace(const std::string& keyspace)
@@ -108,6 +129,15 @@ void RealThriftClient::remove(const std::string& key,
 {
   _cass_client.remove(key, column_path, timestamp, consistency_level);
 }
+
+void RealThriftClient::get_range_slices(std::vector<KeySlice> & _return,
+                                        const ColumnParent& column_parent,
+                                        const SlicePredicate& predicate,
+                                        const KeyRange& range,
+                                        const ConsistencyLevel::type consistency_level)
+{
+  _cass_client.get_range_slices(_return, column_parent, predicate, range, consistency_level);
+}
 // LCOV_EXCL_STOP
 
 
@@ -139,17 +169,14 @@ Store::Store(const std::string& keyspace) :
   _max_queue(0),
   _thread_pool(NULL),
   _comm_monitor(NULL),
-  _thread_local()
+  _conn_pool(new CassandraConnectionPool())
 {
-  // Create the thread-local storage that stores cassandra connections.
-  // delete_client is a destroy callback that is called when the thread exits.
-  pthread_key_create(&_thread_local, delete_client);
 }
-
 
 void Store::configure_connection(std::string cass_hostname,
                                  uint16_t cass_port,
-                                 BaseCommunicationMonitor* comm_monitor)
+                                 BaseCommunicationMonitor* comm_monitor,
+                                 CassandraResolver* resolver)
 {
   TRC_STATUS("Configuring store connection");
   TRC_STATUS("  Hostname:  %s", cass_hostname.c_str());
@@ -157,44 +184,22 @@ void Store::configure_connection(std::string cass_hostname,
   _cass_hostname = cass_hostname;
   _cass_port = cass_port;
   _comm_monitor = comm_monitor;
+  _resolver = resolver;
 }
 
 
 ResultCode Store::connection_test()
 {
-  ResultCode rc = OK;
+  TRC_DEBUG("Testing cassandra connection");
+
+  ResultCode rc = UNKNOWN_ERROR;
+  std::string cass_error_text = "";
 
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the specified keyspace, so is a good test of whether
   // cassandra is working properly.
-  TRC_DEBUG("Testing cassandra connection");
-
-  try
-  {
-    get_client();
-    release_client();
-  }
-  catch(TTransportException te)
-  {
-    TRC_ERROR("Store caught TTransportException: %s", te.what());
-    rc = CONNECTION_ERROR;
-  }
-  catch(NotFoundException nfe)
-  {
-    TRC_ERROR("Store caught NotFoundException: %s", nfe.what());
-    rc = NOT_FOUND;
-  }
-  catch(InvalidRequestException ire)
-  {
-    TRC_ERROR("Store caught InvalidRequestException: %s", ire.why.c_str());
-    rc = INVALID_REQUEST;
-  }
-  catch(...)
-  {
-    TRC_ERROR("Store caught unknown exception!");
-    rc = UNKNOWN_ERROR;
-  }
-
+  NoOperation no_op;
+  perform_op(&no_op, 0, rc, cass_error_text);
   return rc;
 }
 
@@ -272,84 +277,54 @@ Store::~Store()
     wait_stopped();
   }
 
-  pthread_key_delete(_thread_local);
+  delete _conn_pool; _conn_pool = NULL;
 }
 
 
-// LCOV_EXCL_START - UTs do not cover relationship of clients to threads.
-Client* Store::get_client()
-{
-  // See if we've already got a client for this thread.  If not allocate a new
-  // one and write it back into thread-local storage.
-  TRC_DEBUG("Getting thread-local Client");
-  Client* client = (Client*)pthread_getspecific(_thread_local);
-
-  if (client == NULL)
-  {
-    TRC_DEBUG("No thread-local Client - creating one");
-    boost::shared_ptr<TTransport> socket =
-      boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
-    boost::shared_ptr<TFramedTransport> transport =
-      boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
-    boost::shared_ptr<TProtocol> protocol =
-      boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
-    client = new RealThriftClient(protocol, transport);
-    client->set_keyspace(_keyspace);
-    pthread_setspecific(_thread_local, client);
-  }
-
-  return client;
-}
-
-
-void Store::release_client()
-{
-  // If this thread already has a client delete it and remove it from
-  // thread-local storage.
-  TRC_DEBUG("Looking to release thread-local client");
-  Client* client = (Client*)pthread_getspecific(_thread_local);
-
-  if (client != NULL)
-  {
-    TRC_DEBUG("Found thread-local client - destroying");
-    delete_client(client);
-    client = NULL;
-    pthread_setspecific(_thread_local, NULL);
-  }
-}
-
-
-void Store::delete_client(void* client)
-{
-  delete (Client*)client; client = NULL;
-}
-// LCOV_EXCL_STOP
-
-
-bool Store::do_sync(Operation* op, SAS::TrailId trail)
+bool Store::perform_op(Operation* op,
+                       SAS::TrailId trail,
+                       ResultCode& cass_result,
+                       std::string& cass_error_text)
 {
   bool success = false;
-  Client* client = NULL;
-  ResultCode cass_result = OK;
-  std::string cass_error_text = "";
-
-  // Set up whether the perform should be retried on failure.
-  // Only try once, unless there's connection error, in which case try twice.
-  bool retry = false;
+  bool retry = true;
   int attempt_count = 0;
 
-  // Call perform() to actually do the business logic of the request.  Catch
-  // exceptions and turn them into return codes and error text.
-  do
+  // Resolve the host
+  BaseAddrIterator* target_it = _resolver->resolve_iter(_cass_hostname,
+                                                        _cass_port,
+                                                        trail);
+  AddrInfo target;
+
+  // Iterate over targets until either we succeed in connecting, run out of
+  // targets or hit the maximum (2).
+  // If there is only one target, try it twice.
+  while (retry &&
+         (attempt_count <= 2) &&
+         (target_it->next(target) || (attempt_count == 1)))
   {
+    cass_result = OK;
+    attempt_count++;
+
+    // Only retry on connection errors
     retry = false;
 
+    // Get a client to execute the operation.
+    ConnectionHandle<Client*> conn_handle = _conn_pool->get_connection(target);
+
+    // Call perform() to actually do the business logic of the request.  Catch
+    // exceptions and turn them into return codes and error text.
     try
     {
-      attempt_count++;
+      // Ensure the client is connected and perform the operation
+      Client* client = conn_handle.get_connection();
 
-      // Get a client to execute the operation.
-      client = get_client();
+      if (!client->is_connected())
+      {
+        TRC_DEBUG("Connecting to %s", target.to_string().c_str());
+        client->connect();
+        client->set_keyspace(_keyspace);
+      }
 
       success = op->perform(client, trail);
     }
@@ -364,17 +339,11 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
       event.add_var_param(cass_error_text);
       SAS::report_event(event);
 
-      // Recycle the connection.
-      release_client(); client = NULL;
+      // Tell the pool not to reuse this connection
+      conn_handle.set_return_to_pool(false);
 
-      if (attempt_count <= 1)
-      {
-        // Connection error, destroy and recreate the connection, and retry the
-        //  request once
-        TRC_DEBUG("Connection error, retrying");
-        retry = true;
-        cass_result = OK;
-      }
+      TRC_DEBUG("Connection error");
+      retry = true;
     }
     catch(InvalidRequestException& ire)
     {
@@ -405,8 +374,29 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
       cass_result = UNKNOWN_ERROR;
       cass_error_text = "Unknown error";
     }
+
+    // Since we only retry on connection errors, the value of retry is used to
+    // determine whether we connected to the target successfully
+    if (retry)
+    {
+      _resolver->blacklist(target);
+    }
+    else
+    {
+      _resolver->success(target);
+    }
   }
-  while (retry);
+  return success;
+}
+
+
+bool Store::do_sync(Operation* op, SAS::TrailId trail)
+{
+  ResultCode cass_result = UNKNOWN_ERROR;
+  std::string cass_error_text = "";
+
+  // perform_op() does the actual work
+  bool success  = perform_op(op, trail, cass_result, cass_error_text);
 
   if (cass_result == OK)
   {

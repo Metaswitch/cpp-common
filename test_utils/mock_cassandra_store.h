@@ -89,6 +89,13 @@ public:
   MOCK_METHOD5(get_slice, void(std::vector<cass::ColumnOrSuperColumn> & _return, const std::string& key, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
   MOCK_METHOD5(multiget_slice, void(std::map<std::string, std::vector<cass::ColumnOrSuperColumn> > & _return, const std::vector<std::string>& keys, const cass::ColumnParent& column_parent, const cass::SlicePredicate& predicate, const cass::ConsistencyLevel::type consistency_level));
   MOCK_METHOD4(remove, void(const std::string& key, const cass::ColumnPath& column_path, const int64_t timestamp, const cass::ConsistencyLevel::type consistency_level));
+  MOCK_METHOD0(connect, void());
+  MOCK_METHOD0(is_connected, bool());
+  MOCK_METHOD5(get_range_slices, void(std::vector<cass::KeySlice> & _return,
+                                      const cass::ColumnParent& column_parent,
+                                      const cass::SlicePredicate& predicate,
+                                      const cass::KeyRange& range,
+                                      const cass::ConsistencyLevel::type consistency_level));
 };
 
 

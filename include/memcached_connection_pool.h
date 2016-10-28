@@ -1,8 +1,9 @@
 /**
- * @file snmp_ip_timed_based_count_table.h
+ * @file memcachedconnectionpool.h  Declaration of derived class for memcached
+ * connection pooling
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2016 Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,56 +35,40 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
-#define SNMP_IP_TIMED_BASED_COUNT_TABLE_H_
+#ifndef MEMCACHED_CONNECTION_POOL_H__
+#define MEMCACHED_CONNECTION_POOL_H__
 
-namespace SNMP
-{
+// Compilation fails when surrounding these two includes with extern "C", due to
+// what seems to be conflicting definitions of a C function. It is unknown why
+// this fails here but works in memcachedstore.h, but it appears to work without
+// extern "C". Beware that omitting this may cause problems in future.
+#include <libmemcached/memcached.h>
+#include <libmemcached/util.h>
 
-class IPTimeBasedCounterTable
+#include "connection_pool.h"
+
+class MemcachedConnectionPool : public ConnectionPool<memcached_st*>
 {
 public:
-  virtual ~IPTimeBasedCounterTable() {};
+  MemcachedConnectionPool(time_t max_idle_time_s, std::string options) :
+    ConnectionPool<memcached_st*>(max_idle_time_s),
+    _options(options),
+    _max_connect_latency_ms(50)
+  {
+  }
 
-  /// Create a new instance of the table.
-  ///
-  /// @param name - The name of the table.
-  /// @param oid  - The OID subtree that the table lives within.
-  ///
-  /// @return     - The table instance.
-  static IPTimeBasedCounterTable* create(std::string name, std::string oid);
-
-  /// Add rows to the table for the specified IP address. If this IP already
-  /// exists in the table, an additional reference count will be added for
-  /// it.
-  ///
-  /// Calls to add_ip and remove_ip should be balanced.
-  ///
-  /// @param ip - The IP address to add. Must be a valid IPv4 or IPv6 IP
-  ///             address.
-  virtual void add_ip(const std::string& ip) = 0;
-
-  /// Removes rows for the specified IP address from the table. If this IP has
-  /// been added multiple times, this just removes one from the reference count.
-  ///
-  /// Calls to add_ip and remove_ip should be balanced.
-  ///
-  /// @param ip - The IP address to remove. Must be a valid IPv4 or IPv6 IP
-  ///             address.
-  virtual void remove_ip(const std::string& ip) = 0;
-
-  /// Increment the count for the given IP. The IP address must have been
-  /// previously added to the table by calling `add_ip`. If it has not, the
-  /// increment is ignored.
-  ///
-  /// @param ip - The IP address to increment the stat for.
-  virtual void increment(const std::string& ip) = 0;
+  ~MemcachedConnectionPool()
+  {
+    // This call is important to properly destroy the connection pool
+    destroy_connection_pool();
+  }
 
 protected:
-  IPTimeBasedCounterTable() {};
+  memcached_st* create_connection(AddrInfo target);
+  void destroy_connection(AddrInfo target, memcached_st* conn);
+
+  std::string _options;
+  unsigned int _max_connect_latency_ms;
 };
 
-}
-
 #endif
-

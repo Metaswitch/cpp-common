@@ -1359,23 +1359,28 @@ bool Message::get_u32_from_avp(const Dictionary::AVP& type, uint32_t& u32) const
   }
 }
 
-// Get the experimental result code from the EXPERIMENTAL_RESULT_CODE AVP
-// of a Diameter message if it is present. This AVP is inside the
+// Get the experimental result code and it's vendor from the
+// EXPERIMENTAL_RESULT_CODE AVP and VENDOR_ID AVP
+// of a Diameter message if it is present. These AVPs are inside the
 // EXPERIMENTAL_RESULT AVP.
-int32_t Message::experimental_result_code() const
+bool Message::experimental_result(int32_t& experimental_result_code, uint32_t& vendor_id) const
 {
-  int32_t experimental_result_code = 0;
+  bool found_experimental_result = false;
   AVP::iterator avps = begin(dict()->EXPERIMENTAL_RESULT);
   if (avps != end())
   {
-    AVP::iterator avps2 = avps->begin(dict()->EXPERIMENTAL_RESULT_CODE);
-    if (avps2 != avps->end())
+    AVP::iterator code = avps->begin(dict()->EXPERIMENTAL_RESULT_CODE);
+    AVP::iterator vendor = avps->begin(dict()->VENDOR_ID);
+    if (code != avps->end() && vendor != avps->end())
     {
-      experimental_result_code = avps2->val_i32();
-      TRC_DEBUG("Got Experimental-Result-Code %d", experimental_result_code);
+      experimental_result_code = code->val_i32();
+      vendor_id = vendor->val_u32();
+      found_experimental_result = true;
+      TRC_DEBUG("Got Experimental-Result-Code %d for Vendor %d",
+                experimental_result_code, vendor_id);
     }
   }
-  return experimental_result_code;
+  return found_experimental_result;
 }
 
 // Get the vendor ID from the VENDOR_ID AVP of a Diameter message if it

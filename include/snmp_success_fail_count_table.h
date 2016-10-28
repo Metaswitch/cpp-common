@@ -43,7 +43,8 @@
 // This file contains the interface for tables which:
 //   - are indexed by time period
 //   - increment a count of the attempts, successes and failures over time
-//   - report a count of the attempts, successes and failures
+//   - report a count of the attempts, successes and failures and the
+//     percentage of attempts that were successful.
 //
 // This is defined as an interface in order not to pollute the codebase with netsnmp include files
 // (which indiscriminately #define things like READ and WRITE).

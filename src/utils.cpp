@@ -51,6 +51,7 @@
 #include <sys/file.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <syslog.h>
 
 #include "utils.h"
 #include "log.h"
@@ -269,6 +270,20 @@ void Utils::create_random_token(size_t length,       //< Number of characters.
   }
 }
 
+std::string Utils::hex(const uint8_t* data, size_t len)
+{
+  static const char* const hex_lookup = "0123456789abcdef";
+  std::string result;
+  result.reserve(2 * len);
+  for (size_t ii = 0; ii < len; ++ii)
+  {
+    const uint8_t b = data[ii];
+    result.push_back(hex_lookup[b >> 4]);
+    result.push_back(hex_lookup[b & 0x0f]);
+  }
+  return result;
+}
+
 // This function is from RFC 2617
 void Utils::hashToHex(unsigned char *hash_char, unsigned char *hex_char)
 {
@@ -320,7 +335,7 @@ bool Utils::split_host_port(const std::string& host_port,
   if (close_bracket == host_port.npos)
   {
     // IPv4 connection.  Split the string on the colon.
-    Utils::split_string(host_port, ':', host_port_parts);
+    Utils::split_string(host_port, ':', host_port_parts, 0, false, false, true);
     if (host_port_parts.size() != 2)
     {
       TRC_DEBUG("Malformed host/port %s", host_port.c_str());
@@ -331,7 +346,7 @@ bool Utils::split_host_port(const std::string& host_port,
   {
     // IPv6 connection.  Split the string on ']', which removes any white
     // space from the start and the end, then remove the '[' from the
-    // start of the IP addreess string and the start of the ':' from the start
+    // start of the IP address string and the start of the ':' from the start
     // of the port string.
     Utils::split_string(host_port, ']', host_port_parts);
     if ((host_port_parts.size() != 2) ||
@@ -486,6 +501,11 @@ uint64_t Utils::get_time(clockid_t clock)
 
 int Utils::daemonize()
 {
+  return daemonize("/dev/null", "/dev/null");
+}
+
+int Utils::daemonize(std::string out, std::string err)
+{
   TRC_STATUS("Switching to daemon mode");
 
   // First fork
@@ -505,11 +525,11 @@ int Utils::daemonize()
   {
     return errno;
   }
-  if (freopen("/dev/null", "w", stdout) == NULL)
+  if (freopen(out.c_str(), "a", stdout) == NULL)
   {
     return errno;
   }
-  if (freopen("/dev/null", "w", stderr) == NULL)
+  if (freopen(err.c_str(), "a", stderr) == NULL)
   {
     return errno;
   }
@@ -536,4 +556,147 @@ int Utils::daemonize()
   }
 
   return 0;
+}
+
+void Utils::daemon_log_setup(int argc,
+                             char* argv[],
+                             bool daemon,
+                             std::string& log_directory,
+                             int log_level,
+                             bool log_to_file)
+{
+  // Work out the program name from argv[0], stripping anything before the
+  // final slash.
+  char* prog_name = argv[0];
+  char* slash_ptr = rindex(argv[0], '/');
+  if (slash_ptr != NULL)
+  {
+    prog_name = slash_ptr + 1;
+  }
+
+  // Copy the program name to a string so that we can be sure of its lifespan -
+  // the memory passed to openlog must be valid for the duration of the program.
+  //
+  // Note that we don't save syslog_identity here, and so we're technically leaking
+  // this object. However, its effectively part of static initialisation of
+  // the process - it'll be freed on process exit - so it's not leaked in practice.
+  std::string* syslog_identity = new std::string(prog_name);
+
+  // Open a connection to syslog. This is used for different purposes - e.g. ENT
+  // logs and analytics logs. We use the same facility for all purposes because
+  // calling openlog with a different facility each time we send a log to syslog
+  // is not trivial to make thread-safe.
+  openlog(syslog_identity->c_str(), LOG_PID, LOG_LOCAL7);
+
+  if (daemon)
+  {
+    int errnum;
+
+    if (log_directory != "")
+    {
+      std::string prefix = log_directory + "/" + prog_name;
+      errnum = Utils::daemonize(prefix + "_out.log",
+                                prefix + "_err.log");
+    }
+    else
+    {
+      errnum = Utils::daemonize();
+    }
+
+    if (errnum != 0)
+    {
+      TRC_ERROR("Failed to convert to daemon, %d (%s)", errnum, strerror(errnum));
+      exit(0);
+    }
+  }
+
+  Log::setLoggingLevel(log_level);
+
+  if ((log_to_file) && (log_directory != ""))
+  {
+    Log::setLogger(new Logger(log_directory, prog_name));
+  }
+
+  TRC_STATUS("Log level set to %d", log_level);
+}
+
+bool Utils::is_bracketed_address(const std::string& address)
+{
+  return ((address.size() >= 2) &&
+          (address[0] == '[') &&
+          (address[address.size() - 1] == ']'));
+}
+
+std::string Utils::remove_brackets_from_ip(std::string address)
+{
+  bool bracketed = is_bracketed_address(address);
+  return bracketed ? address.substr(1, address.size() - 2) :
+                     address;
+}
+
+std::string Utils::uri_address(std::string address, int default_port)
+{
+  Utils::IPAddressType addrtype = parse_ip_address(address);
+
+  if (default_port == 0)
+  {
+    if (addrtype == IPAddressType::IPV6_ADDRESS)
+    {
+      address = "[" + address + "]";
+    }
+  }
+  else
+  {
+    std::string port = std::to_string(default_port);
+
+    if (addrtype == IPAddressType::IPV4_ADDRESS ||
+        addrtype == IPAddressType::IPV6_ADDRESS_BRACKETED ||
+        addrtype == IPAddressType::INVALID)
+    {
+      address = address + ":" + port;
+    }
+    else if (addrtype == IPAddressType::IPV6_ADDRESS)
+    {
+      address = "[" + address + "]:" + port;
+    }
+  }
+
+  return address;
+}
+
+Utils::IPAddressType Utils::parse_ip_address(std::string address)
+{
+  // Check if we have a port
+  std::string host;
+  int port;
+  bool with_port = Utils::split_host_port(address, host, port);
+
+  // We only want the host part of the address.
+  host = with_port ? host : address;
+
+  // Check if we're surrounded by []
+  bool with_brackets = is_bracketed_address(host);
+
+  host = with_brackets ? host.substr(1, host.size() - 2) : host;
+
+  // Check if we're IPv4/IPv6/invalid
+  struct in_addr dummy_ipv4_addr;
+  struct in6_addr dummy_ipv6_addr;
+
+  if (inet_pton(AF_INET, host.c_str(), &dummy_ipv4_addr) == 1)
+  {
+    return (with_port) ? IPAddressType::IPV4_ADDRESS_WITH_PORT :
+                         IPAddressType::IPV4_ADDRESS;
+  }
+  else if (inet_pton(AF_INET6, host.c_str(), &dummy_ipv6_addr) == 1)
+  {
+    return (with_port) ? IPAddressType::IPV6_ADDRESS_WITH_PORT :
+                         ((with_brackets) ? IPAddressType::IPV6_ADDRESS_BRACKETED :
+                                            IPAddressType::IPV6_ADDRESS);
+  }
+  else
+  {
+    return (with_port) ? IPAddressType::INVALID_WITH_PORT :
+                         IPAddressType::INVALID;
+  }
 }

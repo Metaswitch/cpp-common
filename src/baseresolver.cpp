@@ -45,13 +45,19 @@
 #include "baseresolver.h"
 #include "sas.h"
 #include "sasevent.h"
+#include "weightedselector.h"
+
+void PrintTo(const AddrInfo& ai, std::ostream* os)
+{
+  *os << ai.to_string();
+}
 
 BaseResolver::BaseResolver(DnsCachedResolver* dns_client) :
   _naptr_factory(),
   _naptr_cache(),
   _srv_factory(),
   _srv_cache(),
-  _blacklist(),
+  _hosts(),
   _dns_client(dns_client)
 {
 }
@@ -63,9 +69,10 @@ BaseResolver::~BaseResolver()
 // Removes all the entries from the blacklist.
 void BaseResolver::clear_blacklist()
 {
-  pthread_mutex_lock(&_blacklist_lock);
-  _blacklist.clear();
-  pthread_mutex_unlock(&_blacklist_lock);
+  TRC_DEBUG("Clear blacklist");
+  pthread_mutex_lock(&_hosts_lock);
+  _hosts.clear();
+  pthread_mutex_unlock(&_hosts_lock);
 }
 
 // Creates the cache for storing NAPTR results.
@@ -87,12 +94,13 @@ void BaseResolver::create_srv_cache()
 }
 
 /// Creates the blacklist of address/port/transport triplets.
-void BaseResolver::create_blacklist(int blacklist_duration)
+void BaseResolver::create_blacklist(int blacklist_duration, int graylist_duration)
 {
   // Create the blacklist (no factory required).
   TRC_DEBUG("Create black list");
-  pthread_mutex_init(&_blacklist_lock, NULL);
+  pthread_mutex_init(&_hosts_lock, NULL);
   _default_blacklist_duration = blacklist_duration;
+  _default_graylist_duration = graylist_duration;
 }
 
 void BaseResolver::destroy_naptr_cache()
@@ -113,7 +121,8 @@ void BaseResolver::destroy_blacklist()
 {
   TRC_DEBUG("Destroy blacklist");
   _default_blacklist_duration = 0;
-  pthread_mutex_destroy(&_blacklist_lock);
+  _default_graylist_duration = 0;
+  pthread_mutex_destroy(&_hosts_lock);
 }
 
 /// This algorithm selects a number of targets (IP address/port/transport
@@ -169,7 +178,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       srvs.reserve(i->second.size());
 
       // Build a cumulative weighted tree for this priority level.
-      SRVWeightedSelector selector(i->second);
+      WeightedSelector<SRV> selector(i->second);
 
       // Select entries while there are any with non-zero weights.
       while (selector.total_weight() > 0)
@@ -264,11 +273,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             ai.address = active_addr[ii].back();
             active_addr[ii].pop_back();
             targets.push_back(ai);
-            char buf[100];
-            std::string target = inet_ntop(ai.address.af,
-                                           &ai.address.addr,
-                                           buf, sizeof(buf));
-            std::string tg = "[" + target + ":" + std::to_string(ai.port) + "] ";
+            std::string target = ai.address_and_port_to_string();
+            std::string tg = "[" + target + "] ";
             targetlist_str = targetlist_str + tg;
 
             TRC_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
@@ -279,11 +285,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             ai.address = blacklist_addr[ii].back();
             blacklist_addr[ii].pop_back();
             blacklisted_targets.push_back(ai);
-            char buf[100];
-            std::string blacklistee = inet_ntop(ai.address.af,
-                                                &ai.address.addr,
-                                                buf, sizeof(buf));
-            std::string bl = "[" + blacklistee + ":" + std::to_string(ai.port) + "] ";
+            std::string blacklistee = ai.address_and_port_to_string();
+            std::string bl = "[" + blacklistee + "] ";
             blacklist_str = blacklist_str + bl;
           }
 
@@ -315,11 +318,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       for (size_t ii = 0; ii < to_copy; ++ii)
       {
         targets.push_back(blacklisted_targets[ii]);
-        char buf[100];
-        std::string blacklistee = inet_ntop(blacklisted_targets[ii].address.af,
-                                            &blacklisted_targets[ii].address.addr,
-                                            buf, sizeof(buf));
-        std::string bl = "[" + blacklistee + ":" + std::to_string(blacklisted_targets[ii].port) + "]";
+        std::string blacklistee = blacklisted_targets[ii].address_and_port_to_string();
+        std::string bl = "[" + blacklistee + "]";
         added_from_blacklist_str = added_from_blacklist_str + bl;
       }
     }
@@ -348,99 +348,24 @@ void BaseResolver::a_resolve(const std::string& hostname,
                              int& ttl,
                              SAS::TrailId trail)
 {
-  // Clear the list of targets just in case.
-  targets.clear();
+  BaseAddrIterator* it = a_resolve_iter(hostname, af, port, transport, ttl, trail);
+  targets = it->take(retries);
+  delete it; it = nullptr;
+}
 
-  // Accumulate blacklisted targets in case they are needed.
-  std::vector<AddrInfo> blacklisted_targets;
-
-  // Do A/AAAA lookup.
+BaseAddrIterator* BaseResolver::a_resolve_iter(const std::string& hostname,
+                                               int af,
+                                               int port,
+                                               int transport,
+                                               int& ttl,
+                                               SAS::TrailId trail)
+{
   DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa, trail);
   ttl = result.ttl();
 
-  // Randomize the records in the result.
-  TRC_DEBUG("Found %ld A/AAAA records, randomizing", result.records().size());
-  std::random_shuffle(result.records().begin(), result.records().end());
+  TRC_DEBUG("Found %ld A/AAAA records, creating iterator", result.records().size());
 
-  // Loop through the records in the result picking non-blacklisted targets.
-  AddrInfo ai;
-  ai.transport = transport;
-  ai.port = port;
-  std::string targetlist_str;
-  std::string blacklist_str;
-  std::string added_from_blacklist_str;
-
-  for (std::vector<DnsRRecord*>::const_iterator i = result.records().begin();
-       i != result.records().end();
-       ++i)
-  {
-    ai.address = to_ip46(*i);
-    if (!blacklisted(ai))
-    {
-      // Address isn't blacklisted, so copy across to the target list.
-      targets.push_back(ai);
-      targetlist_str = targetlist_str + (*i)->to_string() + ";";
-      TRC_DEBUG("Added a server, now have %ld of %d", targets.size(), retries);
-    }
-    else
-    {
-      // Address is blacklisted, so copy to blacklisted list.
-      blacklisted_targets.push_back(ai);
-      blacklist_str = blacklist_str + (*i)->to_string() + ";";
-    }
-
-    if (targets.size() >= (size_t)retries)
-    {
-      // We have enough targets so stop looking at records.
-      TRC_DEBUG("Have enough targets");
-
-      if (trail != 0)
-      {
-        SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
-        event.add_var_param(hostname);
-        event.add_var_param(targetlist_str);
-        event.add_var_param(blacklist_str);
-        event.add_var_param(added_from_blacklist_str);
-        SAS::report_event(event);
-      }
-
-      break;
-    }
-  }
-
-  // If we've gone through the whole set of A/AAAA record and haven't found
-  // enough unblacklisted targets, add blacklisted targets.
-  if (targets.size() < (size_t)retries)
-  {
-    size_t to_copy = (size_t)retries - targets.size();
-    if (to_copy > blacklisted_targets.size())
-    {
-      to_copy = blacklisted_targets.size();
-    }
-
-    TRC_DEBUG("Adding %ld servers from blacklist", to_copy);
-
-    for (size_t ii = 0; ii < to_copy; ++ii)
-    {
-      targets.push_back(blacklisted_targets[ii]);
-      char buf[100];
-      std::string blacklistee = inet_ntop(blacklisted_targets[ii].address.af,
-                                          &blacklisted_targets[ii].address.addr,
-                                          buf, sizeof(buf));
-      std::string bl = "[" + blacklistee + ":" + std::to_string(blacklisted_targets[ii].port) + "]";
-      added_from_blacklist_str = added_from_blacklist_str + bl;
-    }
-  }
-
-  if (trail != 0)
-  {
-    SAS::Event event(trail, SASEvent::BASERESOLVE_A_RESULT, 0);
-    event.add_var_param(hostname);
-    event.add_var_param(targetlist_str);
-    event.add_var_param(blacklist_str);
-    event.add_var_param(added_from_blacklist_str);
-    SAS::report_event(event);
-  }
+  return new LazyAddrIterator(result, this, port, transport, trail);
 }
 
 /// Converts a DNS A or AAAA record to an IP46Address structure.
@@ -466,42 +391,28 @@ IP46Address BaseResolver::to_ip46(const DnsRRecord* rr)
 }
 
 /// Adds an address, port, transport tuple to the blacklist.
-void BaseResolver::blacklist(const AddrInfo& ai, int ttl)
+void BaseResolver::blacklist(const AddrInfo& ai,
+                             int blacklist_ttl,
+                             int graylist_ttl)
 {
-  char buf[100];
-  TRC_DEBUG("Add %s:%d transport %d to blacklist for %d seconds",
-            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-            ai.port, ai.transport, ttl);
-  pthread_mutex_lock(&_blacklist_lock);
-  _blacklist[ai] = time(NULL) + ttl;
-  pthread_mutex_unlock(&_blacklist_lock);
+  std::string ai_str = ai.to_string();
+  TRC_DEBUG("Add %s to blacklist for %d seconds, graylist for %d seconds",
+            ai_str.c_str(), blacklist_ttl, graylist_ttl);
+  pthread_mutex_lock(&_hosts_lock);
+  _hosts.erase(ai);
+  _hosts.emplace(ai, Host(blacklist_ttl, graylist_ttl));
+  pthread_mutex_unlock(&_hosts_lock);
 }
 
 bool BaseResolver::blacklisted(const AddrInfo& ai)
 {
   bool rc = false;
 
-  pthread_mutex_lock(&_blacklist_lock);
-  Blacklist::iterator i = _blacklist.find(ai);
+  pthread_mutex_lock(&_hosts_lock);
 
-  if (i != _blacklist.end())
-  {
-    if (i->second > time(NULL))
-    {
-      // Blacklist entry has yet to expire.
-      rc = true;
-    }
-    else
-    {
-      // Blacklist entry has expired, so remove it.
-      _blacklist.erase(i);
-    }
-  }
-  pthread_mutex_unlock(&_blacklist_lock);
-  char buf[100];
-  TRC_DEBUG("%s:%d transport %d is %sblacklisted",
-            inet_ntop(ai.address.af, &ai.address.addr, buf, sizeof(buf)),
-            ai.port, ai.transport, rc ? "" : "not ");
+  rc = (host_state(ai) == Host::State::BLACK);
+
+  pthread_mutex_unlock(&_hosts_lock);
 
   return rc;
 }
@@ -794,79 +705,343 @@ bool BaseResolver::SRVCacheFactory::compare_srv_priority(DnsRRecord* r1,
   return (((DnsSrvRecord*)r1)->priority() < ((DnsSrvRecord*)r2)->priority());
 }
 
-
-BaseResolver::SRVWeightedSelector::SRVWeightedSelector(const std::vector<SRV>& srvs) :
-  _tree(srvs.size())
+BaseResolver::Host::Host(int blacklist_ttl,int graylist_ttl) :
+  _being_probed(false)
 {
-  // Copy the weights to the tree.
-  for (size_t ii = 0; ii < srvs.size(); ++ii)
-  {
-    _tree[ii] = srvs[ii].weight;
-  }
-
-  // Work backwards up the tree accumulating the weights.
-  for (size_t ii = _tree.size() - 1; ii >= 1; --ii)
-  {
-    _tree[(ii - 1)/2] += _tree[ii];
-  }
+  time_t current_time = time(NULL);
+  _blacklist_expiry_time = current_time + blacklist_ttl;
+  _graylist_expiry_time = current_time + blacklist_ttl + graylist_ttl;
 }
 
-BaseResolver::SRVWeightedSelector::~SRVWeightedSelector()
+BaseResolver::Host::~Host()
 {
 }
 
-int BaseResolver::SRVWeightedSelector::select()
+std::string BaseResolver::Host::state_to_string(State state)
 {
-  // Search the tree to find the item with the smallest cumulative weight that
-  // is greater than a random number between zero and the total weight of the
-  // tree.
-  int s = rand() % _tree[0];
-  size_t ii = 0;
-
-  while (true)
+  switch(state)
   {
-    // Find the left and right children using the usual tree => array mappings.
-    size_t l = 2*ii + 1;
-    size_t r = 2*ii + 2;
+  case State::WHITE:
+    return "WHITE";
+  case State::GRAY_NOT_PROBING:
+    return "GRAY_NOT_PROBING";
+  case State::GRAY_PROBING:
+    return "GRAY_PROBING";
+  case State::BLACK:
+    return "BLACK";
+    // LCOV_EXCL_START
+  default:
+    return "UNKNOWN";
+    // LCOV_EXCL_STOP
+  }
+}
 
-    if ((l < _tree.size()) && (s < _tree[l]))
+BaseResolver::Host::State BaseResolver::Host::get_state(time_t current_time)
+{
+  if (current_time < _blacklist_expiry_time)
+  {
+    return State::BLACK;
+  }
+  else if (current_time < _graylist_expiry_time)
+  {
+    if (_being_probed)
     {
-      // Selection is somewhere in left subtree.
-      ii = l;
-    }
-    else if ((r < _tree.size()) && (s >= _tree[ii] - _tree[r]))
-    {
-      // Selection is somewhere in right subtree.
-      s -= (_tree[ii] - _tree[r]);
-      ii = r;
+      return State::GRAY_PROBING;
     }
     else
     {
-      // Found the selection.
-      break;
+      return State::GRAY_NOT_PROBING;
+    }
+  }
+  else
+  {
+    return State::WHITE;
+  }
+}
+
+void BaseResolver::Host::success()
+{
+  if (get_state() != State::BLACK)
+  {
+    _being_probed = false;
+    _blacklist_expiry_time = 0;
+    _graylist_expiry_time = 0;
+  }
+}
+
+void BaseResolver::Host::selected_for_probing(pthread_t user_id)
+{
+  if (get_state() == State::GRAY_NOT_PROBING)
+  {
+    _being_probed = true;
+    _probing_user_id = user_id;
+  }
+}
+
+void BaseResolver::Host::untested(pthread_t user_id)
+{
+  if ((get_state() == State::GRAY_PROBING) &&
+      (user_id == _probing_user_id))
+  {
+    _being_probed = false;
+  }
+}
+
+BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t current_time)
+{
+  Host::State state;
+  Hosts::iterator i = _hosts.find(ai);
+  std::string ai_str;
+
+  if (Log::enabled(Log::DEBUG_LEVEL))
+  {
+    ai_str = ai.to_string();
+  }
+
+  if (i != _hosts.end())
+  {
+    state = i->second.get_state(current_time);
+    if (state == Host::State::WHITE)
+    {
+      TRC_DEBUG("%s graylist time elapsed", ai_str.c_str());
+      _hosts.erase(i);
+    }
+  }
+  else
+  {
+    state = Host::State::WHITE;
+  }
+
+  if (Log::enabled(Log::DEBUG_LEVEL))
+  {
+    std::string state_str = Host::state_to_string(state);
+    TRC_DEBUG("%s has state: %s", ai_str.c_str(), state_str.c_str());
+  }
+
+  return state;
+}
+
+void BaseResolver::success(const AddrInfo& ai)
+{
+  if (Log::enabled(Log::DEBUG_LEVEL))
+  {
+    std::string ai_str = ai.to_string();
+    TRC_DEBUG("Successful response from  %s", ai_str.c_str());
+  }
+
+  pthread_mutex_lock(&_hosts_lock);
+
+  Hosts::iterator i = _hosts.find(ai);
+
+  if (i != _hosts.end())
+  {
+    i->second.success();
+  }
+
+  pthread_mutex_unlock(&_hosts_lock);
+}
+
+void BaseResolver::select_for_probing(const AddrInfo& ai)
+{
+  Hosts::iterator i = _hosts.find(ai);
+
+  if (i != _hosts.end())
+  {
+    std::string ai_str = ai.to_string();
+    TRC_DEBUG("%s selected for probing", ai_str.c_str());
+    i->second.selected_for_probing(pthread_self());
+  }
+}
+
+void BaseResolver::untested(const AddrInfo& ai)
+{
+  std::string ai_str = ai.to_string();
+  TRC_DEBUG("%s returned untested", ai_str.c_str());
+
+  pthread_mutex_lock(&_hosts_lock);
+  Hosts::iterator i = _hosts.find(ai);
+
+  if (i != _hosts.end())
+  {
+    i->second.untested(pthread_self());
+  }
+
+  pthread_mutex_unlock(&_hosts_lock);
+}
+
+bool BaseAddrIterator::next(AddrInfo &target)
+{
+  bool value_set;
+  std::vector<AddrInfo> next_one = take(1);
+
+  if (!next_one.empty())
+  {
+    target = next_one.front();
+    value_set = true;
+  }
+  else
+  {
+    value_set = false;
+  }
+
+  return value_set;
+}
+
+std::vector<AddrInfo> SimpleAddrIterator::take(int num_requested_targets)
+{
+  // Determine the number of elements to be returned, and create an iterator
+  // pointing to the location at which to split _targets.
+  int num_targets_to_return = std::min(num_requested_targets, int(_targets.size()));
+  std::vector<AddrInfo>::iterator targets_it = _targets.begin();
+  std::advance(targets_it, num_targets_to_return);
+
+  // Set targets to the first actual_num_requested_targets elements of _targets, and
+  // remove those elements from _targets.
+  std::vector<AddrInfo> targets(_targets.begin(), targets_it);
+  _targets = std::vector<AddrInfo>(targets_it, _targets.end());
+
+  return targets;
+}
+
+LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
+                                   BaseResolver* resolver,
+                                   int port,
+                                   int transport,
+                                   SAS::TrailId trail) :
+  _resolver(resolver),
+  _trail(trail),
+  _first_call(true)
+{
+  _hostname = dns_result.domain();
+
+  AddrInfo ai;
+  ai.port = port;
+  ai.transport = transport;
+
+  // Reserve memory for the unused results vector to avoid reallocation.
+  _unused_results.reserve(dns_result.records().size());
+
+  // Create an AddrInfo object for each returned DnsRRecord, and add them to the
+  // query results vector.
+  for (std::vector<DnsRRecord*>::const_iterator result_it = dns_result.records().begin();
+       result_it != dns_result.records().end();
+       ++result_it)
+  {
+    ai.address = _resolver->to_ip46(*result_it);
+    _unused_results.push_back(ai);
+  }
+
+  // Shuffle the results for load balancing purposes
+  std::random_shuffle(_unused_results.begin(), _unused_results.end());
+}
+
+std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
+{
+  // Vector of targets to be returned
+  std::vector<AddrInfo> targets;
+
+  // Strings for logging purposes.
+  std::string graylisted_targets_str;
+  std::string whitelisted_targets_str;
+  std::string blacklisted_targets_str;
+
+  std::string found_blacklisted_str;
+
+  // This lock must be held to safely call the host_state method of
+  // BaseResolver.
+  pthread_mutex_lock(&(_resolver->_hosts_lock));
+
+  // If there are any graylisted records, the Iterator should return one first,
+  // and then no more.
+  if (_first_call)
+  {
+    _first_call = false;
+
+    // Iterate over the records. Since the records are in random order anyway,
+    // iterate in reverse order; it is faster to remove elements from near the
+    // end of the vector.
+    for (std::vector<AddrInfo>::reverse_iterator result_it = _unused_results.rbegin();
+         result_it != _unused_results.rend();
+         ++result_it)
+    {
+      if (_resolver->host_state(*result_it) == BaseResolver::Host::State::GRAY_NOT_PROBING)
+      {
+        // Add the record to the targets list.
+        _resolver->select_for_probing(*result_it);
+        targets.push_back(*result_it);
+
+        // Update logging.
+        graylisted_targets_str += result_it->address_and_port_to_string() + ";";
+        TRC_DEBUG("Added a graylisted server, now have %ld of %d",
+                  targets.size(),
+                  num_requested_targets);
+
+        // Remove the record from the results list.
+        _unused_results.erase(std::next(result_it).base());
+        break;
+      }
     }
   }
 
-  // Calculate the weight of the selected entry by subtracting the weight of
-  // its left and right subtrees.
-  int weight = _tree[ii] -
-               (((2*ii + 1) < _tree.size()) ? _tree[2*ii + 1] : 0) -
-               (((2*ii + 2) < _tree.size()) ? _tree[2*ii + 2] : 0);
-
-  // Update the tree to set the weight of the selection to zero so it isn't
-  // selected again.
-  _tree[ii] -= weight;
-  int p = ii;
-  while (p > 0)
+  // Add whitelisted records to the vector of targets to return, and unhealthy
+  // records to the unhealthy results vector. Targets should be added until the
+  // required number is reached, or the unused results are exhausted.
+  while ((_unused_results.size() > 0) && (targets.size() < (size_t)num_requested_targets))
   {
-    p = (p - 1)/2;
-    _tree[p] -= weight;
+    AddrInfo result = _unused_results.back();
+    _unused_results.pop_back();
+
+    if (_resolver->host_state(result) == BaseResolver::Host::State::WHITE)
+    {
+      // Add the record to the targets list.
+      targets.push_back(result);
+
+      // Update logging.
+      whitelisted_targets_str += result.address_and_port_to_string() + ";";
+      TRC_DEBUG("Added a whitelisted server, now have %ld of %d",
+                targets.size(),
+                num_requested_targets);
+    }
+    else
+    {
+      // Add the record to the list of unhealthy targets.
+      _unhealthy_results.push_back(result);
+
+      // Update logging.
+      found_blacklisted_str += result.address_and_port_to_string() + ";";
+    }
   }
 
-  return ii;
+  pthread_mutex_unlock(&(_resolver->_hosts_lock));
+
+  // If the targets vector does not yet contain enough targets, add unhealthy
+  // targets
+  while ((_unhealthy_results.size() > 0) && (targets.size() < (size_t)num_requested_targets))
+  {
+    AddrInfo result = _unhealthy_results.back();
+    _unhealthy_results.pop_back();
+
+    // Add the record to the targets list
+    targets.push_back(result);
+
+    // Update logging.
+    blacklisted_targets_str += result.address_and_port_to_string() + ";";
+    TRC_DEBUG("Added an unhealthy server, now have %ld of %d",
+              targets.size(),
+              num_requested_targets);
+  }
+
+  if (_trail != 0)
+  {
+    SAS::Event event(_trail, SASEvent::BASERESOLVE_A_RESULT_TARGET_SELECT, 0);
+    event.add_var_param(_hostname);
+    event.add_var_param(graylisted_targets_str);
+    event.add_var_param(whitelisted_targets_str);
+    event.add_var_param(blacklisted_targets_str);
+    event.add_var_param(found_blacklisted_str);
+    SAS::report_event(event);
+  }
+
+  return targets;
 }
 
-int BaseResolver::SRVWeightedSelector::total_weight()
-{
-  return _tree[0];
-}

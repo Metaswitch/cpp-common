@@ -422,7 +422,7 @@ public:
     result = _result;
     return (result != 0);
   }
-  int32_t experimental_result_code() const;
+  bool experimental_result(int32_t& experimental_result_code, uint32_t& vendor_id) const;
   int32_t vendor_id() const;
   inline std::string impi() const
   {

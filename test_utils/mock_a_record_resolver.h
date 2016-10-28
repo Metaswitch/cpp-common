@@ -1,8 +1,8 @@
 /**
- * @file ipv6utils.h
+ * @file mock_a_record_resolver.h Mock ARecordResolver
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,11 +34,33 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#ifndef IPV6UTILS_H_
-#define IPV6UTILS_H_
+#ifndef MOCK_A_RECORD_RESOLVER_H__
+#define MOCK_A_RECORD_RESOLVER_H__
 
-#include <string>
+#include "gmock/gmock.h"
+#include "a_record_resolver.h"
 
-bool is_ipv6(std::string address);
+class MockARecordResolver : public ARecordResolver
+{
+public:
+  MockARecordResolver() : ARecordResolver(nullptr, 0, 0, 0) {}
+  ~MockARecordResolver() {}
+
+  MOCK_METHOD3(resolve_iter, BaseAddrIterator*(const std::string& host,
+                                               int port,
+                                               SAS::TrailId trail));
+
+  MOCK_METHOD5(resolve, void(const std::string& host,
+                             int port,
+                             int max_targets,
+                             std::vector<AddrInfo>& targets,
+                             SAS::TrailId trail));
+
+  MOCK_METHOD1(blacklist, void(const AddrInfo& ai));
+  MOCK_METHOD1(success, void(const AddrInfo& ai));
+  MOCK_METHOD1(untested, void(const AddrInfo& ai));
+};
+
+typedef MockARecordResolver MockCassandraResolver;
 
 #endif

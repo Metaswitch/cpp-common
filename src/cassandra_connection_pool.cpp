@@ -1,8 +1,9 @@
 /**
- * @file syslog_facade.h - Facade to syslog.h
+ * @file cassandra_connection_pool.cpp  Implementation of derived class for
+ * Cassandra connection pooling.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2016 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,41 +35,50 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include "cassandra_connection_pool.h"
+#include "cassandra_store.h"
 
-#ifndef SYSLOG_FACADE_H__
-#define SYSLOG_FACADE_H__
+namespace CassandraStore
+{
 
-#include <features.h>
-#define __need___va_list
-#include <stdarg.h>
+static const int TSOCKET_TIMEOUT_MS = 50;
 
-// Facade to avoid name collision between syslog.h and log.h
-// Note that this is an extern "C" type file and is almost an exact duplicate of syslog.h
+// The length of time a connection can remain idle before it is removed from
+// the pool
+static const double MAX_IDLE_TIME_S = 60;
 
-extern void closelog (void);
-extern void openlog (__const char *__ident, int __option, int __facility);
-extern void syslog (int __pri, __const char *__fmt, ...)
-  __attribute__ ((__format__ (__printf__, 2, 3)));
+// LCOV_EXCL_START - UTs do not cover the creation/deletion on Clients
+CassandraConnectionPool::CassandraConnectionPool() :
+  ConnectionPool<Client*>(MAX_IDLE_TIME_S)
+{
+}
 
-#define PDLOG_PID         0x01    /* log the pid with each message */
+Client* CassandraConnectionPool::create_connection(AddrInfo target)
+{
+  // We require the address as a string
+  char buf[100];
+  const char *remote_ip = inet_ntop(target.address.af,
+                                    &target.address.addr,
+                                    buf,
+                                    sizeof(buf));
 
-#define PDLOG_EMERG       0       /* system is unusable */
-#define PDLOG_ALERT       1       /* action must be taken immediately */
-#define PDLOG_CRIT        2       /* critical conditions */
-#define PDLOG_ERR         3       /* error conditions */
-#define PDLOG_WARNING     4       /* warning conditions */
-#define PDLOG_NOTICE      5       /* normal but significant condition */
-#define PDLOG_INFO        6       /* informational */
+  boost::shared_ptr<TSocket> socket =
+    boost::shared_ptr<TSocket>(new TSocket(std::string(remote_ip), target.port));
+  socket->setConnTimeout(TSOCKET_TIMEOUT_MS);
+  socket->setRecvTimeout(TSOCKET_TIMEOUT_MS);
+  socket->setSendTimeout(TSOCKET_TIMEOUT_MS);
+  boost::shared_ptr<TFramedTransport> transport =
+    boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
+  boost::shared_ptr<TProtocol> protocol =
+     boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
 
+  return new RealThriftClient(protocol, transport);
+}
 
-#define PDLOG_LOCAL0      (16<<3) /* reserved for local use */
-#define PDLOG_LOCAL1      (17<<3) /* reserved for local use */
-#define PDLOG_LOCAL2      (18<<3) /* reserved for local use */
-#define PDLOG_LOCAL3      (19<<3) /* reserved for local use */
-#define PDLOG_LOCAL4      (20<<3) /* reserved for local use */
-#define PDLOG_LOCAL5      (21<<3) /* reserved for local use */
-#define PDLOG_LOCAL6      (22<<3) /* reserved for local use */
-#define PDLOG_LOCAL7      (23<<3) /* reserved for local use */
+void CassandraConnectionPool::destroy_connection(AddrInfo target, Client* conn)
+{
+  delete conn; conn = NULL;
+}
+// LCOV_EXCL_STOP
 
-
-#endif
+} // namespace CassandraStore

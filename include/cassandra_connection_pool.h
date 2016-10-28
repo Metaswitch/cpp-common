@@ -1,8 +1,9 @@
 /**
- * @file ipv6utils.cpp
+ * @file cassandra_connection_pool.h  Declaration of derived class for Cassandra
+ * connection pooling.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,18 +35,44 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "ipv6utils.h"
-#include <string>
-#include <arpa/inet.h>
+#ifndef CASSANDRA_CONNECTION_POOL_H__
+#define CASSANDRA_CONNECTION_POOL_H__
 
-bool is_ipv6(std::string address)
+#include "thrift/Thrift.h"
+#include "thrift/transport/TSocket.h"
+#include "thrift/transport/TTransport.h"
+#include "thrift/transport/TBufferTransports.h"
+#include "thrift/protocol/TProtocol.h"
+#include "thrift/protocol/TBinaryProtocol.h"
+
+#include "connection_pool.h"
+
+using namespace apache::thrift;
+using namespace apache::thrift::transport;
+using namespace apache::thrift::protocol;
+
+namespace CassandraStore
 {
-  // Determine if we're IPv4 or IPv6.
-  int http_af = AF_INET;
-  struct in6_addr dummy_addr;
-  if (inet_pton(AF_INET6, address.c_str(), &dummy_addr) == 1)
+class Client;
+
+class CassandraConnectionPool : public ConnectionPool<Client*>
+{
+public:
+  CassandraConnectionPool();
+
+  ~CassandraConnectionPool()
   {
-    http_af = AF_INET6;
+    // This call is important to properly destroy the connection pool
+    destroy_connection_pool();
   }
-  return (http_af == AF_INET6);
-}
+
+protected:
+  Client* create_connection(AddrInfo target) override;
+
+  void destroy_connection(AddrInfo target, Client* conn) override;
+
+  long _timeout_ms;
+};
+
+} // namespace CassandraStore
+#endif

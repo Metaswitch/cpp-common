@@ -1,8 +1,8 @@
 /**
- * @file httpresolver.cpp  Implementation of HTTP DNS resolver class.
+ * @file mockhttpresolver.h Mock HttpResolver
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2015  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,55 +34,30 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "log.h"
+#ifndef MOCKHTTPRESOLVER_H__
+#define MOCKHTTPRESOLVER_H__
+
+#include "gmock/gmock.h"
 #include "httpresolver.h"
 
-HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
-                           int address_family,
-                           int blacklist_duration) :
-  BaseResolver(dns_client),
-  _address_family(address_family)
+class MockHttpResolver : public HttpResolver
 {
-  TRC_DEBUG("Creating HTTP resolver");
+public:
+  MockHttpResolver() : HttpResolver(nullptr, 0, 0, 0) {}
+  ~MockHttpResolver() {}
 
-  // Create the blacklist.
-  create_blacklist(blacklist_duration);
+  MOCK_METHOD3(resolve_iter, BaseAddrIterator*(const std::string& host,
+                                               int port,
+                                               SAS::TrailId trail));
+  MOCK_METHOD5(resolve, void(const std::string& host,
+                             int port,
+                             int max_targets,
+                             std::vector<AddrInfo>& targets,
+                             SAS::TrailId trail));
 
-  TRC_STATUS("Created HTTP resolver");
-}
+  MOCK_METHOD1(blacklist, void(const AddrInfo& ai));
+  MOCK_METHOD1(success, void(const AddrInfo& ai));
+  MOCK_METHOD1(untested, void(const AddrInfo& ai));
+};
 
-HttpResolver::~HttpResolver()
-{
-  destroy_blacklist();
-}
-
-/// Resolve a destination host and realm name to a list of IP addresses,
-/// transports and ports.  HTTP is pretty simple - just look up the A records.
-void HttpResolver::resolve(const std::string& host,
-                           int port,
-                           int max_targets,
-                           std::vector<AddrInfo>& targets,
-                           SAS::TrailId trail)
-{
-  AddrInfo ai;
-  int dummy_ttl = 0;
-
-  TRC_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
-            host.c_str(), port, _address_family);
-
-  port = (port != 0) ? port : DEFAULT_PORT;
-  targets.clear();
-
-  if (parse_ip_target(host, ai.address))
-  {
-    // The name is already an IP address, so no DNS resolution is possible.
-    TRC_DEBUG("Target is an IP address");
-    ai.port = port;
-    ai.transport = TRANSPORT;
-    targets.push_back(ai);
-  }
-  else
-  {
-    a_resolve(host, _address_family, port, TRANSPORT, max_targets, targets, dummy_ttl, trail);
-  }
-}
+#endif

@@ -64,6 +64,7 @@ namespace AlarmDef {
   // Queue-manager alarms: 9000->9499
   // Alarms 9500->9999 are reserved
   // Alarms 10000->10499 are reserved
+  // Alarms 10500-11000 are reserved
 
   enum Severity {
     UNDEFINED_SEVERITY,
@@ -74,6 +75,19 @@ namespace AlarmDef {
     MINOR,
     WARNING
   };
+
+  inline bool operator > (Severity lhs, Severity rhs)
+  {
+    // Order the severities so we can do a simple comparison to determine any
+    // severity change.
+    unsigned int ordered_severities[] = {0, 1, 2, 6, 5, 4, 3};
+    return ordered_severities[lhs] > ordered_severities[rhs];
+  }
+
+  inline bool operator < (Severity lhs, Severity rhs)
+  {
+    return !(lhs > rhs);
+  }
 
   enum Cause {
     UNDEFINED_CAUSE,
@@ -90,13 +104,17 @@ namespace AlarmDef {
                     std::string details,
                     std::string cause,
                     std::string effect,
-                    std::string action):
+                    std::string action,
+                    std::string extended_details,
+                    std::string extended_description):
       _severity(severity),
       _description(description),
       _details(details),
       _cause(cause),
       _effect(effect),
-      _action(action) {};
+      _action(action),
+      _extended_details(extended_details),
+      _extended_description(extended_description) {};
 
     Severity _severity;
     std::string _description;
@@ -104,16 +122,23 @@ namespace AlarmDef {
     std::string _cause;
     std::string _effect;
     std::string _action;
+    std::string _extended_details;
+    std::string _extended_description;
   };
 
   struct AlarmDefinition {
     AlarmDefinition() {};
 
-    AlarmDefinition(int index, Cause cause, std::vector<SeverityDetails> severity_details):
+    AlarmDefinition(std::string name,
+                    int index,
+                    Cause cause,
+                    std::vector<SeverityDetails> severity_details):
+      _name(name),
       _index(index),
       _cause(cause),
-      _severity_details(severity_details){};
+      _severity_details(severity_details) {};
 
+    std::string _name;
     int _index;
     Cause _cause;
     std::vector<SeverityDetails> _severity_details;

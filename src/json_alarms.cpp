@@ -35,6 +35,7 @@
  */
 
 #include "json_alarms.h"
+#include <algorithm>
 
 namespace JSONAlarms
 {
@@ -140,6 +141,8 @@ namespace JSONAlarms
           std::string detailed_cause;
           std::string effect;
           std::string action;
+          std::string extended_details;
+          std::string extended_description;
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "severity", severity);
           // Alarms are stored in ITU Alarm Table using
@@ -168,34 +171,84 @@ namespace JSONAlarms
           JSON_GET_STRING_MEMBER(*alarms_def_it, "details", details);
           if (details.length() > 255)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'details' exceeds %d char limit", index, 255);
-            error = std::string(error_text);
+            error = exceeded_character_limit_error("details", 255, index);
             return false;
+          }
+
+          // We check if any extended details have been included in each
+          // alarms's JSON file.
+          if (alarms_def_it->HasMember("extended_details"))
+          {
+            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_details", extended_details);
+            if (extended_details.length() > 4096)
+            {
+              error = exceeded_character_limit_error("extended_details", 4096, index);
+              return false;
+            }
+          }
+          else
+          {
+            // If there are no extended details we fill in the extended
+            // details attribute with the regular details field.
+            extended_details = details;
           }
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "description", description);
           if (description.length() > 255)
           {
-            char error_text[100];
-            sprintf(error_text, "alarm %d: 'description' exceeds %d char limit", index, 255);
-            error = std::string(error_text);
+            error = exceeded_character_limit_error("description", 255, index);
             return false;
+          }
+          
+          // We check if an extended description has been included in each
+          // alarms's JSON file.
+          if (alarms_def_it->HasMember("extended_description"))
+          {
+            JSON_GET_STRING_MEMBER(*alarms_def_it, "extended_description", extended_description);
+            if (extended_description.length() > 4096)
+            {
+              error = exceeded_character_limit_error("extended_description", 4096, index);
+              return false;
+            }
+          }
+          else
+          {
+            // If there is no extended description we fill in the extended
+            // description attribute with the regular description field.
+            extended_description = description;
           }
 
           JSON_GET_STRING_MEMBER(*alarms_def_it, "cause", detailed_cause);
+          if (detailed_cause.length() > 4096)
+          {
+            error = exceeded_character_limit_error("cause", 4096, index);
+            return false;
+          }
+
           JSON_GET_STRING_MEMBER(*alarms_def_it, "effect", effect);
+          if (effect.length() > 4096)
+          {
+            error = exceeded_character_limit_error("effect", 4096, index);
+            return false;
+          }
+
           JSON_GET_STRING_MEMBER(*alarms_def_it, "action", action);
+          if (action.length() > 4096)
+          {
+            error = exceeded_character_limit_error("action", 4096, index);
+            return false;
+          }
 
           AlarmDef::SeverityDetails sd(e_severity,
                                        description,
                                        details,
                                        detailed_cause,
                                        effect,
-                                       action);
+                                       action,
+                                       extended_details,
+                                       extended_description);
           severity_vec.push_back(sd);
         }
-      
       
         if (!found_cleared)
         {
@@ -213,7 +266,9 @@ namespace JSONAlarms
         }
         else 
         {
-          AlarmDef::AlarmDefinition ad = {index,
+          // Here we use the human readable form of the alarm's name
+          AlarmDef::AlarmDefinition ad = {process_alarm_name(name),
+                                          index,
                                           e_cause,
                                           severity_vec};
           alarms.push_back(ad);
@@ -229,6 +284,24 @@ namespace JSONAlarms
     }
 
     return true;
+  }
+
+  // Function to transform the name of each alarm from e.g.
+  // "SPROUT_PROCESS_FAILURE" to a human readable format e.g. "Sprout process
+  // failure"
+  std::string process_alarm_name(std::string name)
+  {
+    std::replace(name.begin(), name.end(), '_', ' ');
+    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
+    name[0] = toupper(name[0]);
+    return name;
+  }
+
+  std::string exceeded_character_limit_error(std::string field, int max_length, int index)
+  {
+    char error_text[100];
+    sprintf(error_text, "alarm %d: '%s' exceeds %d char limit", index, field.c_str(), max_length);
+    return std::string(error_text);
   }
 
   // LCOV_EXCL_START - This function isn't tested in UTs
