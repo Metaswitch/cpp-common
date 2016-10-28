@@ -49,6 +49,12 @@
 namespace SNMP
 {
 
+// A simple scalar statistsic
+struct Scalar
+{
+  uint32_t value;
+};
+
 // A simple counting statistic
 struct SingleCount
 {
