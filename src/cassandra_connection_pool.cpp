@@ -49,7 +49,7 @@ static const double MAX_IDLE_TIME_S = 60;
 
 // LCOV_EXCL_START - UTs do not cover the creation/deletion on Clients
 CassandraConnectionPool::CassandraConnectionPool() :
-  ConnectionPool<Client*>(MAX_IDLE_TIME_S)
+  ConnectionPool<Client*>(MAX_IDLE_TIME_S, true)
 {
 }
 
