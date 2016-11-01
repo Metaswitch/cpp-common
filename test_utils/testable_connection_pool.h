@@ -47,6 +47,11 @@ public:
     destroy_connection_pool();
   }
 
+  void set_free_on_error(bool free_on_error)
+  {
+    _free_on_error = free_on_error;
+  }
+
 protected:
   MOCK_METHOD1(create_connection, int(AddrInfo target));
   MOCK_METHOD2(destroy_connection, void(AddrInfo target, int conn));
