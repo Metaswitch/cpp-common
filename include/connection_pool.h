@@ -282,7 +282,8 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
   {
     if (_free_on_error)
     {
-      // Need to destroy all connections for the same target
+      // Need to destroy all connections for the same target that are currently
+      // in the pool
       pthread_mutex_lock(&_conn_pool_lock);
 
       typename Pool::iterator slot_it = _conn_pool.find(conn_info_ptr->target);
@@ -301,7 +302,8 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
       pthread_mutex_unlock(&_conn_pool_lock);
     }
 
-    // Safely destroy the connection and its associated ConnectionInfo
+    // Now safely destroy the connection and its associated ConnectionInfo
+    // (which isn't in the pool, and hence wasn't destroyed above)
     destroy_connection(conn_info_ptr->target, conn_info_ptr->conn);
     delete conn_info_ptr; conn_info_ptr = NULL;
   }
