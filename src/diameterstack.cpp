@@ -1409,6 +1409,21 @@ Message& Message::add_session_id(const std::string& session_id)
   return *this;
 }
 
+const std::string Message::get_session_id()
+{
+  Diameter::AVP::iterator avps = begin((dict())->SESSION_ID);
+
+  if (avps != end())
+  {
+    return avps->val_str();
+  }
+  else
+  {
+    TRC_ERROR("No Session-ID found in request");
+    throw Diameter::AVPException("Session-ID");
+  }
+}
+
 void Message::send(SAS::TrailId trail)
 {
   TRC_VERBOSE("Sending Diameter message of type %u", command_code());
