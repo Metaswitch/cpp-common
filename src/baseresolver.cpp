@@ -425,22 +425,18 @@ bool BaseResolver::parse_ip_target(const std::string& target, IP46Address& addre
   TRC_DEBUG("Attempt to parse %s as IP address", target.c_str());
   bool rc = false;
 
-  // Strip start and end white-space.
-  std::string ip_target = target;
+  // Strip start and end white-space, and any brackets if this is an IPv6
+  // address
+  std::string ip_target = Utils::remove_brackets_from_ip(target);
   Utils::trim(ip_target);
 
-  Utils::IPAddressType address_type = Utils::parse_ip_address(target);
-
-  if ((address_type == Utils::IPAddressType::IPV6_ADDRESS) ||
-      (address_type == Utils::IPAddressType::IPV6_ADDRESS_WITH_PORT) ||
-      (address_type == Utils::IPAddressType::IPV6_ADDRESS_BRACKETED))
+  if (inet_pton(AF_INET6, ip_target.c_str(), &address.addr.ipv6) == 1)
   {
     // Parsed the address as a valid IPv6 address.
     address.af = AF_INET6;
     rc = true;
   }
-  else if ((address_type == Utils::IPAddressType::IPV4_ADDRESS) ||
-           (address_type == Utils::IPAddressType::IPV4_ADDRESS_WITH_PORT))
+  else if (inet_pton(AF_INET, ip_target.c_str(), &address.addr.ipv4) == 1)
   {
     // Parsed the address as a valid IPv4 address.
     address.af = AF_INET;
