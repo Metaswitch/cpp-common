@@ -1,8 +1,8 @@
 /**
- * @file snmp_scalar.h
+ * @file snmp_abstract_continuous_accumulator_table.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
+ * Copyright (C) 2016 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -28,55 +28,40 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
+ * software and licensed und er the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include <vector>
+#include <map>
 #include <string>
-#include "snmp_abstract_scalar.h"
+#include <atomic>
 
-#ifndef SNMP_SCALAR_H
-#define SNMP_SCALAR_H
+#include "logger.h"
 
-// This file contains infrastructure for SNMP scalars (single values, not in a
-// table).
-//
-// To use one, simply create a U32Scalar and modify its `value` object as
-// necessary - changes to this will automatically be reflected over SNMP. For
-// example:
-//
-//     SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count", ".1.2.3");
-//     cxn_count->value = 42;
-//
-// Note that the OID scalars are exposed under has an additional element with
-// the value zero (so using the example above, would actually be obtained by
-// querying ".1.2.3.0"). This is extremely counter-intuitive and easy to
-// forget. Because of this the trailing ".0" should not be specified when
-// constructing the scalar - the scalar will add it when registering with
-// net-snmp.
+#ifndef SNMP_ABSTRACT_CONTINUOUS_ACCUMULATOR_TABLE_H
+#define SNMP_ABSTRACT_CONTINUOUS_ACCUMULATOR_TABLE_H
+
+// This file contains an abstract class used for creating tables Continuous
+// Accumulator tables e.g. ContinuousAccumulatorTable,
+// ContinuousAccumulatorByScopeTable.
 
 namespace SNMP
 {
 
-// Exposes a number as an SNMP Unsigned32.
-class U32Scalar: public AbstractScalar
+class AbstractContinuousAccumulatorTable
 {
 public:
-  /// Constructor
-  ///
-  /// @param name - The name of the scalar.
-  /// @param oid  - The OID for the scalar excluding the trailing ".0"
-  U32Scalar(std::string name, std::string oid);
-  ~U32Scalar();
-  virtual void set_value(unsigned long val);
-  unsigned long value;
+  AbstractContinuousAccumulatorTable() {};
+  virtual ~AbstractContinuousAccumulatorTable() {};
 
-private:
-  // The OID as registered with net-snmp (including the trailing ".0").
-  std::string _registered_oid;
+  // Accumulate a sample into the underlying statistics.
+  virtual void accumulate(uint32_t sample) = 0;
+
 };
 
 }
+
 #endif

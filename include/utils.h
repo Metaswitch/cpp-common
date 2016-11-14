@@ -48,6 +48,7 @@
 #include <vector>
 #include <cctype>
 #include <string.h>
+#include <sstream>
 #include <arpa/inet.h>
 
 #include "log.h"
@@ -159,6 +160,11 @@ struct AddrInfo
       (transport == rhs.transport);
   }
 
+  bool operator!=(const AddrInfo& rhs) const
+  {
+    return !(operator==(rhs));
+  }
+
   std::string address_and_port_to_string() const
   {
     std::stringstream os;
@@ -175,6 +181,10 @@ struct AddrInfo
     return os.str();
   }
 };
+
+/// Overrides Google Test default print method to avoid compatibility issues
+/// with valgrind
+void PrintTo(const AddrInfo& ai, std::ostream* os);
 
 namespace Utils
 {
@@ -194,6 +204,10 @@ namespace Utils
   };
 
   void hashToHex(unsigned char *hash_char, unsigned char *hex_char);
+
+  // Converts binary data to an ASCII hex-encoded form, e.g. "\x19\xaf"
+  // becomes"19af"
+  std::string hex(const uint8_t* data, size_t len);
 
   /// Splits a URL of the form "http://<servername>[/<path>]" into
   /// servername and path.
@@ -565,12 +579,24 @@ namespace Utils
     IPV6_ADDRESS,
     IPV6_ADDRESS_BRACKETED,
     IPV6_ADDRESS_WITH_PORT,
-    INVALID
+    INVALID,
+    INVALID_WITH_PORT
   };
 
   // Takes a string and reports what type of IP address it is
   IPAddressType parse_ip_address(std::string address);
 
+  // Takes an IP address and returns it suitable for use in a URI,
+  // i.e, an IPv6 address will be returned in brackets.
+  // If the optional port is passed, this will be appended if the address
+  // doesn't include a port.
+  std::string uri_address(std::string address, int default_port = 0);
+
+  // Removes the brackets from an IPv6 address - e.g. [::1] -> ::1
+  std::string remove_brackets_from_ip(std::string address);
+
+  // Does the passed in address have brackets?
+  bool is_bracketed_address(const std::string& address);
 } // namespace Utils
 
 #endif /* UTILS_H_ */

@@ -72,6 +72,8 @@
 #include "utils.h"
 #include "sas.h"
 #include "communicationmonitor.h"
+#include "a_record_resolver.h"
+#include "cassandra_connection_pool.h"
 
 // Shortcut for the apache cassandra namespace.
 namespace cass = org::apache::cassandra;
@@ -149,6 +151,8 @@ class Client
 {
 public:
   virtual ~Client() {}
+  virtual bool is_connected() = 0;
+  virtual void connect() = 0;
   virtual void set_keyspace(const std::string& keyspace) = 0;
   virtual void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
                             const cass::ConsistencyLevel::type consistency_level) = 0;
@@ -166,6 +170,11 @@ public:
                       const cass::ColumnPath& column_path,
                       const int64_t timestamp,
                       const cass::ConsistencyLevel::type consistency_level) = 0;
+  virtual void get_range_slices(std::vector<cass::KeySlice> & _return,
+                                const cass::ColumnParent& column_parent,
+                                const cass::SlicePredicate& predicate,
+                                const cass::KeyRange& range,
+                                const cass::ConsistencyLevel::type consistency_level) = 0;
 
   //
   // Utility methods for interacting with cassandra. These abstract away the
@@ -389,8 +398,12 @@ public:
          boost::shared_ptr<apache::thrift::transport::TFramedTransport> transport);
   ~RealThriftClient();
 
+  bool is_connected();
+  void connect();
   void set_keyspace(const std::string& keyspace);
-  void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
+  void batch_mutate(const std::map<std::string,
+                    std::map<std::string,
+                    std::vector<cass::Mutation> > >& mutation_map,
                     const cass::ConsistencyLevel::type consistency_level);
   void get_slice(std::vector<cass::ColumnOrSuperColumn>& _return,
                  const std::string& key,
@@ -406,10 +419,16 @@ public:
               const cass::ColumnPath& column_path,
               const int64_t timestamp,
               const cass::ConsistencyLevel::type consistency_level);
+  void get_range_slices(std::vector<cass::KeySlice> & _return,
+                        const cass::ColumnParent& column_parent,
+                        const cass::SlicePredicate& predicate,
+                        const cass::KeyRange& range,
+                        const cass::ConsistencyLevel::type consistency_level);
 
 private:
   cass::CassandraClient _cass_client;
   boost::shared_ptr<apache::thrift::transport::TFramedTransport> _transport;
+  bool _connected;
 };
 
 /// The possible outcomes of a cassandra interaction.
@@ -457,9 +476,11 @@ public:
   /// @param comm_monitor      - A monitor to track communication with the local
   ///                            Cassandra instance, and set/clear alarms based
   ///                            on recent activity.
+  /// @param resolver          - The DNS resolver to use.
   virtual void configure_connection(std::string cass_hostname,
                                     uint16_t cass_port,
-                                    BaseCommunicationMonitor* comm_monitor = NULL);
+                                    BaseCommunicationMonitor* comm_monitor = NULL,
+                                    CassandraResolver* resolver = NULL);
 
   /// Tests the store.
   ///
@@ -473,8 +494,8 @@ public:
   /// until the operation is complete.  The result of the operation is stored
   /// on the operation object.
   ///
-  /// This method runs the perform() method on the underlying operation. It
-  /// also provides two additional features:
+  /// This method calls into perform_op(), which in turn runs perform() on the
+  /// underlying operation. It also provides two additional features:
   ///
   /// -  If the store cannot connect to cassandra, it will try to
   ///    re-establish it's connection and retry the operation (by calling
@@ -569,6 +590,15 @@ private:
     }
   };
 
+  // Private method that is used by do_sync() and connection_test()
+  bool perform_op(Operation* op,
+                  SAS::TrailId trail,
+                  ResultCode& cass_result,
+                  std::string& cass_error_text);
+
+  // DNS resolver
+  CassandraResolver* _resolver;
+
   // The keyspace that the store connects to.
   const std::string _keyspace;
 
@@ -593,19 +623,10 @@ private:
 
   // Cassandra connection management.
   //
-  // Each thread has it's own cassandra client. This is created only when
-  // required, and deleted when the thread exits.
-  //
-  // - _thread_local stores the client as a thread-local variable.
-  // - get_client() creates and stores a new client.
-  // - delete_client() deletes a client (and is automatically called when the
-  //   thread exits).
-  // - release_client() removes the client from thread-local storage and deletes
-  //   it. It allows a thread to pro-actively delete it's client.
-  pthread_key_t _thread_local;
-  virtual Client* get_client();
-  virtual void release_client();
-  static void delete_client(void* client);
+  // The CassandraConnectionPool manages the actual connections. Each thread
+  // requests a connection from the pool when it is needed, and returns it
+  // when it is finished.
+  CassandraConnectionPool* _conn_pool;
 };
 
 /// Base class for transactions used to perform asynchronous operations.

@@ -1,8 +1,9 @@
 /**
- * @file snmp_scalar.h
+ * @file cassandra_connection_pool.cpp  Implementation of derived class for
+ * Cassandra connection pooling.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
+ * Copyright (C) 2016 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,49 +35,50 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <string>
-#include "snmp_abstract_scalar.h"
+#include "cassandra_connection_pool.h"
+#include "cassandra_store.h"
 
-#ifndef SNMP_SCALAR_H
-#define SNMP_SCALAR_H
-
-// This file contains infrastructure for SNMP scalars (single values, not in a
-// table).
-//
-// To use one, simply create a U32Scalar and modify its `value` object as
-// necessary - changes to this will automatically be reflected over SNMP. For
-// example:
-//
-//     SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count", ".1.2.3");
-//     cxn_count->value = 42;
-//
-// Note that the OID scalars are exposed under has an additional element with
-// the value zero (so using the example above, would actually be obtained by
-// querying ".1.2.3.0"). This is extremely counter-intuitive and easy to
-// forget. Because of this the trailing ".0" should not be specified when
-// constructing the scalar - the scalar will add it when registering with
-// net-snmp.
-
-namespace SNMP
+namespace CassandraStore
 {
 
-// Exposes a number as an SNMP Unsigned32.
-class U32Scalar: public AbstractScalar
+static const int TSOCKET_TIMEOUT_MS = 50;
+
+// The length of time a connection can remain idle before it is removed from
+// the pool
+static const double MAX_IDLE_TIME_S = 60;
+
+// LCOV_EXCL_START - UTs do not cover the creation/deletion on Clients
+CassandraConnectionPool::CassandraConnectionPool() :
+  ConnectionPool<Client*>(MAX_IDLE_TIME_S, true)
 {
-public:
-  /// Constructor
-  ///
-  /// @param name - The name of the scalar.
-  /// @param oid  - The OID for the scalar excluding the trailing ".0"
-  U32Scalar(std::string name, std::string oid);
-  ~U32Scalar();
-  virtual void set_value(unsigned long val);
-  unsigned long value;
-
-private:
-  // The OID as registered with net-snmp (including the trailing ".0").
-  std::string _registered_oid;
-};
-
 }
-#endif
+
+Client* CassandraConnectionPool::create_connection(AddrInfo target)
+{
+  // We require the address as a string
+  char buf[100];
+  const char *remote_ip = inet_ntop(target.address.af,
+                                    &target.address.addr,
+                                    buf,
+                                    sizeof(buf));
+
+  boost::shared_ptr<TSocket> socket =
+    boost::shared_ptr<TSocket>(new TSocket(std::string(remote_ip), target.port));
+  socket->setConnTimeout(TSOCKET_TIMEOUT_MS);
+  socket->setRecvTimeout(TSOCKET_TIMEOUT_MS);
+  socket->setSendTimeout(TSOCKET_TIMEOUT_MS);
+  boost::shared_ptr<TFramedTransport> transport =
+    boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
+  boost::shared_ptr<TProtocol> protocol =
+     boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
+
+  return new RealThriftClient(protocol, transport);
+}
+
+void CassandraConnectionPool::destroy_connection(AddrInfo target, Client* conn)
+{
+  delete conn; conn = NULL;
+}
+// LCOV_EXCL_STOP
+
+} // namespace CassandraStore

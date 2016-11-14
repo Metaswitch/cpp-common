@@ -1,8 +1,8 @@
 /**
- * @file syslog_facade.h - Facade to syslog.h
+ * @file snmp_counter_by_scope_table.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
+ * Copyright (C) 2016 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -28,47 +28,38 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
+ * software and licensed und er the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include <vector>
+#include <map>
+#include <string>
 
-#ifndef SYSLOG_FACADE_H__
-#define SYSLOG_FACADE_H__
+#ifndef SNMP_COUNTER_BY_SCOPE_TABLE_H
+#define SNMP_COUNTER_BY_SCOPE_TABLE_H
 
-#include <features.h>
-#define __need___va_list
-#include <stdarg.h>
+// This file contains the interface for tables which:
+//   - are indexed by time period and scope (node type)
+//   - increment a single counter over time
+//   - report a single column for each time period with that count
+//
+// This is defined as an interface in order not to pollute the codebase with netsnmp include files
+// (which indiscriminately #define things like READ and WRITE).
 
-// Facade to avoid name collision between syslog.h and log.h
-// Note that this is an extern "C" type file and is almost an exact duplicate of syslog.h
+namespace SNMP
+{
+class CounterByScopeTable
+{
+public:
+  static CounterByScopeTable* create(std::string name, std::string oid);
+  virtual void increment() = 0;
+  virtual ~CounterByScopeTable() {};
 
-extern void closelog (void);
-extern void openlog (__const char *__ident, int __option, int __facility);
-extern void syslog (int __pri, __const char *__fmt, ...)
-  __attribute__ ((__format__ (__printf__, 2, 3)));
-
-#define PDLOG_PID         0x01    /* log the pid with each message */
-
-#define PDLOG_EMERG       0       /* system is unusable */
-#define PDLOG_ALERT       1       /* action must be taken immediately */
-#define PDLOG_CRIT        2       /* critical conditions */
-#define PDLOG_ERR         3       /* error conditions */
-#define PDLOG_WARNING     4       /* warning conditions */
-#define PDLOG_NOTICE      5       /* normal but significant condition */
-#define PDLOG_INFO        6       /* informational */
-
-
-#define PDLOG_LOCAL0      (16<<3) /* reserved for local use */
-#define PDLOG_LOCAL1      (17<<3) /* reserved for local use */
-#define PDLOG_LOCAL2      (18<<3) /* reserved for local use */
-#define PDLOG_LOCAL3      (19<<3) /* reserved for local use */
-#define PDLOG_LOCAL4      (20<<3) /* reserved for local use */
-#define PDLOG_LOCAL5      (21<<3) /* reserved for local use */
-#define PDLOG_LOCAL6      (22<<3) /* reserved for local use */
-#define PDLOG_LOCAL7      (23<<3) /* reserved for local use */
-
-
+protected:
+  CounterByScopeTable() {};
+};
+}
 #endif

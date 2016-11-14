@@ -138,14 +138,13 @@ private:
     std::map<netsnmp_tdata_row*, SNMP::ColumnData> cache;
     char buf[64];
 
-    TRC_INFO("Starting handling batch of SNMP requests");
+    TRC_DEBUG("Starting handling batch of SNMP requests");
 
     for (; requests != NULL; requests = requests->next)
     {
       snprint_objid(buf, sizeof(buf),
                     requests->requestvb->name, requests->requestvb->name_length);
-      TRC_DEBUG("Handling SNMP request for OID %s", buf);
-
+      
       if (requests->processed)
       {
         continue;
@@ -171,8 +170,7 @@ private:
         SNMP::ColumnData cd = data->get_columns();
         cache[row] = cd;
       }
-      TRC_DEBUG("Got %d columns for row %p\n", cache[row].size(), row);
-
+      
       if (cache[row][table_info->colnum].size != 0)
       {
         snmp_set_var_typed_value(requests->requestvb,
@@ -187,7 +185,7 @@ private:
       }
     }
 
-    TRC_INFO("Finished handling batch of SNMP requests");
+    TRC_DEBUG("Finished handling batch of SNMP requests");
     return SNMP_ERR_NOERROR;
   }
 };

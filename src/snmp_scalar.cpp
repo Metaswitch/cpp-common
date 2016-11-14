@@ -64,4 +64,9 @@ U32Scalar::~U32Scalar()
   // Call into netsnmp to unregister this OID.
   unregister_mib(parsed_oid, oid_len);
 }
+
+void U32Scalar::set_value(unsigned long val)
+{
+  value = val;
+}
 }

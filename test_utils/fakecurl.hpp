@@ -128,6 +128,14 @@ public:
     _http_rc(http_rc)
   {
   }
+
+  Response(int http_rc, const std::string& body) :
+    _code_once(CURLE_OK),
+    _code(CURLE_OK),
+    _body(body),
+    _http_rc(http_rc)
+  {
+  }
 };
 
 /// Object representing a single fake cURL handle.

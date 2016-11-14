@@ -1,8 +1,9 @@
 /**
- * @file httpresolver.cpp  Implementation of HTTP DNS resolver class.
+ * @file cassandra_connection_pool.h  Declaration of derived class for Cassandra
+ * connection pooling.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014 Metaswitch Networks Ltd
+ * Copyright (C) 2016  Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,56 +35,44 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include "log.h"
-#include "httpresolver.h"
+#ifndef CASSANDRA_CONNECTION_POOL_H__
+#define CASSANDRA_CONNECTION_POOL_H__
 
-HttpResolver::HttpResolver(DnsCachedResolver* dns_client,
-                           int address_family,
-                           int blacklist_duration,
-                           int graylist_duration) :
-  BaseResolver(dns_client),
-  _address_family(address_family)
+#include "thrift/Thrift.h"
+#include "thrift/transport/TSocket.h"
+#include "thrift/transport/TTransport.h"
+#include "thrift/transport/TBufferTransports.h"
+#include "thrift/protocol/TProtocol.h"
+#include "thrift/protocol/TBinaryProtocol.h"
+
+#include "connection_pool.h"
+
+using namespace apache::thrift;
+using namespace apache::thrift::transport;
+using namespace apache::thrift::protocol;
+
+namespace CassandraStore
 {
-  TRC_DEBUG("Creating HTTP resolver");
+class Client;
 
-  // Create the blacklist.
-  create_blacklist(blacklist_duration, graylist_duration);
-
-  TRC_STATUS("Created HTTP resolver");
-}
-
-HttpResolver::~HttpResolver()
+class CassandraConnectionPool : public ConnectionPool<Client*>
 {
-  destroy_blacklist();
-}
+public:
+  CassandraConnectionPool();
 
-/// Resolve a destination host and realm name to a list of IP addresses,
-/// transports and ports.  HTTP is pretty simple - just look up the A records.
-void HttpResolver::resolve(const std::string& host,
-                           int port,
-                           int max_targets,
-                           std::vector<AddrInfo>& targets,
-                           SAS::TrailId trail)
-{
-  AddrInfo ai;
-  int dummy_ttl = 0;
-
-  TRC_DEBUG("HttpResolver::resolve for host %s, port %d, family %d",
-            host.c_str(), port, _address_family);
-
-  port = (port != 0) ? port : DEFAULT_PORT;
-  targets.clear();
-
-  if (parse_ip_target(host, ai.address))
+  ~CassandraConnectionPool()
   {
-    // The name is already an IP address, so no DNS resolution is possible.
-    TRC_DEBUG("Target is an IP address");
-    ai.port = port;
-    ai.transport = TRANSPORT;
-    targets.push_back(ai);
+    // This call is important to properly destroy the connection pool
+    destroy_connection_pool();
   }
-  else
-  {
-    a_resolve(host, _address_family, port, TRANSPORT, max_targets, targets, dummy_ttl, trail);
-  }
-}
+
+protected:
+  Client* create_connection(AddrInfo target) override;
+
+  void destroy_connection(AddrInfo target, Client* conn) override;
+
+  long _timeout_ms;
+};
+
+} // namespace CassandraStore
+#endif

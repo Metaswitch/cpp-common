@@ -69,7 +69,7 @@ static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
 
 /// The length of time a connection can remain idle before it is removed from
 /// the pool
-static const double MAX_IDLE_TIME_MS = 60 * 1000.0;
+static const int MAX_IDLE_TIME_S = 60;
 
 class HttpConnectionPool : public ConnectionPool<CURL*>
 {

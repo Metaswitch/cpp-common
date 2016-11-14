@@ -47,6 +47,7 @@
 
 #include "utils.h"
 #include "sas.h"
+#include "sasevent.h"
 #include "baseresolver.h"
 #include "communicationmonitor.h"
 #include "exception_handler.h"
@@ -354,6 +355,7 @@ public:
     return *this;
   }
   Message& add_session_id(const std::string& session_id);
+  const std::string get_session_id();
 
   inline Message& add_app_id(const Dictionary::Application::Type type,
                              const Dictionary::Vendor& vendor,
@@ -419,7 +421,7 @@ public:
     result = _result;
     return (result != 0);
   }
-  int32_t experimental_result_code() const;
+  bool experimental_result(int32_t& experimental_result_code, uint32_t& vendor_id) const;
   int32_t vendor_id() const;
   inline std::string impi() const
   {
@@ -848,6 +850,16 @@ public:
   virtual void run() = 0;
 
   SAS::TrailId trail() { return _trail; }
+
+  /// Log that a required AVP was present from the message.
+  inline virtual void sas_log_missing_avp(SAS::TrailId trail,
+                                          const std::string& name,
+                                          uint32_t instance)
+  {
+    SAS::Event event(trail, SASEvent::DIAMETER_MSG_MISSING_AVP, 0);
+    event.add_var_param(name);
+    SAS::report_event(event);
+  }
 
 protected:
   Diameter::Message _msg;

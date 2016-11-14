@@ -1,5 +1,5 @@
 /**
- * @file signalhandler.cpp 
+ * @file signalhandler.cpp
  *
  * Project Clearwater - IMS in the Cloud
  * Copyright (C) 2013  Metaswitch Networks Ltd
@@ -40,4 +40,5 @@
 
 SignalHandler<SIGHUP> _sighup_handler;
 SignalHandler<SIGUSR1> _sigusr1_handler;
+SignalHandler<SIGUSR2> _sigusr2_handler;
 

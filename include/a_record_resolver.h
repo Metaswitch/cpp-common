@@ -1,8 +1,8 @@
 /**
- * @file snmp_scalar.h
+ * @file a_record_resolver.h  Declaration of A record DNS resolver class.
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
+ * Copyright (C) 2014 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -34,49 +34,46 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include <string>
-#include "snmp_abstract_scalar.h"
+#ifndef A_RECORD_RESOLVER_H_
+#define A_RECORD_RESOLVER_H_
 
-#ifndef SNMP_SCALAR_H
-#define SNMP_SCALAR_H
+#include "baseresolver.h"
+#include "sas.h"
 
-// This file contains infrastructure for SNMP scalars (single values, not in a
-// table).
-//
-// To use one, simply create a U32Scalar and modify its `value` object as
-// necessary - changes to this will automatically be reflected over SNMP. For
-// example:
-//
-//     SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count", ".1.2.3");
-//     cxn_count->value = 42;
-//
-// Note that the OID scalars are exposed under has an additional element with
-// the value zero (so using the example above, would actually be obtained by
-// querying ".1.2.3.0"). This is extremely counter-intuitive and easy to
-// forget. Because of this the trailing ".0" should not be specified when
-// constructing the scalar - the scalar will add it when registering with
-// net-snmp.
-
-namespace SNMP
-{
-
-// Exposes a number as an SNMP Unsigned32.
-class U32Scalar: public AbstractScalar
+class ARecordResolver : public BaseResolver
 {
 public:
-  /// Constructor
-  ///
-  /// @param name - The name of the scalar.
-  /// @param oid  - The OID for the scalar excluding the trailing ".0"
-  U32Scalar(std::string name, std::string oid);
-  ~U32Scalar();
-  virtual void set_value(unsigned long val);
-  unsigned long value;
+  ARecordResolver(DnsCachedResolver* dns_client,
+                  int address_family,
+                  int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
+                  int graylist_duration = DEFAULT_GRAYLIST_DURATION,
+                  const int default_port = 0);
+  ~ARecordResolver();
+
+  // Resolve a host name to a list of AddrInfo targets using an A record lookup.
+  virtual void resolve(const std::string& host,
+                       int port,
+                       int max_targets,
+                       std::vector<AddrInfo>& targets,
+                       SAS::TrailId trail);
+
+  // Lazily resolve a hostname to a list of AddrInfo targets using an A record
+  // lookup.
+  virtual BaseAddrIterator* resolve_iter(const std::string& host,
+                                         int port,
+                                         SAS::TrailId trail);
+
+  /// Default duration to blacklist hosts after we fail to connect to them.
+  static const int DEFAULT_BLACKLIST_DURATION = 30;
+  static const int DEFAULT_GRAYLIST_DURATION = 30;
+
+  static const int TRANSPORT = IPPROTO_TCP;
 
 private:
-  // The OID as registered with net-snmp (including the trailing ".0").
-  std::string _registered_oid;
+  int _address_family;
+  const int _default_port;
 };
 
-}
+typedef ARecordResolver CassandraResolver;
+
 #endif
