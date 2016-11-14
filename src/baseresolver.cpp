@@ -425,8 +425,9 @@ bool BaseResolver::parse_ip_target(const std::string& target, IP46Address& addre
   TRC_DEBUG("Attempt to parse %s as IP address", target.c_str());
   bool rc = false;
 
-  // Strip start and end white-space.
-  std::string ip_target = target;
+  // Strip start and end white-space, and any brackets if this is an IPv6
+  // address
+  std::string ip_target = Utils::remove_brackets_from_ip(target);
   Utils::trim(ip_target);
 
   if (inet_pton(AF_INET6, ip_target.c_str(), &address.addr.ipv6) == 1)
