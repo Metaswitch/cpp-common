@@ -604,47 +604,26 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     char buf[100];
     remote_ip = inet_ntop(i->address.af, &i->address.addr, buf, sizeof(buf));
 
-    if (_scheme == "http")
-    {
-      TRC_DEBUG("scheme == http");
+    ip_url = _scheme + "://" + _host + ":" + std::to_string(i->port) + path;
+    TRC_DEBUG("ip_url: %s", ip_url.c_str());
 
-      // Convert the target IP address into a string and fix up the URL.  It
-      // would be nice to use curl_easy_setopt(CURL_RESOLVE) here, but its
-      // implementation is incomplete.
-      if (i->address.af == AF_INET6)
-      {
-        ip_url = "http://[" + std::string(remote_ip) + "]:" + std::to_string(i->port) + path;
-      }
-      else
-      {
-        ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(i->port) + path;
-      }
-    }
-    else
-    {
-      TRC_DEBUG("scheme == https");
+    std::string resolve_addr =
+      _host + ":" + std::to_string(i->port) + ":" + remote_ip;
+    TRC_DEBUG("resolve_addr: %s", resolve_addr.c_str());
 
-      // https
-      ip_url = "https://" + _host + ":" + std::to_string(i->port) + path;
-      TRC_DEBUG("ip_url: %s", ip_url.c_str());
+    host_resolve_add_addr = curl_slist_append(
+      host_resolve_add_addr,
+      resolve_addr.c_str());
+    TRC_DEBUG("Created host_resolve_add_addr");
 
-      std::string resolve_addr =
-        _host + ":" + std::to_string(i->port) + ":" + remote_ip;
-      TRC_DEBUG("resolve_addr: %s", resolve_addr.c_str());
+    host_resolve_remove_addr = curl_slist_append(
+      host_resolve_remove_addr,
+      (std::string("-") + _host + ":" + std::to_string(i->port)).c_str());
+    TRC_DEBUG("Created host_resolve_remove_addr");
 
-      host_resolve_add_addr = curl_slist_append(
-        host_resolve_add_addr,
-        resolve_addr.c_str());
-      TRC_DEBUG("Created host_resolve_add_addr");
+    TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
+    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_add_addr);
 
-      host_resolve_remove_addr = curl_slist_append(
-        host_resolve_remove_addr,
-        (std::string("-") + _host + ":" + std::to_string(i->port)).c_str());
-      TRC_DEBUG("Created host_resolve_remove_addr");
-
-      TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
-      curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_add_addr);
-    }
     TRC_DEBUG("Set CURLOPT_URL: %s", ip_url.c_str());
     curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 
