@@ -369,17 +369,18 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
 
+  std::string scheme;
   std::string server;
   std::string path;
-  if (!Utils::parse_http_url(url, server, path))
+  if (!Utils::parse_http_url(url, scheme, server, path))
   {
     TRC_ERROR("%s could not be parsed as a URL : fatal",
               url.c_str());
     return HTTP_BAD_REQUEST;
   }
 
-  std::string host = host_from_server(server);
-  int port = port_from_server(server);
+  std::string host = host_from_server(scheme, server);
+  int port = port_from_server(scheme, server);
 
   // Resolve the host.
   BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail);
@@ -427,27 +428,22 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // Set request-type specific curl options
     set_curl_options_request(curl, request_type);
 
-    // Convert the target IP address into a string and fix up the URL.  It
-    // would be nice to use curl_easy_setopt(CURL_RESOLVE) here, but its
-    // implementation is incomplete.
+    // Convert the target IP address into a string and tell curl to resolve to that.
     char buf[100];
     remote_ip = inet_ntop(target.address.af,
                           &target.address.addr,
                           buf,
                           sizeof(buf));
 
-    std::string ip_url;
-    if (target.address.af == AF_INET6)
-    {
-      ip_url = "http://[" + std::string(remote_ip) + "]:" + std::to_string(target.port) + path;
-    }
-    else
-    {
-      ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(target.port) + path;
-    }
+    std::string resolve_addr = host + ":" + std::to_string(port) + ":" + remote_ip;
+    struct curl_slist *host_resolve_add_addr = curl_slist_append(NULL, resolve_addr.c_str());
+    TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
+    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_add_addr);
+    curl_slist_free_all(host_resolve_add_addr);
 
     // Set the curl target URL
-    curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
+    std::string curl_target = scheme + "://" + host + ":" + std::to_string(port) + path;
+    curl_easy_setopt(curl, CURLOPT_URL, curl_target.c_str());
 
     // Create and register an object to record the HTTP transaction.
     Recorder recorder;
@@ -470,6 +466,13 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     {
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
     }
+
+    // Undo our resolve configuration.
+    std::string resolve_remove_addr = std::string("-") + host + ":" + std::to_string(port);
+    struct curl_slist *host_resolve_remove_addr =
+      curl_slist_append(NULL, resolve_remove_addr.c_str());
+    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_remove_addr);
+    curl_slist_free_all(host_resolve_remove_addr);
 
     // Log the result of the request.
     long http_rc = 0;
@@ -884,7 +887,10 @@ void HttpClient::sas_log_curl_error(SAS::TrailId trail,
   }
 }
 
-void HttpClient::host_port_from_server(const std::string& server, std::string& host, int& port)
+void HttpClient::host_port_from_server(const std::string& scheme,
+                                       const std::string& server,
+                                       std::string& host,
+                                       int& port)
 {
   std::string server_copy = server;
   Utils::trim(server_copy);
@@ -899,23 +905,25 @@ void HttpClient::host_port_from_server(const std::string& server, std::string& h
   else
   {
     host = server_copy;
-    port = 0;
+    port = (scheme == "https") ? DEFAULT_HTTPS_PORT : DEFAULT_HTTP_PORT;
   }
 }
 
-std::string HttpClient::host_from_server(const std::string& server)
+std::string HttpClient::host_from_server(const std::string& scheme,
+                                         const std::string& server)
 {
   std::string host;
   int port;
-  host_port_from_server(server, host, port);
+  host_port_from_server(scheme, server, host, port);
   return host;
 }
 
-int HttpClient::port_from_server(const std::string& server)
+int HttpClient::port_from_server(const std::string& scheme,
+                                 const std::string& server)
 {
   std::string host;
   int port;
-  host_port_from_server(server, host, port);
+  host_port_from_server(scheme, server, host, port);
   return port;
 }
 

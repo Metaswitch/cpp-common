@@ -358,6 +358,30 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
     curl->_verbose = (verbose_flag != 0);
   }
   break;
+  case CURLOPT_RESOLVE:
+  {
+    struct curl_slist* hosts = va_arg(args, struct curl_slist*);
+    std::list<std::string>* truelist = (std::list<std::string>*)hosts;
+    for (std::list<std::string>::iterator it = truelist->begin(); it != truelist->end(); ++it)
+    {
+      std::string mapping = *it;
+      if (mapping.at(0) == '-')
+      {
+        mapping.erase(0, 1);
+        curl->_resolves.erase(mapping);
+      }
+      else
+      {
+        size_t first_colon = mapping.find(':');
+        size_t second_colon = mapping.find(':', first_colon + 1);
+        std::string host = mapping.substr(0, first_colon);
+        std::string colon_and_port = mapping.substr(first_colon, second_colon - first_colon);
+        std::string ip = mapping.substr(second_colon + 1);
+        curl->_resolves[host + colon_and_port] = ip + colon_and_port;
+      }
+    }
+  }
+  break;
   case CURLOPT_MAXCONNECTS:
   case CURLOPT_TIMEOUT_MS:
   case CURLOPT_CONNECTTIMEOUT_MS:

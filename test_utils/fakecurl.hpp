@@ -153,6 +153,10 @@ public:
   std::string _password;
   bool _fresh;
 
+  // Map of hostname + port -> IP address + port, as configured with
+  // CURLOPT_RESOLVE.
+  std::map<std::string, std::string> _resolves;
+
   datafn_ty _readfn;
   void* _readdata; //^ user data; not owned by this object
 
