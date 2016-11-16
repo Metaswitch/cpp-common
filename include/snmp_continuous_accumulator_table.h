@@ -40,6 +40,7 @@
 #include <atomic>
 
 #include "logger.h"
+#include "snmp_abstract_continuous_accumulator_table.h"
 
 #ifndef SNMP_CONTINUOUS_ACCUMULATOR_TABLE_H
 #define SNMP_CONTINUOUS_ACCUMULATOR_TABLE_H
@@ -64,7 +65,7 @@
 namespace SNMP
 {
 
-class ContinuousAccumulatorTable
+class ContinuousAccumulatorTable: public AbstractContinuousAccumulatorTable
 {
 public:
   virtual ~ContinuousAccumulatorTable() {};

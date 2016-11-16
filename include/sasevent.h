@@ -42,7 +42,7 @@
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20161025";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20161103";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -114,6 +114,7 @@ namespace SASEvent {
   const int DIAMETER_TX = COMMON_BASE + 0x00000F;
   const int DIAMETER_RX = COMMON_BASE + 0x000010;
   const int DIAMETER_TIMEOUT = COMMON_BASE + 0x000011;
+  const int DIAMETER_MSG_MISSING_AVP = COMMON_BASE + 0x000012;
 
   const int HTTP_ABORT = COMMON_BASE + 0x000012;
   const int HTTP_ABORT_DETAIL = COMMON_BASE + 0x000013;
