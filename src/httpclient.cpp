@@ -421,7 +421,15 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // Set general curl options
     set_curl_options_general(curl, body, doc);
 
-    // Set response header curl options
+    // Set response header curl options. We always want to catch the headers,
+    // even if the caller isn't interested.
+    std::map<std::string, std::string> internal_rsp_hdrs;
+
+    if (!response_headers)
+    {
+      response_headers = &internal_rsp_hdrs;
+    }
+
     set_curl_options_response(curl, response_headers);
 
     // Set request-type specific curl options
@@ -501,15 +509,17 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     }
     else
     {
-      // If we failed to even to establish an HTTP connection, blacklist this IP
-      // address.
-      if (!(http_rc >= 400) &&
+      // If we failed to even to establish an HTTP connection or recieved a 503
+      // with a Retry-After header, blacklist this IP address.
+      bool retry_after_present = (response_headers->find("Retry-After") !=
+                                                       response_headers->end());
+
+      if (((!(http_rc >= 400)) || ((http_rc == 503) && retry_after_present)) &&
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
         // The CURL connection should not be returned to the pool
         conn_handle.set_return_to_pool(false);
-
         _resolver->blacklist(target);
       }
       else
