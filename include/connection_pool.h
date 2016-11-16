@@ -99,7 +99,7 @@ class ConnectionPool
   using Pool = std::map<AddrInfo, Slot>;
 
 public:
-  ConnectionPool(time_t max_idle_time_s);
+  ConnectionPool(time_t max_idle_time_s, bool free_on_error = false);
 
   /// The pool cannot be safely emptied in this destructor, as an implementation
   /// of the destroy_connection method is required to safely destroy type T
@@ -138,6 +138,10 @@ private:
   Pool _conn_pool;
   pthread_mutex_t _conn_pool_lock;
   time_t _max_idle_time_s;
+
+  // Whether one dead connection should trigger cleanup of any others to the
+  // same target
+  bool _free_on_error;
 };
 
 /// Template class storing a connection in a ConnectionInfo object. On
@@ -185,8 +189,9 @@ private:
 };
 
 template<typename T>
-ConnectionPool<T>::ConnectionPool(time_t max_idle_time_s) :
-  _max_idle_time_s(max_idle_time_s)
+ConnectionPool<T>::ConnectionPool(time_t max_idle_time_s, bool free_on_error) :
+  _max_idle_time_s(max_idle_time_s),
+  _free_on_error(free_on_error)
 {
   pthread_mutex_init(&_conn_pool_lock, NULL);
 }
@@ -275,7 +280,30 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
   }
   else
   {
-    // Safely destroy the connection and its associated ConnectionInfo
+    if (_free_on_error)
+    {
+      // Need to destroy all connections for the same target that are currently
+      // in the pool
+      pthread_mutex_lock(&_conn_pool_lock);
+
+      typename Pool::iterator slot_it = _conn_pool.find(conn_info_ptr->target);
+      if (slot_it != _conn_pool.end())
+      {
+        TRC_DEBUG("Freeing %d other connections", slot_it->second.size());
+        while (!slot_it->second.empty())
+        {
+          ConnectionInfo<T>* conn_info = slot_it->second.front();
+          slot_it->second.pop_front();
+          destroy_connection(conn_info->target, conn_info->conn);
+          delete conn_info; conn_info = NULL;
+        }
+      }
+
+      pthread_mutex_unlock(&_conn_pool_lock);
+    }
+
+    // Now safely destroy the connection and its associated ConnectionInfo
+    // (which isn't in the pool, and hence wasn't destroyed above)
     destroy_connection(conn_info_ptr->target, conn_info_ptr->conn);
     delete conn_info_ptr; conn_info_ptr = NULL;
   }

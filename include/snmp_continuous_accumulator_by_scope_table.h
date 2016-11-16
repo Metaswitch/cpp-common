@@ -1,8 +1,8 @@
 /**
- * @file snmp_scalar.h
+ * @file snmp_continuous_accumulator_by_scope_table.h
  *
  * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
+ * Copyright (C) 2016 Metaswitch Networks Ltd
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the
@@ -28,55 +28,58 @@
  * respects for all of the code used other than OpenSSL.
  * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
  * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
+ * software and licensed und er the OpenSSL Licenses.
  * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
  * under which the OpenSSL Project distributes the OpenSSL toolkit software,
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include <vector>
+#include <map>
 #include <string>
-#include "snmp_abstract_scalar.h"
+#include <atomic>
 
-#ifndef SNMP_SCALAR_H
-#define SNMP_SCALAR_H
+#include "logger.h"
+#include "snmp_abstract_continuous_accumulator_table.h"
 
-// This file contains infrastructure for SNMP scalars (single values, not in a
-// table).
+#ifndef SNMP_CONTINUOUS_ACCUMULATOR_BY_SCOPE_TABLE_H
+#define SNMP_CONTINUOUS_ACCUMULATOR_BY_SCOPE_TABLE_H
+
+// This file contains the interface for tables which:
+//   - are indexed by time period and scope (node type)
+//   - accumulate data samples over time
+//   - report a count of samples, high-water-mark and low-water-mark
+//   - report mean sample rate and variance as weighted by the proportion
+//         of time active within the time period
+//   - carry across final value as initial value for the next table
 //
-// To use one, simply create a U32Scalar and modify its `value` object as
-// necessary - changes to this will automatically be reflected over SNMP. For
-// example:
+// The thing sampled should be a continiuous data set, i.e. valued across a
+// time period.
 //
-//     SNMP::U32Scalar* cxn_count = new SNMP::U32Scalar("bono_cxn_count", ".1.2.3");
-//     cxn_count->value = 42;
+// To create an accumulator table, simply create one, and call `accumulate` on it as data comes in,
+// e.g.:
 //
-// Note that the OID scalars are exposed under has an additional element with
-// the value zero (so using the example above, would actually be obtained by
-// querying ".1.2.3.0"). This is extremely counter-intuitive and easy to
-// forget. Because of this the trailing ".0" should not be specified when
-// constructing the scalar - the scalar will add it when registering with
-// net-snmp.
+// ContinuousAccumulatorTable* token_rate_table = ContinuousAccumulatorTable::create("token_rate", ".1.2.3");
+// token_rate_table->accumulate(2000);
 
 namespace SNMP
 {
 
-// Exposes a number as an SNMP Unsigned32.
-class U32Scalar: public AbstractScalar
+class ContinuousAccumulatorByScopeTable: public AbstractContinuousAccumulatorTable
 {
 public:
-  /// Constructor
-  ///
-  /// @param name - The name of the scalar.
-  /// @param oid  - The OID for the scalar excluding the trailing ".0"
-  U32Scalar(std::string name, std::string oid);
-  ~U32Scalar();
-  virtual void set_value(unsigned long val);
-  unsigned long value;
+  virtual ~ContinuousAccumulatorByScopeTable() {};
 
-private:
-  // The OID as registered with net-snmp (including the trailing ".0").
-  std::string _registered_oid;
+  static ContinuousAccumulatorByScopeTable* create(std::string name, std::string oid);
+
+  // Accumulate a sample into the underlying statistics.
+  virtual void accumulate(uint32_t sample) = 0;
+
+protected:
+  ContinuousAccumulatorByScopeTable() {};
+
 };
 
 }
+
 #endif

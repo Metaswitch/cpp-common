@@ -84,11 +84,11 @@ void TokenBucket::replenish_bucket()
 
 LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
                          float init_token_rate, float init_min_token_rate,
-                         SNMP::ContinuousAccumulatorTable* token_rate_table,
-                         SNMP::U32Scalar* smoothed_latency_scalar,
-                         SNMP::U32Scalar* target_latency_scalar,
-                         SNMP::U32Scalar* penalties_scalar,
-                         SNMP::U32Scalar* token_rate_scalar)
+                         SNMP::AbstractContinuousAccumulatorTable* token_rate_table,
+                         SNMP::AbstractScalar* smoothed_latency_scalar,
+                         SNMP::AbstractScalar* target_latency_scalar,
+                         SNMP::AbstractScalar* penalties_scalar,
+                         SNMP::AbstractScalar* token_rate_scalar)
                          : bucket(max_bucket_size, init_token_rate),
                            _token_rate_table(token_rate_table),
                            _smoothed_latency_scalar(smoothed_latency_scalar),
@@ -309,15 +309,15 @@ void LoadMonitor::update_statistics()
 {
   if (_smoothed_latency_scalar != NULL)
   {
-    _smoothed_latency_scalar->value = smoothed_latency;
+    _smoothed_latency_scalar->set_value(smoothed_latency);
   }
   if (_target_latency_scalar != NULL)
   {
-    _target_latency_scalar->value = target_latency;
+    _target_latency_scalar->set_value(target_latency);
   }
   if (_penalties_scalar != NULL)
   {
-    _penalties_scalar->value = penalties;
+    _penalties_scalar->set_value(penalties);
   }
   if (_token_rate_table != NULL)
   {
@@ -325,6 +325,6 @@ void LoadMonitor::update_statistics()
   }
   if (_token_rate_scalar != NULL)
   {
-    _token_rate_scalar->value = bucket.rate;
+    _token_rate_scalar->set_value(bucket.rate);
   }
 }
