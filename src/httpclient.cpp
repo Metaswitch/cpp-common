@@ -511,7 +511,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     {
       // If we failed to even to establish an HTTP connection or recieved a 503
       // with a Retry-After header, blacklist this IP address.
-      bool retry_after_present = (response_headers->find("Retry-After") !=
+      bool retry_after_present = (response_headers->find("retry-after") !=
                                                        response_headers->end());
 
       if (((!(http_rc >= 400)) || ((http_rc == 503) && retry_after_present)) &&
