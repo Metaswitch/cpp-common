@@ -136,6 +136,15 @@ public:
     _http_rc(http_rc)
   {
   }
+
+  Response(int http_rc, std::list<std::string> headers) :
+    _code_once(CURLE_OK),
+    _code(CURLE_OK),
+    _body(""),
+    _headers(headers),
+    _http_rc(http_rc)
+  {
+  }
 };
 
 /// Object representing a single fake cURL handle.
