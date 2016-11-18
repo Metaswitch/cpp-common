@@ -511,38 +511,48 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     {
       // If we failed to even to establish an HTTP connection or recieved a 503
       // with a Retry-After header, blacklist this IP address.
-      std::map<std::string, std::string>::iterator retry_after_header =
-                                          response_headers->find("retry-after");
-      bool retry_after_present = (retry_after_header != response_headers->end());
-
       if ((!(http_rc >= 400)) &&
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
         // The CURL connection should not be returned to the pool
+        TRC_DEBUG("Blacklist on connection failure");
         conn_handle.set_return_to_pool(false);
         _resolver->blacklist(target);
       }
-      else if (((http_rc == 503) && retry_after_present) &&
-               (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
-               (rc != CURLE_REMOTE_ACCESS_DENIED))
+      else if (http_rc == 503)
       {
-        // Get the value from the Retry-After header. If not an integer just
-        // use the default blacklist call. Note this means that HTTP dates are
-        // ignored.
-        std::string retry_after_val = retry_after_header->second;
-        int retry_after = atoi(retry_after_val.c_str());
+        // Check for a Retry-After header on 503 responses and if present with
+        // a valid value (i.e. an integer) blacklist the host for the given
+        // number of seconds.
+        TRC_DEBUG("Have 503 failure");
+        std::map<std::string, std::string>::iterator retry_after_header =
+                                          response_headers->find("retry-after");
+        int retry_after = 0;
 
-        // The CURL connection should not be returned to the pool
-        conn_handle.set_return_to_pool(false);
+        if (retry_after_header != response_headers->end())
+        {
+          TRC_DEBUG("Try to parse retry after value");
+          std::string retry_after_val = retry_after_header->second;
+          retry_after = atoi(retry_after_val.c_str());
+
+          // Log if we failed to parse the Retry-After header here
+          if (retry_after == 0)
+          {
+            TRC_WARNING("Failed to parse Retry-After value: %s", retry_after_val.c_str());
+          }
+        }
 
         if (retry_after > 0)
         {
+          // The CURL connection should not be returned to the pool
+          TRC_DEBUG("Have retry after value %d", retry_after);
+          conn_handle.set_return_to_pool(false);
           _resolver->blacklist(target, retry_after);
         }
         else
         {
-          _resolver->blacklist(target);
+          _resolver->success(target);
         }
       }
       else
