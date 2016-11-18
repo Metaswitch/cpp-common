@@ -511,16 +511,39 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     {
       // If we failed to even to establish an HTTP connection or recieved a 503
       // with a Retry-After header, blacklist this IP address.
-      bool retry_after_present = (response_headers->find("retry-after") !=
-                                                       response_headers->end());
+      std::map<std::string, std::string>::iterator retry_after_header =
+                                          response_headers->find("retry-after");
+      bool retry_after_present = (retry_after_header != response_headers->end());
 
-      if (((!(http_rc >= 400)) || ((http_rc == 503) && retry_after_present)) &&
+      if ((!(http_rc >= 400)) &&
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
         // The CURL connection should not be returned to the pool
         conn_handle.set_return_to_pool(false);
         _resolver->blacklist(target);
+      }
+      else if (((http_rc == 503) && retry_after_present) &&
+               (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
+               (rc != CURLE_REMOTE_ACCESS_DENIED))
+      {
+        // Get the value from the Retry-After header. If not an integer just
+        // use the default blacklist call. Note this means that HTTP dates are
+        // ignored.
+        std::string retry_after_val = retry_after_header->second;
+        int retry_after = atoi(retry_after_val.c_str());
+
+        // The CURL connection should not be returned to the pool
+        conn_handle.set_return_to_pool(false);
+
+        if (retry_after > 0)
+        {
+          _resolver->blacklist(target, retry_after);
+        }
+        else
+        {
+          _resolver->blacklist(target);
+        }
       }
       else
       {
