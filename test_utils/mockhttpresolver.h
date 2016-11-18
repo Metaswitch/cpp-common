@@ -56,6 +56,7 @@ public:
                              SAS::TrailId trail));
 
   MOCK_METHOD1(blacklist, void(const AddrInfo& ai));
+  MOCK_METHOD2(blacklist, void(const AddrInfo& ai, int blacklist_ttl));
   MOCK_METHOD1(success, void(const AddrInfo& ai));
   MOCK_METHOD1(untested, void(const AddrInfo& ai));
 };
