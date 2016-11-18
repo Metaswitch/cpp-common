@@ -540,6 +540,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
           if (retry_after == 0)
           {
             TRC_WARNING("Failed to parse Retry-After value: %s", retry_after_val.c_str());
+            sas_log_bad_retry_after_value(trail, retry_after_val, 0);
           }
         }
 
@@ -923,6 +924,19 @@ void HttpClient::sas_log_curl_error(SAS::TrailId trail,
     event.add_var_param(Utils::url_unescape(url));
     event.add_var_param(curl_easy_strerror(code));
 
+    SAS::report_event(event);
+  }
+}
+
+void HttpClient::sas_log_bad_retry_after_value(SAS::TrailId trail,
+                                               const std::string value,
+                                               uint32_t instance_id)
+{
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = (SASEvent::HTTP_BAD_RETRY_AFTER_VALUE);
+    SAS::Event event(trail, event_id, instance_id);
+    event.add_var_param(value.c_str());
     SAS::report_event(event);
   }
 }

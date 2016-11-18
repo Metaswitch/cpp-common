@@ -323,6 +323,10 @@ private:
                           CURLcode code,
                           uint32_t instance_id);
 
+  void sas_log_bad_retry_after_value(SAS::TrailId trail,
+                                     const std::string value,
+                                     uint32_t instance_id);
+
   /// Enum of response types to correspond with ENUM defined in SAS resource
   /// bundle. Make sure the two are kept in sync
   enum class HttpErrorResponseTypes : uint32_t

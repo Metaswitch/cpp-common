@@ -42,7 +42,7 @@
 
 namespace SASEvent {
 
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20161103";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20161118";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -121,6 +121,8 @@ namespace SASEvent {
 
   const int DIAMETER_NO_PEERS = COMMON_BASE + 0x000014;
   const int DIAMETER_NO_CONNECTED_PEERS = COMMON_BASE + 0x000015;
+
+  const int HTTP_BAD_RETRY_AFTER_VALUE = COMMON_BASE + 0x000016;
 
   const int MEMCACHED_GET_START = COMMON_BASE + 0x000100;
   const int MEMCACHED_GET_SUCCESS = COMMON_BASE + 0x000101;
