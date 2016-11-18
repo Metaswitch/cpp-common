@@ -934,7 +934,8 @@ void HttpClient::sas_log_bad_retry_after_value(SAS::TrailId trail,
 {
   if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
   {
-    int event_id = (SASEvent::HTTP_BAD_RETRY_AFTER_VALUE);
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                    SASEvent::HTTP_BAD_RETRY_AFTER_VALUE : SASEvent::HTTP_BAD_RETRY_AFTER_VALUE_DETAIL);
     SAS::Event event(trail, event_id, instance_id);
     event.add_var_param(value.c_str());
     SAS::report_event(event);
