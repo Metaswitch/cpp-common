@@ -59,7 +59,9 @@ public:
                  SNMP::IPCountTable* stat_table,
                  LoadMonitor* load_monitor,
                  SASEvent::HttpLogLevel sas_log_level,
-                 BaseCommunicationMonitor* comm_monitor) :
+                 BaseCommunicationMonitor* comm_monitor,
+                 const std::string& scheme = "http") :
+    _scheme(scheme),
     _server(server),
     _client(assert_user,
             resolver,
@@ -208,8 +210,7 @@ public:
                          const std::string& username = "");
 
 private:
-  static const std::string SCHEME_PREFIX;
-
+  std::string _scheme;
   std::string _server;
   HttpClient _client;
 };
