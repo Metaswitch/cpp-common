@@ -384,6 +384,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
 
   // Resolve the host.
   BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail);
+  IP46Address address;
+  bool host_is_ip = BaseResolver::parse_ip_target(host, address);
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
   // or I/O errors.
@@ -455,18 +457,24 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // remove that entry, and then _next_ time round we use that as well as
     // adding the entry that we do want.
     //
-    // This is the point at which we retrieve that curl_slist (which is always
-    // present, except on the very first time through this loop for this
-    // connection).
+    // This is the point at which we retrieve that curl_slist, if present.
     curl_slist *host_resolve = NULL;
     curl_easy_getinfo(curl, CURLINFO_PRIVATE, &host_resolve);
     curl_easy_setopt(curl, CURLOPT_PRIVATE, NULL);
 
-    // Add the new entry.
-    std::string resolve_addr = host + ":" + std::to_string(port) + ":" + remote_ip;
-    host_resolve = curl_slist_append(host_resolve, resolve_addr.c_str());
-    TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
-    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve);
+    // Add the new entry - except in the case where the host was an IP address
+    // in the first place.
+    if (!host_is_ip)
+    {
+      std::string resolve_addr =
+        host + ":" + std::to_string(port) + ":" + remote_ip;
+      host_resolve = curl_slist_append(host_resolve, resolve_addr.c_str());
+      TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
+    }
+    if (host_resolve != NULL)
+    {
+      curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve);
+    }
 
     // Set the curl target URL
     std::string curl_target = scheme + "://" + host + ":" + std::to_string(port) + path;
@@ -494,11 +502,21 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
     }
 
+    // Clean up from setting up the DNS cache this time round.
+    if (host_resolve != NULL)
+    {
+      curl_slist_free_all(host_resolve);
+      host_resolve = NULL;
+    }
+
     // Prepare to remove the DNS entry from curl's cache next time round.
-    curl_slist_free_all(host_resolve);
-    std::string resolve_remove_addr = std::string("-") + host + ":" + std::to_string(port);
-    host_resolve = curl_slist_append(NULL, resolve_remove_addr.c_str());
-    curl_easy_setopt(curl, CURLOPT_PRIVATE, host_resolve);
+    if (!host_is_ip)
+    {
+      std::string resolve_remove_addr =
+        std::string("-") + host + ":" + std::to_string(port);
+      host_resolve = curl_slist_append(NULL, resolve_remove_addr.c_str());
+      curl_easy_setopt(curl, CURLOPT_PRIVATE, host_resolve);
+    }
 
     // Log the result of the request.
     long http_rc = 0;
