@@ -443,10 +443,19 @@ HTTPCode HttpClient::send_request(RequestType request_type,
                           buf,
                           sizeof(buf));
 
+    // Each time round this loop we add an entry to curl's DNS cache, and also
+    // leave a note reminding ourselves to remove the entry next time.
+    //
+    // Retrieve that note (which may not be present).
+    curl_slist *host_resolve = NULL;
+    curl_easy_getinfo(curl, CURLINFO_PRIVATE, &host_resolve);
+    curl_easy_setopt(curl, CURLOPT_PRIVATE, NULL);
+
+    // Add the new entry.
     std::string resolve_addr = host + ":" + std::to_string(port) + ":" + remote_ip;
-    struct curl_slist *host_resolve_add_addr = curl_slist_append(NULL, resolve_addr.c_str());
+    host_resolve = curl_slist_append(host_resolve, resolve_addr.c_str());
     TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
-    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_add_addr);
+    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve);
 
     // Set the curl target URL
     std::string curl_target = scheme + "://" + host + ":" + std::to_string(port) + path;
@@ -474,13 +483,11 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
     }
 
-    // Undo our resolve configuration.
-    curl_slist_free_all(host_resolve_add_addr);
+    // Leave ourselves a note to remove the DNS entry from curl's cache next time round.
+    curl_slist_free_all(host_resolve);
     std::string resolve_remove_addr = std::string("-") + host + ":" + std::to_string(port);
-    struct curl_slist *host_resolve_remove_addr =
-      curl_slist_append(NULL, resolve_remove_addr.c_str());
-    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_remove_addr);
-    curl_slist_free_all(host_resolve_remove_addr);
+    host_resolve = curl_slist_append(NULL, resolve_remove_addr.c_str());
+    curl_easy_setopt(curl, CURLOPT_PRIVATE, host_resolve);
 
     // Log the result of the request.
     long http_rc = 0;
