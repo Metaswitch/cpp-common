@@ -443,10 +443,21 @@ HTTPCode HttpClient::send_request(RequestType request_type,
                           buf,
                           sizeof(buf));
 
-    // Each time round this loop we add an entry to curl's DNS cache, and also
-    // leave a note reminding ourselves to remove the entry next time.
+    // We want curl's DNS cache to contain exactly one entry: for the host and
+    // IP that we're currently processing.
     //
-    // Retrieve that note (which may not be present).
+    // It's easy to add an entry with the CURLOPT_RESOLVE flag, but removing it
+    // again in anticipation of the next query is trickier - because options
+    // that we set are not processed until we actually make a query, and we can
+    // only set this option once per request.
+    //
+    // So each time we add an entry we also store a curl_slist which will
+    // remove that entry, and then _next_ time round we use that as well as
+    // adding the entry that we do want.
+    //
+    // This is the point at which we retrieve that curl_slist (which is always
+    // present, except on the very first time through this loop for this
+    // connection).
     curl_slist *host_resolve = NULL;
     curl_easy_getinfo(curl, CURLINFO_PRIVATE, &host_resolve);
     curl_easy_setopt(curl, CURLOPT_PRIVATE, NULL);
@@ -483,7 +494,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
     }
 
-    // Leave ourselves a note to remove the DNS entry from curl's cache next time round.
+    // Prepare to remove the DNS entry from curl's cache next time round.
     curl_slist_free_all(host_resolve);
     std::string resolve_remove_addr = std::string("-") + host + ":" + std::to_string(port);
     host_resolve = curl_slist_append(NULL, resolve_remove_addr.c_str());
