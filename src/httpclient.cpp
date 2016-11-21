@@ -443,11 +443,30 @@ HTTPCode HttpClient::send_request(RequestType request_type,
                           buf,
                           sizeof(buf));
 
+    // We want curl's DNS cache to contain exactly one entry: for the host and
+    // IP that we're currently processing.
+    //
+    // It's easy to add an entry with the CURLOPT_RESOLVE flag, but removing it
+    // again in anticipation of the next query is trickier - because options
+    // that we set are not processed until we actually make a query, and we can
+    // only set this option once per request.
+    //
+    // So each time we add an entry we also store a curl_slist which will
+    // remove that entry, and then _next_ time round we use that as well as
+    // adding the entry that we do want.
+    //
+    // This is the point at which we retrieve that curl_slist (which is always
+    // present, except on the very first time through this loop for this
+    // connection).
+    curl_slist *host_resolve = NULL;
+    curl_easy_getinfo(curl, CURLINFO_PRIVATE, &host_resolve);
+    curl_easy_setopt(curl, CURLOPT_PRIVATE, NULL);
+
+    // Add the new entry.
     std::string resolve_addr = host + ":" + std::to_string(port) + ":" + remote_ip;
-    struct curl_slist *host_resolve_add_addr = curl_slist_append(NULL, resolve_addr.c_str());
+    host_resolve = curl_slist_append(host_resolve, resolve_addr.c_str());
     TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
-    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_add_addr);
-    curl_slist_free_all(host_resolve_add_addr);
+    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve);
 
     // Set the curl target URL
     std::string curl_target = scheme + "://" + host + ":" + std::to_string(port) + path;
@@ -475,12 +494,11 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
     }
 
-    // Undo our resolve configuration.
+    // Prepare to remove the DNS entry from curl's cache next time round.
+    curl_slist_free_all(host_resolve);
     std::string resolve_remove_addr = std::string("-") + host + ":" + std::to_string(port);
-    struct curl_slist *host_resolve_remove_addr =
-      curl_slist_append(NULL, resolve_remove_addr.c_str());
-    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_remove_addr);
-    curl_slist_free_all(host_resolve_remove_addr);
+    host_resolve = curl_slist_append(NULL, resolve_remove_addr.c_str());
+    curl_easy_setopt(curl, CURLOPT_PRIVATE, host_resolve);
 
     // Log the result of the request.
     long http_rc = 0;

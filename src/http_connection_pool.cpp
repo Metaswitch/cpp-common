@@ -136,6 +136,14 @@ void HttpConnectionPool::decrement_statistic(AddrInfo target, CURL* conn)
 void HttpConnectionPool::destroy_connection(AddrInfo target, CURL* conn)
 {
   decrement_statistic(target, conn);
+  curl_slist *host_resolve = NULL;
+  curl_easy_getinfo(conn, CURLINFO_PRIVATE, &host_resolve);
+  if (host_resolve != NULL)
+  {
+    curl_easy_setopt(conn, CURLOPT_PRIVATE, NULL);
+    curl_slist_free_all(host_resolve);
+  }
+
   curl_easy_cleanup(conn);
 }
 
