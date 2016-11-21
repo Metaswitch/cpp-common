@@ -56,12 +56,23 @@
 #include "utils.h"
 #include "log.h"
 
-bool Utils::parse_http_url(const std::string& url, std::string& server, std::string& path)
+bool Utils::parse_http_url(
+    const std::string& url,
+    std::string& scheme,
+    std::string& server,
+    std::string& path)
 {
   size_t colon_pos = url.find(':');
-  if ((colon_pos == std::string::npos) || (url.substr(0, colon_pos) != "http"))
+  if (colon_pos == std::string::npos)
   {
-    // Not HTTP.
+    // No colon - no good!
+    return false;
+  }
+
+  scheme = url.substr(0, colon_pos);
+  if ((scheme != "http") && (scheme != "https"))
+  {
+    // Not HTTP or HTTPS.
     return false;
   }
   size_t slash_slash_pos = url.find("//", colon_pos + 1);

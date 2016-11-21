@@ -244,6 +244,10 @@ private:
     int record_data(curl_infotype type, char *data, size_t size);
   };
 
+  static const int DEFAULT_HTTP_PORT = 80;
+  static const int DEFAULT_HTTPS_PORT = 443;
+
+
   /// Enum of HTTP request types that are used in this class
   enum struct RequestType {DELETE, PUT, POST, GET};
 
@@ -341,9 +345,12 @@ private:
 
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
   static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
-  static void host_port_from_server(const std::string& server, std::string& host, int& port);
-  static std::string host_from_server(const std::string& server);
-  static int port_from_server(const std::string& server);
+  static void host_port_from_server(const std::string& scheme,
+                                    const std::string& server,
+                                    std::string& host,
+                                    int& port);
+  static std::string host_from_server(const std::string& scheme, const std::string& server);
+  static int port_from_server(const std::string& scheme, const std::string& server);
 
   boost::uuids::uuid get_random_uuid();
 
