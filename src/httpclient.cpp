@@ -422,7 +422,15 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // Set general curl options
     set_curl_options_general(curl, body, doc);
 
-    // Set response header curl options
+    // Set response header curl options. We always want to catch the headers,
+    // even if the caller isn't interested.
+    std::map<std::string, std::string> internal_rsp_hdrs;
+
+    if (!response_headers)
+    {
+      response_headers = &internal_rsp_hdrs;
+    }
+
     set_curl_options_response(curl, response_headers);
 
     // Set request-type specific curl options
@@ -504,16 +512,52 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     }
     else
     {
-      // If we failed to even to establish an HTTP connection, blacklist this IP
-      // address.
-      if (!(http_rc >= 400) &&
+      // If we failed to even to establish an HTTP connection or recieved a 503
+      // with a Retry-After header, blacklist this IP address.
+      if ((!(http_rc >= 400)) &&
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
         // The CURL connection should not be returned to the pool
+        TRC_DEBUG("Blacklist on connection failure");
         conn_handle.set_return_to_pool(false);
-
         _resolver->blacklist(target);
+      }
+      else if (http_rc == 503)
+      {
+        // Check for a Retry-After header on 503 responses and if present with
+        // a valid value (i.e. an integer) blacklist the host for the given
+        // number of seconds.
+        TRC_DEBUG("Have 503 failure");
+        std::map<std::string, std::string>::iterator retry_after_header =
+                                          response_headers->find("retry-after");
+        int retry_after = 0;
+
+        if (retry_after_header != response_headers->end())
+        {
+          TRC_DEBUG("Try to parse retry after value");
+          std::string retry_after_val = retry_after_header->second;
+          retry_after = atoi(retry_after_val.c_str());
+
+          // Log if we failed to parse the Retry-After header here
+          if (retry_after == 0)
+          {
+            TRC_WARNING("Failed to parse Retry-After value: %s", retry_after_val.c_str());
+            sas_log_bad_retry_after_value(trail, retry_after_val, 0);
+          }
+        }
+
+        if (retry_after > 0)
+        {
+          // The CURL connection should not be returned to the pool
+          TRC_DEBUG("Have retry after value %d", retry_after);
+          conn_handle.set_return_to_pool(false);
+          _resolver->blacklist(target, retry_after);
+        }
+        else
+        {
+          _resolver->success(target);
+        }
       }
       else
       {
@@ -883,6 +927,20 @@ void HttpClient::sas_log_curl_error(SAS::TrailId trail,
     event.add_var_param(Utils::url_unescape(url));
     event.add_var_param(curl_easy_strerror(code));
 
+    SAS::report_event(event);
+  }
+}
+
+void HttpClient::sas_log_bad_retry_after_value(SAS::TrailId trail,
+                                               const std::string value,
+                                               uint32_t instance_id)
+{
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                    SASEvent::HTTP_BAD_RETRY_AFTER_VALUE : SASEvent::HTTP_BAD_RETRY_AFTER_VALUE_DETAIL);
+    SAS::Event event(trail, event_id, instance_id);
+    event.add_var_param(value.c_str());
     SAS::report_event(event);
   }
 }

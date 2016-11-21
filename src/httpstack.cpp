@@ -159,6 +159,16 @@ void HttpStack::register_handler(const char* path,
   }
 }
 
+void HttpStack::register_default_handler(HttpStack::HandlerInterface* handler)
+{
+  HandlerRegistration* reg = new HandlerRegistration(this, handler);
+  _handler_registrations.insert(reg);
+
+  evhtp_set_gencb(_evhtp,
+                  handler_callback_fn,
+                  (void*)reg);
+}
+
 void HttpStack::bind_tcp_socket(const std::string& bind_address,
                                 unsigned short port)
 {

@@ -420,6 +420,7 @@ public:
                                unsigned short port);
   virtual void bind_unix_socket(const std::string& bind_path);
   virtual void register_handler(const char* path, HandlerInterface* handler);
+  virtual void register_default_handler(HandlerInterface* handler);
   virtual void start(evhtp_thread_init_cb init_cb = NULL);
   virtual void stop();
   virtual void wait_stopped();
