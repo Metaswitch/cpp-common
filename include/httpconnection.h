@@ -193,6 +193,9 @@ private:
     bool is_connection_expired(unsigned long now_ms);
     void update_deadline(unsigned long now_ms);
 
+    void set_host_resolve(curl_slist *host_resolve) { _host_resolve = host_resolve; };
+    curl_slist *get_host_resolve() { return _host_resolve; };
+
   private:
     void update_snmp_ip_counts(const std::string& value);
 
@@ -211,6 +214,9 @@ private:
 
     /// Server IP we're connected to, if any.
     std::string _remote_ip;
+
+    /// What DNS-cache configuration do we want to remove from this connection?
+    curl_slist *_host_resolve;
   };
 
   /// Class used to record HTTP transactions.

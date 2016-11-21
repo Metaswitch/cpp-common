@@ -602,13 +602,20 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     char buf[100];
     remote_ip = inet_ntop(i->address.af, &i->address.addr, buf, sizeof(buf));
 
-    std::string resolve_addr =
-      _host + ":" + std::to_string(i->port) + ":" + remote_ip;
-    struct curl_slist *host_resolve_add_addr = curl_slist_append(NULL, resolve_addr.c_str());
+    // Each time round this loop we add an entry to curl's DNS cache, and also
+    // leave a note reminding ourselves to remove the entry next time.
+    //
+    // Retrieve that note (which may not be present).
+    curl_slist *host_resolve = entry->get_host_resolve();
+    entry->set_host_resolve(NULL);
 
-    TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
-    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_add_addr);
+    // Add the new entry.
+    std::string resolve_addr = _host + ":" + std::to_string(i->port) + ":" + remote_ip;
+    host_resolve = curl_slist_append(host_resolve, resolve_addr.c_str());
+     TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
+    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve);
 
+    // Set the curl target URL
     std::string ip_url = _scheme + "://" + _host + ":" + std::to_string(i->port) + path;
     TRC_DEBUG("Set CURLOPT_URL: %s", ip_url.c_str());
     curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
@@ -628,13 +635,11 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     TRC_DEBUG("Sending HTTP request : %s (trying %s) %s", url.c_str(), remote_ip, (recycle_conn) ? "on new connection" : "");
     rc = curl_easy_perform(curl);
 
-    curl_slist_free_all(host_resolve_add_addr);
-    std::string remove_addr = std::string("-") + _host + ":" + std::to_string(i->port);
-    struct curl_slist *host_resolve_remove_addr = curl_slist_append(
-      NULL,
-      remove_addr.c_str());
-    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_remove_addr);
-    curl_slist_free_all(host_resolve_remove_addr);
+    // Leave ourselves a note to remove the DNS entry from curl's cache next time round.
+    curl_slist_free_all(host_resolve);
+    std::string resolve_remove_addr = std::string("-") + _host + ":" + std::to_string(i->port);
+    host_resolve = curl_slist_append(NULL, resolve_remove_addr.c_str());
+    entry->set_host_resolve(host_resolve);
 
     // If a request was sent, log it to SAS.
     if (recorder.request.length() > 0)
@@ -810,7 +815,8 @@ void HttpConnection::cleanup_curl(void* curlptr)
 HttpConnection::PoolEntry::PoolEntry(HttpConnection* parent) :
   _parent(parent),
   _deadline_ms(0L),
-  _rand(1.0 / CONNECTION_AGE_MS)
+  _rand(1.0 / CONNECTION_AGE_MS),
+  _host_resolve(NULL)
 {
 }
 
@@ -818,6 +824,11 @@ HttpConnection::PoolEntry::PoolEntry(HttpConnection* parent) :
 /// PoolEntry destructor
 HttpConnection::PoolEntry::~PoolEntry()
 {
+  if (_host_resolve != NULL)
+  {
+    curl_slist_free_all(_host_resolve);
+    _host_resolve = NULL;
+  }
 }
 
 
