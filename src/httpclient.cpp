@@ -447,7 +447,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     struct curl_slist *host_resolve_add_addr = curl_slist_append(NULL, resolve_addr.c_str());
     TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
     curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve_add_addr);
-    curl_slist_free_all(host_resolve_add_addr);
 
     // Set the curl target URL
     std::string curl_target = scheme + "://" + host + ":" + std::to_string(port) + path;
@@ -476,6 +475,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     }
 
     // Undo our resolve configuration.
+    curl_slist_free_all(host_resolve_add_addr);
     std::string resolve_remove_addr = std::string("-") + host + ":" + std::to_string(port);
     struct curl_slist *host_resolve_remove_addr =
       curl_slist_append(NULL, resolve_remove_addr.c_str());
