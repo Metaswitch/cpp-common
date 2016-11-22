@@ -382,10 +382,10 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   std::string host = host_from_server(scheme, server);
   int port = port_from_server(scheme, server);
 
-  // Resolve the host.
+  // Resolve the host, and check whether it was an IP address all along.
   BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail);
-  IP46Address address;
-  bool host_is_ip = BaseResolver::parse_ip_target(host, address);
+  IP46Address dummy_address;
+  bool host_is_ip = BaseResolver::parse_ip_target(host, dummy_address);
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
   // or I/O errors.
@@ -457,13 +457,15 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // remove that entry, and then _next_ time round we use that as well as
     // adding the entry that we do want.
     //
-    // This is the point at which we retrieve that curl_slist, if present.
+    // At this point then, we retrieve the value previously stored - if any.
+    // (We may be here for the very first time, or the previous query may have
+    // been direct to an IP address, so we may not find anything).
     curl_slist *host_resolve = NULL;
     curl_easy_getinfo(curl, CURLINFO_PRIVATE, &host_resolve);
     curl_easy_setopt(curl, CURLOPT_PRIVATE, NULL);
 
-    // Add the new entry - except in the case where the host was an IP address
-    // in the first place.
+    // Add the new entry - except in the case where the host is already an IP
+    // address.
     if (!host_is_ip)
     {
       std::string resolve_addr =
@@ -509,7 +511,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       host_resolve = NULL;
     }
 
-    // Prepare to remove the DNS entry from curl's cache next time round.
+    // Prepare to remove the DNS entry from curl's cache next time round, if
+    // necessary
     if (!host_is_ip)
     {
       std::string resolve_remove_addr =
