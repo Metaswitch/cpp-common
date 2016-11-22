@@ -550,6 +550,8 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
   // Resolve the host.
   std::vector<AddrInfo> targets;
   _resolver->resolve(_host, _port, MAX_TARGETS, targets, trail);
+  IP46Address address;
+  bool host_is_ip = _resolver->parse_ip_target(_host, address);
 
   // If we're not recycling the connection, try to get the current connection
   // IP address and add it to the front of the target list (if it was there)
@@ -609,11 +611,19 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     curl_slist *host_resolve = entry->get_host_resolve();
     entry->set_host_resolve(NULL);
 
-    // Add the new entry.
-    std::string resolve_addr = _host + ":" + std::to_string(i->port) + ":" + remote_ip;
-    host_resolve = curl_slist_append(host_resolve, resolve_addr.c_str());
-     TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
-    curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve);
+    // Add the new entry - except in the case where the host was an IP address
+    // in the first place.
+    if (!host_is_ip)
+    {
+      std::string resolve_addr =
+        _host + ":" + std::to_string(i->port) + ":" + remote_ip;
+      host_resolve = curl_slist_append(host_resolve, resolve_addr.c_str());
+      TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
+    }
+    if (host_resolve != NULL)
+    {
+      curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve);
+    }
 
     // Set the curl target URL
     std::string ip_url = _scheme + "://" + _host + ":" + std::to_string(i->port) + path;
@@ -636,10 +646,18 @@ HTTPCode HttpConnection::send_request(const std::string& path,                 /
     rc = curl_easy_perform(curl);
 
     // Leave ourselves a note to remove the DNS entry from curl's cache next time round.
-    curl_slist_free_all(host_resolve);
-    std::string resolve_remove_addr = std::string("-") + _host + ":" + std::to_string(i->port);
-    host_resolve = curl_slist_append(NULL, resolve_remove_addr.c_str());
-    entry->set_host_resolve(host_resolve);
+    if (host_resolve != NULL)
+    {
+      curl_slist_free_all(host_resolve);
+    }
+
+    if (!host_is_ip)
+    {
+      std::string resolve_remove_addr =
+        std::string("-") + _host + ":" + std::to_string(i->port);
+      host_resolve = curl_slist_append(NULL, resolve_remove_addr.c_str());
+      entry->set_host_resolve(host_resolve);
+    }
 
     // If a request was sent, log it to SAS.
     if (recorder.request.length() > 0)
