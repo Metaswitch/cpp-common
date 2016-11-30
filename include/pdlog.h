@@ -94,6 +94,9 @@ public:
     CL_QUEUE_MGR_ID = 14000
     // The range 15000-15999 is reserved
     // The range 16000-16999 is reserved
+    // The range 17000-17999 is reserved
+    // The range 18000-18999 is reserved
+    // The range 19000-19999 is reserved
   };
 
   PDLogBase(int log_id,
