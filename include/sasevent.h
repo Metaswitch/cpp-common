@@ -89,6 +89,8 @@ namespace SASEvent {
   const int CEDAR_BASE = 0x880000;
   const int HOUDINI_BASE = 0x890000;
   const int TIMBERLAKE_BASE = 0x900000;
+  const int BIFROST_BASE = 0x910000;
+  const int WEATHERWAX_BASE = 0x920000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
