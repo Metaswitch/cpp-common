@@ -725,6 +725,7 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
                                                     SAS::TrailId trail)
 {
   Store::Status status = Store::Status::OK;
+  std::string error_string = "";
 
   TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
             data.length(), table.c_str(), key.c_str(), cas, expiry);
@@ -821,6 +822,7 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
     {
       // This is an update to an existing record, so use memcached_cas
       // to make sure it is atomic.
+       /*
       rc = memcached_cas_vb(replicas[replica_idx],
                             key_ptr,
                             key_len,
@@ -830,12 +832,14 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
                             memcached_expiration,
                             flags,
                             cas);
-
+*/
+      rc = MEMCACHED_TIMEOUT;
       if (!memcached_success(rc))
       {
+        error_string = memcached_strerror(replicas[replica_idx], rc);
         TRC_DEBUG("memcached_cas command failed, rc = %d (%s)\n%s",
                   rc,
-                  memcached_strerror(replicas[replica_idx], rc),
+                  error_string.c_str(),
                   memcached_last_error_message(replicas[replica_idx]));
       }
     }
@@ -895,6 +899,7 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
     {
       SAS::Event err(trail, SASEvent::MEMCACHED_SET_FAILED, 0);
       err.add_var_param(fqkey);
+      err.add_var_param(error_string);
       SAS::report_event(err);
     }
 
@@ -1334,6 +1339,7 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
     {
       SAS::Event err(trail, SASEvent::MEMCACHED_SET_FAILED, 0);
       err.add_var_param(fqkey);
+      err.add_var_param(memcached_strerror(NULL, rc));
       SAS::report_event(err);
     }
 
