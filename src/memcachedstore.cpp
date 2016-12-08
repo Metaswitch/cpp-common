@@ -724,8 +724,7 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
                                                     int expiry,
                                                     SAS::TrailId trail)
 {
-  Store::Status status = Store::Status::OK;
-  std::string error_string = "";
+  Store::Status status = Store::Status::ERROR;
 
   TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
             data.length(), table.c_str(), key.c_str(), cas, expiry);
@@ -834,10 +833,10 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
 
       if (!memcached_success(rc))
       {
-        error_string = memcached_strerror(replicas[replica_idx], rc);
+        // Make a log,then move on to the next replica
         TRC_DEBUG("memcached_cas command failed, rc = %d (%s)\n%s",
                   rc,
-                  error_string.c_str(),
+                  memcached_strerror(replicas[replica_idx], rc),
                   memcached_last_error_message(replicas[replica_idx]));
       }
     }
@@ -845,18 +844,13 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
     if (memcached_success(rc))
     {
       TRC_DEBUG("Conditional write succeeded to replica %d", replica_idx);
+      status = Store::Status::OK;
       break;
     }
     else if ((rc == MEMCACHED_NOTFOUND) ||
              (rc == MEMCACHED_NOTSTORED) ||
              (rc == MEMCACHED_DATA_EXISTS))
     {
-      if (trail != 0)
-      {
-        SAS::Event err(trail, SASEvent::MEMCACHED_SET_CONTENTION, 0);
-        err.add_var_param(fqkey);
-        SAS::report_event(err);
-      }
 
       // A NOT_STORED or EXISTS response indicates a concurrent write failure,
       // so return this to the application immediately - don't go on to
@@ -867,8 +861,7 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
     }
   }
 
-  if ((rc == MEMCACHED_SUCCESS) &&
-      (replica_idx < replicas.size()))
+  if (status == Store::Status::OK)
   {
     // Write has succeeded, so write unconditionally (and asynchronously)
     // to the replicas.
@@ -886,18 +879,40 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
                       flags);
       memcached_behavior_set(replicas[jj], MEMCACHED_BEHAVIOR_NOREPLY, 0);
     }
-  }
 
-  if ((!memcached_success(rc)) &&
-      (rc != MEMCACHED_NOTFOUND) &&
-      (rc != MEMCACHED_NOTSTORED) &&
-      (rc != MEMCACHED_DATA_EXISTS))
+    update_vbucket_comm_state(vbucket, OK);
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
+  }
+  else if (status == Store::Status::DATA_CONTENTION)
   {
+    // Data contention is treated separately from other errors
+    if (trail != 0)
+    {
+      SAS::Event err(trail, SASEvent::MEMCACHED_SET_CONTENTION, 0);
+      err.add_var_param(fqkey);
+      SAS::report_event(err);
+    }
+
+    // Commms are woking if there was data contention
+    update_vbucket_comm_state(vbucket, OK);
+
+    if (_comm_monitor)
+    {
+      _comm_monitor->inform_success();
+    }
+  }
+  else
+  {
+    // Generic error - log the error type to SAS
     if (trail != 0)
     {
       SAS::Event err(trail, SASEvent::MEMCACHED_SET_FAILED, 0);
       err.add_var_param(fqkey);
-      err.add_var_param(error_string);
+      err.add_var_param(memcached_strerror(NULL, rc));
       SAS::report_event(err);
     }
 
@@ -910,16 +925,6 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
 
     TRC_ERROR("Failed to write data for %s to %d replicas",
               fqkey.c_str(), replicas.size());
-    status = Store::Status::ERROR;
-  }
-  else
-  {
-    update_vbucket_comm_state(vbucket, OK);
-
-    if (_comm_monitor)
-    {
-      _comm_monitor->inform_success();
-    }
   }
 
   return status;
