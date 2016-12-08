@@ -822,7 +822,6 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
     {
       // This is an update to an existing record, so use memcached_cas
       // to make sure it is atomic.
-       /*
       rc = memcached_cas_vb(replicas[replica_idx],
                             key_ptr,
                             key_len,
@@ -832,8 +831,7 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
                             memcached_expiration,
                             flags,
                             cas);
-*/
-      rc = MEMCACHED_TIMEOUT;
+
       if (!memcached_success(rc))
       {
         error_string = memcached_strerror(replicas[replica_idx], rc);
