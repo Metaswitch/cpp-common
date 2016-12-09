@@ -699,8 +699,8 @@ Store::Status TopologyAwareMemcachedStore::get_data(const std::string& table,
       SAS::report_event(err);
     }
 
-    TRC_ERROR("Failed to read data for %s from %d replicas",
-              fqkey.c_str(), replicas.size());
+    TRC_ERROR("Failed to read data for %s from %d replicas with error %s",
+              fqkey.c_str(), replicas.size(), memcached_strerror(NULL, rc));
     status = Store::Status::ERROR;
 
     update_vbucket_comm_state(vbucket, FAILED);
@@ -924,8 +924,8 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
       _comm_monitor->inform_failure();
     }
 
-    TRC_ERROR("Failed to write data for %s to %d replicas",
-              fqkey.c_str(), replicas.size());
+    TRC_ERROR("Failed to write data for %s to %d replicas with error %s",
+              fqkey.c_str(), replicas.size(), memcached_strerror(NULL, rc));
   }
 
   return status;
@@ -1214,7 +1214,7 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
       SAS::report_event(err);
     }
 
-    TRC_DEBUG("Failed to read data");
+    TRC_DEBUG("Failed to read data with error %s", memcached_strerror(NULL, rc));
     status = Store::Status::ERROR;
 
     if (_comm_monitor)
@@ -1353,7 +1353,8 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
       _comm_monitor->inform_failure();
     }
 
-    TRC_DEBUG("Failed to write data for %s to store", fqkey.c_str());
+    TRC_DEBUG("Failed to write data for %s to store with error %s",
+              fqkey.c_str(), memcached_strerror(NULL, rc));
     status = Store::Status::ERROR;
   }
 
@@ -1434,7 +1435,7 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
       SAS::report_event(event);
     }
 
-    TRC_DEBUG("Delete failed");
+    TRC_DEBUG("Delete failed with error %s", memcached_strerror(NULL, rc));
   }
 
   return status;
