@@ -196,3 +196,8 @@ HTTPCode HttpConnection::send_get(const std::string& path,
                           headers_to_add,
                           trail);
 }
+
+void HttpConnection::set_unix_socket(const std::string& unix_socket)
+{
+  _client.set_unix_socket(unix_socket);
+}

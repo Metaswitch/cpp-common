@@ -216,6 +216,10 @@ public:
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
 
+  /// Sets a unix socket for libcurl to tunnel HTTP requests to
+  /// @param unix_socket  absolute path to unix socket.
+  void set_unix_socket(const std::string& unix_socket);
+
 private:
 
   /// Class used to record HTTP transactions.
@@ -354,5 +358,6 @@ private:
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
+  std::string _unix_socket;
 };
 

@@ -57,6 +57,8 @@ static const int MAX_TARGETS = 5;
 /// @param stat_name SNMP table to report connection info to.
 /// @param load_monitor Load Monitor.
 /// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
+/// @param unix_socket optional string specifying the path of a unix socket to tunnel
+///        the connection through. defaults to ""
 HttpClient::HttpClient(bool assert_user,
                        HttpResolver* resolver,
                        SNMP::IPCountTable* stat_table,
@@ -69,11 +71,14 @@ HttpClient::HttpClient(bool assert_user,
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor, stat_table)
+  _conn_pool(load_monitor, stat_table),
+  _unix_socket("")
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
+  ///@@@OA: DEBUG
+  TRC_DEBUG("libcurl version: %s", curl_version());
 }
 
 /// Create an HTTP client object.
@@ -449,6 +454,12 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // Set the curl target URL
     curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 
+    //@@@OA: first attempt at unix socket writing
+    if (!_unix_socket.empty())
+    {
+      TRC_DEBUG("CURL: writing to unix socket at %s", _unix_socket.c_str());
+      curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, "/tmp/weatherwax.sock");
+    }
     // Create and register an object to record the HTTP transaction.
     Recorder recorder;
     curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &recorder);
@@ -953,4 +964,9 @@ int HttpClient::Recorder::record_data(curl_infotype type,
   }
 
   return 0;
+}
+
+void HttpClient::set_unix_socket(const std::string& unix_socket)
+{
+  _unix_socket = unix_socket;
 }
