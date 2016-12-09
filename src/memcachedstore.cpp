@@ -695,6 +695,7 @@ Store::Status TopologyAwareMemcachedStore::get_data(const std::string& table,
     {
       SAS::Event err(trail, SASEvent::MEMCACHED_GET_ERROR, 0);
       err.add_var_param(fqkey);
+      err.add_var_param(memcached_strerror(NULL, rc));
       SAS::report_event(err);
     }
 
@@ -1209,6 +1210,7 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
     {
       SAS::Event err(trail, SASEvent::MEMCACHED_GET_ERROR, 0);
       err.add_var_param(fqkey);
+      err.add_var_param(memcached_strerror(NULL, rc));
       SAS::report_event(err);
     }
 
@@ -1428,6 +1430,7 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
     {
       SAS::Event event(trail, SASEvent::MEMCACHED_DELETE_FAILURE, 0);
       event.add_var_param(fqkey);
+      event.add_var_param(memcached_strerror(NULL, rc));
       SAS::report_event(event);
     }
 
