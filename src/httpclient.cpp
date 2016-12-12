@@ -47,8 +47,7 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
-// From libcurl examples, available under MIT license
-// https://curl.haxx.se/libcurl/c/externalsocket.html
+// Utility functions used to assign connections in custom namespaces to libcurl.
 static curl_socket_t create_connection_from_socketdata(void *clientp,
                                                   curlsocktype purpose,
                                                   struct curl_sockaddr *address)
@@ -83,8 +82,6 @@ static const int MAX_TARGETS = 5;
 /// @param stat_name SNMP table to report connection info to.
 /// @param load_monitor Load Monitor.
 /// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
-/// @param unix_socket optional string specifying the path of a unix socket to tunnel
-///        the connection through. defaults to ""
 HttpClient::HttpClient(bool assert_user,
                        HttpResolver* resolver,
                        SNMP::IPCountTable* stat_table,
@@ -102,8 +99,6 @@ HttpClient::HttpClient(bool assert_user,
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
   curl_global_init(CURL_GLOBAL_DEFAULT);
-  ///@@@OA: DEBUG
-  TRC_DEBUG("libcurl version: %s", curl_version());
 }
 
 /// Create an HTTP client object.
@@ -411,9 +406,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   std::string host = host_from_server(server);
   int port = port_from_server(server);
 
-  TRC_DEBUG("host = %s", host.c_str());
-  TRC_DEBUG("server = %s", server.c_str());
-
   // Resolve the host.
   BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail);
 
@@ -482,12 +474,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // Set the curl target URL
     curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 
-    //@@@OA: first attempt at unix socket writing
-    // if (!_unix_socket.empty())
-    // {
-    //   TRC_DEBUG("CURL: writing to unix socket at %s", _unix_socket.c_str());
-    //   curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, _unix_socket.c_str());
-    // }
     // Create and register an object to record the HTTP transaction.
     Recorder recorder;
     curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &recorder);
