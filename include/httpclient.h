@@ -77,6 +77,7 @@ static const long HTTP_GATEWAY_TIMEOUT = 504;
 class HttpClient
 {
 public:
+
   // HttpConnectionPool requires access to the private Recorder class
   friend class HttpConnectionPool;
 
@@ -216,9 +217,13 @@ public:
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
 
-  /// Sets a unix socket for libcurl to tunnel HTTP requests to
-  /// @param unix_socket  absolute path to unix socket.
-  void set_unix_socket(const std::string& unix_socket);
+  // Optional function to pass to libcurl for creating sockets,
+  // can be used to create sockets using clearwater-socket-factory.
+  typedef int (create_socket_callback_t)(const char* hostname,
+                                         const char* port);
+  // Called to set the callback function for creating sockets. Used to get
+  // sockets using clearwater_socket_factory
+  void set_socket_callback(create_socket_callback_t* socket_callback);
 
 private:
 
@@ -358,6 +363,6 @@ private:
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
-  std::string _unix_socket;
+  static create_socket_callback_t* _socket_callback;
 };
 

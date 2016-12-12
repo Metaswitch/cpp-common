@@ -47,6 +47,32 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
+// From libcurl examples, available under MIT license
+// https://curl.haxx.se/libcurl/c/externalsocket.html
+static curl_socket_t create_connection_from_socketdata(void *clientp,
+                                                  curlsocktype purpose,
+                                                  struct curl_sockaddr *address)
+{
+  curl_socket_t sockfd;
+  (void)purpose;
+  (void)address;
+  sockfd = *(curl_socket_t *)clientp;
+  /* the actual externally set socket is passed in via the OPENSOCKETDATA
+     option */
+  return sockfd;
+}
+
+static int sockopt_callback(void *clientp, curl_socket_t curlfd,
+                            curlsocktype purpose)
+{
+  (void)clientp;
+  (void)curlfd;
+  (void)purpose;
+  return CURL_SOCKOPT_ALREADY_CONNECTED;
+}
+
+HttpClient::create_socket_callback_t* HttpClient::_socket_callback = nullptr;
+
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
@@ -71,8 +97,7 @@ HttpClient::HttpClient(bool assert_user,
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor, stat_table),
-  _unix_socket("")
+  _conn_pool(load_monitor, stat_table)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
@@ -386,6 +411,9 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   std::string host = host_from_server(server);
   int port = port_from_server(server);
 
+  TRC_DEBUG("host = %s", host.c_str());
+  TRC_DEBUG("server = %s", server.c_str());
+
   // Resolve the host.
   BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail);
 
@@ -455,11 +483,11 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
 
     //@@@OA: first attempt at unix socket writing
-    if (!_unix_socket.empty())
-    {
-      TRC_DEBUG("CURL: writing to unix socket at %s", _unix_socket.c_str());
-      curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, "/tmp/weatherwax.sock");
-    }
+    // if (!_unix_socket.empty())
+    // {
+    //   TRC_DEBUG("CURL: writing to unix socket at %s", _unix_socket.c_str());
+    //   curl_easy_setopt(curl, CURLOPT_UNIX_SOCKET_PATH, _unix_socket.c_str());
+    // }
     // Create and register an object to record the HTTP transaction.
     Recorder recorder;
     curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &recorder);
@@ -469,6 +497,22 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // This could be a long time if the server is being slow, and we want to log
     // the request with the right timestamp.
     SAS::Timestamp req_timestamp = SAS::get_current_timestamp();
+
+    if (_socket_callback)
+    {
+      int sockfd = _socket_callback(host.c_str(), std::to_string(port).c_str());
+      if (sockfd != -1)
+      {
+        curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, create_connection_from_socketdata);
+        curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, &sockfd);
+        curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
+      }
+      else
+      {
+        TRC_ERROR("Failed to obtain socket from callback function.");
+        return CURL_SOCKET_BAD;
+      }
+    }
 
     // Send the request.
     doc.clear();
@@ -966,7 +1010,7 @@ int HttpClient::Recorder::record_data(curl_infotype type,
   return 0;
 }
 
-void HttpClient::set_unix_socket(const std::string& unix_socket)
+void HttpClient::set_socket_callback( create_socket_callback_t* socket_callback )
 {
-  _unix_socket = unix_socket;
+  _socket_callback = socket_callback;
 }

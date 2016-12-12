@@ -207,9 +207,7 @@ public:
                          SAS::TrailId trail,
                          const std::string& username = "");
 
-  /// Sets a unix socket for libcurl to tunnel HTTP requests to
-  /// @param unix_socket  absolute path to unix socket.
-  virtual void set_unix_socket(const std::string& unix_socket);
+  virtual void set_socket_callback( HttpClient::create_socket_callback_t* socket_callback );
 
 private:
   static const std::string SCHEME_PREFIX;

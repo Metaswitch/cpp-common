@@ -197,7 +197,7 @@ HTTPCode HttpConnection::send_get(const std::string& path,
                           trail);
 }
 
-void HttpConnection::set_unix_socket(const std::string& unix_socket)
+void HttpConnection::set_socket_callback( HttpClient::create_socket_callback_t* socket_callback )
 {
-  _client.set_unix_socket(unix_socket);
+  _client.set_socket_callback(socket_callback);
 }
