@@ -898,7 +898,7 @@ Store::Status TopologyAwareMemcachedStore::set_data(const std::string& table,
       SAS::report_event(err);
     }
 
-    // Commms are woking if there was data contention
+    // Commms are working if there was data contention
     update_vbucket_comm_state(vbucket, OK);
 
     if (_comm_monitor)
