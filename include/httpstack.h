@@ -174,6 +174,7 @@ public:
 
     bool get_remote_ip_port(std::string& ip, unsigned short& port);
     bool get_local_ip_port(std::string& ip, unsigned short& port);
+    bool get_x_real_ip(std::string& ip, unsigned short& port);
 
     /// Get the latency of the request.
     ///

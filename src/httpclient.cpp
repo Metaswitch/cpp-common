@@ -495,7 +495,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       }
       else
       {
-        TRC_ERROR("Failed to obtain socket from callback function.");
+        TRC_ERROR("Failed to obtain socket from socket callback.");
         return CURL_SOCKET_BAD;
       }
     }
@@ -996,7 +996,7 @@ int HttpClient::Recorder::record_data(curl_infotype type,
   return 0;
 }
 
-void HttpClient::set_socket_callback( create_socket_callback_t* socket_callback )
+void HttpClient::set_socket_callback(create_socket_callback_t* socket_callback)
 {
   _socket_callback = socket_callback;
 }

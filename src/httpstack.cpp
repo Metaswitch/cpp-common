@@ -450,6 +450,21 @@ bool HttpStack::Request::get_remote_ip_port(std::string& ip, unsigned short& por
   return rc;
 }
 
+bool HttpStack::Request::get_x_real_ip(std::string& ip, unsigned short& port)
+{
+  bool rc = false;
+  std::string real_ip = header("X-Real-Ip");
+  TRC_DEBUG("Real IP: %s", real_ip.c_str());
+  if (real_ip != "")
+  {
+    rc = true;
+    ip.assign(real_ip);
+    std::string port_s = header("X-Real-Port");
+    port = (short)std::stoi(port_s);
+  }
+  return rc;
+}
+
 bool HttpStack::Request::get_local_ip_port(std::string& ip, unsigned short& port)
 {
   bool rc = false;
@@ -574,7 +589,12 @@ void HttpStack::SasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& re
   std::string ip;
   unsigned short port;
 
-  if (req.get_remote_ip_port(ip, port))
+  if (req.get_x_real_ip(ip,port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else if (req.get_remote_ip_port(ip, port))
   {
     event.add_var_param(ip);
     event.add_static_param(port);

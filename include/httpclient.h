@@ -77,7 +77,6 @@ static const long HTTP_GATEWAY_TIMEOUT = 504;
 class HttpClient
 {
 public:
-
   // HttpConnectionPool requires access to the private Recorder class
   friend class HttpConnectionPool;
 
