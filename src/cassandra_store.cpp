@@ -650,16 +650,6 @@ put_columns(const std::vector<RowColumns>& to_put,
   batch_mutate(mutmap, ConsistencyLevel::ONE);
 }
 
-// A map from quorum consistency levels to their corresponding SAS enum value.
-// Any changes made to this must be consistently applied to the sas resource
-// bundle.
-enum class Quorum_Consistency_Levels
-{
-  LOCAL_QUORUM = ::cass::ConsistencyLevel::LOCAL_QUORUM,
-  QUORUM = ::cass::ConsistencyLevel::QUORUM,
-  TWO = ::cass::ConsistencyLevel::TWO
-};
-
 // Macro to turn an underlying (non-HA) get method into an HA one.
 //
 // This macro takes the following arguments:
@@ -685,20 +675,16 @@ enum class Quorum_Consistency_Levels
         catch(UnavailableException& ue)                                      \
         {                                                                    \
           TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
-          int event_id = SASEvent::QUORUM_FAILURE;                           \
+          int event_id = SASEvent::CASS_REQUEST_TWO_FAIL;                    \
           SAS::Event event(TRAIL_ID, event_id, 0);                           \
-          event.add_static_param(                                            \
-            static_cast<uint32_t>(Quorum_Consistency_Levels::TWO));          \
           SAS::report_event(event);                                          \
           METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
         }                                                                    \
         catch(TimedOutException& te)                                         \
         {                                                                    \
           TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
-          int event_id = SASEvent::QUORUM_FAILURE;                           \
+          int event_id = SASEvent::CASS_REQUEST_TWO_FAIL;                    \
           SAS::Event event(TRAIL_ID, event_id, 1);                           \
-          event.add_static_param(                                            \
-            static_cast<uint32_t>(Quorum_Consistency_Levels::TWO));          \
           SAS::report_event(event);                                          \
           METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
         }

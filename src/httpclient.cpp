@@ -394,20 +394,23 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   corr_marker.add_var_param(uuid_str);
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
 
+  std::string scheme;
   std::string server;
   std::string path;
-  if (!Utils::parse_http_url(url, server, path))
+  if (!Utils::parse_http_url(url, scheme, server, path))
   {
     TRC_ERROR("%s could not be parsed as a URL : fatal",
               url.c_str());
     return HTTP_BAD_REQUEST;
   }
 
-  std::string host = host_from_server(server);
-  int port = port_from_server(server);
+  std::string host = host_from_server(scheme, server);
+  int port = port_from_server(scheme, server);
 
-  // Resolve the host.
+  // Resolve the host, and check whether it was an IP address all along.
   BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail);
+  IP46Address dummy_address;
+  bool host_is_ip = BaseResolver::parse_ip_target(host, dummy_address);
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
   // or I/O errors.
@@ -446,33 +449,63 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // Set general curl options
     set_curl_options_general(curl, body, doc);
 
-    // Set response header curl options
+    // Set response header curl options. We always want to catch the headers,
+    // even if the caller isn't interested.
+    std::map<std::string, std::string> internal_rsp_hdrs;
+
+    if (!response_headers)
+    {
+      response_headers = &internal_rsp_hdrs;
+    }
+
     set_curl_options_response(curl, response_headers);
 
     // Set request-type specific curl options
     set_curl_options_request(curl, request_type);
 
-    // Convert the target IP address into a string and fix up the URL.  It
-    // would be nice to use curl_easy_setopt(CURL_RESOLVE) here, but its
-    // implementation is incomplete.
+    // Convert the target IP address into a string and tell curl to resolve to that.
     char buf[100];
     remote_ip = inet_ntop(target.address.af,
                           &target.address.addr,
                           buf,
                           sizeof(buf));
 
-    std::string ip_url;
-    if (target.address.af == AF_INET6)
+    // We want curl's DNS cache to contain exactly one entry: for the host and
+    // IP that we're currently processing.
+    //
+    // It's easy to add an entry with the CURLOPT_RESOLVE flag, but removing it
+    // again in anticipation of the next query is trickier - because options
+    // that we set are not processed until we actually make a query, and we can
+    // only set this option once per request.
+    //
+    // So each time we add an entry we also store a curl_slist which will
+    // remove that entry, and then _next_ time round we use that as well as
+    // adding the entry that we do want.
+    //
+    // At this point then, we retrieve the value previously stored - if any.
+    // (We may be here for the very first time, or the previous query may have
+    // been direct to an IP address, so we may not find anything).
+    curl_slist *host_resolve = NULL;
+    curl_easy_getinfo(curl, CURLINFO_PRIVATE, &host_resolve);
+    curl_easy_setopt(curl, CURLOPT_PRIVATE, NULL);
+
+    // Add the new entry - except in the case where the host is already an IP
+    // address.
+    if (!host_is_ip)
     {
-      ip_url = "http://[" + std::string(remote_ip) + "]:" + std::to_string(target.port) + path;
+      std::string resolve_addr =
+        host + ":" + std::to_string(port) + ":" + remote_ip;
+      host_resolve = curl_slist_append(host_resolve, resolve_addr.c_str());
+      TRC_DEBUG("Set CURLOPT_RESOLVE: %s", resolve_addr.c_str());
     }
-    else
+    if (host_resolve != NULL)
     {
-      ip_url = "http://" + std::string(remote_ip) + ":" + std::to_string(target.port) + path;
+      curl_easy_setopt(curl, CURLOPT_RESOLVE, host_resolve);
     }
 
     // Set the curl target URL
-    curl_easy_setopt(curl, CURLOPT_URL, ip_url.c_str());
+    std::string curl_target = scheme + "://" + host + ":" + std::to_string(port) + path;
+    curl_easy_setopt(curl, CURLOPT_URL, curl_target.c_str());
 
     // Create and register an object to record the HTTP transaction.
     Recorder recorder;
@@ -512,6 +545,23 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
     }
 
+    // Clean up from setting up the DNS cache this time round.
+    if (host_resolve != NULL)
+    {
+      curl_slist_free_all(host_resolve);
+      host_resolve = NULL;
+    }
+
+    // Prepare to remove the DNS entry from curl's cache next time round, if
+    // necessary
+    if (!host_is_ip)
+    {
+      std::string resolve_remove_addr =
+        std::string("-") + host + ":" + std::to_string(port);
+      host_resolve = curl_slist_append(NULL, resolve_remove_addr.c_str());
+      curl_easy_setopt(curl, CURLOPT_PRIVATE, host_resolve);
+    }
+
     // Log the result of the request.
     long http_rc = 0;
     if (rc == CURLE_OK)
@@ -542,16 +592,52 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     }
     else
     {
-      // If we failed to even to establish an HTTP connection, blacklist this IP
-      // address.
-      if (!(http_rc >= 400) &&
+      // If we failed to even to establish an HTTP connection or recieved a 503
+      // with a Retry-After header, blacklist this IP address.
+      if ((!(http_rc >= 400)) &&
           (rc != CURLE_REMOTE_FILE_NOT_FOUND) &&
           (rc != CURLE_REMOTE_ACCESS_DENIED))
       {
         // The CURL connection should not be returned to the pool
+        TRC_DEBUG("Blacklist on connection failure");
         conn_handle.set_return_to_pool(false);
-
         _resolver->blacklist(target);
+      }
+      else if (http_rc == 503)
+      {
+        // Check for a Retry-After header on 503 responses and if present with
+        // a valid value (i.e. an integer) blacklist the host for the given
+        // number of seconds.
+        TRC_DEBUG("Have 503 failure");
+        std::map<std::string, std::string>::iterator retry_after_header =
+                                          response_headers->find("retry-after");
+        int retry_after = 0;
+
+        if (retry_after_header != response_headers->end())
+        {
+          TRC_DEBUG("Try to parse retry after value");
+          std::string retry_after_val = retry_after_header->second;
+          retry_after = atoi(retry_after_val.c_str());
+
+          // Log if we failed to parse the Retry-After header here
+          if (retry_after == 0)
+          {
+            TRC_WARNING("Failed to parse Retry-After value: %s", retry_after_val.c_str());
+            sas_log_bad_retry_after_value(trail, retry_after_val, 0);
+          }
+        }
+
+        if (retry_after > 0)
+        {
+          // The CURL connection should not be returned to the pool
+          TRC_DEBUG("Have retry after value %d", retry_after);
+          conn_handle.set_return_to_pool(false);
+          _resolver->blacklist(target, retry_after);
+        }
+        else
+        {
+          _resolver->success(target);
+        }
       }
       else
       {
@@ -925,7 +1011,24 @@ void HttpClient::sas_log_curl_error(SAS::TrailId trail,
   }
 }
 
-void HttpClient::host_port_from_server(const std::string& server, std::string& host, int& port)
+void HttpClient::sas_log_bad_retry_after_value(SAS::TrailId trail,
+                                               const std::string value,
+                                               uint32_t instance_id)
+{
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                    SASEvent::HTTP_BAD_RETRY_AFTER_VALUE : SASEvent::HTTP_BAD_RETRY_AFTER_VALUE_DETAIL);
+    SAS::Event event(trail, event_id, instance_id);
+    event.add_var_param(value.c_str());
+    SAS::report_event(event);
+  }
+}
+
+void HttpClient::host_port_from_server(const std::string& scheme,
+                                       const std::string& server,
+                                       std::string& host,
+                                       int& port)
 {
   std::string server_copy = server;
   Utils::trim(server_copy);
@@ -940,23 +1043,25 @@ void HttpClient::host_port_from_server(const std::string& server, std::string& h
   else
   {
     host = server_copy;
-    port = 0;
+    port = (scheme == "https") ? DEFAULT_HTTPS_PORT : DEFAULT_HTTP_PORT;
   }
 }
 
-std::string HttpClient::host_from_server(const std::string& server)
+std::string HttpClient::host_from_server(const std::string& scheme,
+                                         const std::string& server)
 {
   std::string host;
   int port;
-  host_port_from_server(server, host, port);
+  host_port_from_server(scheme, server, host, port);
   return host;
 }
 
-int HttpClient::port_from_server(const std::string& server)
+int HttpClient::port_from_server(const std::string& scheme,
+                                 const std::string& server)
 {
   std::string host;
   int port;
-  host_port_from_server(server, host, port);
+  host_port_from_server(scheme, server, host, port);
   return port;
 }
 

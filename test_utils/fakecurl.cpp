@@ -65,9 +65,20 @@ CURLcode FakeCurl::easy_perform(FakeCurl* curl)
 
   fakecurl_requests[_url] = req;
 
+  // If we've been told how to resolve this URL, do so.
+  std::string resolved = _url;
+  size_t slash_slash_pos = _url.find("//");
+  size_t slash_pos = _url.find('/', slash_slash_pos + 2);
+  std::string host_and_port = _url.substr(slash_slash_pos + 2, slash_pos - (slash_slash_pos + 2));
+  std::map<std::string, std::string>::iterator it = _resolves.find(host_and_port);
+  if (it != _resolves.end())
+  {
+    resolved = _url.replace(slash_slash_pos + 2, host_and_port.length(), it->second);
+  }
+
   // Check if there's a response ready.
-  auto iter = fakecurl_responses.find(_url);
-  auto iter2 = fakecurl_responses_with_body.find(pair<string, string>(_url, _body));
+  auto iter = fakecurl_responses.find(resolved);
+  auto iter2 = fakecurl_responses_with_body.find(pair<string, string>(resolved, _body));
 
   Response* resp;
   if (iter != fakecurl_responses.end())

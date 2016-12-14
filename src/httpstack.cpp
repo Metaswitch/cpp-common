@@ -36,6 +36,7 @@
 
 #include "httpstack.h"
 #include <cstring>
+#include <sys/stat.h>
 #include "log.h"
 
 bool HttpStack::_ev_using_pthreads = false;
@@ -158,6 +159,16 @@ void HttpStack::register_handler(const char* path,
   }
 }
 
+void HttpStack::register_default_handler(HttpStack::HandlerInterface* handler)
+{
+  HandlerRegistration* reg = new HandlerRegistration(this, handler);
+  _handler_registrations.insert(reg);
+
+  evhtp_set_gencb(_evhtp,
+                  handler_callback_fn,
+                  (void*)reg);
+}
+
 void HttpStack::bind_tcp_socket(const std::string& bind_address,
                                 unsigned short port)
 {
@@ -249,6 +260,9 @@ void HttpStack::bind_unix_socket(const std::string& bind_path)
     throw Exception("evhtp_bind_socket (unix)", rc);
     // LCOV_EXCL_STOP
   }
+
+  // Socket needs to be world-writeable for nginx to use it
+  chmod(bind_path.c_str(), 0777);
 }
 
 void HttpStack::start(evhtp_thread_init_cb init_cb)

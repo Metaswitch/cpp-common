@@ -41,7 +41,9 @@
 namespace CassandraStore
 {
 
-static const int TSOCKET_TIMEOUT_MS = 50;
+static const int TSOCKET_CONN_TIMEOUT_MS = 150;
+static const int TSOCKET_RECV_TIMEOUT_MS = 150;
+static const int TSOCKET_SEND_TIMEOUT_MS = 150;
 
 // The length of time a connection can remain idle before it is removed from
 // the pool
@@ -64,9 +66,9 @@ Client* CassandraConnectionPool::create_connection(AddrInfo target)
 
   boost::shared_ptr<TSocket> socket =
     boost::shared_ptr<TSocket>(new TSocket(std::string(remote_ip), target.port));
-  socket->setConnTimeout(TSOCKET_TIMEOUT_MS);
-  socket->setRecvTimeout(TSOCKET_TIMEOUT_MS);
-  socket->setSendTimeout(TSOCKET_TIMEOUT_MS);
+  socket->setConnTimeout(TSOCKET_CONN_TIMEOUT_MS);
+  socket->setRecvTimeout(TSOCKET_RECV_TIMEOUT_MS);
+  socket->setSendTimeout(TSOCKET_SEND_TIMEOUT_MS);
   boost::shared_ptr<TFramedTransport> transport =
     boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
   boost::shared_ptr<TProtocol> protocol =

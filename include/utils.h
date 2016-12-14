@@ -209,13 +209,17 @@ namespace Utils
   // becomes"19af"
   std::string hex(const uint8_t* data, size_t len);
 
-  /// Splits a URL of the form "http://<servername>[/<path>]" into
+  /// Splits a URL of the form "http[s]://<servername>[/<path>]" into
   /// servername and path.
   ///
   /// Returns true iff the URL is in the corrects form, and sets the server
   /// and path arguments to the URL components.  If the path in the URL is
   /// missing, it defaults to "/".
-  bool parse_http_url(const std::string& url, std::string& server, std::string& path);
+  bool parse_http_url(
+      const std::string& url,
+      std::string& scheme,
+      std::string& server,
+      std::string& path);
 
   std::string url_unescape(const std::string& s);
   std::string url_escape(const std::string& s);
