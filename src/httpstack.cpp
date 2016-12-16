@@ -469,13 +469,25 @@ bool HttpStack::Request::get_x_real_ip(std::string& ip, unsigned short& port)
   bool rc = false;
   std::string real_ip = header("X-Real-Ip");
   TRC_DEBUG("Real IP: %s", real_ip.c_str());
+
   if (real_ip != "")
   {
     rc = true;
     ip.assign(real_ip);
     std::string port_s = header("X-Real-Port");
-    port = (short)std::stoi(port_s);
+
+    if (port_s != "")
+    {
+      port = (short)std::stoi(port_s);
+    }
+    else
+    {
+      // This should only happen if the reverse proxy has been mis-configured.
+      TRC_WARNING("Recieved a proxied request with missing X-Real-Port-header.");
+      port = 0;
+    }
   }
+
   return rc;
 }
 
