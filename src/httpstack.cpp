@@ -504,11 +504,9 @@ void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
                                           uint32_t instance_id)
 {
   std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);
-  // @@@OA: DEBUG
-  TRC_DEBUG("correlator found: %s", correlator.c_str());
   if (correlator != "")
   {
-    SAS::Marker corr_marker(trail,MARKED_ID_GENERIC_CORRELATOR, instance_id);
+    SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, instance_id);
     corr_marker.add_var_param(correlator);
 
     // Report a correlating marker to SAS.  Set the option that means any
@@ -605,6 +603,8 @@ void HttpStack::SasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& re
   std::string ip;
   unsigned short port;
 
+  // If nginx is acting as a reverse proxy and one endpoint isn't logging to SAS,
+  // use the X-Real-IP header to get the correct IP.
   if (req.get_x_real_ip(ip,port))
   {
     event.add_var_param(ip);
