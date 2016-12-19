@@ -209,7 +209,7 @@ public:
                          SAS::TrailId trail,
                          const std::string& username = "");
 
-  virtual void set_socket_callback( HttpClient::create_socket_callback_t* socket_callback );
+  virtual void set_socket_callback(HttpClient::create_socket_callback_t* socket_callback);
 
 private:
   std::string _scheme;

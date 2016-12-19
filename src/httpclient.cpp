@@ -520,6 +520,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     if (_socket_callback)
     {
       int sockfd = _socket_callback(host.c_str(), std::to_string(port).c_str());
+
       if (sockfd != -1)
       {
         curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, create_connection_from_socketdata);
