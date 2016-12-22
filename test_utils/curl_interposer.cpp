@@ -390,6 +390,9 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
   case CURLOPT_NOSIGNAL:
   case CURLOPT_READDATA:
   case CURLOPT_READFUNCTION:
+  case CURLOPT_OPENSOCKETFUNCTION:
+  case CURLOPT_OPENSOCKETDATA:
+  case CURLOPT_SOCKOPTFUNCTION:
   {
     // ignore
   }
