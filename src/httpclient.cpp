@@ -70,8 +70,6 @@ static int sockopt_callback(void *clientp, curl_socket_t curlfd,
   return CURL_SOCKOPT_ALREADY_CONNECTED;
 }
 
-HttpClient::create_socket_callback_t* HttpClient::_socket_callback = nullptr;
-
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
@@ -94,7 +92,8 @@ HttpClient::HttpClient(bool assert_user,
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor, stat_table)
+  _conn_pool(load_monitor, stat_table),
+  _socket_callback(nullptr)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);

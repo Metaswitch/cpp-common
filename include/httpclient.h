@@ -373,6 +373,6 @@ private:
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
-  static create_socket_callback_t* _socket_callback;
+  create_socket_callback_t* _socket_callback;
 };
 
