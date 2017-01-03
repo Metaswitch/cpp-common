@@ -331,27 +331,34 @@ public:
                             SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
 
     // Add the remote and local IP addresses and ports to an event.
-    void add_ip_addrs_and_ports(SAS::Event& event, Request& req);
+    virtual void add_ip_addrs_and_ports(SAS::Event& event, Request& req);
   };
 
   /// Default implementation of SAS Logger.  Logs with default severity.
   class DefaultSasLogger : public SasLogger
   {
   public:
-    void sas_log_rx_http_req(SAS::TrailId trail,
-                             Request& req,
-                             uint32_t instance_id = 0);
-    void sas_log_tx_http_rsp(SAS::TrailId trail,
-                             Request& req,
-                             int rc,
-                             uint32_t instance_id = 0);
-    void sas_log_overload(SAS::TrailId trail,
-                          Request& req,
-                          int rc,
-                          int target_latency,
-                          int current_latency,
-                          float rate_limit,
-                          uint32_t instance_id = 0);
+    virtual void sas_log_rx_http_req(SAS::TrailId trail,
+                                     Request& req,
+                                     uint32_t instance_id = 0);
+    virtual void sas_log_tx_http_rsp(SAS::TrailId trail,
+                                     Request& req,
+                                     int rc,
+                                     uint32_t instance_id = 0);
+    virtual void sas_log_overload(SAS::TrailId trail,
+                                  Request& req,
+                                  int rc,
+                                  int target_latency,
+                                  int current_latency,
+                                  float rate_limit,
+                                  uint32_t instance_id = 0);
+  };
+
+  /// SAS logger for http-stacks behind nginx reverse proxies.
+  class ProxiedSasLogger : public DefaultSasLogger
+  {
+  protected:
+    void add_ip_addrs_and_ports(SAS::Event& event, Request& req);
   };
 
   /// "Null" SAS Logger.  Does not log.
@@ -391,7 +398,7 @@ public:
     /// transactions.
     ///
     /// The default implemention returns the default logger
-    /// (HttpStack::SAS_LOGGER).
+    /// (HttpStack::DEFAULT_SAS_LOGGER).
     ///
     /// @param req the transaction to log.
     /// @return the object used to log the transaction.
@@ -437,6 +444,7 @@ public:
   };
 
   static DefaultSasLogger DEFAULT_SAS_LOGGER;
+  static ProxiedSasLogger PROXIED_SAS_LOGGER;
   static NullSasLogger NULL_SAS_LOGGER;
 
 private:

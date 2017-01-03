@@ -41,6 +41,7 @@
 
 bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
+HttpStack::ProxiedSasLogger HttpStack::PROXIED_SAS_LOGGER;
 HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 
 HttpStack::HttpStack(int num_threads,
@@ -615,14 +616,7 @@ void HttpStack::SasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& re
   std::string ip;
   unsigned short port;
 
-  // If nginx is acting as a reverse proxy and one endpoint isn't logging to SAS,
-  // use the X-Real-IP header to get the correct IP.
-  if (req.get_x_real_ip(ip,port))
-  {
-    event.add_var_param(ip);
-    event.add_static_param(port);
-  }
-  else if (req.get_remote_ip_port(ip, port))
+  if (req.get_remote_ip_port(ip, port))
   {
     event.add_var_param(ip);
     event.add_static_param(port);
@@ -646,6 +640,24 @@ void HttpStack::SasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& re
     event.add_var_param("unknown");
     event.add_static_param(0);
     // LCOV_EXCL_STOP
+  }
+}
+
+void HttpStack::ProxiedSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& req)
+{
+  std::string ip;
+  unsigned short port;
+
+  // If nginx is acting as a reverse proxy and one endpoint isn't logging to SAS,
+  // use the X-Real-IP header to get the correct IP.
+  if (req.get_x_real_ip(ip,port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    HttpStack::SasLogger::add_ip_addrs_and_ports(event, req);
   }
 }
 
