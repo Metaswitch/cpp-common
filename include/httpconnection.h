@@ -63,12 +63,12 @@ public:
                  const std::string& scheme = "http") :
     _scheme(scheme),
     _server(server),
-    _client(assert_user,
-            resolver,
-            stat_table,
-            load_monitor,
-            sas_log_level,
-            comm_monitor)
+    _client( new HttpClient(assert_user,
+                            resolver,
+                            stat_table,
+                            load_monitor,
+                            sas_log_level,
+                            comm_monitor))
   {
     TRC_STATUS("Configuring HTTP Connection");
     TRC_STATUS("  Connection created for server %s", _server.c_str());
@@ -88,7 +88,10 @@ public:
                    comm_monitor)
   {}
 
-  virtual ~HttpConnection() {}
+  virtual ~HttpConnection()
+  {
+    delete _client;
+  }
 
   /// Sends a HTTP GET request to _server with the specified parameters
   ///
@@ -209,11 +212,59 @@ public:
                          SAS::TrailId trail,
                          const std::string& username = "");
 
-  virtual void set_socket_callback(HttpClient::create_socket_callback_t* socket_callback);
+protected:
+  HttpConnection(const std::string& server,
+                 HttpClient* client,
+                 const std::string& scheme = "http") :
+    _scheme(scheme),
+    _server(server),
+    _client(client) {}
 
-private:
   std::string _scheme;
   std::string _server;
-  HttpClient _client;
+  HttpClient* _client;
 };
 
+class CallbackHttpConnection : public HttpConnection
+{
+public:
+  CallbackHttpConnection(const std::string& server,
+                 bool assert_user,
+                 HttpResolver* resolver,
+                 SNMP::IPCountTable* stat_table,
+                 LoadMonitor* load_monitor,
+                 SASEvent::HttpLogLevel sas_log_level,
+                 BaseCommunicationMonitor* comm_monitor,
+                 CallbackHttpClient::create_socket_callback_t* socket_callback,
+                 const std::string& scheme = "http") :
+    HttpConnection(server,
+                   new CallbackHttpClient(assert_user,
+                                          resolver,
+                                          stat_table,
+                                          load_monitor,
+                                          sas_log_level,
+                                          comm_monitor,
+                                          socket_callback),
+                   scheme)
+  {
+    TRC_STATUS("Configuring HTTP Connection");
+    TRC_STATUS("  Connection created for server %s", _server.c_str());
+  }
+
+  CallbackHttpConnection(const std::string& server,
+                 bool assert_user,
+                 HttpResolver* resolver,
+                 SASEvent::HttpLogLevel sas_log_level,
+                 BaseCommunicationMonitor* comm_monitor,
+                 CallbackHttpClient::create_socket_callback_t* socket_callback) :
+    CallbackHttpConnection(server,
+                           assert_user,
+                           resolver,
+                           NULL,
+                           NULL,
+                           sas_log_level,
+                           comm_monitor,
+                           socket_callback) {}
+
+  virtual ~CallbackHttpConnection(){}
+};

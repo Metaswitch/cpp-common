@@ -643,24 +643,6 @@ void HttpStack::SasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& re
   }
 }
 
-void HttpStack::ProxiedSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& req)
-{
-  std::string ip;
-  unsigned short port;
-
-  // If nginx is acting as a reverse proxy and one endpoint isn't logging to SAS,
-  // use the X-Real-IP header to get the correct IP.
-  if (req.get_x_real_ip(ip,port))
-  {
-    event.add_var_param(ip);
-    event.add_static_param(port);
-  }
-  else
-  {
-    HttpStack::SasLogger::add_ip_addrs_and_ports(event, req);
-  }
-}
-
 //
 // DefaultSasLogger methods.
 //
@@ -693,3 +675,45 @@ void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
   log_overload_event(trail, req, rc, target_latency, current_latency, rate_limit, instance_id);
 }
 
+//
+// ProxiedSasLogger methods.
+//
+
+void HttpStack::ProxiedSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& req)
+{
+  std::string ip;
+  unsigned short port;
+
+  // If nginx is acting as a reverse proxy and one endpoint isn't logging to SAS,
+  // use the X-Real-IP header to get the correct IP.
+  if (req.get_x_real_ip(ip,port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else if (req.get_remote_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    // LCOV_EXCL_START
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+    // LCOV_EXCL_STOP
+  }
+
+  if (req.get_local_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    // LCOV_EXCL_START
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+    // LCOV_EXCL_STOP
+  }
+}

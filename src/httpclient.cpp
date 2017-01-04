@@ -47,29 +47,6 @@
 #include "load_monitor.h"
 #include "random_uuid.h"
 
-// Utility functions used to assign connections in custom namespaces to libcurl.
-static curl_socket_t create_connection_from_socketdata(void *clientp,
-                                                  curlsocktype purpose,
-                                                  struct curl_sockaddr *address)
-{
-  curl_socket_t sockfd;
-  (void)purpose;
-  (void)address;
-  sockfd = *(curl_socket_t *)clientp;
-  /* the actual externally set socket is passed in via the OPENSOCKETDATA
-     option */
-  return sockfd;
-}
-
-static int sockopt_callback(void *clientp, curl_socket_t curlfd,
-                            curlsocktype purpose)
-{
-  (void)clientp;
-  (void)curlfd;
-  (void)purpose;
-  return CURL_SOCKOPT_ALREADY_CONNECTED;
-}
-
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
@@ -92,8 +69,7 @@ HttpClient::HttpClient(bool assert_user,
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor, stat_table),
-  _socket_callback(nullptr)
+  _conn_pool(load_monitor, stat_table)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
@@ -510,28 +486,15 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     Recorder recorder;
     curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &recorder);
 
+
+    // Set host-specific curl options
+    void* host_context = set_curl_options_host(curl, host, port);
+
     // Get the current timestamp before calling into curl.  This is because we
     // can't log the request to SAS until after curl_easy_perform has returned.
     // This could be a long time if the server is being slow, and we want to log
     // the request with the right timestamp.
     SAS::Timestamp req_timestamp = SAS::get_current_timestamp();
-
-    if (_socket_callback)
-    {
-      int sockfd = _socket_callback(host.c_str(), std::to_string(port).c_str());
-
-      if (sockfd != -1)
-      {
-        curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, create_connection_from_socketdata);
-        curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, &sockfd);
-        curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
-      }
-      else
-      {
-        TRC_ERROR("Failed to obtain socket from socket callback.");
-        return CURL_SOCKET_BAD;
-      }
-    }
 
     // Send the request.
     doc.clear();
@@ -582,6 +545,9 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // At this point, we are finished with the curl object, so it is safe to
     // free the headers
     curl_slist_free_all(extra_headers);
+
+    // Clean up any memory allocated by set_curl_options_host
+    cleanup_host_context(host_context);
 
     // Update the connection recycling and retry algorithms.
     if ((rc == CURLE_OK) && !(http_rc >= 400))
@@ -1101,7 +1067,41 @@ int HttpClient::Recorder::record_data(curl_infotype type,
   return 0;
 }
 
-void HttpClient::set_socket_callback(create_socket_callback_t* socket_callback)
+static int sockopt_callback(void *context, curl_socket_t curlfd,
+                            curlsocktype purpose)
 {
-  _socket_callback = socket_callback;
+  (void)context;
+  (void)curlfd;
+  (void)purpose;
+  return CURL_SOCKOPT_ALREADY_CONNECTED;
+}
+
+curl_socket_t get_socket_from_context(void *context,
+                                      curlsocktype purpose,
+                                      struct curl_sockaddr *address)
+{
+  (void) purpose;
+  (void) address;
+  int socket = *(int*)context;
+
+  return socket;
+}
+
+void* CallbackHttpClient::set_curl_options_host(CURL* curl, std::string host, int port)
+{
+  // Need to pass a pointer to opensocketdata, so create a socket on the heap.
+  int* socket = new int;
+  *socket = _socket_callback(host.c_str(), std::to_string(port).c_str());
+
+  curl_easy_setopt(curl, CURLOPT_OPENSOCKETFUNCTION, get_socket_from_context);
+  curl_easy_setopt(curl, CURLOPT_OPENSOCKETDATA, socket);
+  curl_easy_setopt(curl, CURLOPT_SOCKOPTFUNCTION, sockopt_callback);
+
+  return (void*) socket;
+}
+
+void CallbackHttpClient::cleanup_host_context(void* host_context)
+{
+  // Delete the socket created above after the connection has been completed.
+  delete (int*)host_context;
 }

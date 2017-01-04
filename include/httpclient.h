@@ -84,12 +84,12 @@ public:
              HttpResolver* resolver,
              SNMP::IPCountTable* stat_table,
              LoadMonitor* load_monitor,
-             SASEvent::HttpLogLevel,
+             SASEvent::HttpLogLevel sas_log_level,
              BaseCommunicationMonitor* comm_monitor);
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
-             SASEvent::HttpLogLevel,
+             SASEvent::HttpLogLevel sas_log_level,
              BaseCommunicationMonitor* comm_monitor);
 
   virtual ~HttpClient();
@@ -216,14 +216,6 @@ public:
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
 
-  // Optional function to pass to libcurl for creating sockets,
-  // can be used to create sockets using clearwater-socket-factory.
-  typedef int (create_socket_callback_t)(const char* hostname,
-                                         const char* port);
-  // Called to set the callback function for creating sockets. Used to get
-  // sockets using clearwater_socket_factory
-  void set_socket_callback(create_socket_callback_t* socket_callback);
-
 private:
 
   /// Class used to record HTTP transactions.
@@ -304,6 +296,18 @@ private:
   /// send_request
   void set_curl_options_request(CURL* curl, RequestType request_type);
 
+  /// Helper functions that sets host-specific curl options in send_request
+  virtual void* set_curl_options_host(CURL* curl, std::string host, int port)
+  {
+    return nullptr;
+  }
+
+  /// Clean-up function for any memory allocated by set_curl_options_host
+  virtual void cleanup_host_context(void* host_context)
+  {
+    (void) host_context;
+  }
+
   void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
 
   void sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info);
@@ -373,6 +377,51 @@ private:
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
-  create_socket_callback_t* _socket_callback;
 };
 
+/// HttpClient which uses a custom socket callback function to create connections
+/// can be used with clearwater-socket-factory.
+class CallbackHttpClient : public HttpClient
+{
+public:
+  // Optional function to pass to libcurl for creating sockets,
+  // can be used to create sockets using clearwater-socket-factory.
+  typedef int (create_socket_callback_t)(const char* hostname,
+                                         const char* port);
+
+  CallbackHttpClient(bool assert_user,
+             HttpResolver* resolver,
+             SNMP::IPCountTable* stat_table,
+             LoadMonitor* load_monitor,
+             SASEvent::HttpLogLevel sas_log_level,
+             BaseCommunicationMonitor* comm_monitor,
+             create_socket_callback_t* socket_callback = nullptr) :
+    HttpClient(assert_user,
+               resolver,
+               stat_table,
+               load_monitor,
+               sas_log_level,
+               comm_monitor),
+    _socket_callback(socket_callback) {}
+
+  CallbackHttpClient(bool assert_user,
+                    HttpResolver* resolver,
+                    SASEvent::HttpLogLevel sas_log_level,
+                    BaseCommunicationMonitor* comm_monitor,
+                    create_socket_callback_t* socket_callback = nullptr) :
+    HttpClient(assert_user, resolver, sas_log_level, comm_monitor),
+    _socket_callback(socket_callback) {}
+
+  virtual ~CallbackHttpClient(){};
+
+  curl_socket_t get_socket_from_callback();
+
+protected:
+  // Creates a socket using the callback function and passes it to curl
+  void* set_curl_options_host(CURL* curl, std::string host, int port);
+  // Deletes the socket after curl is done with it.
+  void cleanup_host_context(void* host_context);
+
+private:
+  create_socket_callback_t* _socket_callback;
+};
