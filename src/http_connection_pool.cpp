@@ -55,6 +55,15 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
   CURL* conn = curl_easy_init();
   TRC_DEBUG("Allocated CURL handle %p", conn);
 
+  // TLS specific options.
+  curl_easy_setopt(conn, CURLOPT_SSL_VERIFYPEER, 1L);
+  curl_easy_setopt(conn, CURLOPT_CAINFO, "/home/ubuntu/EasyRSA-3.0.1/pki/crt/ca.crt");
+  curl_easy_setopt(conn, CURLOPT_SSLCERTTYPE, "PEM");
+  curl_easy_setopt(conn, CURLOPT_SSLCERT, "/home/ubuntu/EasyRSA-3.0.1/pki/crt/client.crt");
+  curl_easy_setopt(conn, CURLOPT_SSLKEYTYPE, "PEM");
+  curl_easy_setopt(conn, CURLOPT_SSLKEY, "/home/ubuntu/EasyRSA-3.0.1/pki/private/client.key");
+  curl_easy_setopt(conn, CURLOPT_SSLKEYPASSWD, "1234");
+
   // Retrieved data will always be written to a string.
   curl_easy_setopt(conn, CURLOPT_WRITEFUNCTION, &HttpClient::string_store);
 
