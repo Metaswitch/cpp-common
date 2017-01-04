@@ -140,6 +140,28 @@ void HttpStack::initialize()
   if (!_evhtp)
   {
     _evhtp = evhtp_new(_evbase, NULL);
+
+    // Set SSL configuration.
+    evhtp_ssl_cfg_t ssl_cfg;
+
+    ssl_cfg.pemfile = "/home/ubuntu/EasyRSA-3.0.1/pki/private/server.key";
+    ssl_cfg.privfile = "/home/ubuntu/EasyRSA-3.0.1/pki/private/server.key";
+    ssl_cfg.cafile = "ca.crt";
+    ssl_cfg.capath = "/home/ubuntu/EasyRSA-3.0.1/pki/crt/";
+    ssl_cfg.ciphers = "DEFAULT";
+    ssl_cfg.ssl_opts = SSL_OP_NO_SSLv2;
+    ssl_cfg.ssl_ctx_timeout = 60 * 60 * 48;
+    ssl_cfg.verify_peer = SSL_VERIFY_PEER;
+    ssl_cfg.verify_depth = 42;
+    ssl_cfg.scache_type = evhtp_ssl_scache_type_internal;
+    ssl_cfg.scache_size = 1024;
+    ssl_cfg.scache_timeout = 1024;
+    ssl_cfg.scache_init = NULL;
+    ssl_cfg.scache_add = NULL;
+    ssl_cfg.scache_get = NULL;
+    ssl_cfg.scache_del = NULL;
+
+    evhtp_ssl_init(_evhtp, &ssl_cfg);
   }
 }
 
