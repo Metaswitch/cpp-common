@@ -382,6 +382,22 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
     }
   }
   break;
+  case CURLOPT_OPENSOCKETFUNCTION:
+  {
+    curl->_socket_callback = va_arg(args, socket_callback_t*);
+  }
+  break;
+  case CURLOPT_OPENSOCKETDATA:
+  {
+    curl->_socket_data = va_arg(args, void*);
+  }
+  break;
+  case CURLOPT_SOCKOPTFUNCTION:
+  {
+    curl->_sockopt_callback = va_arg(args, sockopt_callback_t*);
+  }
+  break;
+
   case CURLOPT_MAXCONNECTS:
   case CURLOPT_TIMEOUT_MS:
   case CURLOPT_CONNECTTIMEOUT_MS:
