@@ -57,6 +57,7 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
 
   // TLS specific options.
   curl_easy_setopt(conn, CURLOPT_SSL_VERIFYPEER, 1L);
+  curl_easy_setopt(conn, CURLOPT_SSL_VERIFYHOST, 0L);
   curl_easy_setopt(conn, CURLOPT_CAINFO, "/home/ubuntu/EasyRSA-3.0.1/pki/crt/ca.crt");
   curl_easy_setopt(conn, CURLOPT_SSLCERTTYPE, "PEM");
   curl_easy_setopt(conn, CURLOPT_SSLCERT, "/home/ubuntu/EasyRSA-3.0.1/pki/crt/client.crt");

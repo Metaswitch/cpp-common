@@ -144,7 +144,7 @@ void HttpStack::initialize()
     // Set SSL configuration.
     evhtp_ssl_cfg_t ssl_cfg = {0};
 
-    ssl_cfg.pemfile = "/home/ubuntu/EasyRSA-3.0.1/pki/private/server.key";
+    ssl_cfg.pemfile = "/home/ubuntu/EasyRSA-3.0.1/pki/crt/server.crt";
     ssl_cfg.privfile = "/home/ubuntu/EasyRSA-3.0.1/pki/private/server.key";
     ssl_cfg.cafile = "ca.crt";
     ssl_cfg.capath = "/home/ubuntu/EasyRSA-3.0.1/pki/crt/";
