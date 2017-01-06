@@ -41,7 +41,6 @@
 #include <algorithm>
 #include "log.h"
 
-
 bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
 HttpStack::ProxiedSasLogger HttpStack::PROXIED_SAS_LOGGER;
