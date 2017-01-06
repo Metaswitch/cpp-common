@@ -60,7 +60,7 @@ public:
                  LoadMonitor* load_monitor,
                  SASEvent::HttpLogLevel sas_log_level,
                  BaseCommunicationMonitor* comm_monitor,
-                 const std::string& scheme = "http") :
+                 const std::string& scheme = "https") :
     _scheme(scheme),
     _server(server),
     _client(assert_user,
