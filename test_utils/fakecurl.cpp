@@ -96,6 +96,24 @@ CURLcode FakeCurl::easy_perform(FakeCurl* curl)
   CURLcode rc;
   curl->_http_rc = resp->_http_rc;
 
+  {
+    curl_socket_t socket = 0;
+    if (_socket_callback != NULL)
+    {
+      // Call the socket callback function and add the result to a header
+      socket = (_socket_callback)(_socket_data, CURLSOCKTYPE_IPCXN, NULL);
+      // socket = 42;
+      resp->_headers.push_back("x-socket: "+std::to_string(socket));
+    }
+
+    if (_sockopt_callback != NULL)
+    {
+      // Call the sockopt callback function add the result to a header
+      int sockopt = (_sockopt_callback)(_socket_data, socket, CURLSOCKTYPE_IPCXN);
+      resp->_headers.push_back("x-sockopt-result: "+std::to_string(sockopt));
+    }
+  }
+
   if ((_debug_callback != NULL) && _verbose)
   {
     // Call the debug callback with some dummy HTTP messages (to exercise SAS

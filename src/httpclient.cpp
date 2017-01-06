@@ -819,6 +819,7 @@ size_t HttpClient::write_headers(void *ptr, size_t size, size_t nmemb, std::map<
   val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
 
   TRC_DEBUG("Received header %s with value %s", key.c_str(), val.c_str());
+  TRC_DEBUG("Header pointer: %p", headers);
   (*headers)[key] = val;
 
   return size * nmemb;
