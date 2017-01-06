@@ -37,7 +37,10 @@
 #include "httpstack.h"
 #include <cstring>
 #include <sys/stat.h>
+#include <climits>
+#include <algorithm>
 #include "log.h"
+
 
 bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
@@ -465,7 +468,7 @@ bool HttpStack::Request::get_remote_ip_port(std::string& ip, unsigned short& por
   return rc;
 }
 
-bool HttpStack::Request::get_x_real_ip(std::string& ip, unsigned short& port)
+bool HttpStack::Request::get_x_real_ip_port(std::string& ip, unsigned short& port)
 {
   bool rc = false;
   std::string real_ip = header("X-Real-Ip");
@@ -474,18 +477,28 @@ bool HttpStack::Request::get_x_real_ip(std::string& ip, unsigned short& port)
   if (real_ip != "")
   {
     rc = true;
-    ip.assign(real_ip);
+    ip = real_ip;
     std::string port_s = header("X-Real-Port");
+    int port_i;
 
-    if (port_s != "")
+    if (port_s != "" && (std::all_of(port_s.begin(), port_s.end(), ::isdigit)))
     {
-      port = (short)std::stoi(port_s);
-    }
-    else
-    {
-      // This should only happen if the reverse proxy has been mis-configured.
-      TRC_WARNING("Recieved a proxied request with missing X-Real-Port-header.");
-      port = 0;
+      try
+      {
+        port_i = std::stoi(port_s);
+      }
+      catch (...)
+      {
+        port_i = 0;
+      }
+      if (port_i > 0 && port_i < USHRT_MAX)
+      {
+        port = (short)port_i;
+      }
+      else
+      {
+        port = 0;
+      }
     }
   }
 
@@ -686,7 +699,7 @@ void HttpStack::ProxiedSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Requ
 
   // If nginx is acting as a reverse proxy and one endpoint isn't logging to SAS,
   // use the X-Real-IP header to get the correct IP.
-  if (req.get_x_real_ip(ip,port))
+  if (req.get_x_real_ip_port(ip, port))
   {
     event.add_var_param(ip);
     event.add_static_param(port);

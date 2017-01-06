@@ -305,6 +305,8 @@ private:
   /// Clean-up function for any memory allocated by set_curl_options_host
   virtual void cleanup_host_context(void* host_context)
   {
+    // Since nothing is created by set_curl_options_host above, there is nothing to
+    // clean up in this function.
     (void) host_context;
   }
 
