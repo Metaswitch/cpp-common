@@ -88,7 +88,9 @@ public:
                    comm_monitor)
   {}
 
-  virtual ~HttpConnection() {}
+  virtual ~HttpConnection()
+  {
+  }
 
   /// Sends a HTTP GET request to _server with the specified parameters
   ///
@@ -209,9 +211,9 @@ public:
                          SAS::TrailId trail,
                          const std::string& username = "");
 
-private:
+protected:
+
   std::string _scheme;
   std::string _server;
   HttpClient _client;
 };
-

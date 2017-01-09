@@ -84,12 +84,12 @@ public:
              HttpResolver* resolver,
              SNMP::IPCountTable* stat_table,
              LoadMonitor* load_monitor,
-             SASEvent::HttpLogLevel,
+             SASEvent::HttpLogLevel sas_log_level,
              BaseCommunicationMonitor* comm_monitor);
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
-             SASEvent::HttpLogLevel,
+             SASEvent::HttpLogLevel sas_log_level,
              BaseCommunicationMonitor* comm_monitor);
 
   virtual ~HttpClient();
@@ -296,6 +296,20 @@ private:
   /// send_request
   void set_curl_options_request(CURL* curl, RequestType request_type);
 
+  /// Helper functions that sets host-specific curl options in send_request
+  virtual void* set_curl_options_host(CURL* curl, std::string host, int port)
+  {
+    return nullptr;
+  }
+
+  /// Clean-up function for any memory allocated by set_curl_options_host
+  virtual void cleanup_host_context(void* host_context)
+  {
+    // Since nothing is created by set_curl_options_host above, there is nothing to
+    // clean up in this function.
+    (void) host_context;
+  }
+
   void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
 
   void sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info);
@@ -366,4 +380,3 @@ private:
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
 };
-

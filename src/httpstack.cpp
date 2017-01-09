@@ -37,10 +37,13 @@
 #include "httpstack.h"
 #include <cstring>
 #include <sys/stat.h>
+#include <climits>
+#include <algorithm>
 #include "log.h"
 
 bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
+HttpStack::ProxiedSasLogger HttpStack::PROXIED_SAS_LOGGER;
 HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 
 HttpStack::HttpStack(int num_threads,
@@ -464,6 +467,43 @@ bool HttpStack::Request::get_remote_ip_port(std::string& ip, unsigned short& por
   return rc;
 }
 
+bool HttpStack::Request::get_x_real_ip_port(std::string& ip, unsigned short& port)
+{
+  bool rc = false;
+  std::string real_ip = header("X-Real-Ip");
+  TRC_DEBUG("Real IP: %s", real_ip.c_str());
+
+  if (real_ip != "")
+  {
+    rc = true;
+    ip = real_ip;
+    std::string port_s = header("X-Real-Port");
+    int port_i;
+
+    if (port_s != "" && (std::all_of(port_s.begin(), port_s.end(), ::isdigit)))
+    {
+      try
+      {
+        port_i = std::stoi(port_s);
+      }
+      catch (...)
+      {
+        port_i = 0;
+      }
+      if (port_i > 0 && port_i < USHRT_MAX)
+      {
+        port = (short)port_i;
+      }
+      else
+      {
+        port = 0;
+      }
+    }
+  }
+
+  return rc;
+}
+
 bool HttpStack::Request::get_local_ip_port(std::string& ip, unsigned short& port)
 {
   bool rc = false;
@@ -647,3 +687,45 @@ void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
   log_overload_event(trail, req, rc, target_latency, current_latency, rate_limit, instance_id);
 }
 
+//
+// ProxiedSasLogger methods.
+//
+
+void HttpStack::ProxiedSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& req)
+{
+  std::string ip;
+  unsigned short port;
+
+  // If nginx is acting as a reverse proxy and one endpoint isn't logging to SAS,
+  // use the X-Real-IP header to get the correct IP.
+  if (req.get_x_real_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else if (req.get_remote_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    // LCOV_EXCL_START
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+    // LCOV_EXCL_STOP
+  }
+
+  if (req.get_local_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    // LCOV_EXCL_START
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+    // LCOV_EXCL_STOP
+  }
+}

@@ -48,6 +48,12 @@ typedef int (*debug_callback_t)(CURL *handle,
                                 char *data,
                                 size_t size,
                                 void *userptr);
+typedef curl_socket_t (socket_callback_t)(void *context,
+                                           curlsocktype purpose,
+                                           struct curl_sockaddr *address);
+typedef int (sockopt_callback_t)(void *context,
+                                  curl_socket_t curlfd,
+                                  curlsocktype purpose);
 
 /// The content of a request.
 class Request
@@ -184,6 +190,10 @@ public:
 
   int _http_rc;
 
+  socket_callback_t* _socket_callback;
+  sockopt_callback_t* _sockopt_callback;
+  void* _socket_data;
+
   FakeCurl() :
     _method("GET"),
     _failonerror(false),
@@ -198,7 +208,10 @@ public:
     _private(NULL),
     _debug_callback(NULL),
     _debug_data(NULL),
-    _http_rc(200)
+    _http_rc(200),
+    _socket_callback(NULL),
+    _sockopt_callback(NULL),
+    _socket_data(NULL)
   {
   }
 

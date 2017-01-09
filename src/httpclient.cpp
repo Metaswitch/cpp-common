@@ -486,6 +486,10 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     Recorder recorder;
     curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &recorder);
 
+
+    // Set host-specific curl options
+    void* host_context = set_curl_options_host(curl, host, port);
+
     // Get the current timestamp before calling into curl.  This is because we
     // can't log the request to SAS until after curl_easy_perform has returned.
     // This could be a long time if the server is being slow, and we want to log
@@ -541,6 +545,9 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // At this point, we are finished with the curl object, so it is safe to
     // free the headers
     curl_slist_free_all(extra_headers);
+
+    // Clean up any memory allocated by set_curl_options_host
+    cleanup_host_context(host_context);
 
     // Update the connection recycling and retry algorithms.
     if ((rc == CURLE_OK) && !(http_rc >= 400))
@@ -819,6 +826,7 @@ size_t HttpClient::write_headers(void *ptr, size_t size, size_t nmemb, std::map<
   val.erase(std::remove_if(val.begin(), val.end(), ::isspace), val.end());
 
   TRC_DEBUG("Received header %s with value %s", key.c_str(), val.c_str());
+  TRC_DEBUG("Header pointer: %p", headers);
   (*headers)[key] = val;
 
   return size * nmemb;
