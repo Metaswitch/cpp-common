@@ -41,7 +41,6 @@
 #include "sas.h"
 
 namespace SASEvent {
-
   const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170109";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
