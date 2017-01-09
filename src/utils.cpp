@@ -551,9 +551,6 @@ int Utils::daemonize(std::string out, std::string err)
     return errno;
   }
 
-  // Clear any restricted umask
-  umask(0);
-
   // Second fork
   pid = fork();
   if (pid == -1)
@@ -620,6 +617,9 @@ void Utils::daemon_log_setup(int argc,
       exit(0);
     }
   }
+  
+  mode_t old_umask = umask(0022);
+  TRC_STATUS("umask set to 022 (was %o)", old_umask);
 
   Log::setLoggingLevel(log_level);
 
