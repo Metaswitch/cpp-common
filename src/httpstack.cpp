@@ -479,24 +479,22 @@ bool HttpStack::Request::get_x_real_ip_port(std::string& ip, unsigned short& por
     ip = real_ip;
     std::string port_s = header("X-Real-Port");
     int port_i;
+    // We have a real IP, if we cannot get a real port we fail softly
+    port = 0;
 
     if (port_s != "" && (std::all_of(port_s.begin(), port_s.end(), ::isdigit)))
     {
       try
       {
         port_i = std::stoi(port_s);
+        if (port_i >= 0 && port_i <= USHRT_MAX)
+        {
+          port = (short)port_i;
+        }
       }
       catch (...)
       {
-        port_i = 0;
-      }
-      if (port_i > 0 && port_i < USHRT_MAX)
-      {
-        port = (short)port_i;
-      }
-      else
-      {
-        port = 0;
+        // port is already set to 0, so do nothing here.
       }
     }
   }
