@@ -487,14 +487,14 @@ bool HttpStack::Request::get_x_real_ip_port(std::string& ip, unsigned short& por
       try
       {
         port_i = std::stoi(port_s);
+        if (port_i >= 0 && port_i <= USHRT_MAX)
+        {
+          port = (short)port_i;
+        }
       }
       catch (...)
       {
-        port_i = -1;
-      }
-      if (port_i >= 0 && port_i < USHRT_MAX)
-      {
-        port = (short)port_i;
+        // port is already set to 0, so do nothing here.
       }
     }
   }
