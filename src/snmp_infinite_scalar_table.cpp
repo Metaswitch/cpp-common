@@ -37,6 +37,7 @@
 #include <string>
 #include <algorithm>
 #include <memory>
+#include <atomic>
 
 #include "snmp_infinite_scalar_table.h"
 #include "snmp_row.h"
@@ -51,7 +52,7 @@ namespace SNMP
   {
   public:
     InfiniteScalarTableImpl(std::string name, // Name of this table, for logging
-                                std::string tbl_oid):// Root OID of this table
+                            std::string tbl_oid):// Root OID of this table
     InfiniteBaseTable(name, tbl_oid, max_row, max_column){}
 
     virtual ~InfiniteScalarTableImpl(){};
@@ -73,7 +74,7 @@ namespace SNMP
   protected:
     static const uint32_t max_row = 1;
     static const uint32_t max_column = 2;
-    std::map<std::string, uint32_t> _scalar_counters;
+    std::map<std::string, std::atomic<std::uint32_t>> _scalar_counters;
 
   private:
     Value get_value(std::string tag,
