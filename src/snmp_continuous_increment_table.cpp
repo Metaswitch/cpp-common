@@ -40,7 +40,6 @@
 #include "snmp_internal/snmp_time_period_table.h"
 #include "snmp_continuous_increment_table.h"
 #include "limits.h"
-std::mutex _mutex;
 
 std::mutex _cont_inc_mutex;
 
@@ -188,7 +187,6 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   struct timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
-  _mutex.lock();
   ContinuousStatistics* accumulated = _view->get_data(now);
   uint32_t interval_ms = _view->get_interval_ms();
 
@@ -238,7 +236,6 @@ ColumnData ContinuousAccumulatorRow::get_columns()
     avg = sum / period_count;
     variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
   }
-  _mutex.unlock();
 
   // Construct and return a ColumnData with the appropriate values
   ColumnData ret;
