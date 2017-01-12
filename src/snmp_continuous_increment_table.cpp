@@ -42,6 +42,8 @@
 #include "limits.h"
 std::mutex _mutex;
 
+std::mutex _cont_inc_mutex;
+
 namespace SNMP
 {
 // Just a TimeBasedRow that maps the data from ContinuousStatistics into the right five columns.
@@ -76,19 +78,19 @@ public:
   void increment(uint32_t value)
   {
     // Pass value as increment through to value adjusting structure.
-    _mutex.lock();
+    _cont_inc_mutex.lock();
     count_internal(five_second, value, TRUE);
     count_internal(five_minute, value, TRUE);
-    _mutex.unlock();
+    _cont_inc_mutex.unlock();
   }
 
   void decrement(uint32_t value)
   {
     // Pass value as decrement through to value adjusting structure.
-    _mutex.lock();
+    _cont_inc_mutex.lock();
     count_internal(five_second, value, FALSE);
     count_internal(five_minute, value, FALSE);
-    _mutex.unlock();
+    _cont_inc_mutex.unlock();
   }
 
 private:

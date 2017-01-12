@@ -34,6 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include<mutex>
+
 #include "current_and_previous.h"
 #include "timer_counter.h"
 #include "limits.h"
@@ -53,6 +55,8 @@ TimerCounter::TimerCounter():
 
 
 TimerCounter::~TimerCounter() {}
+
+std::mutex _tc_mutex;
 
 void TimerCounter::increment(uint32_t count)
 {
@@ -130,12 +134,13 @@ void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec
 
 void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_delta)
 {
-  // Pull the current value from the underlying data.
-  uint64_t current_value = data->current_value.load();
-
   // Initialise a new value to be used. The new value defaults to 0, until we
   // determine that the calculation will not lead to overflow.
   uint64_t new_value = 0;
+
+  _tc_mutex.lock();
+  // Pull the current value from the underlying data.
+  uint64_t current_value = data->current_value.load();
 
   // Ensure value_delta is less than the current value if negative.
   // If value_delta would cause new_value to underflow, leave new_value as 0.
@@ -143,6 +148,9 @@ void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_
   {
     new_value = current_value + value_delta;
   }
+
+  data->current_value.store(new_value);
+  _tc_mutex.unlock();
 
   // Update the low- and high-water marks.  In each case, we get the current
   // value, decide whether a change is required and then atomically swap it
@@ -163,8 +171,6 @@ void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_
   {
     // Do nothing.
   }
-
-  data->current_value.store(new_value);
 }
 
 void TimerCounter::read_statistics(SNMP::ContinuousStatistics* data,
