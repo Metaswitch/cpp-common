@@ -37,6 +37,7 @@
 #include <string>
 #include <algorithm>
 #include <memory>
+#include <mutex>
 
 #include "snmp_statistics_structures.h"
 #include "snmp_infinite_timer_count_table.h"
@@ -60,18 +61,23 @@ namespace SNMP
     
     void increment(std::string tag, uint32_t count)
     {
+      _mutex.lock();
       _timer_counters[tag].increment(count);
+      _mutex.unlock();
     }
 
     void decrement(std::string tag, uint32_t count)
     {
+      _mutex.lock();
       _timer_counters[tag].decrement(count);
+      _mutex.unlock();
     }
 
   protected:
     static const uint32_t max_row = 3;
     static const uint32_t max_column = 5;
     std::map<std::string, TimerCounter> _timer_counters;
+    std::mutex _mutex;
 
   private:
     Value get_value(std::string tag,
@@ -82,8 +88,10 @@ namespace SNMP
       SimpleStatistics stats;
       Value result = Value::uint(0);
       // Update and obtain the relevants statistics structure
+      _mutex.lock();
       _timer_counters[tag].get_statistics(row, now, &stats);
-      
+      _mutex.unlock();
+
       // Calculate the appropriate value - i.e. avg, var, hwm or lwm
       result = read_column(&stats, tag, column, now);
       TRC_DEBUG("Got value %u for tag %s cell (%d, %d)",

@@ -34,10 +34,13 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include<mutex>
+
 #include "snmp_statistics_structures.h"
 #include "snmp_internal/snmp_time_period_table.h"
 #include "snmp_continuous_increment_table.h"
 #include "limits.h"
+std::mutex _mutex;
 
 namespace SNMP
 {
@@ -73,15 +76,19 @@ public:
   void increment(uint32_t value)
   {
     // Pass value as increment through to value adjusting structure.
+    _mutex.lock();
     count_internal(five_second, value, TRUE);
     count_internal(five_minute, value, TRUE);
+    _mutex.unlock();
   }
 
   void decrement(uint32_t value)
   {
     // Pass value as decrement through to value adjusting structure.
+    _mutex.lock();
     count_internal(five_second, value, FALSE);
     count_internal(five_minute, value, FALSE);
+    _mutex.unlock();
   }
 
 private:
@@ -179,6 +186,7 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   struct timespec now;
   clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
+  _mutex.lock();
   ContinuousStatistics* accumulated = _view->get_data(now);
   uint32_t interval_ms = _view->get_interval_ms();
 
@@ -228,6 +236,7 @@ ColumnData ContinuousAccumulatorRow::get_columns()
     avg = sum / period_count;
     variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
   }
+  _mutex.unlock();
 
   // Construct and return a ColumnData with the appropriate values
   ColumnData ret;
