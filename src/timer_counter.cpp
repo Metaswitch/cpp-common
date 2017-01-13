@@ -135,16 +135,17 @@ void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_
   // using the new current value.
   do
   {
-    new_value = 0;
-
     // Ensure value_delta is less than or equal to the current value if negative.
     // If value_delta would cause new_value to underflow, leave new_value as 0.
-    if ((value_delta > 0) || ((uint64_t)abs(value_delta) <= current_value))
+    if ((value_delta > 0) || ((uint64_t)-value_delta <= current_value))
     {
       new_value = current_value + value_delta;
     }
-
-  }while(!data->current_value.compare_exchange_weak(current_value, new_value));
+    else
+    {
+      new_value = 0;
+    }
+  } while (!data->current_value.compare_exchange_weak(current_value, new_value));
 
   // Update the low- and high-water marks.  In each case, we get the current
   // value, decide whether a change is required and then atomically swap it
