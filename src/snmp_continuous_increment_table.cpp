@@ -34,14 +34,10 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include<mutex>
-
 #include "snmp_statistics_structures.h"
 #include "snmp_internal/snmp_time_period_table.h"
 #include "snmp_continuous_increment_table.h"
 #include "limits.h"
-
-std::mutex _cont_inc_mutex;
 
 namespace SNMP
 {
@@ -77,19 +73,15 @@ public:
   void increment(uint32_t value)
   {
     // Pass value as increment through to value adjusting structure.
-    _cont_inc_mutex.lock();
     count_internal(five_second, value, TRUE);
     count_internal(five_minute, value, TRUE);
-    _cont_inc_mutex.unlock();
   }
 
   void decrement(uint32_t value)
   {
     // Pass value as decrement through to value adjusting structure.
-    _cont_inc_mutex.lock();
     count_internal(five_second, value, FALSE);
     count_internal(five_minute, value, FALSE);
-    _cont_inc_mutex.unlock();
   }
 
 private:
@@ -112,36 +104,42 @@ private:
     return new ContinuousAccumulatorRow(index, view);
   }
 
-  void count_internal(CurrentAndPrevious<ContinuousStatistics>& data, uint32_t value, bool increment_total)
+  void count_internal(CurrentAndPrevious<ContinuousStatistics>& data, uint32_t value_delta, bool increment_total)
   {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
     ContinuousStatistics* current_data = data.get_current(now);
-    uint32_t total = current_data->current_value;
 
-    if (increment_total)
+    uint64_t current_value = current_data->current_value;
+    uint64_t new_value;
+    // Attempt to calculate the new value, and set it to the atomic beneath.
+    // If the atomic value has changed in the mean time, repeat the calculations
+    // using the new current value.
+    do
     {
-      total += value;
-    }
-    else
-    {
-      // Check to ensure the value to accumulate will not be negative,
-      // and then set to 0 or decrement appropriately.
-      if (total < value)
+      new_value = 0;
+
+      if (increment_total)
       {
-        total = 0;
+        new_value = current_value + value_delta;
       }
       else
       {
-        total -= value;
+        // Check to ensure the value to accumulate will not be negative,
+        // and decrement, or leave value as default of 0.
+        if (value_delta < current_value)
+        {
+         new_value = current_value - value_delta;
+        }
       }
-    }
-    accumulate_internal(current_data, total, now);
+    }while(!current_data->current_value.compare_exchange_weak(current_value, new_value));
+
+    accumulate_internal(current_data, new_value, now);
   }
 
   void accumulate_internal(ContinuousStatistics* current_data,
-                           uint32_t sample,
+                           uint64_t sample,
                            const struct timespec& now)
   {
     current_data->count++;
@@ -157,7 +155,6 @@ private:
     current_data->time_last_update_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
     current_data->sum += current_value * time_since_last_update;
     current_data->sqsum += current_value * current_value * time_since_last_update;
-    current_data->current_value = sample;
 
     // Update the low- and high-water marks.  In each case, we get the current
     // value, decide whether a change is required and then atomically swap it
@@ -229,10 +226,8 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   {
     // Calculate the average and the variance from the stored average/time of last updated
     // and sum-of-squares.
-    sum += time_since_last_update_ms * current_value;
-    accumulated->sum.store(sum);
-    sqsum += time_since_last_update_ms * current_value * current_value;
-    accumulated->sqsum.store(sqsum);
+    accumulated->sum+=(time_since_last_update_ms * current_value);
+    accumulated->sqsum+=(time_since_last_update_ms * current_value * current_value);
     avg = sum / period_count;
     variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
   }

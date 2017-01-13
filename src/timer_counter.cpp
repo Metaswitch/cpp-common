@@ -34,8 +34,6 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
-#include<mutex>
-
 #include "current_and_previous.h"
 #include "timer_counter.h"
 #include "limits.h"
@@ -55,8 +53,6 @@ TimerCounter::TimerCounter():
 
 
 TimerCounter::~TimerCounter() {}
-
-std::mutex _tc_mutex;
 
 void TimerCounter::increment(uint32_t count)
 {
@@ -121,36 +117,34 @@ void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec
   uint64_t time_since_last_update = time_comes_first_ms - data->time_last_update_ms.load();
 
   uint64_t current_value = data->current_value.load();
-  uint64_t sum = data->sum.load();
-  uint64_t sqsum = data->sqsum.load();
 
-  sum += current_value * time_since_last_update;
-  sqsum += current_value * current_value * time_since_last_update;
-
-  data->sum.store(sum);
-  data->sqsum.store(sqsum);
+  data->sum+=(current_value * time_since_last_update);
+  data->sqsum+=(current_value * current_value * time_since_last_update);
   data->time_last_update_ms.store(time_comes_first_ms);
 }
 
 void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_delta)
 {
-  // Initialise a new value to be used. The new value defaults to 0, until we
-  // determine that the calculation will not lead to overflow.
-  uint64_t new_value = 0;
-
-  _tc_mutex.lock();
-  // Pull the current value from the underlying data.
+  // Initialise a new value to be used, and pull
+  // the current value from the underlying data.
   uint64_t current_value = data->current_value.load();
+  uint64_t new_value;
 
-  // Ensure value_delta is less than the current value if negative.
-  // If value_delta would cause new_value to underflow, leave new_value as 0.
-  if ((value_delta > 0) || ((uint64_t)abs(value_delta) < current_value))
+  // Attempt to calculate the new value, and set it to the atomic beneath.
+  // If the atomic value has changed in the mean time, repeat the calculations
+  // using the new current value.
+  do
   {
-    new_value = current_value + value_delta;
-  }
+    new_value = 0;
 
-  data->current_value.store(new_value);
-  _tc_mutex.unlock();
+    // Ensure value_delta is less than or equal to the current value if negative.
+    // If value_delta would cause new_value to underflow, leave new_value as 0.
+    if ((value_delta > 0) || ((uint64_t)abs(value_delta) <= current_value))
+    {
+      new_value = current_value + value_delta;
+    }
+
+  }while(!data->current_value.compare_exchange_weak(current_value, new_value));
 
   // Update the low- and high-water marks.  In each case, we get the current
   // value, decide whether a change is required and then atomically swap it
