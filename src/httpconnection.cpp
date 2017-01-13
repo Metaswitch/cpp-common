@@ -36,34 +36,34 @@
 
 #include "httpconnection.h"
 
-HTTPCode HttpConnection::send_delete(const std::string& path,
+HTTPCode HttpConnection::send_delete(const std::string& url_tail,
                                      SAS::TrailId trail,
                                      const std::string& body)
 {
-  return _client.send_delete(_scheme + "://" + _server + path,
+  return _client.send_delete(_scheme + "://" + _server + url_tail,
                              trail,
                              body);
 }
 
-HTTPCode HttpConnection::send_delete(const std::string& path,
+HTTPCode HttpConnection::send_delete(const std::string& url_tail,
                                      SAS::TrailId trail,
                                      const std::string& body,
                                      std::string& response)
 {
-  return _client.send_delete(_scheme + "://" + _server + path,
+  return _client.send_delete(_scheme + "://" + _server + url_tail,
                              trail,
                              body,
                              response);
 }
 
-HTTPCode HttpConnection::send_delete(const std::string& path,
+HTTPCode HttpConnection::send_delete(const std::string& url_tail,
                                      std::map<std::string, std::string>& headers,
                                      std::string& response,
                                      SAS::TrailId trail,
                                      const std::string& body,
                                      const std::string& username)
 {
-  return _client.send_delete(_scheme + "://" + _server + path,
+  return _client.send_delete(_scheme + "://" + _server + url_tail,
                              headers,
                              response,
                              trail,
@@ -71,44 +71,44 @@ HTTPCode HttpConnection::send_delete(const std::string& path,
                              username);
 }
 
-HTTPCode HttpConnection::send_put(const std::string& path,
+HTTPCode HttpConnection::send_put(const std::string& url_tail,
                                   const std::string& body,
                                   SAS::TrailId trail,
                                   const std::string& username)
 {
-  return _client.send_put(_scheme + "://" + _server + path,
+  return _client.send_put(_scheme + "://" + _server + url_tail,
                           body,
                           trail,
                           username);
 }
 
-HTTPCode HttpConnection::send_put(const std::string& path,
+HTTPCode HttpConnection::send_put(const std::string& url_tail,
                                   std::string& response,
                                   const std::string& body,
                                   SAS::TrailId trail,
                                   const std::string& username)
 {
-  return _client.send_put(_scheme + "://" + _server + path,
+  return _client.send_put(_scheme + "://" + _server + url_tail,
                           response,
                           body,
                           trail,
                           username);
 }
 
-HTTPCode HttpConnection::send_put(const std::string& path,
+HTTPCode HttpConnection::send_put(const std::string& url_tail,
                                   std::map<std::string, std::string>& headers,
                                   const std::string& body,
                                   SAS::TrailId trail,
                                   const std::string& username)
 {
-  return _client.send_put(_scheme + "://" + _server + path,
+  return _client.send_put(_scheme + "://" + _server + url_tail,
                           headers,
                           body,
                           trail,
                           username);
 }
 
-HTTPCode HttpConnection::send_put(const std::string& path,
+HTTPCode HttpConnection::send_put(const std::string& url_tail,
                                   std::map<std::string, std::string>& headers,
                                   std::string& response,
                                   const std::string& body,
@@ -116,7 +116,7 @@ HTTPCode HttpConnection::send_put(const std::string& path,
                                   SAS::TrailId trail,
                                   const std::string& username)
 {
-  return _client.send_put(_scheme + "://" + _server + path,
+  return _client.send_put(_scheme + "://" + _server + url_tail,
                           headers,
                           response,
                           body,
@@ -125,27 +125,27 @@ HTTPCode HttpConnection::send_put(const std::string& path,
                           username);
 }
 
-HTTPCode HttpConnection::send_post(const std::string& path,
+HTTPCode HttpConnection::send_post(const std::string& url_tail,
                                    std::map<std::string, std::string>& headers,
                                    const std::string& body,
                                    SAS::TrailId trail,
                                    const std::string& username)
 {
-  return _client.send_post(_scheme + "://" + _server + path,
+  return _client.send_post(_scheme + "://" + _server + url_tail,
                            headers,
                            body,
                            trail,
                            username);
 }
 
-HTTPCode HttpConnection::send_post(const std::string& path,
+HTTPCode HttpConnection::send_post(const std::string& url_tail,
                                    std::map<std::string, std::string>& headers,
                                    std::string& response,
                                    const std::string& body,
                                    SAS::TrailId trail,
                                    const std::string& username)
 {
-  return _client.send_post(_scheme + "://" + _server + path,
+  return _client.send_post(_scheme + "://" + _server + url_tail,
                            headers,
                            response,
                            body,
@@ -154,25 +154,25 @@ HTTPCode HttpConnection::send_post(const std::string& path,
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_get(const std::string& path,
+HTTPCode HttpConnection::send_get(const std::string& url_tail,
                                   std::string& response,
                                   const std::string& username,
                                   SAS::TrailId trail)
 {
-  return _client.send_get(_scheme + "://" + _server + path,
+  return _client.send_get(_scheme + "://" + _server + url_tail,
                           response,
                           username,
                           trail);
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_get(const std::string& path,
+HTTPCode HttpConnection::send_get(const std::string& url_tail,
                                   std::map<std::string, std::string>& headers,
                                   std::string& response,
                                   const std::string& username,
                                   SAS::TrailId trail)
 {
-  return _client.send_get(_scheme + "://" + _server + path,
+  return _client.send_get(_scheme + "://" + _server + url_tail,
                           headers,
                           response,
                           username,
@@ -180,14 +180,14 @@ HTTPCode HttpConnection::send_get(const std::string& path,
 }
 
 /// Get data; return a HTTP return code
-HTTPCode HttpConnection::send_get(const std::string& path,
+HTTPCode HttpConnection::send_get(const std::string& url_tail,
                                   std::map<std::string, std::string>& headers,
                                   std::string& response,
                                   const std::string& username,
                                   std::vector<std::string> headers_to_add,
                                   SAS::TrailId trail)
 {
-  return _client.send_get(_scheme + "://" + _server + path,
+  return _client.send_get(_scheme + "://" + _server + url_tail,
                           headers,
                           response,
                           username,
