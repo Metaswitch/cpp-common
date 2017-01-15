@@ -267,7 +267,7 @@ namespace JSONAlarms
         else 
         {
           // Here we use the human readable form of the alarm's name
-          AlarmDef::AlarmDefinition ad = {process_alarm_name(name),
+          AlarmDef::AlarmDefinition ad = {name,
                                           index,
                                           e_cause,
                                           severity_vec};
@@ -284,17 +284,6 @@ namespace JSONAlarms
     }
 
     return true;
-  }
-
-  // Function to transform the name of each alarm from e.g.
-  // "SPROUT_PROCESS_FAILURE" to a human readable format e.g. "Sprout process
-  // failure"
-  std::string process_alarm_name(std::string name)
-  {
-    std::replace(name.begin(), name.end(), '_', ' ');
-    std::transform(name.begin(), name.end(), name.begin(), ::tolower);
-    name[0] = toupper(name[0]);
-    return name;
   }
 
   std::string exceeded_character_limit_error(std::string field, int max_length, int index)
