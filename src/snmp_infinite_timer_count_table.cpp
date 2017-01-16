@@ -83,7 +83,7 @@ namespace SNMP
       Value result = Value::uint(0);
       // Update and obtain the relevants statistics structure
       _timer_counters[tag].get_statistics(row, now, &stats);
-      
+
       // Calculate the appropriate value - i.e. avg, var, hwm or lwm
       result = read_column(&stats, tag, column, now);
       TRC_DEBUG("Got value %u for tag %s cell (%d, %d)",
