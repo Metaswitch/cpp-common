@@ -118,8 +118,8 @@ void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec
 
   uint64_t current_value = data->current_value.load();
 
-  data->sum+=(current_value * time_since_last_update);
-  data->sqsum+=(current_value * current_value * time_since_last_update);
+  data->sum += current_value * time_since_last_update;
+  data->sqsum += current_value * current_value * time_since_last_update;
   data->time_last_update_ms.store(time_comes_first_ms);
 }
 
