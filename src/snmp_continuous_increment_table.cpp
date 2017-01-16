@@ -104,36 +104,45 @@ private:
     return new ContinuousAccumulatorRow(index, view);
   }
 
-  void count_internal(CurrentAndPrevious<ContinuousStatistics>& data, uint32_t value, bool increment_total)
+  void count_internal(CurrentAndPrevious<ContinuousStatistics>& data, uint32_t value_delta, bool increment_total)
   {
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
     ContinuousStatistics* current_data = data.get_current(now);
-    uint32_t total = current_data->current_value;
 
-    if (increment_total)
+    uint64_t current_value = current_data->current_value;
+    uint64_t new_value;
+    // Attempt to calculate the new value, and set it to the atomic beneath.
+    // If the atomic value has changed in the mean time, repeat the calculations
+    // using the new current value.
+    do
     {
-      total += value;
-    }
-    else
-    {
-      // Check to ensure the value to accumulate will not be negative,
-      // and then set to 0 or decrement appropriately.
-      if (total < value)
+      if (increment_total)
       {
-        total = 0;
+        new_value = current_value + value_delta;
       }
       else
       {
-        total -= value;
+        // Check to ensure the value to accumulate will not be negative,
+        // and decrement, or leave value as default of 0.
+        if (value_delta < current_value)
+        {
+          new_value = current_value - value_delta;
+        }
+        else
+        {
+          new_value = 0;
+        }
       }
-    }
-    accumulate_internal(current_data, total, now);
+    } while (!current_data->current_value.compare_exchange_weak(current_value, new_value));
+
+    accumulate_internal(current_data, current_value, new_value, now);
   }
 
   void accumulate_internal(ContinuousStatistics* current_data,
-                           uint32_t sample,
+                           uint64_t current_value,
+                           uint64_t sample,
                            const struct timespec& now)
   {
     current_data->count++;
@@ -144,12 +153,10 @@ private:
     // current value held, that can be used if the period ends.
     uint64_t time_since_last_update = ((now.tv_sec * 1000) + (now.tv_nsec / 1000000))
                                      - (current_data->time_last_update_ms.load());
-    uint32_t current_value = current_data->current_value.load();
 
     current_data->time_last_update_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
     current_data->sum += current_value * time_since_last_update;
     current_data->sqsum += current_value * current_value * time_since_last_update;
-    current_data->current_value = sample;
 
     // Update the low- and high-water marks.  In each case, we get the current
     // value, decide whether a change is required and then atomically swap it
@@ -195,8 +202,6 @@ ColumnData ContinuousAccumulatorRow::get_columns()
     lwm = 0;
   }
   uint_fast32_t hwm = accumulated->hwm.load();
-  uint_fast64_t time_last_update_ms = accumulated->time_last_update_ms.load();
-  uint_fast64_t time_period_start_ms = accumulated->time_period_start_ms.load();
   uint_fast64_t sum = accumulated->sum.load();
   uint_fast64_t sqsum = accumulated->sqsum.load();
 
@@ -207,26 +212,48 @@ ColumnData ContinuousAccumulatorRow::get_columns()
   // to stop us from updating periods that are now out of date.
   uint64_t time_now_ms = (now.tv_sec * 1000) + (now.tv_nsec / 1000000);
 
-  // As a time period might not begin on a boundary, we must synchronize
-  // the end of the period with a boundary which is why the following line
-  // requires so many interval_ms!
-  uint64_t time_period_end_ms = ((time_period_start_ms + interval_ms) / interval_ms) * interval_ms;
-  uint64_t time_comes_first_ms = std::min(time_period_end_ms, time_now_ms);
+
+  // Get last update from the data structure, and set this update point
+  // making sure we don't conflict with other threads
+  uint64_t time_comes_first_ms;
+  uint_fast64_t time_period_start_ms;
+  uint64_t time_period_end_ms;
+  uint_fast64_t time_last_update_ms = accumulated->time_last_update_ms.load();
+  do
+  {
+    // Make sure that we have the correct period start time, in case we loop.
+    time_period_start_ms = accumulated->time_period_start_ms.load();
+
+    // As a time period might not begin on a boundary, we must synchronize
+    // the end of the period with a boundary which is why the following line
+    // requires so many interval_ms!
+    time_period_end_ms = ((time_period_start_ms + interval_ms) / interval_ms) * interval_ms;
+
+    // Choose the earlier of these as the new update point
+    time_comes_first_ms = std::min(time_period_end_ms, time_now_ms);
+  } while (!accumulated->time_last_update_ms.compare_exchange_weak(time_last_update_ms, time_comes_first_ms));
 
   uint64_t time_since_last_update_ms = time_comes_first_ms - time_last_update_ms;
-  accumulated->time_last_update_ms.store(time_comes_first_ms);
   uint64_t period_count = (time_comes_first_ms - time_period_start_ms);
 
   if (period_count > 0)
   {
     // Calculate the average and the variance from the stored average/time of last updated
-    // and sum-of-squares.
-    sum += time_since_last_update_ms * current_value;
-    accumulated->sum.store(sum);
-    sqsum += time_since_last_update_ms * current_value * current_value;
-    accumulated->sqsum.store(sqsum);
-    avg = sum / period_count;
-    variance = ((sqsum * period_count) - (sum * sum)) / (period_count * period_count);
+    // and sum-of-squares, and reinsert into the data safely.
+    uint64_t new_sum;
+    do
+    {
+      new_sum = sum + (time_since_last_update_ms * current_value);
+    } while (!accumulated->sum.compare_exchange_weak(sum, new_sum));
+
+    uint64_t new_sqsum;
+    do
+    {
+      new_sqsum = sqsum + (time_since_last_update_ms * current_value * current_value);
+    } while (!accumulated->sum.compare_exchange_weak(sqsum, new_sqsum));
+
+    avg = new_sum / period_count;
+    variance = ((new_sqsum * period_count) - (new_sum * new_sum)) / (period_count * period_count);
   }
 
   // Construct and return a ColumnData with the appropriate values
