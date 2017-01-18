@@ -53,6 +53,8 @@ class MockHttpClient : public HttpClient
                                const std::string& body,
                                SAS::TrailId trail,
                                const std::string& username));
+
+  // Add more mock methods as and when they are required.
 };
 
 #endif
