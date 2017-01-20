@@ -138,7 +138,6 @@ void RealmManager::peer_connection_cb(bool connection_success,
     }
     else
     {
-      CL_DIAMETER_CONN_ERR.log(host.c_str());
       TRC_ERROR("Failed to connect to %s", host.c_str());
       _resolver->blacklist(peer->addr_info());
       pthread_rwlock_unlock(&_peers_lock);
