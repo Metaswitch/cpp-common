@@ -71,19 +71,6 @@ static const PDLog CL_DIAMETER_INIT_CMPL
   "None."
 );
 
-static const PDLog1<const char*> CL_DIAMETER_CONN_ERR
-(
-  PDLogBase::CL_CPP_COMMON_ID + 4,
-  LOG_ERR,
-  "Failed to make a Diameter connection to host %s.",
-  "A Diameter connection attempt failed to the specified host.",
-  "This impacts the ability to register, subscribe, or make a call.",
-  "(1). Check the Diameter host configuration. "
-  "(2). Check to see that there is a route to the destination host. "
-  "(3). Check for IP connectivity on the Diameter interface using ping. "
-  "(4). Wireshark the interface on Diameter interface."
-);
-
 static const PDLog2<int, const char*> CL_MEMCACHED_CLUSTER_UPDATE_STABLE
 (
   PDLogBase::CL_CPP_COMMON_ID + 6,
