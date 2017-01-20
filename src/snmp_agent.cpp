@@ -96,6 +96,12 @@ int snmp_setup(const char* name)
   // Make sure we start as a subagent, not a master agent.
   netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_ROLE, 1);
 
+  // Set the persistent directory to somewhere that the process can write to
+  char persistent_file[80];
+  strcpy(persistent_file, "/tmp/");
+  strcat(persistent_file, name);
+  netsnmp_ds_set_string(NETSNMP_DS_LIBRARY_ID, NETSNMP_DS_LIB_PERSISTENT_DIR, persistent_file);
+
   // Uncomment this line to send AgentX requests over TCP, rather than a unix
   // domain socket, in order to snoop them with tcpdump. You'll also need to
   // replace the agentXSocket line in /etc/snmp/snmpd.conf on your node with
