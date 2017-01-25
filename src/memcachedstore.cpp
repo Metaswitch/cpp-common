@@ -60,11 +60,17 @@
 /// The data used in memcached to represent a tombstone.
 static const std::string TOMBSTONE = "";
 
+/// The length of time to allow for a memcached connection before
+/// timing it out. This time has been chosen to be essentially unlimited -
+/// at this time something else is going to be timing out the request
+/// anyway.
+static int MEMCACHED_CONNECTION_LATENCY_MS = 1000;
+
 BaseMemcachedStore::BaseMemcachedStore(bool binary,
                                        BaseCommunicationMonitor* comm_monitor) :
   _binary(binary),
   _options(),
-  _max_connect_latency_ms(50),
+  _max_connect_latency_ms(MEMCACHED_CONNECTION_LATENCY_MS),
   _comm_monitor(comm_monitor),
   _tombstone_lifetime(200)
 {
