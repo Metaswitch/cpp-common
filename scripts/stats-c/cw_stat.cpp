@@ -60,7 +60,7 @@ bool get_msgs(char* service, char* stat, std::vector<std::string>& msgs)
     return false;
   }
 
-  // Create the socket and connect it to the host.
+  // Create the socket.
   void* sck = zmq_socket(ctx, ZMQ_SUB);
   if (sck == NULL)
   {
@@ -68,6 +68,17 @@ bool get_msgs(char* service, char* stat, std::vector<std::string>& msgs)
     return false;
   }
 
+  // Set a timeout of 10secs on the socket - this stops the calls from
+  // blocking indefinitely.
+  int timeout = 10000;
+  if (zmq_setsockopt(sck, ZMQ_RCVTIMEO, &timeout, sizeof(timeout)) != 0)
+  {
+    perror("zmq_setsockopt");
+    return false;
+  }
+
+  // Connect - note this has to be after we've set the timeout on the
+  // socket.
   std::ostringstream oss;
   oss << "ipc:///var/run/clearwater/stats/" << service;
   if (zmq_connect(sck, oss.str().c_str()) != 0)
@@ -96,7 +107,17 @@ bool get_msgs(char* service, char* stat, std::vector<std::string>& msgs)
     }
     if (zmq_msg_recv(&msg, sck, 0) == -1)
     {
-      perror("zmq_msg_recv");
+      if (errno == EAGAIN)
+      {
+        // This is an expected and visible way for this script to fail, so
+        // provide a friendly error message.
+        fprintf(stderr, "Error: No statistics retrieved within %d ms.\n", timeout);
+      }
+      else
+      {
+        perror("zmq_msg_recv");
+      }
+
       return false;
     }
     msgs.push_back(std::string((char*)zmq_msg_data(&msg), zmq_msg_size(&msg)));
