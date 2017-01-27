@@ -34,6 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include <functional>
+
 #include <eventq.h>
 #include "exception_handler.h"
 #include <log.h>
@@ -141,6 +143,14 @@ public:
     _queue.push(work);
   }
 
+  // Add a work item to the thread pool by moving it into the pool.
+  //
+  // @param work the work item to add.
+  void add_work(T&& work)
+  {
+    _queue.push(work);
+  }
+
 private:
   unsigned int _num_threads;
   ExceptionHandler* _exception_handler;
@@ -212,6 +222,24 @@ private:
 
   // Process a work item. This method must be overridden by the subclass.
   virtual void process_work(T& work) = 0;
+};
+
+
+/// An alternative thread pool where the work items are callable objects. When a
+/// thread processes a work item it just calls the object. This allows thread
+/// pools to be used ergonomically with lambdas and std::binds.
+class FunctorThreadPool : public ThreadPool<std::function<void()>>
+{
+public:
+  /// Just use the `ThreadPool` constructor.
+  using ThreadPool<std::function<void()>>::ThreadPool;
+
+  virtual ~FunctorThreadPool() {};
+
+  void process_work(std::function<void()>& callable)
+  {
+    callable();
+  }
 };
 
 #endif
