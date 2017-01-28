@@ -173,32 +173,44 @@ private:
     return NULL;
   }
 
+  // Take on work item off the queue an process it. This is called repeatedly by
+  // the worker threads until it returns false (meaning the work queue has been
+  // closed).
+  //
+  // This can also be used in UTs to control execution of the thread pool.
+  bool run_once()
+  {
+    T work;
+    bool got_work = _queue.pop(work);
+
+    if (got_work)
+    {
+      CW_TRY
+      {
+        process_work(work);
+      }
+      CW_EXCEPT(_exception_handler)
+      {
+        _callback(work);
+      }
+      CW_END
+    }
+
+    return got_work;
+  }
+
   // Function executed by a single worker thread. This loops pulling work off
   // the queue and processing it.
   void worker_thread_func()
   {
     bool got_work;
-    T work;
 
     // Startup hook.
     on_thread_startup();
 
     do
     {
-      got_work = _queue.pop(work);
-
-      if (got_work)
-      {
-        CW_TRY
-        {
-          process_work(work);
-        }
-        CW_EXCEPT(_exception_handler)
-        {
-          _callback(work);
-        }
-        CW_END
-      }
+      got_work = run_once();
 
       // If we haven't got any work then the queue must have been terminated,
       // which in turn means the threadpool has been shut down.  Exit the loop.
