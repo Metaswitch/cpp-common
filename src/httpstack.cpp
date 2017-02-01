@@ -43,7 +43,7 @@
 
 bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
-HttpStack::ProxiedSasLogger HttpStack::PROXIED_SAS_LOGGER;
+HttpStack::ProxiedPrivateSasLogger HttpStack::PROXIED_PRIVATE_SAS_LOGGER;
 HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 
 HttpStack::HttpStack(int num_threads,
@@ -543,7 +543,8 @@ void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
 void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
                                          Request& req,
                                          uint32_t instance_id,
-                                         SASEvent::HttpLogLevel level)
+                                         SASEvent::HttpLogLevel level,
+                                         bool omit_body)
 {
   int event_id = ((level == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::RX_HTTP_REQ : SASEvent::RX_HTTP_REQ_DETAIL);
@@ -552,7 +553,31 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
   add_ip_addrs_and_ports(event, req);
   event.add_static_param(req.method());
   event.add_var_param(req.full_path());
-  event.add_compressed_param(req.get_rx_message(), &SASEvent::PROFILE_HTTP);
+
+  if (!omit_body)
+  {
+    event.add_compressed_param(req.get_rx_message(), &SASEvent::PROFILE_HTTP);
+  }
+  else
+  {
+    TRC_STATUS("omit_body was true!!!");
+    // LCOV_EXCL_START
+    if (req.get_rx_body().empty())
+    {
+      // We are omitting the body but there wasn't one in the messaage. Just log
+      // the header.
+      event.add_compressed_param(req.get_rx_header(), &SASEvent::PROFILE_HTTP);
+    }
+    else
+    {
+      TRC_STATUS("Body present!!!");
+      // There was a body that we need to omit. Add a fake body to the header
+      // explaining that the body was intentionally not logged.
+      event.add_compressed_param(req.get_rx_header() + "<Body present but not logged>",
+                                 &SASEvent::PROFILE_HTTP);
+    }
+    // LCOV_EXCL_STOP
+  }
 
   SAS::report_event(event);
 }
@@ -564,6 +589,7 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
                                          SASEvent::HttpLogLevel level,
                                          bool omit_body)
 {
+  TRC_STATUS("log_rsp_event!!!");
   int event_id = ((level == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::TX_HTTP_RSP : SASEvent::TX_HTTP_RSP_DETAIL);
   SAS::Event event(trail, event_id, instance_id);
@@ -579,6 +605,7 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
   }
   else
   {
+    TRC_STATUS("omit_body was true!!!");
     // LCOV_EXCL_START
     if (req.get_tx_body().empty())
     {
@@ -588,6 +615,7 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
     }
     else
     {
+      TRC_STATUS("Body present!!!");
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
       event.add_compressed_param(req.get_tx_header(rc) + "<Body present but not logged>",
@@ -689,7 +717,7 @@ void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
 // ProxiedSasLogger methods.
 //
 
-void HttpStack::ProxiedSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& req)
+void HttpStack::ProxiedPrivateSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& req)
 {
   std::string ip;
   unsigned short port;
@@ -726,4 +754,20 @@ void HttpStack::ProxiedSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Requ
     event.add_static_param(0);
     // LCOV_EXCL_STOP
   }
+}
+
+void HttpStack::ProxiedPrivateSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
+                                                      HttpStack::Request& req,
+                                                      uint32_t instance_id)
+{
+  log_correlator(trail, req, instance_id);
+  log_req_event(trail, req, instance_id, SASEvent::HttpLogLevel::PROTOCOL, true);
+}
+
+void HttpStack::ProxiedPrivateSasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
+                                                             HttpStack::Request& req,
+                                                             int rc,
+                                                             uint32_t instance_id)
+{
+  log_rsp_event(trail, req, rc, instance_id, SASEvent::HttpLogLevel::PROTOCOL, true);
 }
