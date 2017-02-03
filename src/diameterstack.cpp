@@ -546,7 +546,7 @@ int Stack::request_callback_fn(struct msg** req,
   else
   {
     trail = SAS::new_trail(0);
-    TRC_ERROR("No per-message data found - allocated new trail ID: %lu", trail);
+    TRC_WARNING("No per-message data found - allocated new trail ID: %lu", trail);
   }
   TRC_DEBUG("Invoke diameter request handler on trail %lu", trail);
 
@@ -923,7 +923,7 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
       else
       {
         trail = SAS::new_trail(0);
-        TRC_ERROR("No per-message data found - allocated new trail ID: %lu", trail);
+        TRC_WARNING("No per-message data found - allocated new trail ID: %lu", trail);
       }
     }
   }
@@ -940,7 +940,7 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
     else
     {
       trail = SAS::new_trail(0);
-      TRC_ERROR("No per-message data found - allocated new trail ID: %lu", trail);
+      TRC_WARNING("No per-message data found - allocated new trail ID: %lu", trail);
     }
   }
   else
