@@ -538,7 +538,7 @@ int Stack::request_callback_fn(struct msg** req,
   // A SAS trail should have already been allocated in fd_sas_log_diameter_message.
   // Get it if so (or create a new one if not).
   SAS::TrailId trail;
-  struct  = fd_hook_get_pmd(_sas_cb_data_hdl, *req);
+  struct fd_hook_permsgdata* pmd = fd_hook_get_pmd(_sas_cb_data_hdl, *req);
   if (pmd != NULL)
   {
     trail = pmd->trail;
