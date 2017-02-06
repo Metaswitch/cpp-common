@@ -911,7 +911,7 @@ void HttpClient::log_req_event(SAS::TrailId trail,
 
     sas_add_ip_addrs_and_ports(event, curl);
 
-    if (false)//!omit_body)
+    if (!omit_body)
     {
       event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
     }
@@ -936,6 +936,52 @@ void HttpClient::log_req_event(SAS::TrailId trail,
     event.add_var_param(Utils::url_unescape(url));
 
     event.set_timestamp(timestamp);
+    SAS::report_event(event);
+  }
+}
+
+void HttpClient::log_rsp_event(SAS::TrailId trail,
+                               CURL* curl,
+                               long http_rc,
+                               const std::string& method_str,
+                               const std::string& url,
+                               const std::string& response_bytes,
+                               uint32_t instance_id,
+                               bool omit_body)
+{
+  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
+  {
+    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                    SASEvent::RX_HTTP_RSP : SASEvent::RX_HTTP_RSP_DETAIL);
+    SAS::Event event(trail, event_id, instance_id);
+
+    sas_add_ip_addrs_and_ports(event, curl);
+    event.add_static_param(http_rc);
+
+    if (!omit_body)
+    {
+      event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
+    }
+    else
+    {
+      std::size_t body_pos = response_bytes.find("\r\n\r\n");
+      std::string headers = response_bytes.substr(0, body_pos);
+
+      if (body_pos + 4 == response_bytes.length())
+      {
+        // No body, we can just log the response as normal.
+        event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
+      }
+      else
+      {
+        std::string message_to_log = headers + "\r\n\r\n<Body present but not logged>";
+        event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
+      }
+    }
+
+    event.add_var_param(method_str);
+    event.add_var_param(Utils::url_unescape(url));
+
     SAS::report_event(event);
   }
 }
@@ -965,20 +1011,13 @@ void HttpClient::sas_log_http_rsp(SAS::TrailId trail,
                                   const std::string& response_bytes,
                                   uint32_t instance_id)
 {
-  if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
-  {
-    int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
-                    SASEvent::RX_HTTP_RSP : SASEvent::RX_HTTP_RSP_DETAIL);
-    SAS::Event event(trail, event_id, instance_id);
-
-    sas_add_ip_addrs_and_ports(event, curl);
-    event.add_static_param(http_rc);
-    event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
-    event.add_var_param(method_str);
-    event.add_var_param(Utils::url_unescape(url));
-
-    SAS::report_event(event);
-  }
+  log_rsp_event(trail,
+                curl,
+                http_rc,
+                method_str,
+                url,
+                response_bytes,
+                instance_id);
 }
 
 void HttpClient::sas_log_http_abort(SAS::TrailId trail,

@@ -324,7 +324,16 @@ private:
                      const std::string& request_bytes,
                      SAS::Timestamp timestamp,
                      uint32_t instance_id,
-                     bool omit_body = true);
+                     bool omit_body = false);
+
+    void log_rsp_event(SAS::TrailId trail,
+                       CURL* curl,
+                       long http_rc,
+                       const std::string& method_str,
+                       const std::string& url,
+                       const std::string& response_bytes,
+                       uint32_t instance_id,
+                       bool omit_body = false);
 
   void sas_log_http_req(SAS::TrailId trail,
                         CURL* curl,
