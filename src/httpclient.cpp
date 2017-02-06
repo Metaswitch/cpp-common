@@ -894,13 +894,14 @@ void HttpClient::sas_add_ip_addrs_and_ports(SAS::Event& event,
   sas_add_port(event, curl, CURLINFO_LOCAL_PORT);
 }
 
-void HttpClient::sas_log_http_req(SAS::TrailId trail,
-                                  CURL* curl,
-                                  const std::string& method_str,
-                                  const std::string& url,
-                                  const std::string& request_bytes,
-                                  SAS::Timestamp timestamp,
-                                  uint32_t instance_id)
+void HttpClient::log_req_event(SAS::TrailId trail,
+                               CURL* curl,
+                               const std::string& method_str,
+                               const std::string& url,
+                               const std::string& request_bytes,
+                               SAS::Timestamp timestamp,
+                               uint32_t instance_id,
+                               bool omit_body)
 {
   if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
   {
@@ -909,13 +910,51 @@ void HttpClient::sas_log_http_req(SAS::TrailId trail,
     SAS::Event event(trail, event_id, instance_id);
 
     sas_add_ip_addrs_and_ports(event, curl);
-    event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
+
+    if (false)//!omit_body)
+    {
+      event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
+    }
+    else
+    {
+      std::size_t body_pos = request_bytes.find("\r\n\r\n");
+      std::string headers = request_bytes.substr(0, body_pos);
+
+      if (body_pos + 4 == request_bytes.length())
+      {
+        // No body, we can just log the request as normal.
+        event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
+      }
+      else
+      {
+        std::string message_to_log = headers + "\r\n\r\n<Body present but not logged>";
+        event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
+      }
+    }
+
     event.add_var_param(method_str);
     event.add_var_param(Utils::url_unescape(url));
 
     event.set_timestamp(timestamp);
     SAS::report_event(event);
   }
+}
+
+void HttpClient::sas_log_http_req(SAS::TrailId trail,
+                                  CURL* curl,
+                                  const std::string& method_str,
+                                  const std::string& url,
+                                  const std::string& request_bytes,
+                                  SAS::Timestamp timestamp,
+                                  uint32_t instance_id)
+{
+  log_req_event(trail,
+                curl,
+                method_str,
+                url,
+                request_bytes,
+                timestamp,
+                instance_id);
 }
 
 void HttpClient::sas_log_http_rsp(SAS::TrailId trail,
