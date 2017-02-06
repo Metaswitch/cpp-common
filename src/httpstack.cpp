@@ -268,6 +268,8 @@ void HttpStack::bind_unix_socket(const std::string& bind_path)
   chmod(bind_path.c_str(), 0777);
 }
 
+// start() should only be called *after* the appropriate bind_*_socket() function
+// has been called
 void HttpStack::start(evhtp_thread_init_cb init_cb)
 {
   int rc = evhtp_use_threads(_evhtp, init_cb, _num_threads, this);
