@@ -93,7 +93,7 @@ void Stack::initialize()
                           fd_null_hook_cb, this, NULL, &_null_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_hook_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_hook_register(fd_null_hook_cb)", rc); // LCOV_EXCL_LINE
     }
 
     CL_DIAMETER_INIT_CMPL.log();
@@ -112,7 +112,7 @@ void Stack::initialize()
                     fd_error_hook_cb, this, _sas_cb_data_hdl, &_error_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_hook_register(fd_error_hook_cb)", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_MESSAGE_RECEIVED,
                                     HOOK_MESSAGE_SENT),
@@ -122,7 +122,7 @@ void Stack::initialize()
                           &_sas_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_hook_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_hook_register(fd_sas_log_diameter_message)", rc); // LCOV_EXCL_LINE
     }
 
     _initialized = true;
@@ -535,9 +535,19 @@ int Stack::request_callback_fn(struct msg** req,
 {
   HandlerInterface* handler = (HandlerInterface*)handler_param;
 
-  // A SAS trail has already been allocated in fd_sas_log_diameter_message. Get
-  // it.
-  SAS::TrailId trail = fd_hook_get_pmd(_sas_cb_data_hdl, *req)->trail;
+  // A SAS trail should have already been allocated in fd_sas_log_diameter_message.
+  // Get it if so (or create a new one if not).
+  SAS::TrailId trail;
+  struct fd_hook_permsgdata* pmd = fd_hook_get_pmd(_sas_cb_data_hdl, *req);
+  if (pmd != NULL)
+  {
+    trail = pmd->trail;
+  }
+  else
+  {
+    trail = SAS::new_trail(0);
+    TRC_WARNING("No per-message data found - allocated new trail ID: %lu", trail);
+  }
   TRC_DEBUG("Invoke diameter request handler on trail %lu", trail);
 
   // Pass the request to the registered handler.
@@ -892,22 +902,46 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
       // Received request. Allocate a new trail and store it in PMD.
       trail = SAS::new_trail(0);
       TRC_DEBUG("Allocated new trail ID: %lu", trail);
-      pmd->trail = trail;
+
+      // If there is a permsgdata, store the trail.  This might not be true
+      // in some error scenarios, in which case we'll log, but might not
+      // correlate correctly.
+      if (pmd != NULL)
+      {
+        pmd->trail = trail;
+      }
     }
     else
     {
       // Received answer. Get the trail from the request.
-      trail = fd_hook_get_request_pmd(stack->_sas_cb_data_hdl, msg)->trail;
-      TRC_DEBUG("Got existing trail ID: %lu", trail);
+      struct fd_hook_permsgdata *req_pmd = fd_hook_get_request_pmd(stack->_sas_cb_data_hdl, msg);
+      if (req_pmd != NULL)
+      {
+        trail = req_pmd->trail;
+        TRC_DEBUG("Got existing trail ID: %lu", trail);
+      }
+      else
+      {
+        trail = SAS::new_trail(0);
+        TRC_WARNING("No per-message data found - allocated new trail ID: %lu", trail);
+      }
     }
   }
   else if (type == HOOK_MESSAGE_SENT)
   {
     // Sent request / answer. Use the trail ID that the diameter stack set on
-    // the message.
+    // the message (if available) or create a new one if not.
     TRC_DEBUG("Processing a sent diameter message");
-    trail = pmd->trail;
-    TRC_DEBUG("Got existing trail ID: %lu", trail);
+    if (pmd != NULL)
+    {
+      trail = pmd->trail;
+      TRC_DEBUG("Got existing trail ID: %lu", trail);
+    }
+    else
+    {
+      trail = SAS::new_trail(0);
+      TRC_WARNING("No per-message data found - allocated new trail ID: %lu", trail);
+    }
   }
   else
   {
@@ -946,7 +980,6 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
     event.add_var_param("unknown");
     event.add_static_param(0);
   }
-
 
   struct fd_cnx_rcvdata* data = (struct fd_cnx_rcvdata*)other;
   event.add_compressed_param(data->length, data->buffer, &SASEvent::PROFILE_LZ4);
