@@ -560,7 +560,6 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
   }
   else
   {
-    TRC_STATUS("omit_body was true!!!");
     // LCOV_EXCL_START
     if (req.get_rx_body().empty())
     {
@@ -570,7 +569,6 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
     }
     else
     {
-      TRC_STATUS("Body present!!!");
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
       event.add_compressed_param(req.get_rx_header() + "<Body present but not logged>",
@@ -589,7 +587,6 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
                                          SASEvent::HttpLogLevel level,
                                          bool omit_body)
 {
-  TRC_STATUS("log_rsp_event!!!");
   int event_id = ((level == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::TX_HTTP_RSP : SASEvent::TX_HTTP_RSP_DETAIL);
   SAS::Event event(trail, event_id, instance_id);
@@ -605,7 +602,6 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
   }
   else
   {
-    TRC_STATUS("omit_body was true!!!");
     // LCOV_EXCL_START
     if (req.get_tx_body().empty())
     {
@@ -615,7 +611,6 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
     }
     else
     {
-      TRC_STATUS("Body present!!!");
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
       event.add_compressed_param(req.get_tx_header(rc) + "<Body present but not logged>",
