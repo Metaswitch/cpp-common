@@ -85,7 +85,8 @@ public:
              SNMP::IPCountTable* stat_table,
              LoadMonitor* load_monitor,
              SASEvent::HttpLogLevel sas_log_level,
-             BaseCommunicationMonitor* comm_monitor);
+             BaseCommunicationMonitor* comm_monitor,
+             bool should_omit_body = false);
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
@@ -317,24 +318,6 @@ private:
   void sas_add_ip_addrs_and_ports(SAS::Event& event,
                                   CURL* curl);
 
-  void log_req_event(SAS::TrailId trail,
-                     CURL* curl,
-                     const std::string& method_str,
-                     const std::string& url,
-                     const std::string& request_bytes,
-                     SAS::Timestamp timestamp,
-                     uint32_t instance_id,
-                     bool omit_body = false);
-
-    void log_rsp_event(SAS::TrailId trail,
-                       CURL* curl,
-                       long http_rc,
-                       const std::string& method_str,
-                       const std::string& url,
-                       const std::string& response_bytes,
-                       uint32_t instance_id,
-                       bool omit_body = false);
-
   void sas_log_http_req(SAS::TrailId trail,
                         CURL* curl,
                         const std::string& method_str,
@@ -397,4 +380,5 @@ private:
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
+  bool _should_omit_body;
 };
