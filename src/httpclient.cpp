@@ -906,7 +906,6 @@ void HttpClient::sas_log_http_req(SAS::TrailId trail,
 {
   if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
   {
-    TRC_STATUS("!!!%s", request_bytes.c_str());
     int event_id = ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                     SASEvent::TX_HTTP_REQ : SASEvent::TX_HTTP_REQ_DETAIL);
     SAS::Event event(trail, event_id, instance_id);
@@ -919,13 +918,11 @@ void HttpClient::sas_log_http_req(SAS::TrailId trail,
     }
     else
     {
-      TRC_STATUS("!!!Should omit body");
       std::size_t body_pos = request_bytes.find("\r\n\r\n");
       std::string headers = request_bytes.substr(0, body_pos);
 
       if (body_pos + 4 == request_bytes.length())
       {
-        TRC_STATUS("!!!No body found");
         // No body, we can just log the request as normal.
         event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
       }
