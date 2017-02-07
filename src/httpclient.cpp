@@ -896,6 +896,25 @@ void HttpClient::sas_add_ip_addrs_and_ports(SAS::Event& event,
   sas_add_port(event, curl, CURLINFO_LOCAL_PORT);
 }
 
+std::string HttpClient::get_obscured_message_to_log(const std::string& message)
+{
+  std::string message_to_log;
+  std::size_t body_pos = message.find("\r\n\r\n");
+  std::string headers = message.substr(0, body_pos);
+
+  if (body_pos + 4 == message.length())
+  {
+    // No body, we can just log the request as normal.
+    message_to_log = message;
+  }
+  else
+  {
+    message_to_log = headers + "\r\n\r\n<Body present but not logged>";
+  }
+
+  return message_to_log;
+}
+
 void HttpClient::sas_log_http_req(SAS::TrailId trail,
                                   CURL* curl,
                                   const std::string& method_str,
@@ -918,19 +937,8 @@ void HttpClient::sas_log_http_req(SAS::TrailId trail,
     }
     else
     {
-      std::size_t body_pos = request_bytes.find("\r\n\r\n");
-      std::string headers = request_bytes.substr(0, body_pos);
-
-      if (body_pos + 4 == request_bytes.length())
-      {
-        // No body, we can just log the request as normal.
-        event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
-      }
-      else
-      {
-        std::string message_to_log = headers + "\r\n\r\n<Body present but not logged>";
-        event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
-      }
+      std::string message_to_log = get_obscured_message_to_log(request_bytes);
+      event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
     }
 
     event.add_var_param(method_str);
@@ -964,19 +972,8 @@ void HttpClient::sas_log_http_rsp(SAS::TrailId trail,
     }
     else
     {
-      std::size_t body_pos = response_bytes.find("\r\n\r\n");
-      std::string headers = response_bytes.substr(0, body_pos);
-
-      if (body_pos + 4 == response_bytes.length())
-      {
-        // No body, we can just log the response as normal.
-        event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
-      }
-      else
-      {
-        std::string message_to_log = headers + "\r\n\r\n<Body present but not logged>";
-        event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
-      }
+      std::string message_to_log = get_obscured_message_to_log(response_bytes);
+      event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
     }
 
     event.add_var_param(method_str);

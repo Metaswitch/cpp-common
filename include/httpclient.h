@@ -318,6 +318,9 @@ private:
   void sas_add_ip_addrs_and_ports(SAS::Event& event,
                                   CURL* curl);
 
+  // Check if the message has a body and obscure it if so.
+  std::string get_obscured_message_to_log(const std::string& message);
+
   void sas_log_http_req(SAS::TrailId trail,
                         CURL* curl,
                         const std::string& method_str,
