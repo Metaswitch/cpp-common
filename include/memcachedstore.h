@@ -102,7 +102,8 @@ protected:
   // Constructor. This is protected to prevent the BaseMemcachedStore from being
   // instantiated directly.
   BaseMemcachedStore(bool binary,
-                     BaseCommunicationMonitor* comm_monitor);
+                     BaseCommunicationMonitor* comm_monitor,
+                     bool remote_store);
 
   // Perform a get request to a single replica.
   memcached_return_t get_from_replica(memcached_st* replica,
@@ -148,11 +149,13 @@ public:
   /// @param config_file   - A MemcachedConfigReader that the store will use to
   ///                        fetch its config. The store takes ownership of
   ///                        this object and is responsible for freeing it.
+  /// @param remote_store  - Whether this store is local or remote
   /// @param comm_monitor  - Object tracking memcached communications.
   /// @param vbucket_alarm - Alarm object to kick if a vbucket is
   ///                        uncontactable.
   TopologyAwareMemcachedStore(bool binary,
                               MemcachedConfigReader* config_reader,
+                              bool remote_store,
                               BaseCommunicationMonitor* comm_monitor = NULL,
                               Alarm* vbucket_alarm = NULL);
 
@@ -161,15 +164,18 @@ public:
   /// @param binary        - Whether to use the binary or text interface to
   ///                        memcached.
   /// @param config_file   - The file (name and path) to read the config from.
+  /// @param remote_store  - Whether this store is local or remote
   /// @param comm_monitor  - Object tracking memcached communications.
   /// @param vbucket_alarm - Alarm object to kick if a vbucket is
   ///                        uncontactable.
   TopologyAwareMemcachedStore(bool binary,
                               const std::string& config_file,
+                              bool remote_store,
                               BaseCommunicationMonitor* comm_monitor = NULL,
                               Alarm* vbucket_alarm = NULL):
     TopologyAwareMemcachedStore(binary,
                                 new MemcachedConfigFileReader(config_file),
+                                remote_store,
                                 comm_monitor,
                                 vbucket_alarm) {}
 
@@ -312,9 +318,11 @@ public:
   /// @param target_domain - The domain name for the topology aware proxies.
   /// @param resolver      - The resolver to use to lookup targets in the
   ///                        specified domain.
+  /// @param remote_store  - Whether this store is local or remote
   /// @param comm_monitor  - Object tracking memcached communications.
   TopologyNeutralMemcachedStore(const std::string& target_domain,
                                 AstaireResolver* resolver,
+                                bool remote_store,
                                 BaseCommunicationMonitor* comm_monitor = NULL);
 
   ~TopologyNeutralMemcachedStore() {}

@@ -61,16 +61,17 @@
 static const std::string TOMBSTONE = "";
 
 /// The length of time to allow for a memcached connection before
-/// timing it out. This time has been chosen to be essentially unlimited -
-/// at this time something else is going to be timing out the request
-/// anyway.
-static int MEMCACHED_CONNECTION_LATENCY_MS = 1000;
+/// timing it out. This needs to be larger for remote sites.
+static int LOCAL_MEMCACHED_CONNECTION_LATENCY_MS = 50;
+static int REMOTE_MEMCACHED_CONNECTION_LATENCY_MS = 250;
 
 BaseMemcachedStore::BaseMemcachedStore(bool binary,
-                                       BaseCommunicationMonitor* comm_monitor) :
+                                       BaseCommunicationMonitor* comm_monitor,
+                                       bool remote_store) :
   _binary(binary),
   _options(),
-  _max_connect_latency_ms(MEMCACHED_CONNECTION_LATENCY_MS),
+  _max_connect_latency_ms(remote_store ? REMOTE_MEMCACHED_CONNECTION_LATENCY_MS :
+                                         LOCAL_MEMCACHED_CONNECTION_LATENCY_MS),
   _comm_monitor(comm_monitor),
   _tombstone_lifetime(200)
 {
@@ -258,9 +259,10 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
 // Constructor.
 TopologyAwareMemcachedStore::TopologyAwareMemcachedStore(bool binary,
                                                          MemcachedConfigReader* config_reader,
+                                                         bool remote_store,
                                                          BaseCommunicationMonitor* comm_monitor,
                                                          Alarm* vbucket_alarm) :
-  BaseMemcachedStore(binary, comm_monitor),
+  BaseMemcachedStore(binary, comm_monitor, remote_store),
   _vbuckets(128),
   _replicas(2),
   _view_number(0),
@@ -1054,9 +1056,10 @@ void TopologyAwareMemcachedStore::delete_with_tombstone(const std::string& fqkey
 TopologyNeutralMemcachedStore::
 TopologyNeutralMemcachedStore(const std::string& target_domain,
                               AstaireResolver* resolver,
+                              bool remote_store,
                               BaseCommunicationMonitor* comm_monitor) :
   // Always use binary, as this is all Astaire supports.
-  BaseMemcachedStore(true, comm_monitor),
+  BaseMemcachedStore(true, comm_monitor, remote_store),
   _target_domain(target_domain),
   _resolver(resolver),
   _attempts(2),
