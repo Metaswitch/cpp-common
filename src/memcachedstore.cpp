@@ -63,7 +63,7 @@ static const std::string TOMBSTONE = "";
 /// The length of time to allow for a memcached connection before
 /// timing it out. This needs to be larger for remote sites.
 static int LOCAL_MEMCACHED_CONNECTION_LATENCY_MS = 50;
-static int REMOTE_MEMCACHED_CONNECTION_LATENCY_MS = 150;
+static int REMOTE_MEMCACHED_CONNECTION_LATENCY_MS = 250;
 
 BaseMemcachedStore::BaseMemcachedStore(bool binary,
                                        BaseCommunicationMonitor* comm_monitor,
