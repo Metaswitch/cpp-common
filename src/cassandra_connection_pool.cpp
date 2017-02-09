@@ -41,9 +41,9 @@
 namespace CassandraStore
 {
 
-static const int TSOCKET_CONN_TIMEOUT_MS = 150;
-static const int TSOCKET_RECV_TIMEOUT_MS = 150;
-static const int TSOCKET_SEND_TIMEOUT_MS = 150;
+static const int TSOCKET_CONN_TIMEOUT_MS = 250;
+static const int TSOCKET_RECV_TIMEOUT_MS = 250;
+static const int TSOCKET_SEND_TIMEOUT_MS = 250;
 
 // The length of time a connection can remain idle before it is removed from
 // the pool
