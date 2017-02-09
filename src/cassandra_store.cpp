@@ -300,7 +300,7 @@ bool Store::perform_op(Operation* op,
   // targets or hit the maximum (2).
   // If there is only one target, try it twice.
   while (retry &&
-         (attempt_count <= 2) &&
+         (attempt_count < 2) &&
          (target_it->next(target) || (attempt_count == 1)))
   {
     cass_result = OK;
@@ -386,6 +386,7 @@ bool Store::perform_op(Operation* op,
       _resolver->success(target);
     }
   }
+
   return success;
 }
 
@@ -688,7 +689,6 @@ put_columns(const std::vector<RowColumns>& to_put,
           SAS::report_event(event);                                          \
           METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
         }
-
 
 void Client::
 ha_get_columns(const std::string& column_family,
