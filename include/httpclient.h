@@ -72,6 +72,9 @@ static const long HTTP_BAD_GATEWAY = 502;
 static const long HTTP_SERVER_UNAVAILABLE = 503;
 static const long HTTP_GATEWAY_TIMEOUT = 504;
 
+static const std::string HEADERS_END = "\r\n\r\n";
+static const std::string BODY_OMITTED = "\r\n\r\n<Body present but not logged>";
+
 /// Issues HTTP requests, supporting round-robin DNS load balancing.
 ///
 class HttpClient

@@ -50,9 +50,6 @@
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
-const std::string HEADERS_END = "\r\n\r\n";
-const std::string BODY_OMITTED = "\r\n\r\n<Body present but not logged>";
-
 /// Create an HTTP client object.
 ///
 /// @param assert_user Assert user in header?
