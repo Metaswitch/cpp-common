@@ -902,7 +902,7 @@ void HttpClient::sas_add_ip_addrs_and_ports(SAS::Event& event,
 std::string HttpClient::get_obscured_message_to_log(const std::string& message)
 {
   std::string message_to_log;
-  std::size_t body_pos = message.find("\r\n\r\n");
+  std::size_t body_pos = message.find(HEADERS_END);
   std::string headers = message.substr(0, body_pos);
 
   if (body_pos + 4 == message.length())
