@@ -50,6 +50,9 @@
 /// Maximum number of targets to try connecting to.
 static const int MAX_TARGETS = 5;
 
+const std::string HEADERS_END = "\r\n\r\n";
+const std::string BODY_OMITTED = "\r\n\r\n<Body present but not logged>";
+
 /// Create an HTTP client object.
 ///
 /// @param assert_user Assert user in header?
@@ -909,7 +912,7 @@ std::string HttpClient::get_obscured_message_to_log(const std::string& message)
   }
   else
   {
-    message_to_log = headers + "\r\n\r\n<Body present but not logged>";
+    message_to_log = headers + BODY_OMITTED;
   }
 
   return message_to_log;

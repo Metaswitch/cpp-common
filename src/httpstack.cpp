@@ -41,6 +41,8 @@
 #include <algorithm>
 #include "log.h"
 
+const std::string BODY_OMITTED = "<Body present but not logged>";
+
 bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
 HttpStack::ProxiedPrivateSasLogger HttpStack::PROXIED_PRIVATE_SAS_LOGGER;
@@ -560,21 +562,19 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
   }
   else
   {
-    // LCOV_EXCL_START
     if (req.get_rx_body().empty())
     {
       // We are omitting the body but there wasn't one in the messaage. Just log
-      // the header.
+      // the headers.
       event.add_compressed_param(req.get_rx_header(), &SASEvent::PROFILE_HTTP);
     }
     else
     {
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
-      event.add_compressed_param(req.get_rx_header() + "<Body present but not logged>",
+      event.add_compressed_param(req.get_rx_header() + BODY_OMITTED,
                                  &SASEvent::PROFILE_HTTP);
     }
-    // LCOV_EXCL_STOP
   }
 
   SAS::report_event(event);
@@ -602,21 +602,19 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
   }
   else
   {
-    // LCOV_EXCL_START
     if (req.get_tx_body().empty())
     {
       // We are omitting the body but there wasn't one in the messaage. Just log
-      // the header.
+      // the headers.
       event.add_compressed_param(req.get_tx_header(rc), &SASEvent::PROFILE_HTTP);
     }
     else
     {
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
-      event.add_compressed_param(req.get_tx_header(rc) + "<Body present but not logged>",
+      event.add_compressed_param(req.get_tx_header(rc) + BODY_OMITTED,
                                  &SASEvent::PROFILE_HTTP);
     }
-    // LCOV_EXCL_STOP
   }
 
   SAS::report_event(event);
@@ -709,7 +707,7 @@ void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
 }
 
 //
-// ProxiedSasLogger methods.
+// ProxiedPrivateSasLogger methods.
 //
 
 void HttpStack::ProxiedPrivateSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& req)
@@ -752,8 +750,8 @@ void HttpStack::ProxiedPrivateSasLogger::add_ip_addrs_and_ports(SAS::Event& even
 }
 
 void HttpStack::ProxiedPrivateSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
-                                                      HttpStack::Request& req,
-                                                      uint32_t instance_id)
+                                                             HttpStack::Request& req,
+                                                             uint32_t instance_id)
 {
   log_correlator(trail, req, instance_id);
   log_req_event(trail, req, instance_id, SASEvent::HttpLogLevel::PROTOCOL, true);
