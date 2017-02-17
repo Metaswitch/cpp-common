@@ -37,6 +37,7 @@
 #ifndef BLOOM_FILTER_CPP__
 #define BLOOM_FILTER_CPP__
 
+#include "rapidjson/writer.h"
 #include "rapidjson/document.h"
 
 class BloomFilter
@@ -61,6 +62,13 @@ public:
   static BloomFilter* for_num_entries_and_fp_prob(uint64_t num_entries,
                                                   double fp_prob);
 
+  /// Construct a bloom filter from a JSON value.
+  ///
+  /// @param json - The JSON value in question.
+  /// @return     - The constructed bloom filter, or nullptr if the JSON was
+  ///               semantically invalid.
+  static BloomFilter* from_json(const std::string& json);
+
   /// Add an item to the bloom filter.
   ///
   /// @param item - The item to set.
@@ -72,6 +80,17 @@ public:
   /// @return    - False if the item is not present. True if it *might* be
   ///              present (bloom filters can give false positives)
   bool check(const std::string& item);
+
+  /// Serialize the bloom filter to JSON.
+  ///
+  /// @return - The json in string form.
+  std::string to_json();
+
+protected:
+  // Make the default constructor protected so that users can't default
+  // construct a bloom filter, but the alternative constructors can construct an
+  // empty bloom filter and fill it in.
+  BloomFilter();
 
 private:
   // The underlying bitmap that the bloom filter uses to store its data. This
@@ -117,6 +136,20 @@ private:
   // Utility function to set a bit in the bitmap.
   // @param bit - the index of the bit to set.
   void set_bit(uint64_t bit);
+
+  // Utility function to write a Sip hasher out as a JSON object.
+  //
+  // @param hasher - The hasher in question.
+  // @param writer - A rapidjson writer to write to.
+  void sip_hash_to_json(const SipHashKeys& hasher,
+                        rapidjson::Writer<rapidjson::StringBuffer>& writer);
+
+  // Utility function to read a Sip Hasher from a JSON value.
+  //
+  // @param json_val - The value to read from.
+  // @param hasher   - The hasher to read into.
+  static void sip_hash_from_json(const rapidjson::Value& json_val,
+                                 SipHashKeys& hasher);
 };
 
 #endif
