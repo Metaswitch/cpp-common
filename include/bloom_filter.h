@@ -37,6 +37,8 @@
 #ifndef BLOOM_FILTER_CPP__
 #define BLOOM_FILTER_CPP__
 
+#include "rapidjson/document.h"
+
 class BloomFilter
 {
 public:
@@ -51,9 +53,13 @@ public:
   /// false positive probability.
   ///
   /// @param num_entries - The number of entries expected in the bloom filter.
+  ///                      Must be in the range 0.0 - 1.0 (not inclusive).
   /// @param fp_prob     - The false positive probability for the filter.
-  static BloomFilter for_num_entries_and_fp_prob(uint64_t num_entries,
-                                                 double fp_prob);
+  ///                      Must be > 0.
+  /// @return            - The constructed bloom filter, or nullptr if the
+  ///                      arguments were unacceptable.
+  static BloomFilter* for_num_entries_and_fp_prob(uint64_t num_entries,
+                                                  double fp_prob);
 
   /// Add an item to the bloom filter.
   ///

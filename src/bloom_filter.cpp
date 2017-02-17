@@ -65,20 +65,28 @@ BloomFilter::BloomFilter(uint64_t bitmap_size, uint32_t bits_per_item) :
             sip_hashers[1].k1);
 }
 
-BloomFilter BloomFilter::for_num_entries_and_fp_prob(uint64_t num_entries,
+BloomFilter* BloomFilter::for_num_entries_and_fp_prob(uint64_t num_entries,
                                                      double fp_prob)
 {
-  assert(fp_prob < 1.0);
-  assert(fp_prob > 0.0);
+  if ((fp_prob <= 0.0) || (fp_prob >= 1.0))
+  {
+    TRC_WARNING("Bad bloom filter false positive probability %f, must be in range (0.0, 1.0)",
+                fp_prob);
+    return nullptr;
+  }
+
+  if (num_entries <= 0)
+  {
+    TRC_WARNING("Bad bloom filter number of entries %lu, must be >0", num_entries);
+    return nullptr;
+  }
 
   uint32_t bits_per_item = ceil(-log(fp_prob) / log(2));
-
-  num_entries = std::max(num_entries, 1ul);
 
   double factor = -1.0 * log(fp_prob) / (log(2) * log(2));
   uint64_t bitmap_size = num_entries * factor;
 
-  return BloomFilter(bitmap_size, bits_per_item);
+  return new BloomFilter(bitmap_size, bits_per_item);
 }
 
 void BloomFilter::add(const std::string& item)
