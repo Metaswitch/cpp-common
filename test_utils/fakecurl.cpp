@@ -102,7 +102,8 @@ CURLcode FakeCurl::easy_perform(FakeCurl* curl)
     // logging code).
     std::string text;
 
-    text = "GET / HTTP/1.1\r\n\r\n";
+    text = _method + " / HTTP/1.1\r\n\r\n" + _body;
+
     _debug_callback((CURL*)this,
                     CURLINFO_HEADER_OUT,
                     (char*)text.c_str(),
@@ -116,7 +117,7 @@ CURLcode FakeCurl::easy_perform(FakeCurl* curl)
                     text.size(),
                     _debug_data);
 
-    text = "HTTP/1.1 200 OK\r\n\r\n";
+    text = "HTTP/1.1 200 OK\r\n\r\n" + _body;
     _debug_callback((CURL*)this,
                     CURLINFO_HEADER_IN,
                     (char*)text.c_str(),

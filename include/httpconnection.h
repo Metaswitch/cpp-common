@@ -60,7 +60,8 @@ public:
                  LoadMonitor* load_monitor,
                  SASEvent::HttpLogLevel sas_log_level,
                  BaseCommunicationMonitor* comm_monitor,
-                 const std::string& scheme = "http") :
+                 const std::string& scheme = "http",
+                 bool should_omit_body = false) :
     _scheme(scheme),
     _server(server),
     _client(assert_user,
@@ -68,7 +69,8 @@ public:
             stat_table,
             load_monitor,
             sas_log_level,
-            comm_monitor)
+            comm_monitor,
+            should_omit_body)
   {
     TRC_STATUS("Configuring HTTP Connection");
     TRC_STATUS("  Connection created for server %s", _server.c_str());

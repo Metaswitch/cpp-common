@@ -62,14 +62,16 @@ HttpClient::HttpClient(bool assert_user,
                        SNMP::IPCountTable* stat_table,
                        LoadMonitor* load_monitor,
                        SASEvent::HttpLogLevel sas_log_level,
-                       BaseCommunicationMonitor* comm_monitor) :
+                       BaseCommunicationMonitor* comm_monitor,
+                       bool should_omit_body) :
   _assert_user(assert_user),
   _resolver(resolver),
   _load_monitor(load_monitor),
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor, stat_table)
+  _conn_pool(load_monitor, stat_table),
+  _should_omit_body(should_omit_body)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
@@ -894,6 +896,25 @@ void HttpClient::sas_add_ip_addrs_and_ports(SAS::Event& event,
   sas_add_port(event, curl, CURLINFO_LOCAL_PORT);
 }
 
+std::string HttpClient::get_obscured_message_to_log(const std::string& message)
+{
+  std::string message_to_log;
+  std::size_t body_pos = message.find(HEADERS_END);
+  std::string headers = message.substr(0, body_pos);
+
+  if (body_pos + 4 == message.length())
+  {
+    // No body, we can just log the request as normal.
+    message_to_log = message;
+  }
+  else
+  {
+    message_to_log = headers + BODY_OMITTED;
+  }
+
+  return message_to_log;
+}
+
 void HttpClient::sas_log_http_req(SAS::TrailId trail,
                                   CURL* curl,
                                   const std::string& method_str,
@@ -909,7 +930,17 @@ void HttpClient::sas_log_http_req(SAS::TrailId trail,
     SAS::Event event(trail, event_id, instance_id);
 
     sas_add_ip_addrs_and_ports(event, curl);
-    event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
+
+    if (!_should_omit_body)
+    {
+      event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
+    }
+    else
+    {
+      std::string message_to_log = get_obscured_message_to_log(request_bytes);
+      event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
+    }
+
     event.add_var_param(method_str);
     event.add_var_param(Utils::url_unescape(url));
 
@@ -934,7 +965,17 @@ void HttpClient::sas_log_http_rsp(SAS::TrailId trail,
 
     sas_add_ip_addrs_and_ports(event, curl);
     event.add_static_param(http_rc);
-    event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
+
+    if (!_should_omit_body)
+    {
+      event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
+    }
+    else
+    {
+      std::string message_to_log = get_obscured_message_to_log(response_bytes);
+      event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
+    }
+
     event.add_var_param(method_str);
     event.add_var_param(Utils::url_unescape(url));
 
