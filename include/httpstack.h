@@ -355,11 +355,11 @@ public:
                                   uint32_t instance_id = 0);
   };
 
-  /// SAS logger for http-stacks behind nginx reverse proxies.
-  class ProxiedPrivateSasLogger : public DefaultSasLogger
+  /// SAS logger which omits bodies of requests and responses
+  /// in SAS logs.
+  class PrivateSasLogger : public DefaultSasLogger
   {
   protected:
-    void add_ip_addrs_and_ports(SAS::Event& event, Request& req);
     void sas_log_rx_http_req(SAS::TrailId trail,
                              Request& req,
                              uint32_t instance_id = 0);
@@ -367,6 +367,13 @@ public:
                              Request& req,
                              int rc,
                              uint32_t instance_id = 0);
+  };
+
+  /// SAS logger for http-stacks behind nginx reverse proxies.
+  class ProxiedPrivateSasLogger : public PrivateSasLogger
+  {
+  protected:
+    void add_ip_addrs_and_ports(SAS::Event& event, Request& req);
   };
 
   /// "Null" SAS Logger.  Does not log.
@@ -452,6 +459,7 @@ public:
   };
 
   static DefaultSasLogger DEFAULT_SAS_LOGGER;
+  static PrivateSasLogger PRIVATE_SAS_LOGGER;
   static ProxiedPrivateSasLogger PROXIED_PRIVATE_SAS_LOGGER;
   static NullSasLogger NULL_SAS_LOGGER;
 
