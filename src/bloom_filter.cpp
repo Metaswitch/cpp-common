@@ -150,8 +150,8 @@ uint64_t BloomFilter::calculate_sip_hash_value(const SipHashKeys& keys,
   // The reference C implementation of SipHash takes a 16-byte array. Form this
   // by concatenating the two keys with native byte ordering.
   uint8_t key[16];
-  *((uint64_t*)key) = keys.k0;
-  *((uint64_t*)(key + 8)) = keys.k1;
+  memcpy(key, &keys.k0, 8);
+  memcpy(key + 8, &keys.k1, 8);
 
   // Similarly the result is returned as a 8-byte array. Interpret this as a
   // 64-bit uint in native byte ordering.
