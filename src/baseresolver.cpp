@@ -239,10 +239,10 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             // Address is blacklisted, so copy to blacklisted list.
             blacklist.push_back(ai.address);
           }
-        }
 
-        // Take the smallest ttl returned so far.
-        ttl = std::min(ttl, a_result.ttl());
+          // Take the smallest ttl returned so far.
+          ttl = std::min(ttl, a_result.ttl());
+        }
 
         // Randomize the order of both vectors.
         std::random_shuffle(active.begin(), active.end());
