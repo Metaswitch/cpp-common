@@ -40,6 +40,8 @@
 #include "rapidjson/writer.h"
 #include "rapidjson/document.h"
 
+#include <vector>
+
 class BloomFilter
 {
 public:
