@@ -497,7 +497,7 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
       do_query = true;
       wait_for_query_result = true;
     }
-    else if (ce->expires < now)
+    else if (ce->expires <= now)
     {
       // We have a result, but it has expired.  We should kick off a new
       // asynchronous query to update our DNS cache, unless we have another
@@ -957,7 +957,7 @@ void DnsCachedResolver::expire_cache()
   int now = time(NULL);
 
   while ((!_cache_expiry_list.empty()) &&
-         (_cache_expiry_list.begin()->first < now))
+         (_cache_expiry_list.begin()->first <= now))
   {
     std::multimap<int, DnsCacheKey>::iterator i = _cache_expiry_list.begin();
     TRC_DEBUG("Removing record for %s (type %d, expiry time %d) from the expiry list", i->second.second.c_str(), i->second.first, i->first);
