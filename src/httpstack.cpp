@@ -45,6 +45,7 @@ const std::string BODY_OMITTED = "<Body present but not logged>";
 
 bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
+HttpStack::PrivateSasLogger HttpStack::PRIVATE_SAS_LOGGER;
 HttpStack::ProxiedPrivateSasLogger HttpStack::PROXIED_PRIVATE_SAS_LOGGER;
 HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 
@@ -708,6 +709,22 @@ void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
   log_overload_event(trail, req, rc, target_latency, current_latency, rate_limit, instance_id);
 }
 
+void HttpStack::PrivateSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
+                                                      HttpStack::Request& req,
+                                                      uint32_t instance_id)
+{
+  log_correlator(trail, req, instance_id);
+  log_req_event(trail, req, instance_id, SASEvent::HttpLogLevel::PROTOCOL, true);
+}
+
+void HttpStack::PrivateSasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
+                                                      HttpStack::Request& req,
+                                                      int rc,
+                                                      uint32_t instance_id)
+{
+  log_rsp_event(trail, req, rc, instance_id, SASEvent::HttpLogLevel::PROTOCOL, true);
+}
+
 //
 // ProxiedPrivateSasLogger methods.
 //
@@ -749,20 +766,4 @@ void HttpStack::ProxiedPrivateSasLogger::add_ip_addrs_and_ports(SAS::Event& even
     event.add_static_param(0);
     // LCOV_EXCL_STOP
   }
-}
-
-void HttpStack::ProxiedPrivateSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
-                                                             HttpStack::Request& req,
-                                                             uint32_t instance_id)
-{
-  log_correlator(trail, req, instance_id);
-  log_req_event(trail, req, instance_id, SASEvent::HttpLogLevel::PROTOCOL, true);
-}
-
-void HttpStack::ProxiedPrivateSasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
-                                                             HttpStack::Request& req,
-                                                             int rc,
-                                                             uint32_t instance_id)
-{
-  log_rsp_event(trail, req, rc, instance_id, SASEvent::HttpLogLevel::PROTOCOL, true);
 }
