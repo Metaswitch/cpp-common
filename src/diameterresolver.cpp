@@ -81,6 +81,7 @@ void DiameterResolver::resolve(const std::string& realm,
   targets.clear();
   int new_ttl = 0;
   ttl = 0;
+  bool set_ttl = false;
 
   AddrInfo ai;
   int transport = DEFAULT_TRANSPORT;
@@ -100,6 +101,7 @@ void DiameterResolver::resolve(const std::string& realm,
     if (naptr != NULL)
     {
       // NAPTR resolved to a supported service
+      set_ttl = true;
       TRC_DEBUG("NAPTR resolved to transport %d", naptr->transport);
       transport = naptr->transport;
       if (strcasecmp(naptr->flags.c_str(), "S") == 0)
@@ -137,7 +139,8 @@ void DiameterResolver::resolve(const std::string& realm,
         TRC_DEBUG("TCP SRV lookup successful, select TCP transport");
         transport = IPPROTO_TCP;
         srv_name = tcp_result.domain();
-        ttl = std::min(ttl, tcp_result.ttl());
+        ttl = tcp_result.ttl();
+        set_ttl = true;
       }
       else if (!sctp_result.records().empty())
       {
@@ -145,7 +148,8 @@ void DiameterResolver::resolve(const std::string& realm,
         TRC_DEBUG("SCTP SRV lookup successful, select SCTP transport");
         transport = IPPROTO_SCTP;
         srv_name = sctp_result.domain();
-        ttl = std::min(ttl, sctp_result.ttl());
+        ttl = sctp_result.ttl();
+        set_ttl = true;
       }
     }
 
@@ -156,13 +160,15 @@ void DiameterResolver::resolve(const std::string& realm,
     {
       TRC_DEBUG("Do SRV lookup for %s", srv_name.c_str());
       srv_resolve(srv_name, _address_family, transport, max_targets, targets, new_ttl, 0);
-      ttl = std::min(ttl, new_ttl);
+      ttl = set_ttl ? std::min(ttl, new_ttl) : new_ttl;
+      set_ttl = true;
     }
     else if (a_name != "")
     {
       TRC_DEBUG("Do A/AAAA lookup for %s", a_name.c_str());
       a_resolve(a_name, _address_family, DEFAULT_PORT, transport, max_targets, targets, new_ttl, 0);
-      ttl = std::min(ttl, new_ttl);
+      ttl = set_ttl ? std::min(ttl, new_ttl) : new_ttl;
+      set_ttl = true;
     }
   }
 
@@ -179,7 +185,9 @@ void DiameterResolver::resolve(const std::string& realm,
     }
     else
     {
-      a_resolve(host, _address_family, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, ttl, 0);
+      a_resolve(host, _address_family, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, new_ttl, 0);
+      ttl = set_ttl ? std::min(ttl, new_ttl) : new_ttl;
+      set_ttl = true;
     }
   }
 }
