@@ -1,4 +1,4 @@
-/* 
+/*
    base64.cpp and base64.h
 
    Copyright (C) 2004-2008 Renéyffenegger
@@ -28,7 +28,7 @@
 #include "base64.h"
 #include <iostream>
 
-static const std::string base64_chars = 
+static const std::string base64_chars =
              "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
              "abcdefghijklmnopqrstuvwxyz"
              "0123456789+/";
@@ -127,4 +127,13 @@ std::string base64_encode(const std::string& string_to_encode) {
              reinterpret_cast<const unsigned char*>(string_to_encode.c_str());
 
   return base64_encode(bytes_to_encode, string_to_encode.length());
+}
+
+// This function is an addition to the original source code.
+#include <algorithm>
+
+bool is_base64(const std::string& encoded_string)
+{
+  return std::all_of(encoded_string.begin(), encoded_string.end(),
+                     [](char c) { return (is_base64(c) || c == '='); });
 }
