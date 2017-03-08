@@ -52,6 +52,7 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <syslog.h>
+#include <boost/regex.hpp>
 
 #include "utils.h"
 #include "log.h"
@@ -709,5 +710,107 @@ Utils::IPAddressType Utils::parse_ip_address(std::string address)
   {
     return (with_port) ? IPAddressType::INVALID_WITH_PORT :
                          IPAddressType::INVALID;
+  }
+}
+
+bool Utils::is_wildcard_uri(std::string wildcard)
+{
+  // This function counts how many !s there are in the URI string
+  // before the @ - note, this only checks whether the URI string
+  // must represent a wildcarded URI if it's a valid URI - it
+  // doesn't say whether the returned URI is actually valid.
+  //
+  // We use string manipulation for this rather than parsing it as a URI
+  // using PJSIP, as we don't know if this actually corresponds to a
+  // valid URI, and adding more validation to the URI would be too
+  // heavyweight.
+  std::vector<std::string> wildcard_parts;
+  Utils::split_string(wildcard, '@', wildcard_parts, 0, false);
+  return (std::count(wildcard_parts[0].begin(),
+                     wildcard_parts[0].end(),
+                     '!') >= 2);
+}
+
+bool Utils::uris_user_match(const std::string& matcher,
+                            const std::string& matchee)
+{
+  // Quick check if the identities are already the same without looking at the
+  // wildcards. Also check if either string is empty (where we've caught the
+  // case where they're both empty at the start) as this definitely won't match,
+  // and checking now simplifies the error checking logic later.
+  if (matcher == matchee)
+  {
+    return true;
+  }
+  else if ((matcher == "") || (matchee == ""))
+  {
+    return false;
+  }
+
+  // We don't match on any parameters in the URI, so strip them out before
+  // doing anymore processing. Then check again if the identities are the same
+  // now that we don't have any parameters.
+  std::vector<std::string> matcher_user;
+  std::vector<std::string> matchee_user;
+  Utils::split_string(matcher, ';', matcher_user, 0, false);
+  Utils::split_string(matchee, ';', matchee_user, 0, false);
+
+  if (matcher_user[0] == matchee_user[0])
+  {
+    return true;
+  }
+
+  // Only chance to match now is if the matcher is a wildcard. The wildcard
+  // has the format:
+  //
+  //    <non wildcard part>!<regex>!<non wildcard part>
+  //
+  // Either of the wildcard parts or the regex can be empty.
+  // We have to split out the three parts of the wildcard, then check the first
+  // part directly matches the start of the matchee string, the end part
+  // directly matches the end of the matchee string, and the regex matches
+  // against whatever's left of the matchee string.
+  std::size_t matcher_start = matcher_user[0].find_first_of("!");
+  std::size_t matcher_end = matcher_user[0].find_last_of("!");
+
+  if ((matcher_start == std::string::npos) ||
+      (matcher_end == std::string::npos) ||
+      (matcher_start == matcher_end))
+  {
+    // The matcher isn't a wildcard
+    return false;
+  }
+
+  // Check the start and end parts
+  std::string matcher_start_str = matcher_user[0].substr(0, matcher_start);
+  std::string matcher_end_str = matcher_user[0].substr(matcher_end + 1);
+  std::string matchee_start_str = matchee_user[0].substr(0, matcher_start);
+  std::string matchee_end_str = matchee_user[0].substr(matchee_start_str.size());
+
+  if ((matchee_start_str != matcher_start_str) ||
+      (matchee_end_str.substr(matchee_end_str.size() - matcher_end_str.size()) !=
+       matcher_end_str))
+  {
+    // Either the start or end of the wildcard didn't directly match the
+    // matchee string
+    return false;
+  }
+
+  // Finally, check against the regex.
+  std::string matcher_part = matcher_user[0].substr(matcher_start + 1,
+                                                     (matcher_end - matcher_start - 1));
+  std::string matchee_part = matchee_end_str.substr(0, (matchee_end_str.size() -
+                                                    matcher_end_str.size()));
+  boost::regex matcher_regex = boost::regex(matcher_part,
+                                             boost::regex_constants::no_except);
+
+  if ((!matcher_regex.status()) &&
+      (boost::regex_search(matchee_part, matcher_regex)))
+  {
+    return true;
+  }
+  else
+  {
+    return false;
   }
 }
