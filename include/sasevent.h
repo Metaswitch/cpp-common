@@ -89,7 +89,7 @@ namespace SASEvent {
   const int HOUDINI_BASE = 0x890000;
   const int BIFROST_BASE = 0x8A0000;
   const int WEATHERWAX_BASE = 0x8B0000;
-  const int RPE_BASE = 0x8C0000;  // This is also defined in the python RPE source code
+  const int RPE_BASE = 0x8C0000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
