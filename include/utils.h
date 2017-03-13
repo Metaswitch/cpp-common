@@ -602,13 +602,6 @@ namespace Utils
   // Does the passed in address have brackets?
   bool is_bracketed_address(const std::string& address);
 
-  // Checks if a string represents a wildcard URI.
-  bool is_wildcard_uri(const std::string& possible_wildcard);
-
-  // Checks if two URIs match, including wildcard checking.
-  bool check_users_equivalent(const std::string& wildcard_user,
-                              const std::string& specific_user);
-
 } // namespace Utils
 
 #endif /* UTILS_H_ */
