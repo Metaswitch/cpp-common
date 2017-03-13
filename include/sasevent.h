@@ -41,6 +41,8 @@
 #include "sas.h"
 
 namespace SASEvent {
+  // On updating the CURRENT_RESOURCE_BUNDLE_DATESTAMP, you must also update the
+  // SAS_RESOURCE_BUNDLE in the rpesasconstants file in the houdini repository.
   const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170310";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
