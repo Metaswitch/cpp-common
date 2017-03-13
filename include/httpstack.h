@@ -309,7 +309,8 @@ public:
     void log_req_event(SAS::TrailId trail,
                        Request& req,
                        uint32_t instance_id,
-                       SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
+                       SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL,
+                       bool omit_body = false);
 
     // Log that a response has been sent using the normal SAS event IDs.
     void log_rsp_event(SAS::TrailId trail,
@@ -355,10 +356,17 @@ public:
   };
 
   /// SAS logger for http-stacks behind nginx reverse proxies.
-  class ProxiedSasLogger : public DefaultSasLogger
+  class ProxiedPrivateSasLogger : public DefaultSasLogger
   {
   protected:
     void add_ip_addrs_and_ports(SAS::Event& event, Request& req);
+    void sas_log_rx_http_req(SAS::TrailId trail,
+                             Request& req,
+                             uint32_t instance_id = 0);
+    void sas_log_tx_http_rsp(SAS::TrailId trail,
+                             Request& req,
+                             int rc,
+                             uint32_t instance_id = 0);
   };
 
   /// "Null" SAS Logger.  Does not log.
@@ -444,7 +452,7 @@ public:
   };
 
   static DefaultSasLogger DEFAULT_SAS_LOGGER;
-  static ProxiedSasLogger PROXIED_SAS_LOGGER;
+  static ProxiedPrivateSasLogger PROXIED_PRIVATE_SAS_LOGGER;
   static NullSasLogger NULL_SAS_LOGGER;
 
 private:
