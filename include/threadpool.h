@@ -34,6 +34,8 @@
  * as those licenses appear in the file LICENSE-OPENSSL.
  */
 
+#include <functional>
+
 #include <eventq.h>
 #include "exception_handler.h"
 #include <log.h>
@@ -141,6 +143,14 @@ public:
     _queue.push(work);
   }
 
+  // Add a work item to the thread pool by moving it into the pool.
+  //
+  // @param work the work item to add.
+  void add_work(T&& work)
+  {
+    _queue.push(work);
+  }
+
 private:
   unsigned int _num_threads;
   ExceptionHandler* _exception_handler;
@@ -163,32 +173,44 @@ private:
     return NULL;
   }
 
+  // Take on work item off the queue an process it. This is called repeatedly by
+  // the worker threads until it returns false (meaning the work queue has been
+  // closed).
+  //
+  // This can also be used in UTs to control execution of the thread pool.
+  bool run_once()
+  {
+    T work;
+    bool got_work = _queue.pop(work);
+
+    if (got_work)
+    {
+      CW_TRY
+      {
+        process_work(work);
+      }
+      CW_EXCEPT(_exception_handler)
+      {
+        _callback(work);
+      }
+      CW_END
+    }
+
+    return got_work;
+  }
+
   // Function executed by a single worker thread. This loops pulling work off
   // the queue and processing it.
   void worker_thread_func()
   {
     bool got_work;
-    T work;
 
     // Startup hook.
     on_thread_startup();
 
     do
     {
-      got_work = _queue.pop(work);
-
-      if (got_work)
-      {
-        CW_TRY
-        {
-          process_work(work);
-        }
-        CW_EXCEPT(_exception_handler)
-        {
-          _callback(work);
-        }
-        CW_END
-      }
+      got_work = run_once();
 
       // If we haven't got any work then the queue must have been terminated,
       // which in turn means the threadpool has been shut down.  Exit the loop.
@@ -212,6 +234,24 @@ private:
 
   // Process a work item. This method must be overridden by the subclass.
   virtual void process_work(T& work) = 0;
+};
+
+
+/// An alternative thread pool where the work items are callable objects. When a
+/// thread processes a work item it just calls the object. This allows thread
+/// pools to be used ergonomically with lambdas and std::binds.
+class FunctorThreadPool : public ThreadPool<std::function<void()>>
+{
+public:
+  /// Just use the `ThreadPool` constructor.
+  using ThreadPool<std::function<void()>>::ThreadPool;
+
+  virtual ~FunctorThreadPool() {};
+
+  void process_work(std::function<void()>& callable)
+  {
+    callable();
+  }
 };
 
 #endif
