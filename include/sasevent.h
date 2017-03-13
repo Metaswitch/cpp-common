@@ -41,7 +41,7 @@
 #include "sas.h"
 
 namespace SASEvent {
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170203";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170310";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -89,6 +89,7 @@ namespace SASEvent {
   const int HOUDINI_BASE = 0x890000;
   const int BIFROST_BASE = 0x8A0000;
   const int WEATHERWAX_BASE = 0x8B0000;
+  const int RPE_BASE = 0x8C0000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
