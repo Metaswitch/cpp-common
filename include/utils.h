@@ -603,11 +603,11 @@ namespace Utils
   bool is_bracketed_address(const std::string& address);
 
   // Checks if a string represents a wildcard URI.
-  bool is_wildcard_uri(std::string wildcard);
+  bool is_wildcard_uri(const std::string& possible_wildcard);
 
   // Checks if two URIs match, including wildcard checking.
-  bool uris_user_match(const std::string& matcher,
-                       const std::string& matchee);
+  bool check_users_equivalent(const std::string& wildcard_user,
+                              const std::string& specific_user);
 
 } // namespace Utils
 
