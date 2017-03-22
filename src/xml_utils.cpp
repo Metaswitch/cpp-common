@@ -90,7 +90,6 @@ long parse_integer(xml_node<>* node,
                    long min_value,
                    long max_value)
 {
-  TRC_DEBUG("LLLLLL");
   // Node must be non-NULL - caller should check for this prior to calling
   // this method.
   assert(node != NULL);
