@@ -109,7 +109,6 @@ long parse_integer(xml_node<>* node,
                  std::to_string(min_value) + ".." + std::to_string(max_value));
   }
 
-  TRC_DEBUG("%lu", n);
   return n;
 }
 
