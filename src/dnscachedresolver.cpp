@@ -843,7 +843,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
     // extended for 30 seconds at a time. Note that this only kicks in
     // on DNS server failure, and if a record is deliberately deleted,
     // that will return NXDOMAIN and not be cached.
-    TRC_ERROR("Failed to retrieve record for %s: %s", domain.c_str(), ares_strerror(status));
+    TRC_WARNING("Failed to retrieve record for %s: %s", domain.c_str(), ares_strerror(status));
 
     if (status == ARES_ENOTFOUND)
     {

@@ -539,8 +539,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     }
     else
     {
-      TRC_ERROR("%s failed at server %s : %s (%d) : fatal",
-                url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
+      TRC_WARNING("%s failed at server %s : %s (%d) : fatal",
+                  url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
       sas_log_curl_error(trail, remote_ip, target.port, method_str, url, rc, 0);
     }
 
