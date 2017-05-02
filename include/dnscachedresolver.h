@@ -77,10 +77,10 @@ private:
 class DnsCachedResolver
 {
 public:
-  DnsCachedResolver(const std::vector<IP46Address>& dns_servers, const std::string& filename = "");
-  DnsCachedResolver(const std::vector<std::string>& dns_servers, const std::string& filename = "");
-  DnsCachedResolver(const std::string& dns_server, int port, const std::string& filename = "");
-  DnsCachedResolver(const std::string& dns_server) : DnsCachedResolver(dns_server, 53) {};
+  DnsCachedResolver(const std::vector<IP46Address>& dns_servers, int timeout = DEFAULT_TIMEOUT, const std::string& filename = "");
+  DnsCachedResolver(const std::vector<std::string>& dns_servers, int timeout = DEFAULT_TIMEOUT, const std::string& filename = "");
+  DnsCachedResolver(const std::string& dns_server, int port, int timeout = DEFAULT_TIMEOUT, const std::string& filename = "");
+  DnsCachedResolver(const std::string& dns_server) : DnsCachedResolver(dns_server, DEFAULT_PORT) {};
   ~DnsCachedResolver();
 
   /// Queries a single DNS record.
@@ -107,6 +107,12 @@ public:
 
   // Reads DNS records from _dns_config_file and stores them in _static_records
   void reload_static_records();
+
+  // Default timeout for DNS requests over the wire (in milliseconds)
+  static const int DEFAULT_TIMEOUT = 200;
+
+  // Default port number for DNS requests
+  static const int DEFAULT_PORT = 53;
 
 private:
   void init(const std::vector<IP46Address>& dns_server);
@@ -202,6 +208,9 @@ private:
   struct ares_addr_node _ares_addrs[3];
   std::vector<IP46Address> _dns_servers;
   int _port;
+
+  // C_ARES request timeout
+  int _timeout;
 
   // The thread-local store - used for storing DnsChannels.
   pthread_key_t _thread_local;

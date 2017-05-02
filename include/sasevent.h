@@ -152,6 +152,7 @@ namespace SASEvent {
   const int DNS_SUCCESS = COMMON_BASE + 0x000203;
   const int DNS_FAILED = COMMON_BASE + 0x000204;
   const int DNS_NOT_FOUND = COMMON_BASE + 0x000205;
+  const int DNS_TIMEOUT = COMMON_BASE + 0x000206;
 
   const int CASS_CONNECT_FAIL = COMMON_BASE + 0x0300;
 
