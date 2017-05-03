@@ -134,6 +134,7 @@ namespace RegDataXMLUtils
   const char* const STATE_NOT_REGISTERED = "NOT_REGISTERED";
   const char* const STATE_REGISTERED = "REGISTERED";
   const char* const STATE_UNREGISTERED = "UNREGISTERED";
+  const char* const STATE_UNBARRED = "0";
   const char* const STATE_BARRED = "1";
   const char* const CCF_ECF_PRIORITY = "priority";
   const char* const CCF_PRIORITY_1 = "1";
