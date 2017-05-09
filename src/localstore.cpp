@@ -51,7 +51,8 @@ LocalStore::LocalStore() :
   _data_contention_flag(false),
   _db_lock(PTHREAD_MUTEX_INITIALIZER),
   _db(),
-  _force_error_flag(false),
+  _force_error_on_set_flag(false),
+  _force_error_on_get_flag(false),
   _old_db()
 {
   TRC_DEBUG("Created local store");
@@ -86,7 +87,14 @@ void LocalStore::force_contention()
 // error on the SET.  We achieve this by just returning an error on the SET.
 void LocalStore::force_error()
 {
-  _force_error_flag = true;
+  _force_error_on_set_flag = true;
+}
+
+// This function sets a flag to true that tells the program to simulate an
+// error on the GET.  We achieve this by just returning an error on the GET.
+void LocalStore::force_get_error()
+{
+  _force_error_on_get_flag = true;
 }
 
 Store::Status LocalStore::get_data(const std::string& table,
@@ -97,6 +105,15 @@ Store::Status LocalStore::get_data(const std::string& table,
 {
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
   Store::Status status = Store::Status::NOT_FOUND;
+
+  // This is for the purpose of testing data GETs failing.  If the flag is set
+  // to true, then we'll just return an error.
+  if (_force_error_on_get_flag == true)
+  {
+    TRC_DEBUG("Force an error on the GET");
+    _force_error_on_get_flag = false;
+    return Store::Status::ERROR;
+  }
 
   // Calculate the fully qualified key.
   std::string fqkey = table + "\\\\" + key;
@@ -161,10 +178,10 @@ Store::Status LocalStore::set_data(const std::string& table,
 
   // This is for the purpose of testing data SETs failing.  If the flag is set
   // to true, then we'll just return an error.
-  if (_force_error_flag == true)
+  if (_force_error_on_set_flag == true)
   {
     TRC_DEBUG("Force an error on the SET");
-    _force_error_flag = false;
+    _force_error_on_set_flag = false;
 
     return Store::Status::ERROR;
   }
