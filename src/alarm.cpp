@@ -87,8 +87,23 @@ void BaseAlarm::switch_to_state(AlarmState* new_state)
 {
   if (_last_state_raised !=  new_state)
   {
+    std::string old_state_text = "NULL";
+    std::string new_state_text = "NULL";
+
+    if (_last_state_raised != NULL)
+    {
+      old_state_text = _last_state_raised->get_identifier();
+    }
+
+    if (new_state != NULL)
+    {
+      new_state_text = new_state->get_identifier();
+    }
+
     pthread_mutex_lock(&_issue_alarm_change_state);
-    TRC_STATUS("Alarm severity changed");
+    TRC_STATUS("Alarm severity changed from %s to %s",
+               old_state_text.c_str(),
+               new_state_text.c_str());
     new_state->issue();
     _last_state_raised = new_state;
     pthread_mutex_unlock(&_issue_alarm_change_state);
