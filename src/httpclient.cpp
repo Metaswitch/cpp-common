@@ -421,7 +421,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     struct curl_slist* extra_headers = build_headers(headers_to_add,
                                                      _assert_user,
                                                      username,
-                                                     uuid_str);
+                                                     uuid_str,
+                                                     trail);
 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
 
@@ -718,7 +719,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
 struct curl_slist* HttpClient::build_headers(std::vector<std::string> headers_to_add,
                                              bool assert_user,
                                              const std::string& username,
-                                             std::string uuid_str)
+                                             std::string uuid_str,
+                                             SAS::TrailId trail)
 {
   struct curl_slist* extra_headers = NULL;
   extra_headers = curl_slist_append(extra_headers, "Content-Type: application/json");
@@ -748,6 +750,9 @@ struct curl_slist* HttpClient::build_headers(std::vector<std::string> headers_to
     extra_headers = curl_slist_append(extra_headers,
                                       ("X-XCAP-Asserted-Identity: " + username).c_str());
   }
+
+  curl_slist_append(extra_headers, ("P-Debug-ID: " + trail).c_str());
+
   return extra_headers;
 }
 
