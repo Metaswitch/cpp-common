@@ -328,7 +328,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   std::string trail_id_str = request.header("P-Debug-ID");
   SAS::TrailId trail = 0;
 
-  if (trail != "")
+  if (trail_id_str != "")
   {
     try
     {
