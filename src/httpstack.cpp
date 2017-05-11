@@ -326,7 +326,19 @@ void HttpStack::handler_callback(evhtp_request_t* req,
 
   // Work out what SAS Trail ID to use
   std::string trail_id_str = request.header("P-Debug-ID");
-  SAS::TrailId trail = std::stoull(trail_id_str.c_str());
+  SAS::TrailId trail = 0;
+
+  if (trail != "")
+  {
+    try
+    {
+      trail = std::stoull(trail_id_str.c_str());
+    }
+    catch (const std::invalid_argument& ia)
+    {
+      // Ignore invalid trail ID.
+    }
+  }
 
   if (trail == 0)
   {
