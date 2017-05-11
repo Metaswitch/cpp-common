@@ -751,7 +751,7 @@ struct curl_slist* HttpClient::build_headers(std::vector<std::string> headers_to
                                       ("X-XCAP-Asserted-Identity: " + username).c_str());
   }
 
-  curl_slist_append(extra_headers, ("P-Debug-ID: " + trail).c_str());
+  curl_slist_append(extra_headers, (std::string("P-Debug-ID: ") + std::to_string(trail)).c_str());
 
   return extra_headers;
 }
