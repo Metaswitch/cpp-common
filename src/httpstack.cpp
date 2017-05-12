@@ -706,7 +706,6 @@ void HttpStack::DefaultSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
                                                       HttpStack::Request& req,
                                                       uint32_t instance_id)
 {
-  log_correlator(trail, req, instance_id);
   log_req_event(trail, req, instance_id);
 }
 

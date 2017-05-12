@@ -286,7 +286,6 @@ private:
   struct curl_slist* build_headers(std::vector<std::string> headers_to_add,
                                    bool assert_user,
                                    const std::string& username,
-                                   std::string uuid_str,
                                    SAS::TrailId trail);
 
   /// Helper function that sets the general curl options in send_request

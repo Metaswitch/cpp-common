@@ -362,17 +362,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   HTTPCode http_code;
   CURLcode rc;
 
-  // Create a UUID to use for SAS correlation.
-  boost::uuids::uuid uuid = get_random_uuid();
-  std::string uuid_str = boost::uuids::to_string(uuid);
-
-  // Now log the marker to SAS. Flag that SAS should not reactivate the trail
-  // group as a result of associations on this marker (doing so after the call
-  // ends means it will take a long time to be searchable in SAS).
-  SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
-  corr_marker.add_var_param(uuid_str);
-  SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
-
   std::string scheme;
   std::string server;
   std::string path;
@@ -421,7 +410,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     struct curl_slist* extra_headers = build_headers(headers_to_add,
                                                      _assert_user,
                                                      username,
-                                                     uuid_str,
                                                      trail);
 
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, extra_headers);
@@ -719,15 +707,10 @@ HTTPCode HttpClient::send_request(RequestType request_type,
 struct curl_slist* HttpClient::build_headers(std::vector<std::string> headers_to_add,
                                              bool assert_user,
                                              const std::string& username,
-                                             std::string uuid_str,
                                              SAS::TrailId trail)
 {
   struct curl_slist* extra_headers = NULL;
   extra_headers = curl_slist_append(extra_headers, "Content-Type: application/json");
-
-  // Add the UUID for SAS correlation to the HTTP message.
-  extra_headers = curl_slist_append(extra_headers,
-                                    (SASEvent::HTTP_BRANCH_HEADER_NAME + ": " + uuid_str).c_str());
 
   // By default cURL will add `Expect: 100-continue` to certain requests. This
   // causes the HTTP stack to send 100 Continue responses, which messes up the
