@@ -369,8 +369,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   // Now log the marker to SAS. Flag that SAS should not reactivate the trail
   // group as a result of associations on this marker (doing so after the call
   // ends means it will take a long time to be searchable in SAS).
-  SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, 0);
-  corr_marker.add_var_param(uuid_str);
+  SAS::Marker corr_marker(trail, 0x01080001, 0);
+  corr_marker.add_var_param(std::to_string(trail));
   SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
 
   std::string scheme;

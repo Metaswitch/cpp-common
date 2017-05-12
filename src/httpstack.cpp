@@ -555,8 +555,8 @@ void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
   std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);
   if (correlator != "")
   {
-    SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, instance_id);
-    corr_marker.add_var_param(correlator);
+    SAS::Marker corr_marker(trail, 0x01080001, instance_id);
+    corr_marker.add_var_param(std::to_string(trail));
 
     // Report a correlating marker to SAS.  Set the option that means any
     // associations will not reactivate the trail group.  Otherwise
