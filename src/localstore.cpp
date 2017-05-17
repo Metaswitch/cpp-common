@@ -108,7 +108,7 @@ Store::Status LocalStore::get_data(const std::string& table,
 
   // This is for the purpose of testing data GETs failing.  If the flag is set
   // to true, then we'll just return an error.
-  if (_force_error_on_get_flag == true)
+  if (_force_error_on_get_flag)
   {
     TRC_DEBUG("Force an error on the GET");
     _force_error_on_get_flag = false;
@@ -124,7 +124,7 @@ Store::Status LocalStore::get_data(const std::string& table,
   // true _db_in_use will become a reference to _old_db the out-of-date
   // database we constructed in set_data().
   std::map<std::string, Record>& _db_in_use = _data_contention_flag ? _old_db : _db;
-  if (_data_contention_flag == true)
+  if (_data_contention_flag)
   {
     _data_contention_flag = false;
   }
@@ -178,7 +178,7 @@ Store::Status LocalStore::set_data(const std::string& table,
 
   // This is for the purpose of testing data SETs failing.  If the flag is set
   // to true, then we'll just return an error.
-  if (_force_error_on_set_flag == true)
+  if (_force_error_on_set_flag)
   {
     TRC_DEBUG("Force an error on the SET");
     _force_error_on_set_flag = false;
