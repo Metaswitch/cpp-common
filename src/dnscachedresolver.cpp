@@ -127,6 +127,7 @@ void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
 {
   _dns_servers = dns_servers;
   _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+  TRC_DEBUG("Timeout = %d", _timeout);
 
   // Initialize the ares library.  This might have already been done by curl
   // but it's safe to do it twice.
@@ -1116,7 +1117,6 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
                       ARES_OPT_TRIES |
                       ARES_OPT_NDOTS |
                       ARES_OPT_UDP_PORT |
-                      ARES_OPT_ROTATE |
                       ARES_OPT_SERVERS);
 
     // Convert our vector of IP46Addresses into the linked list of
