@@ -136,12 +136,12 @@ static const PDLog CL_DNS_FILE_MALFORMED
   PDLogBase::CL_CPP_COMMON_ID + 11,
   LOG_ERR,
   "DNS config file is malformed.",
-  "The DNS config file /etc/clearwater/dns_config is invalid JSON.",
+  "The DNS config file /etc/clearwater/dns.json is invalid JSON.",
   "The DNS config file will be ignored, and all DNS queries will be directed at "
   "the DNS server rather than using any local overrides.",
   "(1). Check the DNS config file for correctness."
   "(2). Upload the corrected config with "
-  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_config"
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json"
 );
 
 static const PDLog CL_DNS_FILE_DUPLICATES
@@ -149,11 +149,11 @@ static const PDLog CL_DNS_FILE_DUPLICATES
   PDLogBase::CL_CPP_COMMON_ID + 12,
   LOG_INFO,
   "Duplicate entries found in the DNS config file",
-  "The DNS config file /etc/clearwater/dns_config contains duplicate entries.",
+  "The DNS config file /etc/clearwater/dns.json contains duplicate entries.",
   "Only the first of the duplicates will be used - the others will be ignored.",
   "(1). Check the DNS config file for duplicates."
   "(2). Upload the corrected config with "
-  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_config"
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json"
 );
 
 static const PDLog CL_DNS_FILE_MISSING
@@ -161,14 +161,13 @@ static const PDLog CL_DNS_FILE_MISSING
   PDLogBase::CL_CPP_COMMON_ID + 13,
   LOG_ERR,
   "DNS config file is missing.",
-  "The DNS config file /etc/clearwater/dns_config is not present.",
+  "The DNS config file /etc/clearwater/dns.json is not present.",
   "The DNS config file will be ignored, and all DNS queries will be directed at "
   "the DNS server rather than using any local overrides.",
   "(1). Replace the missing DNS config file if desired."
   "(2). Upload the corrected config with "
-  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_config "
-  "(if no config file is present, the empty file at "
-  "/etc/clearwater/sample/dns_config will be used)"
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json "
+  "(if no config file is present, no DNS overrides will be applied)"
 );
 
 static const PDLog CL_DNS_FILE_BAD_ENTRY
@@ -176,12 +175,12 @@ static const PDLog CL_DNS_FILE_BAD_ENTRY
   PDLogBase::CL_CPP_COMMON_ID + 14,
   LOG_ERR,
   "DNS config file has a malformed entry.",
-  "The DNS config file /etc/clearwater/dns_config contains a malformed entry.",
+  "The DNS config file /etc/clearwater/dns.json contains a malformed entry.",
   "The malformed entry will be ignored. Other, correctly formed, entries will "
   "still be used.",
   "(1). Check the DNS config file for correctness."
   "(2). Upload the corrected config with "
-  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_config"
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json"
 );
 
 #endif
