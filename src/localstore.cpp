@@ -260,3 +260,18 @@ Store::Status LocalStore::delete_data(const std::string& table,
   return status;
 }
 
+void LocalStore::swap_dbs(LocalStore* rhs)
+{
+  // Grab both DB locks. Technically this could cause a deadlock (if another
+  // thread calls swap_dbs on the rhs) but we only use this in test code
+  // anyway.
+  pthread_mutex_lock(&_db_lock);
+  pthread_mutex_lock(&rhs->_db_lock);
+
+  std::swap(_db, rhs->_db);
+  std::swap(_old_db, rhs->_old_db);
+
+  pthread_mutex_unlock(&rhs->_db_lock);
+  pthread_mutex_unlock(&_db_lock);
+}
+

@@ -52,6 +52,7 @@ public:
   void force_contention();
   void force_error();
   void force_get_error();
+  void swap_dbs(LocalStore* rhs);
 
   Store::Status get_data(const std::string& table,
                          const std::string& key,
