@@ -97,6 +97,7 @@ namespace RegDataXMLUtils
   const char* const SERVICE_PROFILE = "ServiceProfile";
   const char* const PUBLIC_IDENTITY = "PublicIdentity";
   const char* const IDENTITY = "Identity";
+  const char* const BARRING_INDICATION = "BarringIndication";
   const char* const PRIVATE_ID = "PrivateID";
   const char* const EXTENSION = "Extension";
   const char* const IDENTITY_TYPE = "IdentityType";
@@ -133,6 +134,8 @@ namespace RegDataXMLUtils
   const char* const STATE_NOT_REGISTERED = "NOT_REGISTERED";
   const char* const STATE_REGISTERED = "REGISTERED";
   const char* const STATE_UNREGISTERED = "UNREGISTERED";
+  const char* const STATE_UNBARRED = "0";
+  const char* const STATE_BARRED = "1";
   const char* const CCF_ECF_PRIORITY = "priority";
   const char* const CCF_PRIORITY_1 = "1";
   const char* const CCF_PRIORITY_2 = "2";
