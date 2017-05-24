@@ -86,19 +86,19 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
           switch (_new_state)
           {
             case NO_ERRORS: // No change in state.
-              _alarm_adaptor->no_errors();
+              _alarm_adaptor->no_comm_errors();
               break;
 
             case SOME_ERRORS:
               CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
                                                  _receiver.c_str());
-              _alarm_adaptor->some_errors();
+              _alarm_adaptor->some_comm_errors();
               break;
 
             case ONLY_ERRORS:
               CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
                                            _receiver.c_str());
-              _alarm_adaptor->only_errors();
+              _alarm_adaptor->only_comm_errors();
               break;
           }
           break;
@@ -108,17 +108,17 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
             case NO_ERRORS:
               CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                            _receiver.c_str());
-              _alarm_adaptor->no_errors();
+              _alarm_adaptor->no_comm_errors();
               break;
 
             case SOME_ERRORS: // No change in state. Ensure alarm is cleared.
-              _alarm_adaptor->some_errors();
+              _alarm_adaptor->some_comm_errors();
               break;
 
             case ONLY_ERRORS:
               CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
                                            _receiver.c_str());
-              _alarm_adaptor->only_errors();
+              _alarm_adaptor->only_comm_errors();
               break;
           }
           break;
@@ -128,17 +128,17 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
             case NO_ERRORS:
               CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                            _receiver.c_str());
-              _alarm_adaptor->no_errors();
+              _alarm_adaptor->no_comm_errors();
               break;
 
             case SOME_ERRORS:
               CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
                                                  _receiver.c_str());
-              _alarm_adaptor->some_errors();
+              _alarm_adaptor->some_comm_errors();
               break;
 
             case ONLY_ERRORS: // No change in state. Ensure alarm is raised.
-              _alarm_adaptor->only_errors();
+              _alarm_adaptor->only_comm_errors();
               break;
           }
           break;

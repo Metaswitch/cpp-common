@@ -122,40 +122,35 @@ private:
   std::string _identifier;
 };
 
-/// @class BaseAlarm
-/// 
-/// Superclass for alarms that allows us to split different types of
-/// alarms into subclasses. Those alarms which only have one possible raised
-/// state will be constructed by subclass Alarm. Those alarms which have two or
-/// more possible raised states will be constructed by subclass
-/// MultiStateAlarm.
-
-class BaseAlarm
+class Alarm
 {
 public:
+  Alarm(AlarmManager* alarm_manager,
+        const std::string& issuer,
+        const int index);
+
+  virtual ~Alarm();
+
+  /// Returns the index of this alarm.
+  int index() const {return _index;}
+
+  /// Queues a request to generate an alarm state change corresponding to the
+  /// requested severity
+  virtual void set(AlarmDef::Severity severity);
+
   /// Queues a request to generate an alarm state change corresponding to the
   /// CLEARED severity.
   virtual void clear();
 
-  /// Uses the _last_state_raised member variable to re-raise the latest state
-  /// of the alarm.
-  void reraise_last_state();
-  
-  /// Returns the current state of the alarm as one of UNKNOWN, CLEARED, or ALARMED.
-  virtual AlarmState::AlarmCondition get_alarm_state();
+  /// Helper functions that set an alarm to a known state.
+  void set_indeterminate();
+  void set_warning();
+  void set_minor();
+  void set_major();
+  void set_critical();
 
-  // If an alarm is currently in a different state to the one we wish to raise
-  // the alarm in, we raise the alarm and update _last_state_raised.
-  void switch_to_state(AlarmState* new_state);
-
-protected:
-  BaseAlarm(AlarmManager* alarm_manager,
-            const std::string& issuer,
-            const int index);
-  ~BaseAlarm();
-
+private:
   const int _index;
-  AlarmState _clear_state;
 
   // When an alarm is issued we change the _last_state_raised member variable of
   // the alarm. We must not allow another thread to raise the same alarm at a
@@ -171,21 +166,40 @@ protected:
 
   // The manager this alarm is registered with.
   AlarmManager* _alarm_manager;
+
+  // Possible Alarm States.
+  AlarmState _cleared_state;
+  AlarmState _indeterminate_state;
+  AlarmState _warning_state;
+  AlarmState _minor_state;
+  AlarmState _major_state;
+  AlarmState _critical_state;
+
+  /// Uses the _last_state_raised member variable to re-raise the latest state
+  /// of the alarm.
+  void reraise_last_state();
+
+  /// Returns the current state of the alarm as one of UNKNOWN, CLEARED, or ALARMED.
+  virtual AlarmState::AlarmCondition get_alarm_state();
+
+  // If an alarm is currently in a different state to the one we wish to raise
+  // the alarm in, we raise the alarm and update _last_state_raised.
+  void switch_to_state(AlarmState* new_state);
 };
 
 /// @class AlarmReRaiser
 ///
-/// Class responsible for calling BaseAlarm's reraise_latest_state
+/// Class responsible for calling Alarm's reraise_latest_state
 /// function on each alarm every thirty seconds.
 class AlarmReRaiser
 {
 public:
   // Tell the AlarmManager about an alarm. While this alarm is registered (i.e.
   // until unregister_alarm is called), the AlarmManager must not be deleted.
-  void register_alarm(BaseAlarm* alarm); 
+  void register_alarm(Alarm* alarm);
 
   // Tell the AlarmManager an alarm has been deleted
-  void unregister_alarm(BaseAlarm* alarm);
+  void unregister_alarm(Alarm* alarm);
 
   // The AlarmManager is the only class allowed to create the AlarmReRaiser
   friend class AlarmManager;
@@ -204,9 +218,9 @@ private:
   // every 30 seconds. For each alarm it calls the reraise_last_state method.
   void reraise_alarms();
 
-  // This is used for storing all of the BaseAlarm objects as they get
+  // This is used for storing all of the Alarm objects as they get
   // registered.
-  std::vector<BaseAlarm*> _alarm_list;
+  std::vector<Alarm*> _alarm_list;
 
   // Defines a lock and condition variable to protect the reraising alarms
   // thread.
@@ -243,54 +257,6 @@ public:
 private:
   AlarmReqAgent* _alarm_req_agent;
   AlarmReRaiser* _alarm_re_raiser;
-};
-
-/// @class Alarm
-///
-/// Used to manage the reporting of a fault condition, and subsequent clear
-/// of said condition.
-class Alarm : public BaseAlarm
-{
-public:
-  Alarm(AlarmManager* alarm_manager,
-        const std::string& issuer,
-        const int index);
-
-  virtual ~Alarm() {}
-
-  /// Queues a request to generate an alarm state change corresponding to the
-  /// requested severity if a state change for the CLEARED severity was
-  /// previously requested via clear().
-  void set_indeterminate();
-  void set_warning();
-  void set_minor();
-  void set_major();
-  void set_critical();
-
-  /// Returns the index of this alarm.
-  int index() const {return _index;}
-  
-private:
-  virtual void set(AlarmDef::Severity severity);
-  std::map<AlarmDef::Severity, AlarmState> _set_states;
-};
-
-/// @class AlarmAdaptor
-///
-class AlarmAdaptor
-{
-  public:
-  AlarmAdaptor(Alarm* alarm) :
-    _alarm(alarm)
-  {}
-
-  virtual ~AlarmAdaptor()
-  {
-    delete _alarm;
-  }
-
-private:
-  Alarm* _alarm;
 };
 
 #endif

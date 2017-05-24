@@ -15,37 +15,59 @@
 #include "alarm.h"
 #include "base_communication_monitor.h"
 
-class CMAlarmAdaptor : public AlarmAdaptor
+/// @class CMAlarmAdaptor
+///
+/// The communication monitor tracks three types of communication events:
+///  - all communication attempts in the last interval were successful
+///  - all communication attempts in the last interval failed
+///  - there were successful and failed communication attempts in the last
+///    interval
+///
+/// Different users of the communication monitor will want to raise different
+/// alarms at different severities for these three events - this class provides
+/// a translation between the communication monitor event, and the user raising
+/// the correct alarm.
+class CMAlarmAdaptor
 {
 public:
   CMAlarmAdaptor(Alarm* alarm,
-                 AlarmDef::Severity on_some_errors,
-                 AlarmDef::Severity on_all_errors):
-    AlarmAdaptor(alarm),
-    _on_some_errors(on_some_errors),
-    _on_all_errors(on_all_errors)
+                 AlarmDef::Severity severity_for_some_errors,
+                 AlarmDef::Severity severity_for_only_errors):
+    _alarm(alarm),
+    _severity_for_some_errors(severity_for_some_errors),
+    _severity_for_only_errors(severity_for_only_errors)
   {}
 
-  virtual ~CMAlarmAdaptor() {}
-
-  void only_errors()
+  virtual ~CMAlarmAdaptor()
   {
-    _alarm->set(_on_all_errors);
+    delete _alarm;
   }
 
-  void some_errors()
+  // Sets an alarm if there have been no successful communication attempts in
+  // the last interval (and at least one attempt was made).
+  void only_comm_errors()
   {
-    _alarm->set(_on_some_errors);
+    _alarm->set(_severity_for_only_errors);
   }
 
-  void no_errors()
+  // Sets an alarm if there has been a mix of successful and failed
+  // communication attempts in the last interval.
+  void some_comm_errors()
+  {
+    _alarm->set(_severity_for_some_errors);
+  }
+
+  // Clears the alarm if there have been no failed communication attempts in
+  // the last interval.
+  void no_comm_errors()
   {
     _alarm->clear();
   }
 
 private:
-  AlarmDef::Severity _on_some_errors;
-  AlarmDef::Severity _on_all_errors;
+  Alarm* _alarm;
+  AlarmDef::Severity _severity_for_some_errors;
+  AlarmDef::Severity _severity_for_only_errors;
 };
 
 /// @class CommunicationMonitor

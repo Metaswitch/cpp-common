@@ -672,4 +672,3 @@ bool TopologyNeutralMemcachedStore::get_targets(std::vector<AddrInfo>& targets,
 
   return true;
 }
-// LCOV_EXCL_STOP
