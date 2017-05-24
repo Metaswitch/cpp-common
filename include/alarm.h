@@ -149,6 +149,10 @@ public:
   void set_major();
   void set_critical();
 
+  /// Uses the _last_state_raised member variable to re-raise the latest state
+  /// of the alarm.
+  void reraise_last_state();
+
 private:
   const int _index;
 
@@ -174,10 +178,6 @@ private:
   AlarmState _minor_state;
   AlarmState _major_state;
   AlarmState _critical_state;
-
-  /// Uses the _last_state_raised member variable to re-raise the latest state
-  /// of the alarm.
-  void reraise_last_state();
 
   /// Returns the current state of the alarm as one of UNKNOWN, CLEARED, or ALARMED.
   virtual AlarmState::AlarmCondition get_alarm_state();
