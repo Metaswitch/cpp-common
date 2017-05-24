@@ -15,6 +15,39 @@
 #include "alarm.h"
 #include "base_communication_monitor.h"
 
+class CMAlarmAdaptor : public AlarmAdaptor
+{
+public:
+  CMAlarmAdaptor(Alarm* alarm,
+                 AlarmDef::Severity on_some_errors,
+                 AlarmDef::Severity on_all_errors):
+    AlarmAdaptor(alarm),
+    _on_some_errors(on_some_errors),
+    _on_all_errors(on_all_errors)
+  {}
+
+  virtual ~CMAlarmAdaptor() {}
+
+  void only_errors()
+  {
+    _alarm->set(_on_all_errors);
+  }
+
+  void some_errors()
+  {
+    _alarm->set(_on_some_errors);
+  }
+
+  void no_errors()
+  {
+    _alarm->clear();
+  }
+
+private:
+  AlarmDef::Severity _on_some_errors;
+  AlarmDef::Severity _on_all_errors;
+};
+
 /// @class CommunicationMonitor
 ///
 /// Provides a simple mechanism to track communication state for an entity,
@@ -31,7 +64,7 @@
 class CommunicationMonitor : public BaseCommunicationMonitor
 {
 public:
-  CommunicationMonitor(Alarm* alarm,
+  CommunicationMonitor(CMAlarmAdaptor* alarm_adaptor,
                        std::string sender,
                        std::string receiver,
                        unsigned int clear_confirm_sec = 30,
@@ -43,7 +76,7 @@ private:
   virtual void track_communication_changes(unsigned long now_ms);
   unsigned long current_time_ms();
 
-  Alarm* _alarm;
+  CMAlarmAdaptor* _alarm_adaptor;
   std::string _sender;
   std::string _receiver;
   unsigned int _clear_confirm_ms;

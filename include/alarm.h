@@ -18,6 +18,7 @@
 #include <vector>
 #include <atomic>
 #include <memory>
+#include <map>
 
 #include "alarmdefinition.h"
 #include "eventq.h"
@@ -246,64 +247,50 @@ private:
 
 /// @class Alarm
 ///
-/// Encapsulates an alarm's only active state with its associated alarm clear state.
 /// Used to manage the reporting of a fault condition, and subsequent clear
 /// of said condition.
-
-class Alarm: public BaseAlarm
+class Alarm : public BaseAlarm
 {
 public:
   Alarm(AlarmManager* alarm_manager,
         const std::string& issuer,
-        const int index,
-        AlarmDef::Severity severity);
+        const int index);
 
   virtual ~Alarm() {}
 
   /// Queues a request to generate an alarm state change corresponding to the
-  /// non-CLEARED severity if a state change for the CLEARED severity was
+  /// requested severity if a state change for the CLEARED severity was
   /// previously requested via clear().
-  virtual void set();
-
-  /// Returns the index of this alarm.
-  int index() const {return _index;}
-  
-private:
-  AlarmState _set_state;
-};
-
-/// @class MultiStateAlarm
-///
-/// Encapsulates an alarm's two or more active states with its associated clear
-/// state. Used to manage the reporting of a fault condition, and subsequent
-/// clear of said condition. We further subclass this on a per-alarm basis, to
-/// give an alarm visibility of the protected raising functions cordesponding to that
-/// alarm's possible raised states. This would stop a user raising alarm at a
-/// state which does not exist for that alarm.
-
-class MultiStateAlarm: public BaseAlarm
-{
-public:
-  MultiStateAlarm(AlarmManager* alarm_manager,
-                  const std::string& issuer,
-                  const int index);
-
-  virtual ~MultiStateAlarm() {}
-  
-protected:
-  /// These raise the alarm with the specified severity.
   void set_indeterminate();
   void set_warning();
   void set_minor();
   void set_major();
   void set_critical();
 
+  /// Returns the index of this alarm.
+  int index() const {return _index;}
+  
 private:
-  AlarmState _indeterminate_state;
-  AlarmState _warning_state;
-  AlarmState _minor_state;
-  AlarmState _major_state;
-  AlarmState _critical_state;
+  virtual void set(AlarmDef::Severity severity);
+  std::map<AlarmDef::Severity, AlarmState> _set_states;
+};
+
+/// @class AlarmAdaptor
+///
+class AlarmAdaptor
+{
+  public:
+  AlarmAdaptor(Alarm* alarm) :
+    _alarm(alarm)
+  {}
+
+  virtual ~AlarmAdaptor()
+  {
+    delete _alarm;
+  }
+
+private:
+  Alarm* _alarm;
 };
 
 #endif

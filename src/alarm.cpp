@@ -84,6 +84,7 @@ void BaseAlarm::switch_to_state(AlarmState* new_state)
     pthread_mutex_unlock(&_issue_alarm_change_state);
   }
 }
+
 void BaseAlarm::clear()
 {
   switch_to_state(&_clear_state);
@@ -119,56 +120,44 @@ AlarmState::AlarmCondition BaseAlarm::get_alarm_state()
 
 Alarm::Alarm(AlarmManager* alarm_manager,
              const std::string& issuer,
-             const int index,
-             AlarmDef::Severity severity) :
-  BaseAlarm(alarm_manager, issuer, index),
-  _set_state(alarm_manager->alarm_req_agent(), issuer, index, severity)
+             const int index) :
+  BaseAlarm(alarm_manager, issuer, index)
 {
+  _set_states.insert(std::make_pair(AlarmDef::INDETERMINATE, AlarmState(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::INDETERMINATE)));
+  _set_states.insert(std::make_pair(AlarmDef::WARNING, AlarmState(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::WARNING)));
+  _set_states.insert(std::make_pair(AlarmDef::MINOR, AlarmState(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MINOR)));
+  _set_states.insert(std::make_pair(AlarmDef::MAJOR, AlarmState(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MAJOR)));
+  _set_states.insert(std::make_pair(AlarmDef::CRITICAL, AlarmState(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::CRITICAL)));
 }
 
-void Alarm::set()
+void Alarm::set(AlarmDef::Severity severity)
 {
-  switch_to_state(&_set_state);
+  switch_to_state(&(_set_states.find(severity)->second));
 }
 
-MultiStateAlarm::MultiStateAlarm(AlarmManager* alarm_manager,
-                                 const std::string& issuer,
-                                 const int index) :
-  BaseAlarm(alarm_manager, issuer, index),
-  _indeterminate_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::INDETERMINATE),
-  _warning_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::WARNING),
-  _minor_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MINOR),
-  _major_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MAJOR),
-  _critical_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::CRITICAL)
+void Alarm::set_indeterminate()
 {
+  set(AlarmDef::INDETERMINATE);
 }
 
-// We don't have any UTs that use an indeterminate state.
-// LCOV_EXCL_START
-void MultiStateAlarm::set_indeterminate()
+void Alarm::set_warning()
 {
-  switch_to_state(&_indeterminate_state);
-}
-// LCOV_EXCL_STOP
-
-void MultiStateAlarm::set_warning()
-{
-  switch_to_state(&_warning_state);
+  set(AlarmDef::WARNING);
 }
 
-void MultiStateAlarm::set_minor()
+void Alarm::set_minor()
 {
-  switch_to_state(&_minor_state);
+  set(AlarmDef::MINOR);
 }
 
-void MultiStateAlarm::set_major()
+void Alarm::set_major()
 {
-  switch_to_state(&_major_state);
+  set(AlarmDef::MAJOR);
 }
 
-void MultiStateAlarm::set_critical()
+void Alarm::set_critical()
 {
-  switch_to_state(&_critical_state);
+  set(AlarmDef::CRITICAL);
 }
 
 AlarmReRaiser::AlarmReRaiser():
