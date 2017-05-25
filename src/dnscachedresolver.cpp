@@ -1190,6 +1190,7 @@ void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned
     event.add_var_param(_domain);
     SAS::report_event(event);
   }
+  
   _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen, _trail);
   --_channel->pending_queries;
   delete this;
