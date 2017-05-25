@@ -102,6 +102,7 @@ void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
 {
   _dns_servers = dns_servers;
   _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+  TRC_DEBUG("Timeout = %d", _timeout);
 
   // Initialize the ares library.  This might have already been done by curl
   // but it's safe to do it twice.
@@ -156,8 +157,10 @@ void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns
 
 
 DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers,
+                                     int timeout,
                                      const std::string& filename) :
-  _port(53),
+  _port(DEFAULT_PORT),
+  _timeout(timeout),
   _cache(),
   _dns_config_file(filename),
   _static_records()
@@ -166,8 +169,10 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers
 }
 
 DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers,
+                                     int timeout,
                                      const std::string& filename) :
-  _port(53),
+  _port(DEFAULT_PORT),
+  _timeout(timeout),
   _cache(),
   _dns_config_file(filename),
   _static_records()
@@ -177,8 +182,10 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers
 
 DnsCachedResolver::DnsCachedResolver(const std::string& dns_server,
                                      int port,
+                                     int timeout,
                                      const std::string& filename) :
   _port(port),
+  _timeout(timeout),
   _cache(),
   _dns_config_file(filename),
   _static_records()
@@ -1071,8 +1078,8 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     // anything obviously helpful for UDP connections to the DNS server,
     // but it's what we've always tested with so not worth the risk of removing.
     options.flags = ARES_FLAG_STAYOPEN;
-    options.timeout = 1000;
-    options.tries = server_count;
+    options.timeout = _timeout;
+    options.tries = 1;
     options.ndots = 0;
     options.udp_port = _port;
     // We must use ares_set_servers rather than setting it in the options for IPv6 support.
@@ -1175,6 +1182,14 @@ void DnsCachedResolver::DnsTsx::ares_callback(void* arg,
 
 void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned char* abuf, int alen)
 {
+  if (timeouts > 0)
+  {
+    SAS::Event event(_trail, SASEvent::DNS_TIMEOUT, 0);
+    event.add_static_param(_dnstype);
+    event.add_static_param(timeouts);
+    event.add_var_param(_domain);
+    SAS::report_event(event);
+  }
   _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen, _trail);
   --_channel->pending_queries;
   delete this;
