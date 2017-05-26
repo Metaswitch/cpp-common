@@ -26,7 +26,8 @@ LocalStore::LocalStore() :
   _data_contention_flag(false),
   _db_lock(PTHREAD_MUTEX_INITIALIZER),
   _db(),
-  _force_error_flag(false),
+  _force_error_on_set_flag(false),
+  _force_error_on_get_flag(false),
   _old_db()
 {
   TRC_DEBUG("Created local store");
@@ -61,7 +62,14 @@ void LocalStore::force_contention()
 // error on the SET.  We achieve this by just returning an error on the SET.
 void LocalStore::force_error()
 {
-  _force_error_flag = true;
+  _force_error_on_set_flag = true;
+}
+
+// This function sets a flag to true that tells the program to simulate an
+// error on the GET.  We achieve this by just returning an error on the GET.
+void LocalStore::force_get_error()
+{
+  _force_error_on_get_flag = true;
 }
 
 Store::Status LocalStore::get_data(const std::string& table,
@@ -73,6 +81,15 @@ Store::Status LocalStore::get_data(const std::string& table,
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
   Store::Status status = Store::Status::NOT_FOUND;
 
+  // This is for the purpose of testing data GETs failing.  If the flag is set
+  // to true, then we'll just return an error.
+  if (_force_error_on_get_flag)
+  {
+    TRC_DEBUG("Force an error on the GET");
+    _force_error_on_get_flag = false;
+    return Store::Status::ERROR;
+  }
+
   // Calculate the fully qualified key.
   std::string fqkey = table + "\\\\" + key;
 
@@ -82,7 +99,7 @@ Store::Status LocalStore::get_data(const std::string& table,
   // true _db_in_use will become a reference to _old_db the out-of-date
   // database we constructed in set_data().
   std::map<std::string, Record>& _db_in_use = _data_contention_flag ? _old_db : _db;
-  if (_data_contention_flag == true)
+  if (_data_contention_flag)
   {
     _data_contention_flag = false;
   }
@@ -136,10 +153,10 @@ Store::Status LocalStore::set_data(const std::string& table,
 
   // This is for the purpose of testing data SETs failing.  If the flag is set
   // to true, then we'll just return an error.
-  if (_force_error_flag == true)
+  if (_force_error_on_set_flag)
   {
     TRC_DEBUG("Force an error on the SET");
-    _force_error_flag = false;
+    _force_error_on_set_flag = false;
 
     return Store::Status::ERROR;
   }
@@ -216,5 +233,20 @@ Store::Status LocalStore::delete_data(const std::string& table,
   pthread_mutex_unlock(&_db_lock);
 
   return status;
+}
+
+void LocalStore::swap_dbs(LocalStore* rhs)
+{
+  // Grab both DB locks. Technically this could cause a deadlock (if another
+  // thread calls swap_dbs on the rhs) but we only use this in test code
+  // anyway.
+  pthread_mutex_lock(&_db_lock);
+  pthread_mutex_lock(&rhs->_db_lock);
+
+  std::swap(_db, rhs->_db);
+  std::swap(_old_db, rhs->_old_db);
+
+  pthread_mutex_unlock(&rhs->_db_lock);
+  pthread_mutex_unlock(&_db_lock);
 }
 
