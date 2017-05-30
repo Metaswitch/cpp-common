@@ -330,7 +330,8 @@ enum ResultCode
   CONNECTION_ERROR = 3,
   RESOURCE_ERROR = 4,
   UNKNOWN_ERROR = 5,
-  UNAVAILABLE = 6
+  UNAVAILABLE = 6,
+  TIMEOUT = 7
 };
 
 /// The byte sequences that represent True and False in cassandra.

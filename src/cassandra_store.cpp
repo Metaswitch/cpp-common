@@ -391,7 +391,7 @@ bool Store::perform_op(Operation* op,
     cass_result = OK;
     attempt_count++;
 
-    // Only retry on connection errors
+    // Both Cassandra timeouts and connection errors should result in a retry
     retry = false;
 
     // Get a client to execute the operation.
@@ -430,6 +430,21 @@ bool Store::perform_op(Operation* op,
       TRC_DEBUG("Connection error");
       retry = true;
     }
+    catch(TimedOutException& te)
+    {
+      // A timeout should trigger a retry, but should not blacklist the node we
+      // connected to (as we succeeded in connecting to it)
+      cass_result = TIMEOUT;
+      cass_error_text = (boost::format("Exception: %s")
+                         % te.what()).str();
+
+      // SAS log the timeout.
+      SAS::Event event(trail, SASEvent::CASS_TIMEOUT, 0);
+      SAS::report_event(event);
+
+      TRC_DEBUG("Timeout");
+      retry = true;
+    }
     catch(InvalidRequestException& ire)
     {
       cass_result = INVALID_REQUEST;
@@ -460,9 +475,8 @@ bool Store::perform_op(Operation* op,
       cass_error_text = "Unknown error";
     }
 
-    // Since we only retry on connection errors, the value of retry is used to
-    // determine whether we connected to the target successfully
-    if (retry)
+    // Only blacklist the target if there was an error connecting to it
+    if (cass_result == CONNECTION_ERROR)
     {
       _resolver->blacklist(target);
     }
