@@ -1,7 +1,7 @@
 /**
  * @file snmp_scalar_by_scope__table.h
  *
- * Copyright (C) Metaswitch Networks 2017
+ * Copyright (C) Metaswitch Networks 2016
  * If license terms are provided to you in a COPYING file in the root directory
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
