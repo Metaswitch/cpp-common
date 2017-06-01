@@ -20,11 +20,15 @@ class MockHttpConnection : public HttpConnection
 public:
   MockHttpConnection();
   ~MockHttpConnection();
-  MOCK_METHOD5(send_post, long(const std::string& path,
+  MOCK_METHOD5(send_post, long(const std::string& url_tail,
                                std::map<std::string, std::string>& headers,
                                const std::string& body,
                                SAS::TrailId trail,
                                const std::string& username));
+  MOCK_METHOD4(send_get, long(const std::string& url_tail,
+                              std::string& response,
+                              const std::string& username,
+                              SAS::TrailId trail));
 };
 
 #endif
