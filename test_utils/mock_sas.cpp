@@ -77,7 +77,7 @@ MockSASMessage* mock_sas_find_event(uint32_t event_id)
   return NULL;
 }
 
-int SAS::init(const std::string& system_name,
+int SAS::init(std::string system_name,
               const std::string& system_type,
               const std::string& resource_identifier,
               const std::string& sas_address,
