@@ -40,6 +40,116 @@ public:
 };
 
 //
+// HAOperation methods
+//
+
+HAOperation::HAOperation() :
+  _consistency_two_tried(false)
+{
+}
+
+// Macro to turn an underlying (non-HA) get method into an HA one.
+//
+// This macro takes the following arguments:
+// -  A pointer to the Cassandra Client to use to make the get request.
+// -  The name of the underlying get method to call.
+// -  The arguments for the underlying get method.
+//
+// It works as follows:
+// -  If this Operation has not yet been called, it calls the method with a
+//    consistency level of TWO
+//    If successful, this indicates that we've managed to find multiple nodes
+//    with the same data, and so we can trust the response (if we're wrong, it
+//    will be because at least two local nodes failed or were down simultaneously
+//    which we can consider a non-mainline failure case for which some level of
+//    service impact is acceptable).
+//
+// -  If this fails with an UnavailableException or TimedOutException, or if
+//    this Operation has already been called at consistency level TWO, perform a
+//    ONE read.  In this case at most one of the replicas for the data is still
+//    up, so we can't do any better.
+//
+// The Operation will have already been run if we have made a TWO request to a
+// different Cassandra process already. In that case, we want to skip straight
+// to the consistency level ONE attempt, as we've already spent a chunk of our
+// latency budget on the previous attempt, and we want to make sure we can
+// return a result in a timely fashion.
+#define HA(CLIENT, METHOD, TRAIL_ID, ...)                                      \
+        bool success = false;                                                  \
+        if (!_consistency_two_tried)                                           \
+        {                                                                      \
+          _consistency_two_tried = true;                                       \
+          try                                                                  \
+          {                                                                    \
+            CLIENT->METHOD(__VA_ARGS__, ConsistencyLevel::TWO);                \
+            success = true;                                                    \
+          }                                                                    \
+          catch(UnavailableException& ue)                                      \
+          {                                                                    \
+            TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
+            int event_id = SASEvent::CASS_REQUEST_TWO_FAIL;                    \
+            SAS::Event event(TRAIL_ID, event_id, 0);                           \
+            SAS::report_event(event);                                          \
+          }                                                                    \
+          catch(TimedOutException& te)                                         \
+          {                                                                    \
+            TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
+            int event_id = SASEvent::CASS_REQUEST_TWO_FAIL;                    \
+            SAS::Event event(TRAIL_ID, event_id, 1);                           \
+            SAS::report_event(event);                                          \
+          }                                                                    \
+        }                                                                      \
+        if (!success)                                                          \
+        {                                                                      \
+          CLIENT->METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                  \
+        }
+
+void HAOperation::
+ha_get_columns(Client* client,
+               const std::string& column_family,
+               const std::string& key,
+               const std::vector<std::string>& names,
+               std::vector<cass::ColumnOrSuperColumn>& columns,
+               SAS::TrailId trail)
+{
+  HA(client, get_columns, trail, column_family, key, names, columns);
+}
+
+void HAOperation::
+ha_get_columns_with_prefix(Client* client,
+                           const std::string& column_family,
+                           const std::string& key,
+                           const std::string& prefix,
+                           std::vector<ColumnOrSuperColumn>& columns,
+                           SAS::TrailId trail)
+{
+  HA(client, get_columns_with_prefix, trail, column_family, key, prefix, columns);
+}
+
+
+void HAOperation::
+ha_multiget_columns_with_prefix(Client* client,
+                                const std::string& column_family,
+                                const std::vector<std::string>& keys,
+                                const std::string& prefix,
+                                std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
+                                SAS::TrailId trail)
+{
+  HA(client, multiget_columns_with_prefix, trail, column_family, keys, prefix, columns);
+}
+
+void HAOperation::
+ha_get_all_columns(Client* client,
+                   const std::string& column_family,
+                   const std::string& key,
+                   std::vector<ColumnOrSuperColumn>& columns,
+                   SAS::TrailId trail)
+{
+  HA(client, get_row, trail, column_family, key, columns);
+}
+
+
+//
 // Client methods
 //
 
@@ -281,7 +391,7 @@ bool Store::perform_op(Operation* op,
     cass_result = OK;
     attempt_count++;
 
-    // Only retry on connection errors
+    // Both Cassandra timeouts and connection errors should result in a retry
     retry = false;
 
     // Get a client to execute the operation.
@@ -305,6 +415,9 @@ bool Store::perform_op(Operation* op,
     }
     catch(TTransportException& te)
     {
+      // A TTransportException means that we were unable to connect to the
+      // Cassandra node, so we blacklist it and try again (if this is our first
+      // try)
       cass_result = CONNECTION_ERROR;
       cass_error_text = (boost::format("Exception: %s [%d]")
                          % te.what() % te.getType()).str();
@@ -317,7 +430,28 @@ bool Store::perform_op(Operation* op,
       // Tell the pool not to reuse this connection
       conn_handle.set_return_to_pool(false);
 
-      TRC_DEBUG("Connection error");
+      TRC_DEBUG("Error connecting to Cassandra - retrying if possible");
+      retry = true;
+    }
+    catch(TimedOutException& te)
+    {
+      // A Cassandra timeout means that we successfully contacted the node, but
+      // that it was unable to perform the operation in time. Since we only
+      // blacklist nodes on connectivity errors, a timeout does not result in
+      // blacklisting the node.
+      // We do retry on a timeout though, as it may be that another node is able
+      // to perform the operation.
+      // A timeout should trigger a retry, but should not blacklist the node we
+      // connected to (as we succeeded in connecting to it)
+      cass_result = TIMEOUT;
+      cass_error_text = (boost::format("Exception: %s")
+                         % te.what()).str();
+
+      // SAS log the timeout.
+      SAS::Event event(trail, SASEvent::CASS_TIMEOUT, 0);
+      SAS::report_event(event);
+
+      TRC_DEBUG("Cassandra timeout - retrying if possible");
       retry = true;
     }
     catch(InvalidRequestException& ire)
@@ -350,9 +484,8 @@ bool Store::perform_op(Operation* op,
       cass_error_text = "Unknown error";
     }
 
-    // Since we only retry on connection errors, the value of retry is used to
-    // determine whether we connected to the target successfully
-    if (retry)
+    // Only blacklist the target if there was an error connecting to it
+    if (cass_result == CONNECTION_ERROR)
     {
       _resolver->blacklist(target);
     }
@@ -624,86 +757,6 @@ put_columns(const std::vector<RowColumns>& to_put,
   // Execute the database operation.
   TRC_DEBUG("Executing put request operation");
   batch_mutate(mutmap, ConsistencyLevel::ONE);
-}
-
-// Macro to turn an underlying (non-HA) get method into an HA one.
-//
-// This macro takes the following arguments:
-// -  The name of the underlying get method to call.
-// -  The arguments for the underlying get method.
-//
-// It works as follows:
-// -  Call the underlying method with a consistency level of TWO.
-//    If successful, this indicates that we've managed to find multiple nodes
-//    with the same data, and so we can trust the response (if we're wrong, it
-//    will be because at least two local nodes failed or were down simultaneously
-//    which we can consider a non-mainline failure case for which some level of
-//    service impact is acceptable).
-// -  If this fails with UnavailableException, perform a ONE read.  In
-//    this case at most one of the replicas for the data is still up, so we
-//    can't do any better.
-//
-#define HA(METHOD, TRAIL_ID, ...)                                            \
-        try                                                                  \
-        {                                                                    \
-          METHOD(__VA_ARGS__, ConsistencyLevel::TWO);                        \
-        }                                                                    \
-        catch(UnavailableException& ue)                                      \
-        {                                                                    \
-          TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
-          int event_id = SASEvent::CASS_REQUEST_TWO_FAIL;                    \
-          SAS::Event event(TRAIL_ID, event_id, 0);                           \
-          SAS::report_event(event);                                          \
-          METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
-        }                                                                    \
-        catch(TimedOutException& te)                                         \
-        {                                                                    \
-          TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
-          int event_id = SASEvent::CASS_REQUEST_TWO_FAIL;                    \
-          SAS::Event event(TRAIL_ID, event_id, 1);                           \
-          SAS::report_event(event);                                          \
-          METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
-        }
-
-void Client::
-ha_get_columns(const std::string& column_family,
-               const std::string& key,
-               const std::vector<std::string>& names,
-               std::vector<ColumnOrSuperColumn>& columns,
-               SAS::TrailId trail)
-{
-  HA(get_columns, trail, column_family, key, names, columns);
-}
-
-
-void Client::
-ha_get_columns_with_prefix(const std::string& column_family,
-                           const std::string& key,
-                           const std::string& prefix,
-                           std::vector<ColumnOrSuperColumn>& columns,
-                           SAS::TrailId trail)
-{
-  HA(get_columns_with_prefix, trail, column_family, key, prefix, columns);
-}
-
-
-void Client::
-ha_multiget_columns_with_prefix(const std::string& column_family,
-                                const std::vector<std::string>& keys,
-                                const std::string& prefix,
-                                std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
-                                SAS::TrailId trail)
-{
-  HA(multiget_columns_with_prefix, trail, column_family, keys, prefix, columns);
-}
-
-void Client::
-ha_get_all_columns(const std::string& column_family,
-                   const std::string& key,
-                   std::vector<ColumnOrSuperColumn>& columns,
-                   SAS::TrailId trail)
-{
-  HA(get_row, trail, column_family, key, columns);
 }
 
 

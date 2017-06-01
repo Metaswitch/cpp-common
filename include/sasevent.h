@@ -130,6 +130,7 @@ namespace SASEvent {
   const int DNS_TIMEOUT = COMMON_BASE + 0x000206;
 
   const int CASS_CONNECT_FAIL = COMMON_BASE + 0x0300;
+  const int CASS_TIMEOUT = COMMON_BASE + 0x0301;
 
   const int CASS_REQUEST_TWO_FAIL = COMMON_BASE + 0x0400;
 

@@ -151,95 +151,6 @@ public:
                                 const cass::KeyRange& range,
                                 const cass::ConsistencyLevel::type consistency_level) = 0;
 
-  //
-  // Utility methods for interacting with cassandra. These abstract away the
-  // thrift interface and make it easier to deal with.
-  //
-  // High-availability Gets
-  // ----------------------
-  //
-  // After growing a cluster, Cassandra does not pro-actively populate the
-  // new nodes with their data (the nodes are expected to use `nodetool
-  // repair` if they need to get their data).  Combining this with
-  // the fact that we generally use consistency ONE when reading data, the
-  // behaviour on new nodes is to return NotFoundException or empty result
-  // sets to queries, even though the other nodes have a copy of the data.
-  //
-  // To resolve this issue, we define ha_ versions of various get methods.
-  // These attempt a QUORUM read in the event that a ONE read returns
-  // no data.  If the QUORUM read fails due to unreachable nodes, the
-  // original result will be used.
-  //
-  // To implement this, the non-HA versions must take the consistency level as
-  // their last parameter.
-  //
-
-  /// HA get an entire row.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key.
-  /// @param columns        - (out) Columns in the row.
-  void ha_get_row(const std::string& column_family,
-                  const std::string& key,
-                  std::vector<cass::ColumnOrSuperColumn>& columns,
-                  SAS::TrailId trail);
-
-  /// HA get specific columns in a row.
-  ///
-  /// Note that if a requested row does not exist in cassandra, this method
-  /// will return only the rows that do exist. It will not throw an exception
-  /// in this case.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key
-  /// @param names          - The names of the columns to retrieve
-  /// @param columns        - (out) The retrieved columns
-  void ha_get_columns(const std::string& column_family,
-                      const std::string& key,
-                      const std::vector<std::string>& names,
-                      std::vector<cass::ColumnOrSuperColumn>& columns,
-                      SAS::TrailId trail);
-
-  /// HA get all columns in a row
-  /// This is useful when working with dynamic columns.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key
-  /// @param columns        - (out) The retrieved columns.
-  void ha_get_all_columns(const std::string& column_family,
-                          const std::string& key,
-                          std::vector<cass::ColumnOrSuperColumn>& columns,
-                          SAS::TrailId trail);
-
-  /// HA get all columns in a row that have a particular prefix to their name.
-  /// This is useful when working with dynamic columns.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key
-  /// @param prefix         - The prefix
-  /// @param columns        - (out) the retrieved columns. NOTE: the column
-  ///                         names have their prefix removed.
-  void ha_get_columns_with_prefix(const std::string& column_family,
-                                  const std::string& key,
-                                  const std::string& prefix,
-                                  std::vector<cass::ColumnOrSuperColumn>& columns,
-                                  SAS::TrailId trail);
-
-  /// HA get all columns in multiple rows that have a particular prefix to their
-  /// name.  This is useful when working with dynamic columns.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key
-  /// @param prefix         - The prefix
-  /// @param columns        - (out) the retrieved columns.  Returned as a map
-  ///                         where the keys are the requested row keys and
-  ///                         each value is a vector of columns. NOTE: the
-  ///                         column names have their prefix removed.
-  void ha_multiget_columns_with_prefix(const std::string& column_family,
-                                       const std::vector<std::string>& keys,
-                                       const std::string& prefix,
-                                       std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns,
-                                       SAS::TrailId trail);
 
   /// Get an entire row (non-HA).
   /// @param consistency_level cassandra consistency level.
@@ -419,7 +330,8 @@ enum ResultCode
   CONNECTION_ERROR = 3,
   RESOURCE_ERROR = 4,
   UNKNOWN_ERROR = 5,
-  UNAVAILABLE = 6
+  UNAVAILABLE = 6,
+  TIMEOUT = 7
 };
 
 /// The byte sequences that represent True and False in cassandra.
@@ -716,6 +628,99 @@ protected:
   /// If the operation hit an exception doing a cassandra operation, the error
   /// text describing the exception.
   std::string _cass_error_text;
+};
+
+/// This is an abstract class that allows for HA get requests to be made.
+/// These requests make a consistency level TWO request the first time the
+/// operation is perfomed, and a consistency level ONE request for any
+/// subsequent time.
+/// This allows us to attempt a level TWO request, but fall back to level ONE if
+/// that fails.
+class HAOperation : public Operation
+{
+public:
+  HAOperation();
+
+  /// HA get an entire row.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key.
+  /// @param columns        - (out) Columns in the row.
+  void ha_get_row(Client* client,
+                  const std::string& column_family,
+                  const std::string& key,
+                  std::vector<cass::ColumnOrSuperColumn>& columns,
+                  SAS::TrailId trail);
+
+  /// HA get specific columns in a row.
+  ///
+  /// Note that if a requested row does not exist in cassandra, this method
+  /// will return only the rows that do exist. It will not throw an exception
+  /// in this case.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param names          - The names of the columns to retrieve
+  /// @param columns        - (out) The retrieved columns
+  void ha_get_columns(Client* client,
+                      const std::string& column_family,
+                      const std::string& key,
+                      const std::vector<std::string>& names,
+                      std::vector<cass::ColumnOrSuperColumn>& columns,
+                      SAS::TrailId trail);
+
+  /// HA get all columns in a row
+  /// This is useful when working with dynamic columns.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param columns        - (out) The retrieved columns.
+  void ha_get_all_columns(Client* client,
+                          const std::string& column_family,
+                          const std::string& key,
+                          std::vector<cass::ColumnOrSuperColumn>& columns,
+                          SAS::TrailId trail);
+
+  /// HA get all columns in a row that have a particular prefix to their name.
+  /// This is useful when working with dynamic columns.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param prefix         - The prefix
+  /// @param columns        - (out) the retrieved columns. NOTE: the column
+  ///                         names have their prefix removed.
+  void ha_get_columns_with_prefix(Client* client,
+                                  const std::string& column_family,
+                                  const std::string& key,
+                                  const std::string& prefix,
+                                  std::vector<cass::ColumnOrSuperColumn>& columns,
+                                  SAS::TrailId trail);
+
+  /// HA get all columns in multiple rows that have a particular prefix to their
+  /// name.  This is useful when working with dynamic columns.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param prefix         - The prefix
+  /// @param columns        - (out) the retrieved columns.  Returned as a map
+  ///                         where the keys are the requested row keys and
+  ///                         each value is a vector of columns. NOTE: the
+  ///                         column names have their prefix removed.
+  void ha_multiget_columns_with_prefix(Client* client,
+                                       const std::string& column_family,
+                                       const std::vector<std::string>& keys,
+                                       const std::string& prefix,
+                                       std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns,
+                                       SAS::TrailId trail);
+private:
+  // This tracks whether we have alrady made a consistency level TWO request,
+  // and hence whether our next request should be ONE.
+  bool _consistency_two_tried;
 };
 
 }; // namespace CassandraStore
