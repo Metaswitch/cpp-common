@@ -415,6 +415,9 @@ bool Store::perform_op(Operation* op,
     }
     catch(TTransportException& te)
     {
+      // A TTransportException means that we were unable to connect to the
+      // Cassandra node, so we blacklist it and try again (if this is our first
+      // try)
       cass_result = CONNECTION_ERROR;
       cass_error_text = (boost::format("Exception: %s [%d]")
                          % te.what() % te.getType()).str();
@@ -427,11 +430,17 @@ bool Store::perform_op(Operation* op,
       // Tell the pool not to reuse this connection
       conn_handle.set_return_to_pool(false);
 
-      TRC_DEBUG("Connection error");
+      TRC_DEBUG("Error connecting to Cassandra - retrying if possible");
       retry = true;
     }
     catch(TimedOutException& te)
     {
+      // A Cassandra timeout means that we successfully contacted the node, but
+      // that it was unable to perform the operation in time. Since we only
+      // blacklist nodes on connectivity errors, a timeout does not result in
+      // blacklisting the node.
+      // We do retry on a timeout though, as it may be that another node is able
+      // to perform the operation.
       // A timeout should trigger a retry, but should not blacklist the node we
       // connected to (as we succeeded in connecting to it)
       cass_result = TIMEOUT;
@@ -442,7 +451,7 @@ bool Store::perform_op(Operation* op,
       SAS::Event event(trail, SASEvent::CASS_TIMEOUT, 0);
       SAS::report_event(event);
 
-      TRC_DEBUG("Timeout");
+      TRC_DEBUG("Cassandra timeout - retrying if possible");
       retry = true;
     }
     catch(InvalidRequestException& ire)
