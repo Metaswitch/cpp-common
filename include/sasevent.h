@@ -16,9 +16,8 @@
 #include "sas.h"
 
 namespace SASEvent {
-  // On updating CURRENT_RESOURCE_BUNDLE, you must also update
-  // SAS_RESOURCE_BUNDLE in the /python_src/metaswitch/rpe/rpesasconstants.py
-  // file in the houdini repository.
+  // The resource bundle datestamp is updated automatically by Jenkins.
+  // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
   const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170601";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
