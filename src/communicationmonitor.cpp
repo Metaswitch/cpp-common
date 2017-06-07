@@ -13,13 +13,13 @@
 #include "log.h"
 #include "cpp_common_pd_definitions.h"
 
-CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
+CommunicationMonitor::CommunicationMonitor(CMAlarmAdaptor* alarm_adaptor,
                                            std::string sender,
                                            std::string receiver,
                                            unsigned int clear_confirm_sec,
                                            unsigned int set_confirm_sec) :
   BaseCommunicationMonitor(),
-  _alarm(alarm),
+  _alarm_adaptor(alarm_adaptor),
   _sender(sender),
   _receiver(receiver),
   _clear_confirm_ms(clear_confirm_sec * 1000),
@@ -31,7 +31,7 @@ CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
 
 CommunicationMonitor::~CommunicationMonitor()
 {
-  delete _alarm;
+  delete _alarm_adaptor;
 }
 
 void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
@@ -85,20 +85,20 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
         case NO_ERRORS:
           switch (_new_state)
           {
-            case NO_ERRORS: // No change in state. Ensure alarm is cleared.
-              _alarm->clear();
+            case NO_ERRORS: // No change in state.
+              _alarm_adaptor->no_comm_errors();
               break;
 
             case SOME_ERRORS:
               CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
                                                  _receiver.c_str());
-              _alarm->clear();
+              _alarm_adaptor->some_comm_errors();
               break;
 
             case ONLY_ERRORS:
               CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
                                            _receiver.c_str());
-              _alarm->set();
+              _alarm_adaptor->only_comm_errors();
               break;
           }
           break;
@@ -108,17 +108,17 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
             case NO_ERRORS:
               CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                            _receiver.c_str());
-              _alarm->clear();
+              _alarm_adaptor->no_comm_errors();
               break;
 
             case SOME_ERRORS: // No change in state. Ensure alarm is cleared.
-              _alarm->clear();
+              _alarm_adaptor->some_comm_errors();
               break;
 
             case ONLY_ERRORS:
               CL_CM_CONNECTION_ERRORED.log(_sender.c_str(),
                                            _receiver.c_str());
-              _alarm->set();
+              _alarm_adaptor->only_comm_errors();
               break;
           }
           break;
@@ -128,17 +128,17 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
             case NO_ERRORS:
               CL_CM_CONNECTION_CLEARED.log(_sender.c_str(),
                                            _receiver.c_str());
-              _alarm->clear();
+              _alarm_adaptor->no_comm_errors();
               break;
 
             case SOME_ERRORS:
               CL_CM_CONNECTION_PARTIAL_ERROR.log(_sender.c_str(),
                                                  _receiver.c_str());
-              _alarm->clear();
+              _alarm_adaptor->some_comm_errors();
               break;
 
             case ONLY_ERRORS: // No change in state. Ensure alarm is raised.
-              _alarm->set();
+              _alarm_adaptor->only_comm_errors();
               break;
           }
           break;

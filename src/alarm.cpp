@@ -37,30 +37,48 @@ void AlarmState::issue()
   TRC_STATUS("%s issued %s alarm", _issuer.c_str(), _identifier.c_str());
 }
 
-BaseAlarm::BaseAlarm(AlarmManager* alarm_manager,
-                     const std::string& issuer,
-                     const int index):
+Alarm::Alarm(AlarmManager* alarm_manager,
+             const std::string& issuer,
+             const int index):
   _index(index),
-  _clear_state(alarm_manager->alarm_req_agent(),
-               issuer,
-               index,
-               AlarmDef::CLEARED),
   _last_state_raised(NULL),
-  _alarm_manager(alarm_manager)
+  _alarm_manager(alarm_manager),
+  _cleared_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::CLEARED),
+  _indeterminate_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::INDETERMINATE),
+  _warning_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::WARNING),
+  _minor_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MINOR),
+  _major_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MAJOR),
+  _critical_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::CRITICAL)
 {
   pthread_mutex_init(&_issue_alarm_change_state, NULL);
   alarm_manager->alarm_re_raiser()->register_alarm(this);
 }
 
-BaseAlarm::~BaseAlarm()
+Alarm::~Alarm()
 {
   _alarm_manager->alarm_re_raiser()->unregister_alarm(this);
   pthread_mutex_destroy(&_issue_alarm_change_state);
 }
 
-void BaseAlarm::switch_to_state(AlarmState* new_state)
+AlarmState::AlarmCondition Alarm::get_alarm_state()
 {
-  if (_last_state_raised !=  new_state)
+  if (_last_state_raised == NULL)
+  {
+    return AlarmState::UNKNOWN;
+  }
+  else if (_last_state_raised == &_cleared_state)
+  {
+    return AlarmState::CLEARED;
+  }
+  else
+  {
+    return AlarmState::ALARMED;
+  }
+}
+
+void Alarm::switch_to_state(AlarmState* new_state)
+{
+  if (_last_state_raised != new_state)
   {
     std::string old_state_text = "NULL";
     std::string new_state_text = "NULL";
@@ -84,12 +102,8 @@ void BaseAlarm::switch_to_state(AlarmState* new_state)
     pthread_mutex_unlock(&_issue_alarm_change_state);
   }
 }
-void BaseAlarm::clear()
-{
-  switch_to_state(&_clear_state);
-}
 
-void BaseAlarm::reraise_last_state()
+void Alarm::reraise_last_state()
 {
   pthread_mutex_lock(&_issue_alarm_change_state);
 
@@ -101,72 +115,69 @@ void BaseAlarm::reraise_last_state()
   pthread_mutex_unlock(&_issue_alarm_change_state);
 }
 
-AlarmState::AlarmCondition BaseAlarm::get_alarm_state()
+void Alarm::set(AlarmDef::Severity severity)
 {
-  if (_last_state_raised == NULL)
+  switch (severity)
   {
-    return AlarmState::UNKNOWN;
+    case AlarmDef::CLEARED:
+      clear();
+      break;
+
+    case AlarmDef::INDETERMINATE:
+      set_indeterminate();
+      break;
+
+    case AlarmDef::WARNING:
+      set_warning();
+      break;
+
+    case AlarmDef::MINOR:
+      set_minor();
+      break;
+
+    case AlarmDef::MAJOR:
+      set_major();
+      break;
+
+    case AlarmDef::CRITICAL:
+      set_critical();
+      break;
+
+    // LCOV_EXCL_START
+    case AlarmDef::UNDEFINED_SEVERITY:
+    default:
+      // We should never hit this case
+      break;
+    // LCOV_EXCL_STOP
   }
-  else if (_last_state_raised == &_clear_state)
-  {
-    return AlarmState::CLEARED;
-  }
-  else
-  {
-    return AlarmState::ALARMED;
-  }
 }
 
-Alarm::Alarm(AlarmManager* alarm_manager,
-             const std::string& issuer,
-             const int index,
-             AlarmDef::Severity severity) :
-  BaseAlarm(alarm_manager, issuer, index),
-  _set_state(alarm_manager->alarm_req_agent(), issuer, index, severity)
+void Alarm::clear()
 {
+  switch_to_state(&_cleared_state);
 }
 
-void Alarm::set()
-{
-  switch_to_state(&_set_state);
-}
-
-MultiStateAlarm::MultiStateAlarm(AlarmManager* alarm_manager,
-                                 const std::string& issuer,
-                                 const int index) :
-  BaseAlarm(alarm_manager, issuer, index),
-  _indeterminate_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::INDETERMINATE),
-  _warning_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::WARNING),
-  _minor_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MINOR),
-  _major_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::MAJOR),
-  _critical_state(alarm_manager->alarm_req_agent(), issuer, index, AlarmDef::CRITICAL)
-{
-}
-
-// We don't have any UTs that use an indeterminate state.
-// LCOV_EXCL_START
-void MultiStateAlarm::set_indeterminate()
+void Alarm::set_indeterminate()
 {
   switch_to_state(&_indeterminate_state);
 }
-// LCOV_EXCL_STOP
 
-void MultiStateAlarm::set_warning()
+void Alarm::set_warning()
 {
   switch_to_state(&_warning_state);
 }
 
-void MultiStateAlarm::set_minor()
+void Alarm::set_minor()
 {
   switch_to_state(&_minor_state);
 }
 
-void MultiStateAlarm::set_major()
+void Alarm::set_major()
 {
   switch_to_state(&_major_state);
 }
 
-void MultiStateAlarm::set_critical()
+void Alarm::set_critical()
 {
   switch_to_state(&_critical_state);
 }
@@ -199,17 +210,17 @@ AlarmReRaiser::~AlarmReRaiser()
   pthread_mutex_destroy(&_lock);
 }
 
-void AlarmReRaiser::register_alarm(BaseAlarm* alarm)
+void AlarmReRaiser::register_alarm(Alarm* alarm)
 {
   pthread_mutex_lock(&_lock);
   _alarm_list.push_back(alarm);
   pthread_mutex_unlock(&_lock);
 }
 
-void AlarmReRaiser::unregister_alarm(BaseAlarm* alarm)
+void AlarmReRaiser::unregister_alarm(Alarm* alarm)
 {
   pthread_mutex_lock(&_lock);
-  std::vector<BaseAlarm*>::iterator it = std::find(_alarm_list.begin(), _alarm_list.end(), alarm);
+  std::vector<Alarm*>::iterator it = std::find(_alarm_list.begin(), _alarm_list.end(), alarm);
   if (it != _alarm_list.end())
   {
     _alarm_list.erase(it);
@@ -242,7 +253,7 @@ void AlarmReRaiser::reraise_alarms()
 
     // Now raise the alarms
     TRC_STATUS("Reraising all alarms with a known state");
-    for (std::vector<BaseAlarm*>::iterator it = _alarm_list.begin();
+    for (std::vector<Alarm*>::iterator it = _alarm_list.begin();
                                            it != _alarm_list.end();
                                            it++)
     {

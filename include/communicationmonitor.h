@@ -15,6 +15,61 @@
 #include "alarm.h"
 #include "base_communication_monitor.h"
 
+/// @class CMAlarmAdaptor
+///
+/// The communication monitor tracks three types of communication events:
+///  - all communication attempts in the last interval were successful
+///  - all communication attempts in the last interval failed
+///  - there were successful and failed communication attempts in the last
+///    interval
+///
+/// Different users of the communication monitor will want to raise different
+/// alarms at different severities for these three events - this class provides
+/// a translation between the communication monitor event, and the user raising
+/// the correct alarm.
+class CMAlarmAdaptor
+{
+public:
+  CMAlarmAdaptor(Alarm* alarm,
+                 AlarmDef::Severity severity_for_some_errors,
+                 AlarmDef::Severity severity_for_only_errors):
+    _alarm(alarm),
+    _severity_for_some_errors(severity_for_some_errors),
+    _severity_for_only_errors(severity_for_only_errors)
+  {}
+
+  virtual ~CMAlarmAdaptor()
+  {
+    delete _alarm;
+  }
+
+  // Sets an alarm if there have been no successful communication attempts in
+  // the last interval (and at least one attempt was made).
+  void only_comm_errors()
+  {
+    _alarm->set(_severity_for_only_errors);
+  }
+
+  // Sets an alarm if there has been a mix of successful and failed
+  // communication attempts in the last interval.
+  void some_comm_errors()
+  {
+    _alarm->set(_severity_for_some_errors);
+  }
+
+  // Clears the alarm if there have been no failed communication attempts in
+  // the last interval.
+  void no_comm_errors()
+  {
+    _alarm->clear();
+  }
+
+private:
+  Alarm* _alarm;
+  AlarmDef::Severity _severity_for_some_errors;
+  AlarmDef::Severity _severity_for_only_errors;
+};
+
 /// @class CommunicationMonitor
 ///
 /// Provides a simple mechanism to track communication state for an entity,
@@ -31,7 +86,7 @@
 class CommunicationMonitor : public BaseCommunicationMonitor
 {
 public:
-  CommunicationMonitor(Alarm* alarm,
+  CommunicationMonitor(CMAlarmAdaptor* alarm_adaptor,
                        std::string sender,
                        std::string receiver,
                        unsigned int clear_confirm_sec = 30,
@@ -43,7 +98,7 @@ private:
   virtual void track_communication_changes(unsigned long now_ms);
   unsigned long current_time_ms();
 
-  Alarm* _alarm;
+  CMAlarmAdaptor* _alarm_adaptor;
   std::string _sender;
   std::string _receiver;
   unsigned int _clear_confirm_ms;
