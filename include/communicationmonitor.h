@@ -14,6 +14,24 @@
 
 #include "alarm.h"
 #include "base_communication_monitor.h"
+#include "pdlog.h"
+
+/// Structure that holds the different ENT logs that get raised by the
+// Communication Monitor
+struct CMPDLogs
+{
+  PDLog _log_when_no_errors;
+  PDLog _log_when_some_errors;
+  PDLog _log_when_only_errors;
+
+  CMPDLogs(PDLog log_when_no_errors,
+           PDLog log_when_some_errors,
+           PDLog log_when_only_errors) :
+    _log_when_no_errors(log_when_no_errors),
+    _log_when_some_errors(log_when_some_errors),
+    _log_when_only_errors(log_when_only_errors)
+  {}
+};
 
 /// @class CommunicationMonitor
 ///
@@ -32,6 +50,7 @@ class CommunicationMonitor : public BaseCommunicationMonitor
 {
 public:
   CommunicationMonitor(Alarm* alarm,
+                       CMPDLogs cm_pd_logs,
                        std::string sender,
                        std::string receiver,
                        unsigned int clear_confirm_sec = 30,
@@ -44,12 +63,14 @@ private:
   unsigned long current_time_ms();
 
   Alarm* _alarm;
+  CMPDLogs _cm_pd_logs;
   std::string _sender;
   std::string _receiver;
   unsigned int _clear_confirm_ms;
   unsigned int _set_confirm_ms;
   unsigned long _next_check;
   int _previous_state;
+
   // Setup the possible error states
   enum { NO_ERRORS, SOME_ERRORS, ONLY_ERRORS };
 };
