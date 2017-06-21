@@ -18,7 +18,7 @@
 namespace SASEvent {
   // The resource bundle datestamp is updated automatically by Jenkins.
   // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170614";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170621";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
