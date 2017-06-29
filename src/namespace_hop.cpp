@@ -47,7 +47,7 @@ static int recv_file_descriptor(int socket)
   int res = ::recvmsg(socket, &message, 0);
   if (res <= 0)
   {
-    TRC_WARNING("Failed to retrieve cross-namespace socket - recvmsg returned %d (%d %s)\n", res, errno, strerror(errno));
+    TRC_WARNING("Failed to retrieve cross-namespace socket - recvmsg returned %d (%d %s)", res, errno, strerror(errno));
     return -1;
   }
 
@@ -84,7 +84,7 @@ int create_connection_in_namespace(const char* host,
 {
   std::string target = (host + std::string(":") + port);
 
-  TRC_DEBUG("Get cross-namespace socket to %s via %s\n",
+  TRC_DEBUG("Get cross-namespace socket to %s via %s",
             target.c_str(),
             socket_factory_path);
   
