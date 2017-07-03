@@ -38,18 +38,22 @@ std::string get_first_node_value(xml_node<>* node, std::string name)
 //
 // This is necessary because RapidXML's value() function only returns the text
 // of the first data node, not the first CDATA node.
+// The CDATA interactions aren't tested in the UTs.
 std::string get_text_or_cdata(xml_node<>* node)
 {
   xml_node<>* first_data_node = node->first_node();
-  if (first_data_node && ((first_data_node->type() != node_cdata) ||
-                          (first_data_node->type() != node_data)))
+  if ((first_data_node) &&
+      ((first_data_node->type() != node_cdata) ||
+       (first_data_node->type() != node_data))) // LCOV_EXCL_LINE
   {
     return first_data_node->value();
   }
+  // LCOV_EXCL_START
   else
   {
     return "";
   }
+  // LCOV_EXCL_STOP
 }
 
 bool does_child_node_exist(xml_node<>* parent_node, std::string child_node_name)
