@@ -121,6 +121,11 @@ void HttpStack::initialize()
   if (!_evhtp)
   {
     _evhtp = evhtp_new(_evbase, NULL);
+
+    // Set a read timeout of 20s to mitigate the Slowloris vulnerability.
+    struct timeval recv_timeo;
+    recv_timeo.tv_sec = 20;
+    evhtp_set_timeouts(_evhtp, recv_timeo, NULL);
   }
 }
 
