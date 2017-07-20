@@ -645,6 +645,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   if (attempts == 0)
   {
     // We didn't even attempt to contact a server, so produce a SAS log saying so.
+    TRC_INFO("Failed to resolve hostname for %s to %s", method_str.c_str(), url.c_str());
     SAS::Event event(trail,
                      ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
                        SASEvent::HTTP_HOSTNAME_DID_NOT_RESOLVE :
