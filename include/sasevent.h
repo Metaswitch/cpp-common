@@ -18,7 +18,7 @@
 namespace SASEvent {
   // The resource bundle datestamp is updated automatically by Jenkins.
   // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170719";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170720";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -103,6 +103,9 @@ namespace SASEvent {
 
   const int HTTP_BAD_RETRY_AFTER_VALUE = COMMON_BASE + 0x000016;
   const int HTTP_BAD_RETRY_AFTER_VALUE_DETAIL = COMMON_BASE + 0x000017;
+
+  const int HTTP_HOSTNAME_DID_NOT_RESOLVE = COMMON_BASE + 0x000018;
+  const int HTTP_HOSTNAME_DID_NOT_RESOLVE_DETAIL = COMMON_BASE + 0x000019;
 
   const int MEMCACHED_GET_START = COMMON_BASE + 0x000100;
   const int MEMCACHED_GET_SUCCESS = COMMON_BASE + 0x000101;
