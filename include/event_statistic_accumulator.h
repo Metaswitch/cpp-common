@@ -47,7 +47,7 @@ public:
   void accumulate(uint32_t sample);
 
   // Compute the current statistics values.
-  inline void get_stats(EventStatistics &stats);
+  void get_stats(EventStatistics &stats);
 
   // Reset all of the statistics.
   void reset(uint64_t periodstart, EventStatisticAccumulator* previous = NULL);

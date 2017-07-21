@@ -54,7 +54,7 @@ void EventStatisticAccumulator::accumulate(uint32_t sample)
   }
 }
 
-inline void EventStatisticAccumulator::get_stats(EventStatistics &stats)
+void EventStatisticAccumulator::get_stats(EventStatistics &stats)
 {
   stats.count = _count;
 
