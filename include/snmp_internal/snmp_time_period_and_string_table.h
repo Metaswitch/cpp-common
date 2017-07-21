@@ -26,7 +26,7 @@ public:
   // Constructor, takes ownership of the View*.
   TimeAndStringBasedRow(int time_index, std::string string_index, typename TimeBasedRow<T>::View* view) :
     TimeBasedRow<T>(time_index, view),
-    _string_ndex(string_index)
+    _index(string_index)
   {
     // Add index for the other type (the time index is added in the base class)
     netsnmp_tdata_row_add_index(this->_row,
@@ -35,12 +35,12 @@ public:
                                 string_index.length());
   };
 
-  virtual ~TimeAndOtherTypeBasedRow()
+  virtual ~TimeAndStringBasedRow()
   {
   };
 
 protected:
-  std::string _string_index;
+  std::string _index;
 };
 
 }

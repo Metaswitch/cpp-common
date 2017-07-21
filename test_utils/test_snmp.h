@@ -13,6 +13,7 @@
 #include "utils.h"
 
 #include "snmp_event_accumulator_table.h"
+#include "snmp_event_accumulator_by_scope_table.h"
 #include "snmp_continuous_accumulator_table.h"
 #include "snmp_counter_table.h"
 #include "snmp_success_fail_count_table.h"
