@@ -337,6 +337,9 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   HTTPCode http_code;
   CURLcode rc;
 
+  // Get the request method for logging purposes.
+  std::string method_str = request_type_to_string(request_type);
+
   // Create a UUID to use for SAS correlation.
   boost::uuids::uuid uuid = get_random_uuid();
   std::string uuid_str = boost::uuids::to_string(uuid);
@@ -384,7 +387,8 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   // connection is made, a specified number of failures is reached, or the
   // targets are exhausted. If only one target is available, it should be tried
   // twice.
-  for (int attempts = 0;
+  int attempts;
+  for (attempts = 0;
        target_it->next(target) || attempts == 1;
        ++attempts)
   {
@@ -481,7 +485,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     rc = curl_easy_perform(curl);
 
     // If a request was sent, log it to SAS.
-    std::string method_str = request_type_to_string(request_type);
     if (recorder.request.length() > 0)
     {
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
@@ -639,6 +642,20 @@ HTTPCode HttpClient::send_request(RequestType request_type,
 
   delete target_it;
 
+  if (attempts == 0)
+  {
+    // We didn't even attempt to contact a server, so produce a SAS log saying so.
+    TRC_INFO("Failed to resolve hostname for %s to %s", method_str.c_str(), url.c_str());
+    SAS::Event event(trail,
+                     ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                       SASEvent::HTTP_HOSTNAME_DID_NOT_RESOLVE :
+                       SASEvent::HTTP_HOSTNAME_DID_NOT_RESOLVE_DETAIL),
+                     0);
+    event.add_var_param(method_str);
+    event.add_var_param(url);
+    SAS::report_event(event);
+  }
+
   // Check whether we should apply a penalty. We do this when:
   //  - both attempts return 503 errors, which means the downstream node is
   //    overloaded/requests to it are timeing.
@@ -680,11 +697,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     {
       _comm_monitor->inform_failure(now_ms);
     }
-  }
-
-  if (((rc != CURLE_OK) && (rc != CURLE_REMOTE_FILE_NOT_FOUND)) || (http_code >= 400))
-  {
-    TRC_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
   }
 
   return http_code;
