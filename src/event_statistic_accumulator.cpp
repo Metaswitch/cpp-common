@@ -14,7 +14,7 @@
 #include <string>
 #include <atomic>
 
-#include "logger.h"
+#include "log.h"
 #include "event_statistic_accumulator.h"
 #include "limits.h"
 
@@ -28,6 +28,7 @@ EventStatisticAccumulator::EventStatisticAccumulator()
 
 void EventStatisticAccumulator::accumulate(uint32_t sample)
 {
+  TRC_DEBUG("Accumulate %u for %p", sample, this);
   _count++;
 
   // Just keep a running total as we go along, so we can calculate the average and variance on
@@ -56,6 +57,7 @@ void EventStatisticAccumulator::accumulate(uint32_t sample)
 
 void EventStatisticAccumulator::get_stats(EventStatistics &stats)
 {
+  TRC_DEBUG("Get stats for %p", this);
   stats.count = _count;
 
   if (_count > 0)

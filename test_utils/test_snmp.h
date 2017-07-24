@@ -22,6 +22,7 @@
 #include "test_interposer.hpp"
 #include "snmp_single_count_by_node_type_table.h"
 #include "snmp_success_fail_count_by_request_type_table.h"
+#include "snmp_time_and_string_based_event_table.h"
 #include "snmp_cx_counter_table.h"
 #include "snmp_ip_time_based_counter_table.h"
 
@@ -45,6 +46,10 @@ public:
 
   static void SetUpTestCase();
   static void TearDownTestCase();
+
+  std::string time_string_event_oid(std::string base, int stat, int time, std::string string_index);
+  void snmp_walk_debug(std::string base);
+
 private:
   std::string alarm_address;
 
@@ -134,5 +139,20 @@ void SNMPTest::TearDownTestCase()
   pthread_cancel(thr);
   pthread_join(thr, NULL);
   snmp_shutdown("fvtest");
+}
+
+std::string SNMPTest::time_string_event_oid(std::string base, int stat, int time, std::string string_index)
+{
+  std::string oid = base + ".1." + std::to_string(stat+2) + "." + std::to_string(time) + "." + string_index;
+  return oid;
+}
+
+void SNMPTest::snmp_walk_debug(std::string base)
+{
+  std::vector<std::string> entries = snmp_walk(".2.2.2");
+  for (auto entry: entries)
+  {
+    printf("%s\n", entry.c_str());
+  }
 }
 
