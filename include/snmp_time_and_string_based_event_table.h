@@ -13,7 +13,7 @@
 #include <map>
 
 #ifndef SNMP_TIME_AND_STRING_BASED_EVENT_TABLE_H
-#define SNMP TIME_AND_STRING_BASED_EVENT_TABLE_H
+#define SNMP_TIME_AND_STRING_BASED_EVENT_TABLE_H
 
 // This file contains the interface for tables which:
 //   - are indexed by time period and a string
