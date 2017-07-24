@@ -19,8 +19,8 @@
 namespace SNMP
 {
 
-
-// Time and String Indexed Row that maps the data from EventStatisticAccumulator into the right columns.
+// Time and String indexed Row that maps the data from EventStatisticAccumulator
+// into the right columns.
 class TimeAndStringBasedEventRow: public TimeAndStringBasedRow<EventStatisticAccumulator>
 {
 public:
@@ -32,21 +32,18 @@ public:
     struct timespec now;
     clock_gettime(CLOCK_REALTIME_COARSE, &now);
 
-    TRC_DEBUG("Get stats for string %s", _string_index.c_str());
-
+    // Call into the underlying EventStatisticsAccumulator to get the current
+    // statistics.
     EventStatistics statistics;
     EventStatisticAccumulator* accumulated = _view->get_data(now);
     accumulated->get_stats(statistics);
 
-    TRC_DEBUG("Count = %u, Mean = %u", statistics.count, statistics.mean);
-    TRC_DEBUG("String index = %s", (unsigned char*)(this->_string_index.c_str()));
-    TRC_DEBUG("String length = %u", this->_string_index.size());
-    TRC_DEBUG("Time index = %d", this->_index);
-
-    // Construct and return a ColumnData with the appropriate values
+    // Construct and return a ColumnData with the appropriate values.
     ColumnData ret;
     ret[1] = Value::integer(this->_index);
-    ret[2] = Value(ASN_OCTET_STR, (unsigned char*)(this->_string_index.c_str()), this->_string_index.size());
+    ret[2] = Value(ASN_OCTET_STR,
+                   (unsigned char*)(this->_string_index.c_str()),
+                   this->_string_index.size());
     ret[3] = Value::uint(statistics.mean);
     ret[4] = Value::uint(statistics.variance);
     ret[5] = Value::uint(statistics.hwm);
@@ -68,21 +65,47 @@ public:
                                                   { ASN_INTEGER , ASN_OCTET_STR })
   {
     _table_rows = 0;
+
+    // Create a lock to protect the maps in this table.  Note that our policy
+    // for stats is to minimize locking.  We are prepared to tolerate some
+    // invalid statistics readings in order to avoid locking on the call path.
+    // However, we don't want to risk conflicting mutates of the maps that
+    // track all of the underlying data from completely breaking all stats.
     pthread_rwlock_init(&_table_lock, NULL);
   }
 
+  /// Add rows to the table for a given string index (one row per time period
+  /// that we are tracking.
   void create_and_add_rows(std::string string_index)
   {
-    // Create CurrentAndPrevious views of EventStatisticAccumulator to
-    // accumulate statistics for this row at each of 5s and 5m scopes.
     // This is going to mutate the maps so get the write lock first.
     pthread_rwlock_wrlock(&_table_lock);
+
+    // Check that the rows don't already exist.  We only call this function if
+    // the rows don't exist, but it's possible that they've been added
+    // inbetween us checking that they don't exist and getting the write lock.
+    if (_five_second.count(string_index) != 0)
+    {
+      // The rows already exist.  We don't release the RW lock until we've
+      // completely finished adding all the rows so existence in the 5s map
+      // means that all the rows are fully created.  Just return.
+      pthread_rwlock_unlock(&_table_lock);
+      return;
+    }
+
+    // Create CurrentAndPrevious views of EventStatisticAccumulator to
+    // accumulate statistics for these rows at each of 5s and 5m scopes.
     _five_second[string_index] = new CurrentAndPrevious<EventStatisticAccumulator>(5000);
     _five_minute[string_index] = new CurrentAndPrevious<EventStatisticAccumulator>(300000);
-    pthread_rwlock_unlock(&_table_lock);
 
-    // Now add the actual rows to the table, referencing the relevant views of
-    // the data that we've just created.
+    // Now add the actual rows to the table, referencing the
+    // EventStatisticAccumulator views we've just created.  Note that we create
+    // the rows with an abitrary internal key (using a _table_rows counter to
+    // generate unique keys) as we don't need to be able to look them up again
+    // in future.  We don't need this because we don't currently support
+    // removing rows from the table.  If we need to add this in future then we
+    // would need to start keying the rows off a tuple of string index and time
+    // scope.
     this->add(_table_rows++, new TimeAndStringBasedEventRow(TimePeriodIndexes::scopePrevious5SecondPeriod,
                                     string_index,
                                     new TimeAndStringBasedEventRow::PreviousView((_five_second)[string_index])));
@@ -92,6 +115,8 @@ public:
     this->add(_table_rows++, new TimeAndStringBasedEventRow(TimePeriodIndexes::scopePrevious5MinutePeriod,
                                     string_index,
                                     new TimeAndStringBasedEventRow::PreviousView((_five_minute)[string_index])));
+
+    pthread_rwlock_unlock(&_table_lock);
   }
 
   void accumulate(std::string string_index, uint32_t sample)
@@ -105,23 +130,23 @@ public:
     // We want to make sure that we get this right -- deciding that the rows
     // exist when actually they don't would be bad.  Get the read lock first.
     pthread_rwlock_rdlock(&_table_lock);
+    // We've got the read lock so no one can have a write lock.  Existence
+    // of the string_index in the 5s map therefore means we can safely assume
+    // that all of the rows for this string_index exist.
     rows_exist = (_five_second.count(string_index) != 0);
     pthread_rwlock_unlock(&_table_lock);
 
     if (!rows_exist)
     {
       TRC_DEBUG("Create new rows for %s", string_index.c_str());
-      // We don't have rows for this index so create them now.
       create_and_add_rows(string_index);
     }
 
-    TRC_DEBUG("Accumulate sample: %u", sample);
     // The rows definitely exist now, so go ahead and accumulate the counts.
     // We don't bother about locking the table here -- the worst that will
     // happen is that the stats might be slightly wrong.
     _five_second[string_index]->get_current()->accumulate(sample);
     _five_minute[string_index]->get_current()->accumulate(sample);
-
   }
 
   ~TimeAndStringBasedEventTableImpl()
@@ -143,7 +168,6 @@ private:
   // Maps for tracking our 5s and 5m views of the data for each string index
   // used in the table, plus a lock to protect them.
   pthread_rwlock_t _table_lock;
-
   std::map<std::string, CurrentAndPrevious<EventStatisticAccumulator>*> _five_second;
   std::map<std::string, CurrentAndPrevious<EventStatisticAccumulator>*> _five_minute;
 };

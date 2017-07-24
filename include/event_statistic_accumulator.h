@@ -14,8 +14,6 @@
 #include <string>
 #include <atomic>
 
-#include "logger.h"
-
 #ifndef EVENT_STATISTIC_ACCUMULATOR_H
 #define EVENT_STATISTIC_ACCUMULATOR_H
 
@@ -27,6 +25,7 @@
 namespace SNMP
 {
 
+// Structure used to hold calculated statistics.
 struct EventStatistics
 {
   uint_fast64_t count;
@@ -43,16 +42,22 @@ public:
   EventStatisticAccumulator();
   virtual ~EventStatisticAccumulator() {};
 
-  // Accumulate a sample into the underlying statistics.
+  // Accumulate data about an additional event.  E.g. for SIP request
+  // latencies, this would be called each time a response is received to track
+  // the latency of that request.
   void accumulate(uint32_t sample);
 
-  // Compute the current statistics values.
+  // Compute the current statistics values and fill them in in the supplied
+  // EventStatistics structure.
   void get_stats(EventStatistics &stats);
 
   // Reset all of the statistics.
   void reset(uint64_t periodstart, EventStatisticAccumulator* previous = NULL);
 
 private:
+  // The quantities that we track dynamically as we receive information about
+  // individual events.  These are sufficient to calculate all of the
+  // statistics that we need to be able to report.
   std::atomic_uint_fast64_t _count;
   std::atomic_uint_fast64_t _sum;
   std::atomic_uint_fast64_t _sqsum;

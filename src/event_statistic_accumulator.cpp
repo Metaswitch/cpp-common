@@ -23,6 +23,7 @@ namespace SNMP
 
 EventStatisticAccumulator::EventStatisticAccumulator()
 {
+  // Start by resetting all of the statistics.
   reset(0);
 }
 
@@ -31,16 +32,16 @@ void EventStatisticAccumulator::accumulate(uint32_t sample)
   TRC_DEBUG("Accumulate %u for %p", sample, this);
   _count++;
 
-  // Just keep a running total as we go along, so we can calculate the average and variance on
-  // request
+  // Just keep a running total as we go along, so we can calculate the average
+  // and variance on request.
   _sum += sample;
   _sqsum += (sample * sample);
 
   // Update the low- and high-water marks.  In each case, we get the current
   // value, decide whether a change is required and then atomically swap it
-  // if so, repeating if it was changed in the meantime.  Note that
-  // compare_exchange_weak loads the current value into the expected value
-  // parameter (lwm or hwm below) if the compare fails.
+  // if so, repeating if it was changed in the meantime (on a different thread).
+  // Note that compare_exchange_weak loads the current value into the expected
+  // value parameter (lwm or hwm below) if the compare fails.
   uint_fast64_t lwm = _lwm.load();
   while ((sample < lwm) &&
          (!_lwm.compare_exchange_weak(lwm, sample)))
@@ -57,12 +58,15 @@ void EventStatisticAccumulator::accumulate(uint32_t sample)
 
 void EventStatisticAccumulator::get_stats(EventStatistics &stats)
 {
-  TRC_DEBUG("Get stats for %p", this);
+  // Compute the stats and return them in the supplied EventStatistics
+  // structure.
   stats.count = _count;
 
   if (_count > 0)
   {
-    // Get the values that we are working with atomically.
+    // Get local copies of the values that we are working with atomically.
+    // Note that e.g. _sum is a std::atomic and so assignment is guaranteed
+    // atomic.
     uint_fast64_t sum = _sum;
     uint_fast64_t sumsq = _sqsum;
 

@@ -28,7 +28,7 @@ public:
     TimeBasedRow<T>(time_index, view),
     _string_index(string_index)
   {
-    // Add index for the other type (the time index is added in the base class)
+    // Add the string index (the time index is added in the base class)
     netsnmp_tdata_row_add_index(this->_row,
                                 ASN_OCTET_STR,
                                 string_index.c_str(),
