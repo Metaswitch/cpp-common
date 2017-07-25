@@ -64,6 +64,7 @@ public:
                                                   7,
                                                   { ASN_INTEGER , ASN_OCTET_STR })
   {
+    TRC_INFO("Created table with name %s, OID %s", name.c_str(), tbl_oid.c_str());
     _table_rows = 0;
 
     // Create a lock to protect the maps in this table.  Note that our policy
@@ -89,6 +90,7 @@ public:
       // The rows already exist.  We don't release the RW lock until we've
       // completely finished adding all the rows so existence in the 5s map
       // means that all the rows are fully created.  Just return.
+      TRC_DEBUG("Tried to add new rows but another thread beat us to it");
       pthread_rwlock_unlock(&_table_lock);
       return;
     }
@@ -151,6 +153,8 @@ public:
 
   ~TimeAndStringBasedEventTableImpl()
   {
+    TRC_INFO("Destroying table with name %s", _name.c_str());
+
     pthread_rwlock_destroy(&_table_lock);
 
     //Spin through the maps of 5s and 5m views and delete them.

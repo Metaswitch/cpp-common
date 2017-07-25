@@ -68,11 +68,11 @@ void EventStatisticAccumulator::get_stats(EventStatistics &stats)
     // Note that e.g. _sum is a std::atomic and so assignment is guaranteed
     // atomic.
     uint_fast64_t sum = _sum;
-    uint_fast64_t sumsq = _sqsum;
+    uint_fast64_t sqsum = _sqsum;
 
     // Calculate the average and the variance from the stored sum and sum-of-squares.
     stats.mean = sum/stats.count;
-    stats.variance = ((sumsq * stats.count) - (sum * sum)) / (stats.count * stats.count);
+    stats.variance = ((sqsum * stats.count) - (sum * sum)) / (stats.count * stats.count);
     stats.hwm = _hwm;
     stats.lwm = _lwm;
   }

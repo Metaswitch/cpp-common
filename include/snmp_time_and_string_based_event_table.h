@@ -32,7 +32,7 @@
 // Rows are automatically added to the table the first time a measurement is
 // accumulated for a given value of the string index.  They are never removed.
 // It would be possible to enhance this table to support removal of string
-// indices in future if that is required.
+// index values in future if that is required.
 //
 // This is defined as an interface in order not to pollute the codebase with netsnmp include files
 // (which indiscriminately #define things like READ and WRITE).
