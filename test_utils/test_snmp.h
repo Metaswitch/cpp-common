@@ -149,7 +149,7 @@ std::string SNMPTest::time_string_event_oid(std::string base, int stat, int time
 
 void SNMPTest::snmp_walk_debug(std::string base)
 {
-  std::vector<std::string> entries = snmp_walk(".2.2.2");
+  std::vector<std::string> entries = snmp_walk(base);
   for (auto entry: entries)
   {
     printf("%s\n", entry.c_str());
