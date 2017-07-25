@@ -387,11 +387,19 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   // connection is made, a specified number of failures is reached, or the
   // targets are exhausted. If only one target is available, it should be tried
   // twice.
-  int attempts;
-  for (attempts = 0;
-       target_it->next(target) || attempts == 1;
-       ++attempts)
+  //
+  // Note that we need to accurately track how many attempts we have actually
+  // made, even if we break out of the loop early (so we generate accurate
+  // logs). For this reason we increment the counter as soon as we  start a loop
+  // and assume that if we will try a host on each iteration. This is not
+  // perfect, but it's better than incrementing the counter mid-way through the
+  // loop (when actually trying the host) and risking not incrementing the
+  // counter for some reason, which would give an infinite loop.
+  int attempts = 0;
+  while (target_it->next(target) || attempts == 1)
   {
+    attempts++;
+
     // Get a curl handle and the associated pool entry
     ConnectionHandle<CURL*> conn_handle = _conn_pool.get_connection(target);
     CURL* curl = conn_handle.get_connection();
@@ -652,7 +660,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
                        SASEvent::HTTP_HOSTNAME_DID_NOT_RESOLVE_DETAIL),
                      0);
     event.add_var_param(method_str);
-    event.add_var_param(url);
+    event.add_var_param(Utils::url_unescape(url));
     SAS::report_event(event);
   }
 
