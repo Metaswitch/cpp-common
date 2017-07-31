@@ -65,9 +65,9 @@ public:
   friend class LazyAddrIterator;
 
   // Constants indicating the allowed host state values.
-  const int WHITELISTED = 0x01;
-  const int BLACKLISTED = 0x02;
-  const int ALL_LISTS   = WHITELISTED | BLACKLISTED;
+  constexpr int WHITELISTED = 0x01;
+  constexpr int BLACKLISTED = 0x02;
+  constexpr int ALL_LISTS   = WHITELISTED | BLACKLISTED;
 
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
