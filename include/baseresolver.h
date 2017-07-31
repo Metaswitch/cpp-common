@@ -64,6 +64,11 @@ public:
   // it is desirable not to expose
   friend class LazyAddrIterator;
 
+  // Constants indicating the allowed host state values.
+  const int WHITELISTED = 0x01;
+  const int BLACKLISTED = 0x02;
+  const int ALL_LISTS   = WHITELISTED | BLACKLISTED;
+
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
   void create_srv_cache();
@@ -85,7 +90,8 @@ protected:
                    int retries,
                    std::vector<AddrInfo>& targets,
                    int& ttl,
-                   SAS::TrailId trail);
+                   SAS::TrailId trail,
+                   int allowed_host_state=ALL_LISTS);
 
   /// Does an A/AAAA record resolution for the specified name, selecting
   /// appropriate targets.
@@ -96,7 +102,8 @@ protected:
                  int retries,
                  std::vector<AddrInfo>& targets,
                  int& ttl,
-                 SAS::TrailId trail);
+                 SAS::TrailId trail,
+                 int allowed_host_state=ALL_LISTS);
 
   /// Does an A/AAAA record resolution for the specified name, and returns an
   /// Iterator that lazily selects appropriate targets.
@@ -105,7 +112,8 @@ protected:
                                            int port,
                                            int transport,
                                            int& ttl,
-                                           SAS::TrailId trail);
+                                           SAS::TrailId trail,
+                                           int allowed_host_state=ALL_LISTS);
 
   /// Converts a DNS A or AAAA record to an IP46Address structure.
   IP46Address to_ip46(const DnsRRecord* rr);
@@ -329,7 +337,8 @@ public:
                    BaseResolver* resolver,
                    int port,
                    int transport,
-                   SAS::TrailId trail);
+                   SAS::TrailId trail,
+                   int allowed_host_state);
   virtual ~LazyAddrIterator() {}
 
   /// Returns a vector containing at most num_requested_targets AddrInfo targets,
@@ -348,6 +357,9 @@ private:
 
   // A pointer to the BaseResolver that created this iterator
   BaseResolver* _resolver;
+
+  // The allowed state of hosts returned by this iterator
+  int _allowed_host_state;
 
   std::string _hostname;
   SAS::TrailId _trail;

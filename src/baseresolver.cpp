@@ -121,8 +121,12 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
                                int retries,
                                std::vector<AddrInfo>& targets,
                                int& ttl,
-                               SAS::TrailId trail)
+                               SAS::TrailId trail,
+                               int allowed_host_state=BaseResolver::ALL_LISTS)
 {
+  // @TODO - PARAMETER NOT IMPLEMENTED: allowed_host_state
+  (void)allowed_host_state;
+
   // Accumulate blacklisted targets in case they are needed.
   std::vector<AddrInfo> blacklisted_targets;
 
@@ -321,9 +325,10 @@ void BaseResolver::a_resolve(const std::string& hostname,
                              int retries,
                              std::vector<AddrInfo>& targets,
                              int& ttl,
-                             SAS::TrailId trail)
+                             SAS::TrailId trail,
+                             int allowed_host_state=BaseResolver::ALL_LISTS)
 {
-  BaseAddrIterator* it = a_resolve_iter(hostname, af, port, transport, ttl, trail);
+  BaseAddrIterator* it = a_resolve_iter(hostname, af, port, transport, ttl, trail, allowed_host_state);
   targets = it->take(retries);
   delete it; it = nullptr;
 }
@@ -333,14 +338,15 @@ BaseAddrIterator* BaseResolver::a_resolve_iter(const std::string& hostname,
                                                int port,
                                                int transport,
                                                int& ttl,
-                                               SAS::TrailId trail)
+                                               SAS::TrailId trail,
+                                               int allowed_host_state=BaseResolver::ALL_LISTS)
 {
   DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa, trail);
   ttl = result.ttl();
 
   TRC_DEBUG("Found %ld A/AAAA records, creating iterator", result.records().size());
 
-  return new LazyAddrIterator(result, this, port, transport, trail);
+  return new LazyAddrIterator(result, this, port, transport, trail, allowed_host_state);
 }
 
 /// Converts a DNS A or AAAA record to an IP46Address structure.
@@ -883,12 +889,14 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
                                    BaseResolver* resolver,
                                    int port,
                                    int transport,
-                                   SAS::TrailId trail) :
+                                   SAS::TrailId trail,
+                                   int allowed_host_state) :
   _resolver(resolver),
   _trail(trail),
   _first_call(true)
 {
   _hostname = dns_result.domain();
+  _allowed_host_state = allowed_host_state;
 
   AddrInfo ai;
   ai.port = port;
@@ -913,6 +921,8 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
 
 std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 {
+  // @TODO - BEHAVIOUR NOT IMPLEMENTED: _allowed_host_state
+
   // Vector of targets to be returned
   std::vector<AddrInfo> targets;
 
