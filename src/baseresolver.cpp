@@ -122,7 +122,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
                                std::vector<AddrInfo>& targets,
                                int& ttl,
                                SAS::TrailId trail,
-                               int allowed_host_state=BaseResolver::ALL_LISTS)
+                               int allowed_host_state)
 {
   // @TODO - PARAMETER NOT IMPLEMENTED: allowed_host_state
   (void)allowed_host_state;
@@ -326,7 +326,7 @@ void BaseResolver::a_resolve(const std::string& hostname,
                              std::vector<AddrInfo>& targets,
                              int& ttl,
                              SAS::TrailId trail,
-                             int allowed_host_state=BaseResolver::ALL_LISTS)
+                             int allowed_host_state)
 {
   BaseAddrIterator* it = a_resolve_iter(hostname, af, port, transport, ttl, trail, allowed_host_state);
   targets = it->take(retries);
@@ -339,7 +339,7 @@ BaseAddrIterator* BaseResolver::a_resolve_iter(const std::string& hostname,
                                                int transport,
                                                int& ttl,
                                                SAS::TrailId trail,
-                                               int allowed_host_state=BaseResolver::ALL_LISTS)
+                                               int allowed_host_state)
 {
   DnsResult result = _dns_client->dns_query(hostname, (af == AF_INET) ? ns_t_a : ns_t_aaaa, trail);
   ttl = result.ttl();
