@@ -113,7 +113,7 @@ protected:
                                            int transport,
                                            int& ttl,
                                            SAS::TrailId trail,
-                                           int allowed_host_state=ALL_LISTS);
+                                           int allowed_host_state);
 
   /// Converts a DNS A or AAAA record to an IP46Address structure.
   IP46Address to_ip46(const DnsRRecord* rr);
