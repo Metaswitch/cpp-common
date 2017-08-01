@@ -55,24 +55,24 @@ public:
 
     inline std::string path()
     {
-      return url_unescape(std::string(_req->uri->path->path));
+      return Utils::url_unescape(std::string(_req->uri->path->path));
     }
 
     inline std::string full_path()
     {
-      return url_unescape(std::string(_req->uri->path->full));
+      return Utils::url_unescape(std::string(_req->uri->path->full));
     }
 
     inline std::string file()
     {
-      return url_unescape(std::string((_req->uri->path->file != NULL) ?
-                                        _req->uri->path->file : ""));
+      return Utils::url_unescape(std::string((_req->uri->path->file != NULL) ?
+                                               _req->uri->path->file : ""));
     }
 
     inline std::string param(const std::string& name)
     {
       const char* param = evhtp_kv_find(_req->uri->query, name.c_str());
-      return url_unescape(std::string(param != NULL ? param : ""));
+      return Utils::url_unescape(std::string(param != NULL ? param : ""));
     }
 
     inline std::string header(const std::string& name)
@@ -201,32 +201,6 @@ public:
     Utils::StopWatch _stopwatch;
     SasLogger* _sas_logger;
     bool _track_latency;
-
-    std::string url_unescape(const std::string& s)
-    {
-      std::string r;
-      r.reserve(2*s.length());
-      char a, b;
-      for (size_t ii = 0; ii < s.length(); ++ii)
-      {
-        if ((s[ii] == '%') && ((a = s[ii+1]) & (b = s[ii+2])) && (isxdigit(a) && isxdigit(b)))
-        {
-          if (a >= 'a') a -= 'a'-'A';
-          if (a >= 'A') a -= ('A' - 10);
-          else a -= '0';
-          if (b >= 'a') b -= 'a'-'A';
-          if (b >= 'A') b -= ('A' - 10);
-          else b -= '0';
-          r.push_back(16*a+b);
-          ii+=2;
-        }
-        else
-        {
-          r.push_back(s[ii]);
-        }
-      }
-      return r;
-    }
 
     /// Utility method to convert an evbuffer to a C++ string.
     ///
