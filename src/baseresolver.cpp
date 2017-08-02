@@ -927,9 +927,9 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
                                    SAS::TrailId trail,
                                    int allowed_host_state) :
   _resolver(resolver),
+  _allowed_host_state(allowed_host_state),
   _trail(trail),
-  _first_call(true),
-  _allowed_host_state(allowed_host_state)
+  _first_call(true)
 {
   _hostname = dns_result.domain();
 
