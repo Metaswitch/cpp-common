@@ -1027,13 +1027,15 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
                 targets.size(),
                 num_requested_targets);
     }
-    else if ( blacklisted_allowed )
+    else if ((_resolver->host_state(result) == BaseResolver::Host::State::BLACK) &&
+             blacklisted_allowed )
     {
       // Add the record to the list of unhealthy targets.
       _unhealthy_results.push_back(result);
 
       // Update logging.
       found_blacklisted_str += result.address_and_port_to_string() + ";";
+      TRC_DEBUG("Found an unhealthy server");
     }
   }
 
