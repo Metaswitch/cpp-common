@@ -100,6 +100,33 @@ void BaseResolver::destroy_blacklist()
   pthread_mutex_destroy(&_hosts_lock);
 }
 
+void BaseResolver::get_allowed_host_states(const int allowed_host_state,
+                                           bool& whitelisted_allowed,
+                                           bool& blacklisted_allowed) const
+{
+  if (allowed_host_state & BaseResolver::WHITELISTED)
+  {
+    TRC_DEBUG("Whitelisted addresses allowed");
+    whitelisted_allowed = true;
+  }
+  else
+  {
+    TRC_DEBUG("Whitelisted addresses not allowed and will be ignored");
+    whitelisted_allowed = false;
+  }
+
+  if (allowed_host_state & BaseResolver::BLACKLISTED)
+  {
+    TRC_DEBUG("Blacklisted addresses allowed");
+    blacklisted_allowed = true;
+  }
+  else
+  {
+    TRC_DEBUG("Blacklisted addresses not allowed and will be ignored");
+    blacklisted_allowed = false;
+  }
+}
+
 /// This algorithm selects a number of targets (IP address/port/transport
 /// tuples) following the SRV selection algorithm in RFC2782, with a couple
 /// of modifications.
@@ -124,11 +151,13 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
                                SAS::TrailId trail,
                                int allowed_host_state)
 {
-  // @TODO - PARAMETER NOT IMPLEMENTED: allowed_host_state
-  (void)allowed_host_state;
-
   // Accumulate blacklisted targets in case they are needed.
   std::vector<AddrInfo> blacklisted_targets;
+
+  // Initialise variables for allowed host states.
+  bool whitelisted_allowed, blacklisted_allowed;
+  get_allowed_host_states(
+                allowed_host_state, whitelisted_allowed, blacklisted_allowed);
 
   // Clear the list of targets just in case.
   targets.clear();
@@ -208,14 +237,18 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
           ai.port = srvs[ii]->port;
           ai.address = to_ip46(a_result.records()[jj]);
 
-          if (!blacklisted(ai))
+          bool addr_blacklisted = blacklisted(ai);
+
+          if ( !addr_blacklisted && whitelisted_allowed )
           {
-            // Address isn't blacklisted, so copy across to the active list.
+            // Address isn't blacklisted and whitelisted addresses are allowed,
+            // so copy across to the active list.
             active.push_back(ai.address);
           }
-          else
+          else if ( addr_blacklisted && blacklisted_allowed )
           {
-            // Address is blacklisted, so copy to blacklisted list.
+            // Address is blacklisted and blacklisted addresses are allowed,
+            // so copy to blacklisted list.
             blacklist.push_back(ai.address);
           }
 
@@ -308,7 +341,9 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   {
     SAS::Event event(trail, SASEvent::BASERESOLVE_SRV_RESULT, 0);
     event.add_var_param(srv_name);
+    event.add_static_param(whitelisted_allowed);
     event.add_var_param(targetlist_str);
+    event.add_static_param(blacklisted_allowed);
     event.add_var_param(blacklist_str);
     event.add_var_param(added_from_blacklist_str);
     SAS::report_event(event);
@@ -893,10 +928,10 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
                                    int allowed_host_state) :
   _resolver(resolver),
   _trail(trail),
-  _first_call(true)
+  _first_call(true),
+  _allowed_host_state(allowed_host_state)
 {
   _hostname = dns_result.domain();
-  _allowed_host_state = allowed_host_state;
 
   AddrInfo ai;
   ai.port = port;
@@ -921,7 +956,10 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
 
 std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 {
-  // @TODO - BEHAVIOUR NOT IMPLEMENTED: _allowed_host_state
+  // Initialise variables for allowed host states.
+  bool whitelisted_allowed, blacklisted_allowed;
+  _resolver->get_allowed_host_states(
+               _allowed_host_state, whitelisted_allowed, blacklisted_allowed);
 
   // Vector of targets to be returned
   std::vector<AddrInfo> targets;
@@ -937,9 +975,9 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
   // BaseResolver.
   pthread_mutex_lock(&(_resolver->_hosts_lock));
 
-  // If there are any graylisted records, the Iterator should return one first,
-  // and then no more.
-  if (_first_call)
+  // If there are any graylisted records, and we're set to return whitelisted
+  // records, the Iterator should return one first, and then no more.
+  if ( _first_call && whitelisted_allowed )
   {
     _first_call = false;
 
@@ -977,7 +1015,8 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
     AddrInfo result = _unused_results.back();
     _unused_results.pop_back();
 
-    if (_resolver->host_state(result) == BaseResolver::Host::State::WHITE)
+    if (( _resolver->host_state(result) == BaseResolver::Host::State::WHITE ) &&
+        whitelisted_allowed)
     {
       // Add the record to the targets list.
       targets.push_back(result);
@@ -988,7 +1027,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
                 targets.size(),
                 num_requested_targets);
     }
-    else
+    else if ( blacklisted_allowed )
     {
       // Add the record to the list of unhealthy targets.
       _unhealthy_results.push_back(result);
@@ -1022,7 +1061,9 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
     SAS::Event event(_trail, SASEvent::BASERESOLVE_A_RESULT_TARGET_SELECT, 0);
     event.add_var_param(_hostname);
     event.add_var_param(graylisted_targets_str);
+    event.add_static_param(whitelisted_allowed);
     event.add_var_param(whitelisted_targets_str);
+    event.add_static_param(blacklisted_allowed);
     event.add_var_param(blacklisted_targets_str);
     event.add_var_param(found_blacklisted_str);
     SAS::report_event(event);

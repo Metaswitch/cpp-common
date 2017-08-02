@@ -82,6 +82,11 @@ protected:
   void destroy_srv_cache();
   void destroy_blacklist();
 
+  // @TODO - Explanatory comment
+  void get_allowed_host_states(const int allowed_host_state,
+                               bool& whitelisted_allowed,
+                               bool& blacklisted_allowed) const;
+
   /// Does an SRV record resolution for the specified SRV name, selecting
   // appropriate targets.
   void srv_resolve(const std::string& srv_name,
