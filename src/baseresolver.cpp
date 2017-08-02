@@ -1015,27 +1015,39 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
     AddrInfo result = _unused_results.back();
     _unused_results.pop_back();
 
-    if (( _resolver->host_state(result) == BaseResolver::Host::State::WHITE ) &&
-        whitelisted_allowed)
+    if ( _resolver->host_state(result) == BaseResolver::Host::State::WHITE )
     {
-      // Add the record to the targets list.
-      targets.push_back(result);
+      if (whitelisted_allowed)
+      {
+        // Add the record to the targets list.
+        targets.push_back(result);
 
-      // Update logging.
-      whitelisted_targets_str += result.address_and_port_to_string() + ";";
-      TRC_DEBUG("Added a whitelisted server, now have %ld of %d",
-                targets.size(),
-                num_requested_targets);
+        // Update logging.
+        whitelisted_targets_str += result.address_and_port_to_string() + ";";
+        TRC_DEBUG("Added a whitelisted server, now have %ld of %d",
+                  targets.size(),
+                  num_requested_targets);
+      }
+      else
+      {
+        TRC_DEBUG("Whitelisted hosts not allowed, ignoring whitelisted server");
+      }
     }
-    else if ((_resolver->host_state(result) == BaseResolver::Host::State::BLACK) &&
-             blacklisted_allowed )
+    else
     {
-      // Add the record to the list of unhealthy targets.
-      _unhealthy_results.push_back(result);
+      if (blacklisted_allowed)
+      {
+        // Add the record to the list of unhealthy targets.
+        _unhealthy_results.push_back(result);
 
-      // Update logging.
-      found_blacklisted_str += result.address_and_port_to_string() + ";";
-      TRC_DEBUG("Found an unhealthy server");
+        // Update logging.
+        found_blacklisted_str += result.address_and_port_to_string() + ";";
+        TRC_DEBUG("Found an unhealthy server");
+      }
+      else
+      {
+        TRC_DEBUG("Blacklisted hosts not allowed, ignoring blacklisted server");
+      }
     }
   }
 
