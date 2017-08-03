@@ -100,33 +100,6 @@ void BaseResolver::destroy_blacklist()
   pthread_mutex_destroy(&_hosts_lock);
 }
 
-void BaseResolver::get_allowed_host_states(const int allowed_host_state,
-                                           bool& whitelisted_allowed,
-                                           bool& blacklisted_allowed) const
-{
-  if (allowed_host_state & BaseResolver::WHITELISTED)
-  {
-    TRC_DEBUG("Whitelisted addresses allowed");
-    whitelisted_allowed = true;
-  }
-  else
-  {
-    TRC_DEBUG("Whitelisted addresses not allowed and will be ignored");
-    whitelisted_allowed = false;
-  }
-
-  if (allowed_host_state & BaseResolver::BLACKLISTED)
-  {
-    TRC_DEBUG("Blacklisted addresses allowed");
-    blacklisted_allowed = true;
-  }
-  else
-  {
-    TRC_DEBUG("Blacklisted addresses not allowed and will be ignored");
-    blacklisted_allowed = false;
-  }
-}
-
 /// This algorithm selects a number of targets (IP address/port/transport
 /// tuples) following the SRV selection algorithm in RFC2782, with a couple
 /// of modifications.
@@ -155,9 +128,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   std::vector<AddrInfo> blacklisted_targets;
 
   // Initialise variables for allowed host states.
-  bool whitelisted_allowed, blacklisted_allowed;
-  get_allowed_host_states(
-                allowed_host_state, whitelisted_allowed, blacklisted_allowed);
+  const bool whitelisted_allowed = allowed_host_state & BaseResolver::WHITELISTED;
+  const bool blacklisted_allowed = allowed_host_state & BaseResolver::BLACKLISTED;
 
   // Clear the list of targets just in case.
   targets.clear();
@@ -967,9 +939,8 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
 std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 {
   // Initialise variables for allowed host states.
-  bool whitelisted_allowed, blacklisted_allowed;
-  _resolver->get_allowed_host_states(
-               _allowed_host_state, whitelisted_allowed, blacklisted_allowed);
+  const bool whitelisted_allowed = _allowed_host_state & BaseResolver::WHITELISTED;
+  const bool blacklisted_allowed = _allowed_host_state & BaseResolver::BLACKLISTED;
 
   // Vector of targets to be returned
   std::vector<AddrInfo> targets;
@@ -1026,7 +997,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
     _unused_results.pop_back();
     std::string target = result.address_and_port_to_string() + ";";
 
-    if ( _resolver->host_state(result) == BaseResolver::Host::State::WHITE )
+    if (_resolver->host_state(result) == BaseResolver::Host::State::WHITE)
     {
       found_whitelisted_str += target;
 

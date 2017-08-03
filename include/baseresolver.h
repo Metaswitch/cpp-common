@@ -65,9 +65,9 @@ public:
   friend class LazyAddrIterator;
 
   // Constants indicating the allowed host state values.
-  static constexpr int WHITELISTED = 0x01;
-  static constexpr int BLACKLISTED = 0x02;
-  static constexpr int ALL_LISTS   = WHITELISTED | BLACKLISTED;
+  static const int WHITELISTED = 0x01;
+  static const int BLACKLISTED = 0x02;
+  static const int ALL_LISTS   = WHITELISTED | BLACKLISTED;
 
 protected:
   void create_naptr_cache(std::map<std::string, int> naptr_services);
@@ -81,13 +81,6 @@ protected:
   void destroy_naptr_cache();
   void destroy_srv_cache();
   void destroy_blacklist();
-
-  // Helper function that takes the bit representing the allowed host states,
-  // and sets two bool references passed into the function to indicate which
-  // host states are permitted.
-  void get_allowed_host_states(const int allowed_host_state,
-                               bool& whitelisted_allowed,
-                               bool& blacklisted_allowed) const;
 
   /// Does an SRV record resolution for the specified SRV name, selecting
   // appropriate targets.
