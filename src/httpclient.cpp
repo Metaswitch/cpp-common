@@ -38,7 +38,8 @@ HttpClient::HttpClient(bool assert_user,
                        LoadMonitor* load_monitor,
                        SASEvent::HttpLogLevel sas_log_level,
                        BaseCommunicationMonitor* comm_monitor,
-                       bool should_omit_body) :
+                       bool should_omit_body,
+                       long timeout_ms) :
   _assert_user(assert_user),
   _resolver(resolver),
   _load_monitor(load_monitor),
@@ -46,7 +47,8 @@ HttpClient::HttpClient(bool assert_user,
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
   _conn_pool(load_monitor, stat_table),
-  _should_omit_body(should_omit_body)
+  _should_omit_body(should_omit_body),
+  _timeout_ms(timeout_ms)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
@@ -455,6 +457,13 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     curl_easy_getinfo(curl, CURLINFO_PRIVATE, &host_resolve);
     curl_easy_setopt(curl, CURLOPT_PRIVATE, NULL);
 
+    // Set the CURL timeout if overridden in this client
+    if (_timeout_ms != -1)
+    {
+      TRC_DEBUG("Override CURL timeout");
+      curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, _timeout_ms);
+    }
+    
     // Add the new entry - except in the case where the host is already an IP
     // address.
     if (!host_is_ip)
