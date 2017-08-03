@@ -82,7 +82,9 @@ protected:
   void destroy_srv_cache();
   void destroy_blacklist();
 
-  // @TODO - Explanatory comment
+  // Helper function that takes the bit representing the allowed host states,
+  // and sets two bool references passed into the function to indicate which
+  // host states are permitted.
   void get_allowed_host_states(const int allowed_host_state,
                                bool& whitelisted_allowed,
                                bool& blacklisted_allowed) const;
