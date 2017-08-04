@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <sys/stat.h>
 #include <syslog.h>
+#include <boost/algorithm/string.hpp>
 #include <boost/regex.hpp>
 
 #include "utils.h"
@@ -476,6 +477,42 @@ bool Utils::split_site_store(const std::string& site_store,
     store = site_store.substr(pos+1);
     return true;
   }
+}
+
+bool Utils::parse_multi_site_stores_arg(const std::vector<std::string>& stores_arg,
+                                        const std::string& local_site_name,
+                                        const char* store_name,
+                                        std::string& store_location,
+                                        std::vector<std::string>& remote_stores_locations)
+{
+  if (!stores_arg.empty())
+  {
+    if (!Utils::parse_stores_arg(stores_arg,
+                                 local_site_name,
+                                 store_location,
+                                 remote_stores_locations))
+    {
+      TRC_ERROR("Invalid format of %s program argument", store_name);
+      return false;
+    }
+
+    if (store_location == "")
+    {
+      // If we've failed to find a local site registration store then Sprout has
+      // been misconfigured.
+      TRC_ERROR("No local site %s specified", store_name);
+      return false;
+    }
+    else
+    {
+      TRC_INFO("Using memcached %s", store_name);
+      TRC_INFO("  Primary store: %s", store_location.c_str());
+      std::string remote_stores_str = boost::algorithm::join(remote_stores_locations, ", ");
+      TRC_INFO("  Backup store(s): %s", remote_stores_str.c_str());
+    }
+  }
+
+  return true;
 }
 
 uint64_t Utils::get_time(clockid_t clock)
