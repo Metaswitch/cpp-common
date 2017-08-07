@@ -14,15 +14,23 @@
 #include "httpconnection.h"
 
 HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
-                                       SNMP::IPCountTable* stat_table) :
+                                       SNMP::IPCountTable* stat_table,
+                                       long timeout_ms) :
   ConnectionPool<CURL*>(MAX_IDLE_TIME_S),
   _stat_table(stat_table)
 {
-  _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
+  if (timeout_ms != -1)
+  {
+    _timeout_ms = timeout_ms;
+    TRC_STATUS("Connection pool will use override response timeout of %ldms", _timeout_ms);
+  }
+  else
+  {    
+    _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                                               load_monitor->get_target_latency_us() :
                                                               DEFAULT_LATENCY_US);
-
-  TRC_STATUS("Connection pool will use a response timeout of %ldms", _timeout_ms);
+    TRC_STATUS("Connection pool will use calculated response timeout of %ldms", _timeout_ms);
+  }
 }
 
 CURL* HttpConnectionPool::create_connection(AddrInfo target)

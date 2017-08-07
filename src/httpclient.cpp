@@ -46,9 +46,8 @@ HttpClient::HttpClient(bool assert_user,
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor, stat_table),
-  _should_omit_body(should_omit_body),
-  _timeout_ms(timeout_ms)
+  _conn_pool(load_monitor, stat_table, timeout_ms),
+  _should_omit_body(should_omit_body)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
@@ -457,13 +456,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     curl_easy_getinfo(curl, CURLINFO_PRIVATE, &host_resolve);
     curl_easy_setopt(curl, CURLOPT_PRIVATE, NULL);
 
-    // Set the CURL timeout if overridden in this client
-    if (_timeout_ms != -1)
-    {
-      TRC_DEBUG("Override CURL timeout");
-      curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, _timeout_ms);
-    }
-    
     // Add the new entry - except in the case where the host is already an IP
     // address.
     if (!host_is_ip)

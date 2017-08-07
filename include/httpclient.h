@@ -363,6 +363,4 @@ private:
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
   bool _should_omit_body;
-  // CURL timeout to apply. "-1" means use CURL default
-  long _timeout_ms;
 };
