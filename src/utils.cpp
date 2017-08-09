@@ -694,5 +694,5 @@ void Utils::calculate_diameter_timeout(int target_latency_us,
   // Set the diameter timeout to twice the target latency (rounding up). Note
   // that the former is expressed in milliseconds and the latter in
   // microseconds, hence division by 500 (i.e. multiplication by 2/1000).
-  diameter_timeout_ms = std::ceil((target_latency_us)/500);
+  diameter_timeout_ms = std::ceil(target_latency_us/500);
 }
