@@ -139,10 +139,12 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   // it.
   SRVPriorityList* srv_list = _srv_cache->get(srv_name, ttl, trail);
 
-  std::string whitelist_str;
-  std::string added_from_whitelist_str;
-  std::string blacklist_str;
-  std::string added_from_blacklist_str;
+  // These strings are used for logging, to store the servers we've found, and
+  // the servers that we're returning as targets.
+  std::string found_whitelisted_str;
+  std::string whitelisted_targets_str;
+  std::string found_blacklisted_str;
+  std::string blacklisted_targets_str;
 
   if (srv_list != NULL)
   {
@@ -213,26 +215,29 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
           bool addr_blacklisted = blacklisted(ai);
           std::string target = "[" + ai.address_and_port_to_string() + "] ";
 
-          if ( !addr_blacklisted )
+          if (!addr_blacklisted)
           {
-            // Address isn't blacklisted, so add it to the list of addresses
-            // found and, if whitelisted addresses are allowed, to the list of
-            // whitelisted targets.
-            whitelist_str += target;
+            // Address isn't blacklisted. Add it to the log string of addresses
+            // found. If we're allowed to return whitelisted targets, also add
+            // it to the active address vector, from which we'll select
+            // targets.
+            found_whitelisted_str += target;
 
-            if ( whitelisted_allowed )
+            if (whitelisted_allowed)
             {
               active.push_back(ai.address);
             }
           }
           else
           {
-            // Address is blacklisted, so add it to the list of addresses
-            // found and, if blacklisted addresses are allowed, to the list of
-            // blacklisted targets.
-            blacklist_str += target;
+            // Address is blacklisted. Add it to the log string of blacklisted
+            // addresses found. If we're allowed to return blacklisted targets,
+            // also add it to the blacklist address vector, from which we'll
+            // pull in extra targets if we don't have enough whitelisted
+            // targets or if whitelisted targets aren't allowed.
+            found_blacklisted_str += target;
 
-            if ( blacklisted_allowed )
+            if (blacklisted_allowed)
             {
               blacklist.push_back(ai.address);
             }
@@ -272,7 +277,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
             active_addr[ii].pop_back();
             targets.push_back(ai);
             std::string target = "[" + ai.address_and_port_to_string() + "] ";
-            added_from_whitelist_str += target;
+            whitelisted_targets_str += target;
             TRC_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
           }
 
@@ -313,7 +318,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
         targets.push_back(blacklisted_targets[ii]);
         std::string blacklistee = blacklisted_targets[ii].address_and_port_to_string();
         std::string bl = "[" + blacklistee + "]";
-        added_from_blacklist_str = added_from_blacklist_str + bl;
+        blacklisted_targets_str = blacklisted_targets_str + bl;
       }
     }
   }
@@ -322,12 +327,12 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   {
     SAS::Event event(trail, SASEvent::BASERESOLVE_SRV_RESULT, 0);
     event.add_var_param(srv_name);
-    event.add_var_param(whitelist_str);
+    event.add_var_param(found_whitelisted_str);
     event.add_static_param(whitelisted_allowed);
-    event.add_var_param(added_from_whitelist_str);
-    event.add_var_param(blacklist_str);
+    event.add_var_param(whitelisted_targets_str);
+    event.add_var_param(found_blacklisted_str);
     event.add_static_param(blacklisted_allowed);
-    event.add_var_param(added_from_blacklist_str);
+    event.add_var_param(blacklisted_targets_str);
     SAS::report_event(event);
   }
 
@@ -958,7 +963,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
   // If there are any graylisted records, and we're set to return whitelisted
   // records, the Iterator should return one first, and then no more.
-  if ( _first_call && whitelisted_allowed )
+  if (_first_call && whitelisted_allowed)
   {
     _first_call = false;
 
@@ -977,7 +982,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
         // Update logging.
         graylisted_targets_str += result_it->address_and_port_to_string() + ";";
-        TRC_DEBUG("Added a graylisted server, now have %ld of %d",
+        TRC_DEBUG("Added a graylisted server to targets, now have %ld of %d",
                   targets.size(),
                   num_requested_targets);
 
@@ -999,6 +1004,9 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
     if (_resolver->host_state(result) == BaseResolver::Host::State::WHITE)
     {
+      // Address is whitelisted. Add it to the log string of addresses found.
+      // If we're allowed to return whitelisted targets, also add it to the
+      // targets vector.
       found_whitelisted_str += target;
 
       if (whitelisted_allowed)
@@ -1008,13 +1016,18 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
         // Update logging.
         whitelisted_targets_str += target;
-        TRC_DEBUG("Added a whitelisted server, now have %ld of %d",
+        TRC_DEBUG("Added a whitelisted server to targets, now have %ld of %d",
                   targets.size(),
                   num_requested_targets);
       }
     }
     else
     {
+      // Address is blacklisted or graylisted. Add it to the log string of
+      // unhealthy addresses found. If we're allowed to return blacklisted
+      // targets, also add it to the unhealthy results vector, from which we'll
+      // pull in extra targets if we don't have enough whitelisted targets or
+      // if whitelisted targets aren't allowed.
       found_blacklisted_str += target;
 
       if (blacklisted_allowed)
@@ -1024,7 +1037,8 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
         // Update logging.
         found_blacklisted_str += target;
-        TRC_DEBUG("Found an unhealthy server");
+        TRC_DEBUG("Found an unhealthy server, now have %ld unhealthy results",
+                  _unhealthy_results.size());
       }
     }
   }
@@ -1043,7 +1057,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
     // Update logging.
     blacklisted_targets_str += result.address_and_port_to_string() + ";";
-    TRC_DEBUG("Added an unhealthy server, now have %ld of %d",
+    TRC_DEBUG("Added an unhealthy server to targets, now have %ld of %d",
               targets.size(),
               num_requested_targets);
   }
