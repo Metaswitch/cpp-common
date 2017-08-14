@@ -410,13 +410,72 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
   return status;
 }
 
-
 Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
                                                       const std::string& key,
                                                       const std::string& data,
                                                       uint64_t cas,
                                                       int expiry,
                                                       SAS::TrailId trail)
+{
+  return set_data(table, key, data, expiry, trail, || () -> memcached_return_t
+  {
+    if (cas == 0)
+    {
+      // New record, so attempt to add (but overwrite any tombstones we
+      // encounter).  This will fail if someone else got there first and some
+      // data already exists in memcached for this key.
+      rc = add_overwriting_tombstone(conn_handle.get_connection(),
+                                     fqkey.data(),
+                                     fqkey.length(),
+                                     0,
+                                     data,
+                                     memcached_expiration,
+                                     0,
+                                     trail);
+    }
+    else
+    {
+      // This is an update to an existing record, so use memcached_cas
+      // to make sure it is atomic.
+      rc = memcached_cas_vb(conn_handle.get_connection(),
+                            fqkey.data(),
+                            fqkey.length(),
+                            0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            0,
+                            cas);
+    }
+    return rc;
+  });
+}
+
+Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::string& table,
+                                                                  const std::string& key,
+                                                                  const std::string& data,
+                                                                  int expiry,
+                                                                  SAS::TrailId trail)
+{
+  return set_data(table, key, data, expiry, trail, || () -> memcached_return_t
+  {
+    return memcached_set_vb(conn_handle.get_connection(),
+                           fqkey.data(),
+                           fqkey.length(),
+                           0,
+                           data.data(),
+                           data.length(),
+                           memcached_expiration,
+                           0);
+  });
+}
+
+Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
+                                                      const std::string& key,
+                                                      const std::string& data,
+                                                      int expiry,
+                                                      SAS::TrailId trail,
+                                                      memcached_func f)
 {
   Store::Status status = Store::Status::OK;
   std::vector<AddrInfo> targets;
@@ -458,40 +517,7 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
   //
   // The code that does the operation is passed as a lambda that captures all
   // necessary variables by reference.
-  rc = iterate_through_targets(targets, trail,
-                               [&](ConnectionHandle<memcached_st*>& conn_handle) {
-    memcached_return_t rc;
-
-    if (cas == 0)
-    {
-      // New record, so attempt to add (but overwrite any tombstones we
-      // encounter).  This will fail if someone else got there first and some
-      // data already exists in memcached for this key.
-      rc = add_overwriting_tombstone(conn_handle.get_connection(),
-                                     fqkey.data(),
-                                     fqkey.length(),
-                                     0,
-                                     data,
-                                     memcached_expiration,
-                                     0,
-                                     trail);
-    }
-    else
-    {
-      // This is an update to an existing record, so use memcached_cas
-      // to make sure it is atomic.
-      rc = memcached_cas_vb(conn_handle.get_connection(),
-                            fqkey.data(),
-                            fqkey.length(),
-                            0,
-                            data.data(),
-                            data.length(),
-                            memcached_expiration,
-                            0,
-                            cas);
-    }
-    return rc;
-  });
+  rc = iterate_through_targets(targets, trail, f);
 
   if (memcached_success(rc))
   {
