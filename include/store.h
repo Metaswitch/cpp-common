@@ -28,6 +28,9 @@ public:
   }
 
   /// Status used to indicate success or failure of store operations.
+  /// These values are logged to SAS so:
+  /// -  Each element must have an explicit value.
+  /// -  If you change the enum you must also update the resource bundle.
   typedef enum {OK=1, NOT_FOUND=2, DATA_CONTENTION=3, ERROR=4} Status;
 
   /// Gets the data for the specified key in the specified namespace.
