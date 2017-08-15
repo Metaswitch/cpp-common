@@ -158,14 +158,14 @@ public:
 
 protected:
   typedef std::function<memcached_return_t(ConnectionHandle<memcached_st*>&)> memcached_func;
+  typedef std::function<memcached_return_t(ConnectionHandle<memcached_st*>&, time_t)> memcached_store_func;
 
   // Set some data with the provided method
-  Store::Status set_data(const std::string& table,
-                         const std::string& key,
+  Store::Status set_data(const std::string& fqkey,
                          const std::string& data,
                          int expiry,
-                         SAS::TrailId trail = 0,
-                         memcached_func f);
+                         SAS::TrailId trail,
+                         memcached_store_func f);
 
   // The domain name for the memcached proxies.
   std::string _target_domain;

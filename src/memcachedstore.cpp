@@ -417,8 +417,27 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
                                                       int expiry,
                                                       SAS::TrailId trail)
 {
-  return set_data(table, key, data, expiry, trail, || () -> memcached_return_t
+  TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
+            data.length(), table.c_str(), key.c_str(), cas, expiry);
+
+  std::string fqkey = get_fq_key(table, key);
+
+  if (trail != 0)
   {
+    SAS::Event start(trail, SASEvent::MEMCACHED_SET_START, 0);
+    start.add_var_param(fqkey);
+    start.add_var_param(data);
+    start.add_static_param(cas);
+    start.add_static_param(expiry);
+    SAS::report_event(start);
+  }
+
+  memcached_store_func f =
+    [&] (ConnectionHandle<memcached_st*>& conn_handle,
+         time_t memcached_expiration) -> memcached_return_t
+  {
+    memcached_return_t rc;
+
     if (cas == 0)
     {
       // New record, so attempt to add (but overwrite any tombstones we
@@ -448,7 +467,13 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
                             cas);
     }
     return rc;
-  });
+  };
+
+  return set_data(fqkey,
+                  data,
+                  expiry,
+                  trail,
+                  f);
 }
 
 Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::string& table,
@@ -457,44 +482,50 @@ Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::str
                                                                   int expiry,
                                                                   SAS::TrailId trail)
 {
-  return set_data(table, key, data, expiry, trail, || () -> memcached_return_t
-  {
-    return memcached_set_vb(conn_handle.get_connection(),
-                           fqkey.data(),
-                           fqkey.length(),
-                           0,
-                           data.data(),
-                           data.length(),
-                           memcached_expiration,
-                           0);
-  });
-}
-
-Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
-                                                      const std::string& key,
-                                                      const std::string& data,
-                                                      int expiry,
-                                                      SAS::TrailId trail,
-                                                      memcached_func f)
-{
-  Store::Status status = Store::Status::OK;
-  std::vector<AddrInfo> targets;
-  memcached_return_t rc;
-
-  TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
-            data.length(), table.c_str(), key.c_str(), cas, expiry);
+  TRC_DEBUG("Writing %d bytes to table %s key %s, expiry = %d",
+            data.length(), table.c_str(), key.c_str(), expiry);
 
   std::string fqkey = get_fq_key(table, key);
 
   if (trail != 0)
   {
-    SAS::Event start(trail, SASEvent::MEMCACHED_SET_START, 0);
+    SAS::Event start(trail, SASEvent::MEMCACHED_SET_WITHOUT_CAS_START, 0);
     start.add_var_param(fqkey);
     start.add_var_param(data);
-    start.add_static_param(cas);
     start.add_static_param(expiry);
     SAS::report_event(start);
   }
+
+  memcached_store_func f =
+    [&] (ConnectionHandle<memcached_st*>& conn_handle,
+         time_t memcached_expiration) -> memcached_return_t
+  {
+    return memcached_set_vb(conn_handle.get_connection(),
+                            fqkey.data(),
+                            fqkey.length(),
+                            0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            0);
+  };
+
+  return set_data(fqkey,
+                  data,
+                  expiry,
+                  trail,
+                  f);
+}
+
+Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& fqkey,
+                                                      const std::string& data,
+                                                      int expiry,
+                                                      SAS::TrailId trail,
+                                                      memcached_store_func f)
+{
+  Store::Status status = Store::Status::OK;
+  std::vector<AddrInfo> targets;
+  memcached_return_t rc;
 
   // Memcached uses a flexible mechanism for specifying expiration.
   // - 0 indicates never expire.
@@ -512,12 +543,15 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
     return ERROR;
   }
 
-  // Do a ADD/CAS to each replica (depending on the cas value), stopping if we
+  // Set to each replica (mechansim determined by the update function), stopping if we
   // get a definitive success/failure response.
   //
   // The code that does the operation is passed as a lambda that captures all
   // necessary variables by reference.
-  rc = iterate_through_targets(targets, trail, f);
+  memcached_func f1 = std::bind(f,
+                                std::placeholders::_1,
+                                memcached_expiration);
+  rc = iterate_through_targets(targets, trail, f1);
 
   if (memcached_success(rc))
   {
