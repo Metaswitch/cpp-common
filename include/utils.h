@@ -529,6 +529,12 @@ namespace Utils
                         std::string& local_store_location,
                         std::vector<std::string>& remote_stores_locations);
 
+  bool parse_multi_site_stores_arg(const std::vector<std::string>& stores_arg,
+                                   const std::string& local_site_name,
+                                   const char* store_name,
+                                   std::string& store_location,
+                                   std::vector<std::string>& remote_stores_locations);
+
   bool split_site_store(const std::string& site_store,
                         std::string& site,
                         std::string& store);
