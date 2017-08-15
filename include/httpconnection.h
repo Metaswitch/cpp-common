@@ -36,7 +36,8 @@ public:
                  SASEvent::HttpLogLevel sas_log_level,
                  BaseCommunicationMonitor* comm_monitor,
                  const std::string& scheme = "http",
-                 bool should_omit_body = false) :
+                 bool should_omit_body = false,
+                 bool remote_connection = false) :
     _scheme(scheme),
     _server(server),
     _client(assert_user,
@@ -45,7 +46,8 @@ public:
             load_monitor,
             sas_log_level,
             comm_monitor,
-            should_omit_body)
+            should_omit_body,
+            remote_connection)
   {
     TRC_STATUS("Configuring HTTP Connection");
     TRC_STATUS("  Connection created for server %s", _server.c_str());
@@ -55,14 +57,18 @@ public:
                  bool assert_user,
                  HttpResolver* resolver,
                  SASEvent::HttpLogLevel sas_log_level,
-                 BaseCommunicationMonitor* comm_monitor) :
+                 BaseCommunicationMonitor* comm_monitor,
+                 bool remote_connection = false) :
     HttpConnection(server,
                    assert_user,
                    resolver,
                    NULL,
                    NULL,
                    sas_log_level,
-                   comm_monitor)
+                   comm_monitor,
+                   "http",
+                   false,
+                   remote_connection)
   {}
 
   virtual ~HttpConnection()

@@ -37,10 +37,10 @@ static const int DEFAULT_LATENCY_US = 100000;
 /// perform the DNS lookup and establish the connection, not to send
 /// the request or receive the response.
 ///
-/// We set this quite short to ensure we quickly move on to another
-/// server. A connection should be very fast to establish (a few
-/// milliseconds) in the success case.
-static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
+/// We make this length of time longer for remote sites to account for
+/// inter-site latency.
+static const long LOCAL_CONNECTION_LATENCY_MS = 50;
+static const long REMOTE_CONNECTION_LATENCY_MS = 250;
 
 /// The length of time a connection can remain idle before it is removed from
 /// the pool
@@ -50,7 +50,8 @@ class HttpConnectionPool : public ConnectionPool<CURL*>
 {
 public:
   HttpConnectionPool(LoadMonitor* load_monitor,
-                     SNMP::IPCountTable* stat_table);
+                     SNMP::IPCountTable* stat_table,
+                     bool remote_connection = false);
 
   ~HttpConnectionPool()
   {
@@ -75,11 +76,12 @@ protected:
   void release_connection(ConnectionInfo<CURL*>* conn_info,
                           bool return_to_pool) override;
 
-  long _timeout_ms;
   SNMP::IPCountTable* _stat_table;
+  long _connection_timeout_ms;
+  long _timeout_ms;
 
   // Determines an appropriate absolute HTTP request timeout in ms given the
   // target latency for requests that the downstream components will be using
-  static long calc_req_timeout_from_latency(int latency_us);
+  long calc_req_timeout_from_latency(int latency_us);
 };
 #endif

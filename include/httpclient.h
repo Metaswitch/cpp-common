@@ -64,7 +64,8 @@ public:
              LoadMonitor* load_monitor,
              SASEvent::HttpLogLevel sas_log_level,
              BaseCommunicationMonitor* comm_monitor,
-             bool should_omit_body = false);
+             bool should_omit_body = false,
+             bool remote_connection = false);
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
