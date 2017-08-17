@@ -139,6 +139,18 @@ Store::Status LocalStore::get_data(const std::string& table,
 }
 
 
+Store::Status LocalStore::set_data_without_cas(const std::string& table,
+                                               const std::string& key,
+                                               const std::string& data,
+                                               int expiry,
+                                               SAS::TrailId trail)
+{
+  TRC_DEBUG("set_data_without_cas table=%s key=%s expiry=%d",
+            table.c_str(), key.c_str(), expiry);
+
+  return set_data(table, key, data, 0, false, expiry, trail);
+}
+
 Store::Status LocalStore::set_data(const std::string& table,
                                    const std::string& key,
                                    const std::string& data,
@@ -149,6 +161,17 @@ Store::Status LocalStore::set_data(const std::string& table,
   TRC_DEBUG("set_data table=%s key=%s CAS=%ld expiry=%d",
             table.c_str(), key.c_str(), cas, expiry);
 
+  return set_data(table, key, data, cas, true, expiry, trail);
+}
+
+Store::Status LocalStore::set_data(const std::string& table,
+                                   const std::string& key,
+                                   const std::string& data,
+                                   uint64_t cas,
+                                   bool check_cas,
+                                   int expiry,
+                                   SAS::TrailId trail)
+{
   Store::Status status = Store::Status::DATA_CONTENTION;
 
   // This is for the purpose of testing data SETs failing.  If the flag is set
@@ -179,19 +202,20 @@ Store::Status LocalStore::set_data(const std::string& table,
     TRC_DEBUG("Found existing record, CAS = %ld, expiry = %ld (now = %ld)",
               r.cas, r.expiry, now);
 
-    if (((r.expiry >= now) && (cas == r.cas)) ||
-        ((r.expiry < now) && (cas == 0)))
+    if (check_cas &&
+        (((r.expiry >= now) && (cas == r.cas)) ||
+         ((r.expiry < now) && (cas == 0))))
     {
       // Supplied CAS is consistent (either because record hasn't expired and
-      // CAS matches, or record has expired and CAS is zero) so update the
-      // record.
+      // CAS matches, or record has expired and CAS is zero), or we aren't
+      // checking CAS values so update the record.
 
       // This writes data this is one update out-of-date to _old_db. This is for
       // the purposes of simulating data contention in Unit Testing.
       _old_db[fqkey] = r;
 
       r.data = data;
-      r.cas = ++cas;
+      r.cas = check_cas ? ++cas : (r.cas + 1);
       r.expiry = (expiry == 0) ? 0 : (uint32_t)expiry + now;
       status = Store::Status::OK;
       TRC_DEBUG("CAS is consistent, updated record, CAS = %ld, expiry = %ld (now = %ld)",

@@ -40,10 +40,22 @@ public:
                          uint64_t cas,
                          int expiry,
                          SAS::TrailId trail = 0);
+  Store::Status set_data_without_cas(const std::string& table,
+                                     const std::string& key,
+                                     const std::string& data,
+                                     int expiry,
+                                     SAS::TrailId trail = 0);
   Store::Status delete_data(const std::string& table,
                             const std::string& key,
                             SAS::TrailId trail = 0);
 private:
+  Store::Status set_data(const std::string& table,
+                         const std::string& key,
+                         const std::string& data,
+                         uint64_t cas,
+                         bool check_cas,
+                         int expiry,
+                         SAS::TrailId trail = 0);
   typedef struct record
   {
     std::string data;
