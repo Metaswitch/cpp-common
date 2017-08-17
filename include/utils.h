@@ -529,6 +529,12 @@ namespace Utils
                         std::string& local_store_location,
                         std::vector<std::string>& remote_stores_locations);
 
+  bool parse_multi_site_stores_arg(const std::vector<std::string>& stores_arg,
+                                   const std::string& local_site_name,
+                                   const char* store_name,
+                                   std::string& store_location,
+                                   std::vector<std::string>& remote_stores_locations);
+
   bool split_site_store(const std::string& site_store,
                         std::string& site,
                         std::string& store);
@@ -577,6 +583,9 @@ namespace Utils
   // Does the passed in address have brackets?
   bool is_bracketed_address(const std::string& address);
 
+  // Calculates a diameter timeout from the target latency.
+  void calculate_diameter_timeout(int target_latency_us,
+                                  int& diameter_timeout);
 } // namespace Utils
 
 #endif /* UTILS_H_ */

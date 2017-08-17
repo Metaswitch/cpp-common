@@ -39,6 +39,7 @@ HttpClient::HttpClient(bool assert_user,
                        SASEvent::HttpLogLevel sas_log_level,
                        BaseCommunicationMonitor* comm_monitor,
                        bool should_omit_body,
+                       bool remote_connection,
                        long timeout_ms) :
   _assert_user(assert_user),
   _resolver(resolver),
@@ -46,7 +47,7 @@ HttpClient::HttpClient(bool assert_user,
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor, stat_table, timeout_ms),
+  _conn_pool(load_monitor, stat_table, remote_connection, timeout_ms),
   _should_omit_body(should_omit_body)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);

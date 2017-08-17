@@ -65,6 +65,7 @@ public:
              SASEvent::HttpLogLevel sas_log_level,
              BaseCommunicationMonitor* comm_monitor,
              bool should_omit_body = false,
+             bool remote_connection = false,
              long timeout_ms = -1);
 
   HttpClient(bool assert_user,
