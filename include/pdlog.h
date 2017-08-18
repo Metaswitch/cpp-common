@@ -74,7 +74,6 @@ public:
     // The range 19000-19999 is reserved
     // The range 20000-20999 is reserved
     // The range 21000-21999 is reserved
-    // The range 22000-22999 is reserved
   };
 
   PDLogBase(int log_id,
