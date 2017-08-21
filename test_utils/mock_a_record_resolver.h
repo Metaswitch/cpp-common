@@ -23,13 +23,15 @@ public:
 
   MOCK_METHOD3(resolve_iter, BaseAddrIterator*(const std::string& host,
                                                int port,
-                                               SAS::TrailId trail));
+                                               SAS::TrailId trail,
+                                               int allowed_host_state));
 
   MOCK_METHOD5(resolve, void(const std::string& host,
                              int port,
                              int max_targets,
                              std::vector<AddrInfo>& targets,
-                             SAS::TrailId trail));
+                             SAS::TrailId trail,
+                             int allowed_host_state));
 
   MOCK_METHOD1(blacklist, void(const AddrInfo& ai));
   MOCK_METHOD1(success, void(const AddrInfo& ai));

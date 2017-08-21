@@ -125,8 +125,9 @@ HTTPCode HttpClient::send_delete(const std::string& url,
 {
   std::string unused_response;
   std::map<std::string, std::string> unused_headers;
+  std::string unused_username;
 
-  return send_delete(url, unused_headers, unused_response, trail, body, allowed_host_state);
+  return send_delete(url, unused_headers, unused_response, trail, body, unused_username, allowed_host_state);
 }
 
 HTTPCode HttpClient::send_delete(const std::string& url,
@@ -136,8 +137,8 @@ HTTPCode HttpClient::send_delete(const std::string& url,
                                  int allowed_host_state)
 {
   std::map<std::string, std::string> unused_headers;
-
-  return send_delete(url, unused_headers, response, trail, body, allowed_host_state);
+  std::string unused_username;
+  return send_delete(url, unused_headers, response, trail, body, unused_username, allowed_host_state);
 }
 
 HTTPCode HttpClient::send_delete(const std::string& url,
