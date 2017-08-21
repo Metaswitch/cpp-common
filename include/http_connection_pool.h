@@ -51,7 +51,8 @@ class HttpConnectionPool : public ConnectionPool<CURL*>
 public:
   HttpConnectionPool(LoadMonitor* load_monitor,
                      SNMP::IPCountTable* stat_table,
-                     bool remote_connection = false);
+                     bool remote_connection = false,
+                     long timeout_ms = -1);
 
   ~HttpConnectionPool()
   {
