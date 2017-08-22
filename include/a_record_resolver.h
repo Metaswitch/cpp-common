@@ -30,10 +30,20 @@ public:
                        int port,
                        int max_targets,
                        std::vector<AddrInfo>& targets,
+                       SAS::TrailId trail,
+                       int allowed_host_state);
+  virtual void resolve(const std::string& host,
+                       int port,
+                       int max_targets,
+                       std::vector<AddrInfo>& targets,
                        SAS::TrailId trail);
 
   // Lazily resolve a hostname to a list of AddrInfo targets using an A record
   // lookup.
+  virtual BaseAddrIterator* resolve_iter(const std::string& host,
+                                         int port,
+                                         SAS::TrailId trail,
+                                         int allowed_host_state);
   virtual BaseAddrIterator* resolve_iter(const std::string& host,
                                          int port,
                                          SAS::TrailId trail);
