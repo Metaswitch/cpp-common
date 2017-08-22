@@ -134,8 +134,8 @@ public:
                            std::map<std::string, std::string>& headers,
                            std::string& response,
                            SAS::TrailId trail,
-                           const std::string& body = "",
-                           const std::string& username = "",
+                           const std::string& body,
+                           const std::string& username,
                            int allowed_host_state);
   virtual long send_delete(const std::string& url,
                            std::map<std::string, std::string>& headers,
@@ -172,7 +172,7 @@ public:
                         const std::string& body,
                         const std::vector<std::string>& extra_req_headers,
                         SAS::TrailId trail,
-                        const std::string& username = "",
+                        const std::string& username,
                         int allowed_host_state);
   virtual long send_put(const std::string& url,
                         std::map<std::string, std::string>& headers,
@@ -215,7 +215,7 @@ public:
                          std::string& response,
                          const std::string& body,
                          SAS::TrailId trail,
-                         const std::string& username = "",
+                         const std::string& username,
                          int allowed_host_state);
   virtual long send_post(const std::string& url,
                          std::map<std::string, std::string>& headers,
@@ -293,7 +293,7 @@ private:
                             const std::string& username,
                             SAS::TrailId trail,
                             std::vector<std::string> headers_to_add,
-                            std::map<std::string, std::string>* response_headers
+                            std::map<std::string, std::string>* response_headers,
                             int allowed_host_state);
 
   /// Helper function that builds the curl header in the set_curl_options

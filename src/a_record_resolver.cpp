@@ -61,7 +61,7 @@ BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
                                                 SAS::TrailId trail)
 {
   int default_allowed_host_state = BaseResolver::ALL_LISTS;
-  return resolve_iter(host, port, trail, default_allowed_host_state)
+  return resolve_iter(host, port, trail, default_allowed_host_state);
 }
 
 BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,

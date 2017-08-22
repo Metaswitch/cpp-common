@@ -213,7 +213,7 @@ HTTPCode HttpConnection::send_get(const std::string& url_tail,
                                   const std::string& username,
                                   std::vector<std::string> headers_to_add,
                                   SAS::TrailId trail,
-                                  int allowed_host_state);
+                                  int allowed_host_state)
 {
   return _client.send_get(_scheme + "://" + _server + url_tail,
                           headers,

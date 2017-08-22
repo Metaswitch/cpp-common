@@ -134,8 +134,8 @@ public:
                            std::map<std::string, std::string>& headers,
                            std::string& response,
                            SAS::TrailId trail,
-                           const std::string& body = "",
-                           const std::string& username = "",
+                           const std::string& body,
+                           const std::string& username,
                            int allowed_host_state);
   virtual long send_delete(const std::string& url_tail,
                            std::map<std::string, std::string>& headers,
@@ -174,7 +174,7 @@ public:
                         const std::string& body,
                         const std::vector<std::string>& extra_req_headers,
                         SAS::TrailId trail,
-                        const std::string& username = "",
+                        const std::string& username,
                         int allowed_host_state);
   virtual long send_put(const std::string& url_tail,
                         std::map<std::string, std::string>& headers,
