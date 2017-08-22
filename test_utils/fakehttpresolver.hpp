@@ -37,7 +37,8 @@ public:
 
   virtual BaseAddrIterator* resolve_iter(const std::string& host,
                                          int port,
-                                         SAS::TrailId trail)
+                                         SAS::TrailId trail,
+                                         int allowed_host_state)
   {
     std::vector<AddrInfo> targets = _targets;
 
