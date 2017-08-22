@@ -94,16 +94,21 @@ public:
                         std::string& response,
                         const std::string& username,
                         std::vector<std::string> headers_to_add,
-                        SAS::TrailId trail);
+                        SAS::TrailId trail,
+                        int allowed_host_state = BaseResolver::ALL_LISTS);
+
   virtual long send_get(const std::string& url_tail,
                         std::string& response,
                         const std::string& username,
-                        SAS::TrailId trail);
+                        SAS::TrailId trail,
+                        int allowed_host_state = BaseResolver::ALL_LISTS);
+
   virtual long send_get(const std::string& url_tail,
                         std::map<std::string, std::string>& headers,
                         std::string& response,
                         const std::string& username,
-                        SAS::TrailId trail);
+                        SAS::TrailId trail,
+                        int allowed_host_state = BaseResolver::ALL_LISTS);
 
   /// Sends a HTTP DELETE request to _server with the specified parameters
   ///
@@ -124,14 +129,19 @@ public:
                            std::string& response,
                            SAS::TrailId trail,
                            const std::string& body = "",
-                           const std::string& username = "");
+                           const std::string& username = "",
+                           int allowed_host_state = BaseResolver::ALL_LISTS);
+
   virtual long send_delete(const std::string& url_tail,
                            SAS::TrailId trail,
-                           const std::string& body = "");
+                           const std::string& body = "",
+                           int allowed_host_state = BaseResolver::ALL_LISTS);
+
   virtual long send_delete(const std::string& url_tail,
                            SAS::TrailId trail,
                            const std::string& body,
-                           std::string& response);
+                           std::string& response,
+                           int allowed_host_state = BaseResolver::ALL_LISTS);
 
   /// Sends a HTTP PUT request to _server with the specified parameters
   ///
@@ -154,22 +164,28 @@ public:
                         const std::string& body,
                         const std::vector<std::string>& extra_req_headers,
                         SAS::TrailId trail,
-                        const std::string& username = "");
+                        const std::string& username = "",
+                        int allowed_host_state = BaseResolver::ALL_LISTS);
 
   virtual long send_put(const std::string& url_tail,
                         const std::string& body,
                         SAS::TrailId trail,
-                        const std::string& username = "");
+                        const std::string& username = "",
+                        int allowed_host_state = BaseResolver::ALL_LISTS);
+
   virtual long send_put(const std::string& url_tail,
                         std::string& response,
                         const std::string& body,
                         SAS::TrailId trail,
-                        const std::string& username = "");
+                        const std::string& username = "",
+                        int allowed_host_state = BaseResolver::ALL_LISTS);
+
   virtual long send_put(const std::string& url_tail,
                         std::map<std::string, std::string>& headers,
                         const std::string& body,
                         SAS::TrailId trail,
-                        const std::string& username = "");
+                        const std::string& username = "",
+                        int allowed_host_state = BaseResolver::ALL_LISTS);
 
   /// Sends a HTTP POST request to _server with the specified parameters
   ///
@@ -190,13 +206,15 @@ public:
                          std::string& response,
                          const std::string& body,
                          SAS::TrailId trail,
-                         const std::string& username = "");
+                         const std::string& username = "",
+                         int allowed_host_state = BaseResolver::ALL_LISTS);
 
   virtual long send_post(const std::string& url_tail,
                          std::map<std::string, std::string>& headers,
                          const std::string& body,
                          SAS::TrailId trail,
-                         const std::string& username = "");
+                         const std::string& username = "",
+                         int allowed_host_state = BaseResolver::ALL_LISTS);
 
 protected:
 

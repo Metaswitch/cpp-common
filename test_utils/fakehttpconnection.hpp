@@ -27,9 +27,9 @@ public:
 
   void flush_all();
 
-  virtual long send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail);
-  bool put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail);
-  bool del(const std::string& uri, const std::string& username, SAS::TrailId trail);
+  virtual long send_get(const std::string& uri, std::string& doc, const std::string& username, SAS::TrailId trail, int allowed_host_state);
+  bool put(const std::string& uri, const std::string& doc, const std::string& username, SAS::TrailId trail, int allowed_host_state);
+  bool del(const std::string& uri, const std::string& username, SAS::TrailId trail, int allowed_host_state);
 
 private:
   std::map<std::string, std::string> _db;
