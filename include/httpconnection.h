@@ -103,7 +103,11 @@ public:
                         std::string& response,
                         const std::string& username,
                         std::vector<std::string> headers_to_add,
-                        SAS::TrailId trail);
+                        SAS::TrailId trail)
+  {
+    return send_get(url_tail, headers, response, username, headers_to_add, trail, BaseResolver::ALL_LISTS);
+  }
+
   virtual long send_get(const std::string& url_tail,
                         std::string& response,
                         const std::string& username,
@@ -142,7 +146,11 @@ public:
                            std::string& response,
                            SAS::TrailId trail,
                            const std::string& body = "",
-                           const std::string& username = "");
+                           const std::string& username = "")
+  {
+    return send_delete(url_tail, headers, response, trail, body, username, BaseResolver::ALL_LISTS);
+  }
+
   virtual long send_delete(const std::string& url_tail,
                            SAS::TrailId trail,
                            const std::string& body = "");
@@ -182,7 +190,10 @@ public:
                         const std::string& body,
                         const std::vector<std::string>& extra_req_headers,
                         SAS::TrailId trail,
-                        const std::string& username = "");
+                        const std::string& username = "")
+  {
+    return send_put(url_tail, headers, response, body, extra_req_headers, trail, username, BaseResolver::ALL_LISTS);
+  }
 
   virtual long send_put(const std::string& url_tail,
                         const std::string& body,
