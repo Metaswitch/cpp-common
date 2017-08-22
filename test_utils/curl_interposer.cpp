@@ -229,6 +229,11 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
     curl->_url = va_arg(args, char*);
   }
   break;
+  case CURLOPT_TIMEOUT_MS:
+  {
+    curl->_timeout_ms = va_arg(args, long);
+  }
+  break;
   case CURLOPT_WRITEFUNCTION:
   {
     curl->_writefn = va_arg(args, datafn_ty);
@@ -374,7 +379,6 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
   break;
 
   case CURLOPT_MAXCONNECTS:
-  case CURLOPT_TIMEOUT_MS:
   case CURLOPT_CONNECTTIMEOUT_MS:
   case CURLOPT_DNS_CACHE_TIMEOUT:
   case CURLOPT_TCP_NODELAY:

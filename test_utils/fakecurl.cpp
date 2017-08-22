@@ -33,6 +33,7 @@ CURLcode FakeCurl::easy_perform(FakeCurl* curl)
   req._method = _method;
   req._headers = _headers;
   req._httpauth = _httpauth;
+  req._timeout_ms = _timeout_ms;
   req._username = _username;
   req._password = _password;
   req._fresh = _fresh;
