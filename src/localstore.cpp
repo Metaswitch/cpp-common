@@ -28,6 +28,7 @@ LocalStore::LocalStore() :
   _db(),
   _force_error_on_set_flag(false),
   _force_error_on_get_flag(false),
+  _force_error_on_delete_flag(false),
   _old_db()
 {
   TRC_DEBUG("Created local store");
@@ -63,6 +64,14 @@ void LocalStore::force_contention()
 void LocalStore::force_error()
 {
   _force_error_on_set_flag = true;
+}
+
+// This function sets a flag to true that tells the program to simulate an
+// error on the DELETE.  We achieve this by just returning an error on the
+// DELETE.
+void LocalStore::force_delete_error()
+{
+  _force_error_on_delete_flag = true;
 }
 
 // This function sets a flag to true that tells the program to simulate an
@@ -244,6 +253,16 @@ Store::Status LocalStore::delete_data(const std::string& table,
 {
   TRC_DEBUG("delete_data table=%s key=%s",
             table.c_str(), key.c_str());
+
+  // This is for the purpose of testing data DELETEs failing.  If the flag is set
+  // to true, then we'll just return an error.
+  if (_force_error_on_delete_flag)
+  {
+    TRC_DEBUG("Force an error on the DELETE");
+    _force_error_on_delete_flag = false;
+
+    return Store::Status::ERROR;
+  }
 
   Store::Status status = Store::Status::OK;
 

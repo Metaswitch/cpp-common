@@ -27,6 +27,7 @@ public:
   void force_contention();
   void force_error();
   void force_get_error();
+  void force_delete_error();
   void swap_dbs(LocalStore* rhs);
 
   Store::Status get_data(const std::string& table,
@@ -67,6 +68,7 @@ private:
   std::map<std::string, Record> _db;
   bool _force_error_on_set_flag;
   bool _force_error_on_get_flag;
+  bool _force_error_on_delete_flag;
   std::map<std::string, Record> _old_db;
 };
 
