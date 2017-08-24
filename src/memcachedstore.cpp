@@ -532,9 +532,9 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& fqkey,
   // - <= MEMCACHED_EXPIRATION_MAXDELTA indicates a relative (delta) time.
   // - > MEMCACHED_EXPIRATION_MAXDELTA indicates an absolute time.
   // Absolute time is the only way to force immediate expiry.  Unfortunately,
-  // it's not reliable - see https://github.com/Metaswitch/cpp-common/issues/160
-  // for details.  Instead, we use relative time for future times (expiry > 0)
-  // and the earliest absolute time for immediate expiry (expiry == 0).
+  // it's not reliable (e.g. as a result of NTP changes). Instead, we use
+  // relative time for future times (expiry > 0) and the earliest absolute
+  // time for immediate expiry (expiry == 0).
   time_t memcached_expiration =
     (time_t)((expiry > 0) ? expiry : MEMCACHED_EXPIRATION_MAXDELTA + 1);
 
