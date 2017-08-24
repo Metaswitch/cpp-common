@@ -211,7 +211,7 @@ Store::Status LocalStore::set_data(const std::string& table,
     TRC_DEBUG("Found existing record, CAS = %ld, expiry = %ld (now = %ld)",
               r.cas, r.expiry, now);
 
-    if (check_cas &&
+    if ((!check_cas) ||
         (((r.expiry >= now) && (cas == r.cas)) ||
          ((r.expiry < now) && (cas == 0))))
     {
