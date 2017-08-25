@@ -52,11 +52,6 @@ protected:
   // current view.
   std::string _options;
 
-  // The time to wait before timing out a connection to memcached.
-  // (This is only used during normal running - at start-of-day we use
-  // a fixed 10ms time, to start up as quickly as possible).
-  unsigned int _max_connect_latency_ms;
-
   // The maximum expiration delta that memcached expects.  Any expiration
   // value larger than this is assumed to be an absolute rather than relative
   // value.  This matches the REALTIME_MAXDELTA constant defined by memcached.
@@ -77,8 +72,7 @@ protected:
   // Constructor. This is protected to prevent the BaseMemcachedStore from being
   // instantiated directly.
   BaseMemcachedStore(bool binary,
-                     BaseCommunicationMonitor* comm_monitor,
-                     bool remote_store);
+                     BaseCommunicationMonitor* comm_monitor);
 
   // Perform a get request to a single replica.
   memcached_return_t get_from_replica(memcached_st* replica,

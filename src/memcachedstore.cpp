@@ -35,18 +35,10 @@
 /// The data used in memcached to represent a tombstone.
 static const std::string TOMBSTONE = "";
 
-/// The length of time to allow for a memcached connection before
-/// timing it out. This needs to be larger for remote sites.
-static int LOCAL_MEMCACHED_CONNECTION_LATENCY_MS = 50;
-static int REMOTE_MEMCACHED_CONNECTION_LATENCY_MS = 250;
-
 BaseMemcachedStore::BaseMemcachedStore(bool binary,
-                                       BaseCommunicationMonitor* comm_monitor,
-                                       bool remote_store) :
+                                       BaseCommunicationMonitor* comm_monitor) :
   _binary(binary),
   _options(),
-  _max_connect_latency_ms(remote_store ? REMOTE_MEMCACHED_CONNECTION_LATENCY_MS :
-                                         LOCAL_MEMCACHED_CONNECTION_LATENCY_MS),
   _comm_monitor(comm_monitor),
   _tombstone_lifetime(200)
 {
@@ -234,11 +226,11 @@ TopologyNeutralMemcachedStore(const std::string& target_domain,
                               bool remote_store,
                               BaseCommunicationMonitor* comm_monitor) :
   // Always use binary, as this is all Astaire supports.
-  BaseMemcachedStore(true, comm_monitor, remote_store),
+  BaseMemcachedStore(true, comm_monitor),
   _target_domain(target_domain),
   _resolver(resolver),
   _attempts(2),
-  _conn_pool(60, _options)
+  _conn_pool(60, _options, remote_store)
 {}
 
 memcached_return_t TopologyNeutralMemcachedStore::iterate_through_targets(
