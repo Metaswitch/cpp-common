@@ -52,9 +52,6 @@ public:
   /// Indicates that the given AddrInfo has responded.
   virtual void success(const AddrInfo& ai);
 
-  /// Indicates that the calling thread has left the given AddrInfo untested.
-  virtual void untested(const AddrInfo& ai);
-
   /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
   static bool parse_ip_target(const std::string& target, IP46Address& address);
 
@@ -92,6 +89,16 @@ protected:
                    int& ttl,
                    SAS::TrailId trail,
                    int allowed_host_state=ALL_LISTS);
+
+  /// Does an SRV record resolution for the specified SRV name, selecting
+  // appropriate targets. Returns an iterator pointing to the first target
+  BaseAddrIterator* srv_resolve_iter(const std::string& srv_name,
+                                     int af,
+                                     int transport,
+                                     int retries,
+                                     int& ttl,
+                                     SAS::TrailId trail,
+                                     int allowed_host_state=ALL_LISTS);
 
   /// Does an A/AAAA record resolution for the specified name, selecting
   /// appropriate targets.
@@ -248,9 +255,6 @@ protected:
     /// Indicates that this Host is selected for probing by the given user.
     void selected_for_probing(pthread_t user_id);
 
-    /// Indicates that this Host has gone untested by the given user.
-    void untested(pthread_t user_id);
-
   private:
     /// The time in seconds since the epoch at which this Host is to be removed
     /// from the blacklist and placed onto the graylist.
@@ -276,6 +280,9 @@ protected:
   /// must be held when calling this method.
   Host::State host_state(const AddrInfo& ai) {return host_state(ai, time(NULL));}
   Host::State host_state(const AddrInfo& ai, time_t current_time);
+
+  /// Applies _hosts_lock then returns the host state
+  BaseResolver::Host::State host_state_lock(const AddrInfo& ai);
 
   /// Returns false only if the associated Host has state State::WHITE
   bool blacklisted(const AddrInfo& ai);

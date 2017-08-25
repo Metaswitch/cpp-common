@@ -124,8 +124,29 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
                                SAS::TrailId trail,
                                int allowed_host_state)
 {
+  BaseAddrIterator* targets_iter=srv_resolve_iter(srv_name, af, transport, retries, ttl, trail, allowed_host_state);
+  targets = targets_iter->take(retries);
+  delete targets_iter; targets_iter = nullptr;
+}
+
+BaseAddrIterator* BaseResolver::srv_resolve_iter(const std::string& srv_name,
+                                                int af,
+                                                int transport,
+                                                int retries,
+                                                int& ttl,
+                                                SAS::TrailId trail,
+                                                int allowed_host_state)
+{
   // Accumulate blacklisted targets in case they are needed.
   std::vector<AddrInfo> blacklisted_targets;
+
+  // Vector of addresses. An iterator to this will be returned
+  std::vector<AddrInfo> targets;
+
+  // Boolean to ensure that at most one graylisted target is added. This allows
+  // us to ensure that if a graylisted target is added it is the first target,
+  // and so is guaranteed to be probed
+  bool search_for_gray = true;
 
   // Initialise variables for allowed host states.
   const bool whitelisted_allowed = allowed_host_state & BaseResolver::WHITELISTED;
@@ -145,6 +166,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   std::string whitelisted_targets_str;
   std::string found_blacklisted_str;
   std::string blacklisted_targets_str;
+  std::string graylisted_targets_str;
 
   if (srv_list != NULL)
   {
@@ -212,15 +234,45 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
           ai.port = srvs[ii]->port;
           ai.address = to_ip46(a_result.records()[jj]);
 
-          bool addr_blacklisted = blacklisted(ai);
+          Host::State addr_state = host_state_lock(ai);
           std::string target = "[" + ai.address_and_port_to_string() + "] ";
 
-          if (!addr_blacklisted)
+          if (addr_state == Host::State::GRAY_NOT_PROBING && search_for_gray)
           {
-            // Address isn't blacklisted. Add it to the log string of addresses
+            // First graylisted address reached which isn't already being
+            // probed. It is the first address added to targets, since the
+            // graylisted address must be tested. This takes precedence over the
+            // weighting since only a small proportion of calls are used for
+            // probing, so the effect on call distribution is neglible
+
+            // Only probe one graylisted address with this call
+            search_for_gray = false;
+
+            // Add this to the list of targets if we're allowed to add
+            // whitelisted targets
+            if (whitelisted_allowed)
+            {
+              AddrInfo ai_new;
+              ai_new.transport = transport;
+              ai_new.port = srvs[ii]->port;
+              ai_new.weight = srvs[ii]->weight;
+              ai_new.priority = srvs[ii]->priority;
+              ai_new.address = ai.address;
+              targets.push_back(ai_new);
+              select_for_probing(ai_new);
+            }
+
+            // Update logging.
+            graylisted_targets_str += ai.address_and_port_to_string() + "; ";
+            TRC_DEBUG("Added a graylisted server as a target, now have %ld of %d",
+                      targets.size(),
+                      retries);
+          }
+          else if (addr_state == Host::State::WHITE)
+          {
+            // Address is whitelisted. Add it to the log string of addresses
             // found. If we're allowed to return whitelisted targets, also add
-            // it to the active address vector, from which we'll select
-            // targets.
+            // it to the active address vector, from which we'll select targets.
             found_whitelisted_str += target;
 
             if (whitelisted_allowed)
@@ -230,11 +282,12 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
           }
           else
           {
-            // Address is blacklisted. Add it to the log string of blacklisted
-            // addresses found. If we're allowed to return blacklisted targets,
-            // also add it to the blacklist address vector, from which we'll
-            // pull in extra targets if we don't have enough whitelisted
-            // targets or if whitelisted targets aren't allowed.
+            // Address is blacklisted or graylisted and not being probed by
+            // this call. Add it to the log string of blacklisted addresses
+            // found. If we're allowed to return blacklisted targets, also add
+            // it to the blacklist address vector, from which we'll pull in
+            // extra targets if we don't have enough whitelisted targets or if
+            // whitelisted targets aren't allowed.
             found_blacklisted_str += target;
 
             if (blacklisted_allowed)
@@ -255,6 +308,12 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
       // Finally select the appropriate number of targets by looping through
       // the SRV records taking one address each time until either we have
       // enough for the number of retries allowed, or we have no more addresses.
+      //
+      // This takes one target from each site at this priority level and then
+      // repeats, even if one site contains multiple targets, so if the first
+      // target fails the weighting will be ignored. This is desirable because
+      // if one target from a site fails a target from another site is less
+      // likely to fail
       bool more = true;
       while ((targets.size() < (size_t)retries) &&
              (more))
@@ -298,6 +357,14 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
         // We have enough targets so don't move to the next priority level.
         break;
       }
+
+      if (targets.size()>0)
+      {
+        // We only want to probe a graylisted target if it is at the top
+        // priority level, and we ignore priority levels where all targets are
+        // blacklisted or graylisted and already being probed.
+        search_for_gray=false;
+      }
     }
 
     // If we've gone through the whole set of SRVs and haven't found enough
@@ -330,6 +397,7 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
     event.add_var_param(found_whitelisted_str);
     event.add_static_param(whitelisted_allowed);
     event.add_var_param(whitelisted_targets_str);
+    event.add_var_param(graylisted_targets_str);
     event.add_var_param(found_blacklisted_str);
     event.add_static_param(blacklisted_allowed);
     event.add_var_param(blacklisted_targets_str);
@@ -337,6 +405,8 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
   }
 
   _srv_cache->dec_ref(srv_name);
+  SimpleAddrIterator*  targets_iter=new SimpleAddrIterator(targets);
+  return targets_iter;
 }
 
 /// Does A/AAAA record queries for the specified hostname.
@@ -407,17 +477,18 @@ void BaseResolver::blacklist(const AddrInfo& ai,
   pthread_mutex_unlock(&_hosts_lock);
 }
 
-bool BaseResolver::blacklisted(const AddrInfo& ai)
+/// Applies pthread_mutex_lock before returning the host state
+BaseResolver::Host::State BaseResolver::host_state_lock(const AddrInfo& ai)
 {
-  bool rc = false;
+  Host::State addr_state;
 
   pthread_mutex_lock(&_hosts_lock);
 
-  rc = (host_state(ai) == Host::State::BLACK);
+  addr_state = host_state(ai);
 
   pthread_mutex_unlock(&_hosts_lock);
 
-  return rc;
+  return addr_state;
 }
 
 /// Parses a target as if it was an IPv4 or IPv6 address and returns the
@@ -782,15 +853,6 @@ void BaseResolver::Host::selected_for_probing(pthread_t user_id)
   }
 }
 
-void BaseResolver::Host::untested(pthread_t user_id)
-{
-  if ((get_state() == State::GRAY_PROBING) &&
-      (user_id == _probing_user_id))
-  {
-    _being_probed = false;
-  }
-}
-
 BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t current_time)
 {
   Host::State state;
@@ -857,111 +919,95 @@ void BaseResolver::select_for_probing(const AddrInfo& ai)
   }
 }
 
-void BaseResolver::untested(const AddrInfo& ai)
-{
-  std::string ai_str = ai.to_string();
-  TRC_DEBUG("%s returned untested", ai_str.c_str());
-
-  pthread_mutex_lock(&_hosts_lock);
-  Hosts::iterator i = _hosts.find(ai);
-
-  if (i != _hosts.end())
-  {
-    i->second.untested(pthread_self());
-  }
-
-  pthread_mutex_unlock(&_hosts_lock);
-}
-
 bool BaseAddrIterator::next(AddrInfo &target)
 {
-  bool value_set;
-  std::vector<AddrInfo> next_one = take(1);
+    bool value_set;
+    std::vector<AddrInfo> next_one = take(1);
 
-  if (!next_one.empty())
-  {
-    target = next_one.front();
-    value_set = true;
-  }
-  else
-  {
-    value_set = false;
-  }
+    if (!next_one.empty())
+    {
+      target = next_one.front();
+      value_set = true;
+    }
+    else
+    {
+      value_set = false;
+    }
 
-  return value_set;
+    return value_set;
 }
 
 std::vector<AddrInfo> SimpleAddrIterator::take(int num_requested_targets)
 {
-  // Determine the number of elements to be returned, and create an iterator
-  // pointing to the location at which to split _targets.
-  int num_targets_to_return = std::min(num_requested_targets, int(_targets.size()));
-  std::vector<AddrInfo>::iterator targets_it = _targets.begin();
-  std::advance(targets_it, num_targets_to_return);
+// Determine the number of elements to be returned, and create an iterator
+// pointing to the location at which to split _targets.
+int num_targets_to_return = std::min(num_requested_targets, int(_targets.size()));
+std::vector<AddrInfo>::iterator targets_it = _targets.begin();
+std::advance(targets_it, num_targets_to_return);
 
-  // Set targets to the first actual_num_requested_targets elements of _targets, and
-  // remove those elements from _targets.
-  std::vector<AddrInfo> targets(_targets.begin(), targets_it);
-  _targets = std::vector<AddrInfo>(targets_it, _targets.end());
+// Set targets to the first actual_num_requested_targets elements of _targets, and
+// remove those elements from _targets.
+std::vector<AddrInfo> targets(_targets.begin(), targets_it);
+_targets = std::vector<AddrInfo>(targets_it, _targets.end());
 
-  return targets;
+return targets;
 }
 
 LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
-                                   BaseResolver* resolver,
-                                   int port,
-                                   int transport,
-                                   SAS::TrailId trail,
-                                   int allowed_host_state) :
-  _resolver(resolver),
-  _allowed_host_state(allowed_host_state),
-  _trail(trail),
-  _first_call(true)
+                                 BaseResolver* resolver,
+                                 int port,
+                                 int transport,
+                                 SAS::TrailId trail,
+                                 int allowed_host_state) :
+_resolver(resolver),
+_allowed_host_state(allowed_host_state),
+_trail(trail),
+_first_call(true)
 {
-  _hostname = dns_result.domain();
+_hostname = dns_result.domain();
 
-  AddrInfo ai;
-  ai.port = port;
-  ai.transport = transport;
+AddrInfo ai;
+ai.port = port;
+ai.transport = transport;
 
-  // Reserve memory for the unused results vector to avoid reallocation.
-  _unused_results.reserve(dns_result.records().size());
+// Reserve memory for the unused results vector to avoid reallocation.
+_unused_results.reserve(dns_result.records().size());
 
-  // Create an AddrInfo object for each returned DnsRRecord, and add them to the
-  // query results vector.
-  for (std::vector<DnsRRecord*>::const_iterator result_it = dns_result.records().begin();
-       result_it != dns_result.records().end();
-       ++result_it)
-  {
-    ai.address = _resolver->to_ip46(*result_it);
-    _unused_results.push_back(ai);
-  }
+// Create an AddrInfo object for each returned DnsRRecord, and add them to the
+// query results vector.
+for (std::vector<DnsRRecord*>::const_iterator result_it = dns_result.records().begin();
+     result_it != dns_result.records().end();
+     ++result_it)
+{
+  ai.address = _resolver->to_ip46(*result_it);
+  _unused_results.push_back(ai);
+}
 
-  // Shuffle the results for load balancing purposes
-  std::random_shuffle(_unused_results.begin(), _unused_results.end());
+// Shuffle the results for load balancing purposes
+std::random_shuffle(_unused_results.begin(), _unused_results.end());
 }
 
 std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 {
-  // Initialise variables for allowed host states.
-  const bool whitelisted_allowed = _allowed_host_state & BaseResolver::WHITELISTED;
-  const bool blacklisted_allowed = _allowed_host_state & BaseResolver::BLACKLISTED;
+// Initialise variables for allowed host states.
+const bool whitelisted_allowed = _allowed_host_state & BaseResolver::WHITELISTED;
+const bool blacklisted_allowed = _allowed_host_state & BaseResolver::BLACKLISTED;
 
-  // Vector of targets to be returned
-  std::vector<AddrInfo> targets;
+// Vector of targets to be returned
+std::vector<AddrInfo> targets;
 
-  // Strings for logging purposes.
-  std::string graylisted_targets_str;
-  std::string whitelisted_targets_str;
-  std::string blacklisted_targets_str;
-  std::string found_whitelisted_str;
-  std::string found_blacklisted_str;
+// Strings for logging purposes.
+std::string graylisted_targets_str;
+std::string whitelisted_targets_str;
+std::string blacklisted_targets_str;
+std::string found_whitelisted_str;
+std::string found_blacklisted_str;
 
-  // This lock must be held to safely call the host_state method of
-  // BaseResolver.
-  pthread_mutex_lock(&(_resolver->_hosts_lock));
+// This lock must be held to safely call the host_state method of
+// BaseResolver.
+pthread_mutex_lock(&(_resolver->_hosts_lock));
 
-  // If there are any graylisted records, and we're set to return whitelisted
+// If there are any graylisted records, and we're set to return whitelisted
   // records, the Iterator should return one first, and then no more.
   if (_first_call && whitelisted_allowed)
   {
