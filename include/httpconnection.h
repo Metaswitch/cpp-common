@@ -153,7 +153,10 @@ public:
   virtual long send_put(const std::string& url_tail,
                         const std::string& body,
                         SAS::TrailId trail,
-                        const std::string& username = "");
+                        const std::string& username);
+  virtual long send_put(const std::string& url_tail,
+                        const std::string& body,
+                        SAS::TrailId trail);
   virtual long send_put(const std::string& url_tail,
                         std::string& response,
                         const std::string& body,
@@ -185,6 +188,11 @@ public:
                          const std::string& body,
                          SAS::TrailId trail,
                          const std::string& username = "");
+
+  virtual long send_post(const std::string& url_tail,
+                         const std::string& body,
+                         SAS::TrailId trail);
+
 
   virtual long send_post(const std::string& url_tail,
                          std::map<std::string, std::string>& headers,

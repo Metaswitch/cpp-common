@@ -58,6 +58,18 @@ HTTPCode HttpConnection::send_put(const std::string& url_tail,
 }
 
 HTTPCode HttpConnection::send_put(const std::string& url_tail,
+                                  const std::string& body,
+                                  SAS::TrailId trail)
+{
+  return _client.send_put(_scheme + "://" + _server + url_tail,
+                          body,
+                          trail,
+                          "");
+}
+
+
+
+HTTPCode HttpConnection::send_put(const std::string& url_tail,
                                   std::string& response,
                                   const std::string& body,
                                   SAS::TrailId trail,
@@ -111,6 +123,18 @@ HTTPCode HttpConnection::send_post(const std::string& url_tail,
                            body,
                            trail,
                            username);
+}
+
+HTTPCode HttpConnection::send_post(const std::string& url_tail,
+                                   const std::string& body,
+                                   SAS::TrailId trail)
+{
+  std::map<std::string, std::string> unused_headers;
+  return _client.send_post(_scheme + "://" + _server + url_tail,
+                           unused_headers,
+                           body,
+                           trail,
+                           "");
 }
 
 HTTPCode HttpConnection::send_post(const std::string& url_tail,
