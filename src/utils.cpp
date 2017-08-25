@@ -479,6 +479,20 @@ bool Utils::split_site_store(const std::string& site_store,
   }
 }
 
+/// Parse a vector of strings of the form <site>=<store>. Use the name of the
+/// local GR site to produce the location of the local site's store, and a
+/// vector of the locations of the remote sites' stores. If only one store is
+/// provided, it may not be identified by a site - we just assume it's the
+/// local_site.
+///
+/// @param stores_arg        - the input vector.
+/// @param local_site_name   - the input local site name.
+/// @param store_name        - the name of the store (e.g. IMPI store) for
+///                            logging
+/// @local_store_location    - the output local store location.
+/// @remote_stores_locations - the output vector of remote store locations.
+/// @returns                 - true if the stores_arg vector contains a set of
+///                            valid values, false otherwise.
 bool Utils::parse_multi_site_stores_arg(const std::vector<std::string>& stores_arg,
                                         const std::string& local_site_name,
                                         const char* store_name,
@@ -498,14 +512,13 @@ bool Utils::parse_multi_site_stores_arg(const std::vector<std::string>& stores_a
 
     if (store_location == "")
     {
-      // If we've failed to find a local site registration store then Sprout has
-      // been misconfigured.
+      // If we've failed to find a local store then this is a misconfiguration.
       TRC_ERROR("No local site %s specified", store_name);
       return false;
     }
     else
     {
-      TRC_INFO("Using memcached %s", store_name);
+      TRC_INFO("Using %s", store_name);
       TRC_INFO("  Primary store: %s", store_location.c_str());
       std::string remote_stores_str = boost::algorithm::join(remote_stores_locations, ", ");
       TRC_INFO("  Backup store(s): %s", remote_stores_str.c_str());
@@ -723,4 +736,13 @@ Utils::IPAddressType Utils::parse_ip_address(std::string address)
     return (with_port) ? IPAddressType::INVALID_WITH_PORT :
                          IPAddressType::INVALID;
   }
+}
+
+void Utils::calculate_diameter_timeout(int target_latency_us,
+                                       int& diameter_timeout_ms)
+{
+  // Set the diameter timeout to twice the target latency (rounding up). Note
+  // that the former is expressed in milliseconds and the latter in
+  // microseconds, hence division by 500 (i.e. multiplication by 2/1000).
+  diameter_timeout_ms = std::ceil(target_latency_us/500);
 }

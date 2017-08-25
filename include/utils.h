@@ -583,6 +583,9 @@ namespace Utils
   // Does the passed in address have brackets?
   bool is_bracketed_address(const std::string& address);
 
+  // Calculates a diameter timeout from the target latency.
+  void calculate_diameter_timeout(int target_latency_us,
+                                  int& diameter_timeout);
 } // namespace Utils
 
 #endif /* UTILS_H_ */

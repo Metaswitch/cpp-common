@@ -36,15 +36,18 @@ HTTPCode HttpConnection::send_delete(const std::string& url_tail,
                                      std::string& response,
                                      SAS::TrailId trail,
                                      const std::string& body,
-                                     const std::string& username)
+                                     const std::string& username,
+                                     int allowed_host_state)
 {
   return _client.send_delete(_scheme + "://" + _server + url_tail,
                              headers,
                              response,
                              trail,
                              body,
-                             username);
+                             username,
+                             allowed_host_state);
 }
+
 
 HTTPCode HttpConnection::send_put(const std::string& url_tail,
                                   const std::string& body,
@@ -89,7 +92,8 @@ HTTPCode HttpConnection::send_put(const std::string& url_tail,
                                   const std::string& body,
                                   const std::vector<std::string>& extra_req_headers,
                                   SAS::TrailId trail,
-                                  const std::string& username)
+                                  const std::string& username,
+                                  int allowed_host_state)
 {
   return _client.send_put(_scheme + "://" + _server + url_tail,
                           headers,
@@ -97,7 +101,8 @@ HTTPCode HttpConnection::send_put(const std::string& url_tail,
                           body,
                           extra_req_headers,
                           trail,
-                          username);
+                          username,
+                          allowed_host_state);
 }
 
 HTTPCode HttpConnection::send_post(const std::string& url_tail,
@@ -160,12 +165,14 @@ HTTPCode HttpConnection::send_get(const std::string& url_tail,
                                   std::string& response,
                                   const std::string& username,
                                   std::vector<std::string> headers_to_add,
-                                  SAS::TrailId trail)
+                                  SAS::TrailId trail,
+                                  int allowed_host_state)
 {
   return _client.send_get(_scheme + "://" + _server + url_tail,
                           headers,
                           response,
                           username,
                           headers_to_add,
-                          trail);
+                          trail,
+                          allowed_host_state);
 }

@@ -38,16 +38,18 @@ void ARecordResolver::resolve(const std::string& host,
                               int port,
                               int max_targets,
                               std::vector<AddrInfo>& targets,
-                              SAS::TrailId trail)
+                              SAS::TrailId trail,
+                              int allowed_host_state)
 {
-  BaseAddrIterator* addr_it = resolve_iter(host, port, trail);
+  BaseAddrIterator* addr_it = resolve_iter(host, port, trail, allowed_host_state);
   targets = addr_it->take(max_targets);
   delete addr_it; addr_it = nullptr;
 }
 
 BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
                                                 int port,
-                                                SAS::TrailId trail)
+                                                SAS::TrailId trail,
+                                                int allowed_host_state)
 {
   BaseAddrIterator* addr_it;
 
@@ -68,7 +70,8 @@ BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
   else
   {
     int dummy_ttl = 0;
-    addr_it = a_resolve_iter(host, _address_family, port, TRANSPORT, dummy_ttl, trail);
+    addr_it = a_resolve_iter(
+      host, _address_family, port, TRANSPORT, dummy_ttl, trail, BaseResolver::ALL_LISTS);
   }
 
   return addr_it;
