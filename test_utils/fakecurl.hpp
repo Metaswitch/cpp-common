@@ -38,6 +38,7 @@ public:
   std::list<std::string> _headers;
   std::string _body;
   long _httpauth; //^ OR of CURLAUTH_ constants
+  long _timeout_ms;
   std::string _username;
   std::string _password;
   bool _fresh;
@@ -139,6 +140,7 @@ public:
 
   bool _failonerror;
   long _httpauth;  //^ OR of CURLAUTH_* constants
+  long _timeout_ms;
   std::string _username;
   std::string _password;
   bool _fresh;

@@ -30,13 +30,29 @@ public:
                        int port,
                        int max_targets,
                        std::vector<AddrInfo>& targets,
-                       SAS::TrailId trail);
+                       SAS::TrailId trail,
+                       int allowed_host_state);
+  virtual void resolve(const std::string& host,
+                       int port,
+                       int max_targets,
+                       std::vector<AddrInfo>& targets,
+                       SAS::TrailId trail)
+  {
+    return resolve(host, port, max_targets, targets, trail, BaseResolver::ALL_LISTS);
+  };
 
   // Lazily resolve a hostname to a list of AddrInfo targets using an A record
   // lookup.
   virtual BaseAddrIterator* resolve_iter(const std::string& host,
                                          int port,
-                                         SAS::TrailId trail);
+                                         SAS::TrailId trail,
+                                         int allowed_host_state);
+  virtual BaseAddrIterator* resolve_iter(const std::string& host,
+                                         int port,
+                                         SAS::TrailId trail)
+  {
+    return resolve_iter(host, port, trail, BaseResolver::ALL_LISTS);
+  };
 
   /// Default duration to blacklist hosts after we fail to connect to them.
   static const int DEFAULT_BLACKLIST_DURATION = 30;

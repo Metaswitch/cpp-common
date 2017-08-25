@@ -38,14 +38,16 @@ HttpClient::HttpClient(bool assert_user,
                        LoadMonitor* load_monitor,
                        SASEvent::HttpLogLevel sas_log_level,
                        BaseCommunicationMonitor* comm_monitor,
-                       bool should_omit_body) :
+                       bool should_omit_body,
+                       bool remote_connection,
+                       long timeout_ms) :
   _assert_user(assert_user),
   _resolver(resolver),
   _load_monitor(load_monitor),
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor, stat_table),
+  _conn_pool(load_monitor, stat_table, remote_connection, timeout_ms),
   _should_omit_body(should_omit_body)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
@@ -144,6 +146,25 @@ HTTPCode HttpClient::send_delete(const std::string& url,
                                  const std::string& body,
                                  const std::string& username)
 {
+  int default_allowed_address_state = BaseResolver::ALL_LISTS;
+
+  return send_delete(url,
+                     headers,
+                     response,
+                     trail,
+                     body,
+                     username,
+                     default_allowed_address_state);
+}
+
+HTTPCode HttpClient::send_delete(const std::string& url,
+                                 std::map<std::string, std::string>& headers,
+                                 std::string& response,
+                                 SAS::TrailId trail,
+                                 const std::string& body,
+                                 const std::string& username,
+                                 int allowed_host_state)
+{
   std::vector<std::string> unused_extra_headers;
   HTTPCode status = send_request(RequestType::DELETE,
                                  url,
@@ -152,7 +173,8 @@ HTTPCode HttpClient::send_delete(const std::string& url,
                                  username,
                                  trail,
                                  unused_extra_headers,
-                                 NULL);
+                                 NULL,
+                                 allowed_host_state);
   return status;
 }
 
@@ -164,13 +186,13 @@ HTTPCode HttpClient::send_put(const std::string& url,
   std::string unused_response;
   std::map<std::string, std::string> unused_headers;
   std::vector<std::string> extra_req_headers;
-  return HttpClient::send_put(url,
-                              unused_headers,
-                              unused_response,
-                              body,
-                              extra_req_headers,
-                              trail,
-                              username);
+  return send_put(url,
+                  unused_headers,
+                  unused_response,
+                  body,
+                  extra_req_headers,
+                  trail,
+                  username);
 }
 
 HTTPCode HttpClient::send_put(const std::string& url,
@@ -181,13 +203,13 @@ HTTPCode HttpClient::send_put(const std::string& url,
 {
   std::map<std::string, std::string> unused_headers;
   std::vector<std::string> extra_req_headers;
-  return HttpClient::send_put(url,
-                              unused_headers,
-                              response,
-                              body,
-                              extra_req_headers,
-                              trail,
-                              username);
+  return send_put(url,
+                  unused_headers,
+                  response,
+                  body,
+                  extra_req_headers,
+                  trail,
+                  username);
 }
 
 HTTPCode HttpClient::send_put(const std::string& url,
@@ -198,13 +220,13 @@ HTTPCode HttpClient::send_put(const std::string& url,
 {
   std::string unused_response;
   std::vector<std::string> extra_req_headers;
-  return HttpClient::send_put(url,
-                              headers,
-                              unused_response,
-                              body,
-                              extra_req_headers,
-                              trail,
-                              username);
+  return send_put(url,
+                  headers,
+                  unused_response,
+                  body,
+                  extra_req_headers,
+                  trail,
+                  username);
 }
 
 HTTPCode HttpClient::send_put(const std::string& url,
@@ -215,6 +237,26 @@ HTTPCode HttpClient::send_put(const std::string& url,
                               SAS::TrailId trail,
                               const std::string& username)
 {
+  int default_allowed_address_state = BaseResolver::ALL_LISTS;
+  return send_put(url,
+                  headers,
+                  response,
+                  body,
+                  extra_req_headers,
+                  trail,
+                  username,
+                  default_allowed_address_state);
+}
+
+HTTPCode HttpClient::send_put(const std::string& url,
+                              std::map<std::string, std::string>& headers,
+                              std::string& response,
+                              const std::string& body,
+                              const std::vector<std::string>& extra_req_headers,
+                              SAS::TrailId trail,
+                              const std::string& username,
+                              int allowed_host_state)
+{
   HTTPCode status = send_request(RequestType::PUT,
                                  url,
                                  body,
@@ -222,7 +264,8 @@ HTTPCode HttpClient::send_put(const std::string& url,
                                  "",
                                  trail,
                                  extra_req_headers,
-                                 &headers);
+                                 &headers,
+                                 allowed_host_state);
   return status;
 }
 
@@ -233,7 +276,7 @@ HTTPCode HttpClient::send_post(const std::string& url,
                                const std::string& username)
 {
   std::string unused_response;
-  return HttpClient::send_post(url, headers, unused_response, body, trail, username);
+  return send_post(url, headers, unused_response, body, trail, username);
 }
 
 HTTPCode HttpClient::send_post(const std::string& url,
@@ -243,6 +286,25 @@ HTTPCode HttpClient::send_post(const std::string& url,
                                SAS::TrailId trail,
                                const std::string& username)
 {
+  int default_allowed_address_state = BaseResolver::ALL_LISTS;
+
+  return send_post(url,
+                   headers,
+                   response,
+                   body,
+                   trail,
+                   username,
+                   default_allowed_address_state);
+}
+
+HTTPCode HttpClient::send_post(const std::string& url,
+                               std::map<std::string, std::string>& headers,
+                               std::string& response,
+                               const std::string& body,
+                               SAS::TrailId trail,
+                               const std::string& username,
+                               int allowed_host_state)
+{
   std::vector<std::string> unused_extra_headers;
   HTTPCode status = send_request(RequestType::POST,
                                  url,
@@ -251,7 +313,8 @@ HTTPCode HttpClient::send_post(const std::string& url,
                                  username,
                                  trail,
                                  unused_extra_headers,
-                                 &headers);
+                                 &headers,
+                                 allowed_host_state);
   return status;
 }
 
@@ -263,7 +326,7 @@ HTTPCode HttpClient::send_get(const std::string& url,
 {
   std::map<std::string, std::string> unused_rsp_headers;
   std::vector<std::string> unused_req_headers;
-  return HttpClient::send_get(url, unused_rsp_headers, response, username, unused_req_headers, trail);
+  return send_get(url, unused_rsp_headers, response, username, unused_req_headers, trail);
 }
 
 /// Get data; return a HTTP return code
@@ -273,7 +336,7 @@ HTTPCode HttpClient::send_get(const std::string& url,
                               SAS::TrailId trail)
 {
   std::map<std::string, std::string> unused_rsp_headers;
-  return HttpClient::send_get(url, unused_rsp_headers, response, "", headers, trail);
+  return send_get(url, unused_rsp_headers, response, "", headers, trail);
 }
 
 /// Get data; return a HTTP return code
@@ -284,7 +347,7 @@ HTTPCode HttpClient::send_get(const std::string& url,
                               SAS::TrailId trail)
 {
   std::vector<std::string> unused_req_headers;
-  return HttpClient::send_get(url, headers, response, username, unused_req_headers, trail);
+  return send_get(url, headers, response, username, unused_req_headers, trail);
 }
 
 /// Get data; return a HTTP return code
@@ -295,6 +358,26 @@ HTTPCode HttpClient::send_get(const std::string& url,
                               std::vector<std::string> headers_to_add,
                               SAS::TrailId trail)
 {
+  int default_allowed_address_state = BaseResolver::ALL_LISTS;
+
+  return send_get(url,
+                  headers,
+                  response,
+                  username,
+                  headers_to_add,
+                  trail,
+                  default_allowed_address_state);
+}
+
+/// Get data; return a HTTP return code
+HTTPCode HttpClient::send_get(const std::string& url,
+                              std::map<std::string, std::string>& headers,
+                              std::string& response,
+                              const std::string& username,
+                              std::vector<std::string> headers_to_add,
+                              SAS::TrailId trail,
+                              int allowed_host_state)
+{
   return send_request(RequestType::GET,
                       url,
                       "",
@@ -302,7 +385,8 @@ HTTPCode HttpClient::send_get(const std::string& url,
                       username,
                       trail,
                       headers_to_add,
-                      NULL);
+                      NULL,
+                      allowed_host_state);
 }
 
 std::string HttpClient::request_type_to_string(RequestType request_type)
@@ -332,10 +416,14 @@ HTTPCode HttpClient::send_request(RequestType request_type,
                                   const std::string& username,
                                   SAS::TrailId trail,
                                   std::vector<std::string> headers_to_add,
-                                  std::map<std::string, std::string>* response_headers)
+                                  std::map<std::string, std::string>* response_headers,
+                                  int allowed_host_state)
 {
   HTTPCode http_code;
   CURLcode rc;
+
+  // Get the request method for logging purposes.
+  std::string method_str = request_type_to_string(request_type);
 
   // Create a UUID to use for SAS correlation.
   boost::uuids::uuid uuid = get_random_uuid();
@@ -362,7 +450,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   int port = port_from_server(scheme, server);
 
   // Resolve the host, and check whether it was an IP address all along.
-  BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail);
+  BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail, allowed_host_state);
   IP46Address dummy_address;
   bool host_is_ip = BaseResolver::parse_ip_target(host, dummy_address);
 
@@ -384,10 +472,19 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   // connection is made, a specified number of failures is reached, or the
   // targets are exhausted. If only one target is available, it should be tried
   // twice.
-  for (int attempts = 0;
-       target_it->next(target) || attempts == 1;
-       ++attempts)
+  //
+  // Note that we need to accurately track how many attempts we have actually
+  // made, even if we break out of the loop early (so we generate accurate
+  // logs). For this reason we increment the counter as soon as we start a loop
+  // and assume that we will try a host on each iteration. This is not perfect,
+  // but it's better than incrementing the counter mid-way through the loop
+  // (when actually trying the host) and risking not incrementing the counter
+  // for some reason, which would give an infinite loop.
+  int attempts = 0;
+  while (target_it->next(target) || attempts == 1)
   {
+    attempts++;
+
     // Get a curl handle and the associated pool entry
     ConnectionHandle<CURL*> conn_handle = _conn_pool.get_connection(target);
     CURL* curl = conn_handle.get_connection();
@@ -481,7 +578,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     rc = curl_easy_perform(curl);
 
     // If a request was sent, log it to SAS.
-    std::string method_str = request_type_to_string(request_type);
     if (recorder.request.length() > 0)
     {
       sas_log_http_req(trail, curl, method_str, url, recorder.request, req_timestamp, 0);
@@ -639,6 +735,20 @@ HTTPCode HttpClient::send_request(RequestType request_type,
 
   delete target_it;
 
+  if (attempts == 0)
+  {
+    // We didn't even attempt to contact a server, so produce a SAS log saying so.
+    TRC_INFO("Failed to resolve hostname for %s to %s", method_str.c_str(), url.c_str());
+    SAS::Event event(trail,
+                     ((_sas_log_level == SASEvent::HttpLogLevel::PROTOCOL) ?
+                       SASEvent::HTTP_HOSTNAME_DID_NOT_RESOLVE :
+                       SASEvent::HTTP_HOSTNAME_DID_NOT_RESOLVE_DETAIL),
+                     0);
+    event.add_var_param(method_str);
+    event.add_var_param(Utils::url_unescape(url));
+    SAS::report_event(event);
+  }
+
   // Check whether we should apply a penalty. We do this when:
   //  - both attempts return 503 errors, which means the downstream node is
   //    overloaded/requests to it are timeing.
@@ -680,11 +790,6 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     {
       _comm_monitor->inform_failure(now_ms);
     }
-  }
-
-  if (((rc != CURLE_OK) && (rc != CURLE_REMOTE_FILE_NOT_FOUND)) || (http_code >= 400))
-  {
-    TRC_ERROR("cURL failure with cURL error code %d (see man 3 libcurl-errors) and HTTP error code %ld", (int)rc, http_code);  // LCOV_EXCL_LINE
   }
 
   return http_code;

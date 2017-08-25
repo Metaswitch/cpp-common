@@ -14,15 +14,26 @@
 #include "httpconnection.h"
 
 HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
-                                       SNMP::IPCountTable* stat_table) :
+                                       SNMP::IPCountTable* stat_table,
+                                       bool remote_connection,
+                                       long timeout_ms) :
   ConnectionPool<CURL*>(MAX_IDLE_TIME_S),
-  _stat_table(stat_table)
+  _stat_table(stat_table),
+  _connection_timeout_ms(remote_connection ? REMOTE_CONNECTION_LATENCY_MS :
+                                             LOCAL_CONNECTION_LATENCY_MS)
 {
-  _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
+  if (timeout_ms != -1)
+  {
+    _timeout_ms = timeout_ms;
+    TRC_STATUS("Connection pool will use override response timeout of %ldms", _timeout_ms);
+  }
+  else
+  {    
+    _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                                               load_monitor->get_target_latency_us() :
                                                               DEFAULT_LATENCY_US);
-
-  TRC_STATUS("Connection pool will use a response timeout of %ldms", _timeout_ms);
+    TRC_STATUS("Connection pool will use calculated response timeout of %ldms", _timeout_ms);
+  }
 }
 
 CURL* HttpConnectionPool::create_connection(AddrInfo target)
@@ -44,7 +55,7 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
   // Time to wait until we establish a TCP connection to a single host.
   curl_easy_setopt(conn,
                    CURLOPT_CONNECTTIMEOUT_MS,
-                   SINGLE_CONNECT_TIMEOUT_MS);
+                   _connection_timeout_ms);
 
   // We mustn't reuse DNS responses, because cURL does no shuffling
   // of DNS entries and we rely on this for load balancing.
@@ -142,5 +153,5 @@ void HttpConnectionPool::release_connection(ConnectionInfo<CURL*>* conn_info,
 
 long HttpConnectionPool::calc_req_timeout_from_latency(int latency_us)
 {
-  return std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
+  return _connection_timeout_ms + std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
 }
