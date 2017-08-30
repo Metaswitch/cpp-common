@@ -452,7 +452,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   // Resolve the host, and check whether it was an IP address all along.
   BaseAddrIterator* target_it = _resolver->resolve_iter(host, port, trail, allowed_host_state);
   IP46Address dummy_address;
-  bool host_is_ip = BaseResolver::parse_ip_target(host, dummy_address);
+  bool host_is_ip = Utils::parse_ip_target(host, dummy_address);
 
   // Track the number of HTTP 503 and 504 responses and the number of timeouts
   // or I/O errors.

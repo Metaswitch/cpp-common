@@ -361,6 +361,9 @@ namespace Utils
                        std::string& host,
                        int& port);
 
+  /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
+  bool parse_ip_target(const std::string& target, IP46Address& address);
+
   /// Generates a random number which is exponentially distributed
   class ExponentialDistribution
   {

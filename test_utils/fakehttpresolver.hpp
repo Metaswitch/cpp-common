@@ -64,7 +64,7 @@ public:
   static AddrInfo create_target(std::string address_str, int port = 80)
   {
     AddrInfo ai;
-    BaseResolver::parse_ip_target(address_str, ai.address);
+    Utils::parse_ip_target(address_str, ai.address);
     ai.port = port;
     ai.transport = IPPROTO_TCP;
     return ai;
