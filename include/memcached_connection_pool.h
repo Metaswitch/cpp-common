@@ -22,13 +22,21 @@
 
 #include "connection_pool.h"
 
+/// The length of time to allow for a memcached connection before
+/// timing it out. This needs to be larger for remote sites.
+static int LOCAL_MEMCACHED_CONNECTION_LATENCY_MS = 50;
+static int REMOTE_MEMCACHED_CONNECTION_LATENCY_MS = 250;
+
 class MemcachedConnectionPool : public ConnectionPool<memcached_st*>
 {
 public:
-  MemcachedConnectionPool(time_t max_idle_time_s, std::string options) :
+  MemcachedConnectionPool(time_t max_idle_time_s,
+                          std::string options,
+                          bool remote_store) :
     ConnectionPool<memcached_st*>(max_idle_time_s),
     _options(options),
-    _max_connect_latency_ms(50)
+    _max_connect_latency_ms(remote_store ? REMOTE_MEMCACHED_CONNECTION_LATENCY_MS :
+                                           LOCAL_MEMCACHED_CONNECTION_LATENCY_MS)
   {
   }
 
@@ -43,6 +51,10 @@ protected:
   void destroy_connection(AddrInfo target, memcached_st* conn);
 
   std::string _options;
+
+  // The time to wait before timing out a connection to memcached.
+  // (This is only used during normal running - at start-of-day we use
+  // a fixed 10ms time, to start up as quickly as possible).
   unsigned int _max_connect_latency_ms;
 };
 
