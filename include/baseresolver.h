@@ -80,7 +80,7 @@ protected:
   void destroy_blacklist();
 
   /// Does an SRV record resolution for the specified SRV name, selecting
-  // appropriate targets.
+  /// appropriate targets.
   void srv_resolve(const std::string& srv_name,
                    int af,
                    int transport,
@@ -91,7 +91,7 @@ protected:
                    int allowed_host_state=ALL_LISTS);
 
   /// Does an SRV record resolution for the specified SRV name, selecting
-  // appropriate targets. Returns an iterator pointing to the first target
+  /// appropriate targets. Returns an iterator pointing to the first target
   BaseAddrIterator* srv_resolve_iter(const std::string& srv_name,
                                      int af,
                                      int transport,
@@ -281,10 +281,10 @@ protected:
   Host::State host_state(const AddrInfo& ai) {return host_state(ai, time(NULL));}
   Host::State host_state(const AddrInfo& ai, time_t current_time);
 
-  /// Applies _hosts_lock then returns the host state
-  BaseResolver::Host::State host_state_lock(const AddrInfo& ai);
-
-  /// Returns false only if the associated Host has state State::WHITE
+  /// Returns true if the state of the host associated with the given AddrInfo
+  /// is black or either type of gray, since those are treated as blacklisted.
+  /// Note that even if the address is graylisted and currently being probed by the request
+  /// calling this function, the address will still be considered blacklisted
   bool blacklisted(const AddrInfo& ai);
 
   /// Indicates that the calling thread is selected to probe the given AddrInfo.
