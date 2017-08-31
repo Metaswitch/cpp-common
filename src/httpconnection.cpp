@@ -70,8 +70,6 @@ HTTPCode HttpConnection::send_put(const std::string& url_tail,
                           "");
 }
 
-
-
 HTTPCode HttpConnection::send_put(const std::string& url_tail,
                                   std::string& response,
                                   const std::string& body,
