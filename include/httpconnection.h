@@ -235,11 +235,6 @@ public:
                          const std::string& username = "");
 
   virtual long send_post(const std::string& url_tail,
-                         const std::string& body,
-                         SAS::TrailId trail);
-
-
-  virtual long send_post(const std::string& url_tail,
                          std::map<std::string, std::string>& headers,
                          const std::string& body,
                          SAS::TrailId trail,
