@@ -303,11 +303,11 @@ BaseAddrIterator* BaseResolver::srv_resolve_iter(const std::string& srv_name,
             }
           }
 
-          pthread_mutex_unlock(&_hosts_lock);
-
           // Take the smallest ttl returned so far.
           ttl = std::min(ttl, a_result.ttl());
         }
+
+        pthread_mutex_unlock(&_hosts_lock);
 
         // Randomize the order of both vectors.
         std::random_shuffle(active.begin(), active.end());
