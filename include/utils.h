@@ -142,18 +142,44 @@ struct AddrInfo
 
   std::string address_and_port_to_string() const
   {
-    std::stringstream os;
+    std::stringstream oss;
     char buf[100];
-    os << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
-    os << ":" << port;
-    return os.str();
+    if (address.af == AF_INET6)
+    {
+      oss << "[";
+    }
+    oss << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
+    if (address.af == AF_INET6)
+    {
+      oss << "]";
+    }
+
+    oss << ":" << port;
+    return oss.str();
   }
 
   std::string to_string() const
   {
-    std::stringstream os;
-    os << address_and_port_to_string() << " transport " << transport;
-    return os.str();
+    std::stringstream oss;
+    oss << address_and_port_to_string() << ";transport=";
+    if (transport == IPPROTO_SCTP)
+    {
+      oss << "SCTP";
+    }
+    else if (transport == IPPROTO_TCP)
+    {
+      oss << "TCP";
+    }
+    else if (transport == IPPROTO_UDP)
+    {
+      oss << "UDP";
+    }
+    else
+    {
+      oss << "Unknown (" << transport << ")";
+    }
+
+    return oss.str();
   }
 };
 
