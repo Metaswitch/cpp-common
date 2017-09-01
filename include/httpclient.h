@@ -66,7 +66,9 @@ public:
              BaseCommunicationMonitor* comm_monitor,
              bool should_omit_body = false,
              bool remote_connection = false,
-             long timeout_ms = -1);
+             long timeout_ms = -1,
+             bool log_display_address = false,
+             std::string server_display_address = "");
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
@@ -402,4 +404,6 @@ private:
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
   bool _should_omit_body;
+  bool _log_display_address;
+  std::string _server_display_address;
 };
