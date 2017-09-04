@@ -32,6 +32,8 @@ static const int MAX_TARGETS = 5;
 /// @param stat_name SNMP table to report connection info to.
 /// @param load_monitor Load Monitor.
 /// @param sas_log_level the level to log HTTP flows at (none/protocol/detail).
+/// @param log_display_address Log an address other than server to SAS?
+/// @param server_display_address The address to log in the SAS call flow
 HttpClient::HttpClient(bool assert_user,
                        HttpResolver* resolver,
                        SNMP::IPCountTable* stat_table,
@@ -40,7 +42,9 @@ HttpClient::HttpClient(bool assert_user,
                        BaseCommunicationMonitor* comm_monitor,
                        bool should_omit_body,
                        bool remote_connection,
-                       long timeout_ms) :
+                       long timeout_ms,
+                       bool log_display_address,
+                       std::string server_display_address) :
   _assert_user(assert_user),
   _resolver(resolver),
   _load_monitor(load_monitor),
@@ -48,7 +52,9 @@ HttpClient::HttpClient(bool assert_user,
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
   _conn_pool(load_monitor, stat_table, remote_connection, timeout_ms),
-  _should_omit_body(should_omit_body)
+  _should_omit_body(should_omit_body),
+  _log_display_address(log_display_address),
+  _server_display_address(server_display_address)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
@@ -944,7 +950,15 @@ void HttpClient::sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info)
 
   if (curl_easy_getinfo(curl, info, &ip) == CURLE_OK)
   {
-    event.add_var_param(ip);
+    if ((_log_display_address) && (info == CURLINFO_PRIMARY_IP))
+    {
+      // The HttpClient is configured to log an address other than the server
+      event.add_var_param(_server_display_address);
+    }
+    else
+    {
+      event.add_var_param(ip);
+    }
   }
   else
   {
@@ -969,11 +983,11 @@ void HttpClient::sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info)
 void HttpClient::sas_add_ip_addrs_and_ports(SAS::Event& event,
                                                 CURL* curl)
 {
-  // Add the local IP and port.
+  // Add the remote IP and port.
   sas_add_ip(event, curl, CURLINFO_PRIMARY_IP);
   sas_add_port(event, curl, CURLINFO_PRIMARY_PORT);
 
-  // Now add the remote IP and port.
+  // Now add the local IP and port.
   sas_add_ip(event, curl, CURLINFO_LOCAL_IP);
   sas_add_port(event, curl, CURLINFO_LOCAL_PORT);
 }
