@@ -116,7 +116,6 @@ HTTPCode HttpClient::curl_code_to_http_code(CURL* curl, CURLcode code)
   case CURLE_COULDNT_RESOLVE_HOST:
   case CURLE_COULDNT_CONNECT:
   case CURLE_AGAIN:
-    return HTTP_NOT_FOUND;
   case CURLE_OPERATION_TIMEDOUT:
     return HTTP_SERVER_UNAVAILABLE;
   default:
@@ -470,7 +469,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
   // resolve the host, so default to that.
   const char *remote_ip = NULL;
   rc = CURLE_COULDNT_RESOLVE_HOST;
-  http_code = HTTP_NOT_FOUND;
+  http_code = HTTP_SERVER_UNAVAILABLE;
 
   AddrInfo target;
 
