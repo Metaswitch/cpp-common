@@ -241,13 +241,13 @@ BaseAddrIterator* BaseResolver::srv_resolve_iter(const std::string& srv_name,
           Host::State addr_state = host_state(ai);
           std::string target = "[" + ai.address_and_port_to_string() + "] ";
 
-          // If whitelisting is allowed, the first graylisted target reached
-          // will be selected for probing and put at the start of the list of
-          // targets - it is treated like it is whitelisted. However, if only
-          // blacklisting is allowed then it is not probed and treated as though
-          // it is blacklisted. So it is possible that one address will be a
-          // target for this request regardless of whether blacklisting or
-          // whitelisting are allowed.
+          // If whitelisted targets are requested, the first graylisted target
+          // reached will be selected for probing and put at the start of the
+          // list of targets - it is treated like it is whitelisted. However, if
+          // only blacklisted targets are requested then it is not probed and
+          // treated as though it is blacklisted. So it is possible that one
+          // address will be a target for this request regardless of whether
+          // blacklisted or whitelisted targets are requested.
           if (addr_state == Host::State::GRAY_NOT_PROBING && search_for_gray && whitelisted_allowed)
           {
             // First graylisted address reached which isn't already being
@@ -369,10 +369,11 @@ BaseAddrIterator* BaseResolver::srv_resolve_iter(const std::string& srv_name,
 
       if (targets.size() > 0)
       {
-        // We only want to probe a graylisted address if it is at the top
-        // priority level. We verify that at least one target was found, since
-        // if the top priority level had all addresses blacklisted we ignore it
-        // and treat the second highest level as though it was top.
+        // If no whitelisted or unprobed graylisted addresses were found at
+        // higher priority levels, we want to keep searching for a graylisted
+        // address to probed. eg if every address at priority levels 1 and 2 was
+        // blacklisted, we will keep searching for graylisted targets to probe
+        // at level 3
         search_for_gray=false;
       }
     }
@@ -416,24 +417,7 @@ BaseAddrIterator* BaseResolver::srv_resolve_iter(const std::string& srv_name,
 
     if (targets.empty())
     {
-      if ((allowed_host_state == BaseResolver::WHITELISTED) ||
-          (allowed_host_state == BaseResolver::BLACKLISTED))
-      {
-        // The search was restricted to either just blacklisted or just
-        // whitelisted addresses - there were none with the specified state.
-        bool blacklisted = (allowed_host_state == BaseResolver::BLACKLISTED);
-        SAS::Event event(trail, SASEvent::BASERESOLVE_NO_ALLOWED_RECORDS, 0);
-        event.add_var_param(srv_name);
-        event.add_static_param(blacklisted);
-        SAS::report_event(event);
-      }
-      else
-      {
-        // No records at all for this address.
-        SAS::Event event(trail, SASEvent::BASERESOLVE_NO_RECORDS, 0);
-        event.add_var_param(srv_name);
-        SAS::report_event(event);
-      }
+      no_targets_resolved_logging(srv_name, trail, allowed_host_state);
     }
   }
 
@@ -906,9 +890,9 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
   return state;
 }
 
-/// Return true if the host state of ai is gray or black. Gray is considered
-/// blacklisted, even if ai is graylisted and the request where this function
-/// was called is currently probing ai
+/// Return true if the host state of the given address is gray or black. Gray is
+/// considered blacklisted, even if the given address is graylisted and the
+/// calling code is currently probing that address
 bool BaseResolver::blacklisted(const AddrInfo& ai)
 {
   pthread_mutex_lock(&_hosts_lock);
@@ -918,7 +902,6 @@ bool BaseResolver::blacklisted(const AddrInfo& ai)
   pthread_mutex_unlock(&_hosts_lock);
 
   return (state != Host::State::WHITE);
-
 }
 
 void BaseResolver::success(const AddrInfo& ai)
@@ -950,6 +933,32 @@ void BaseResolver::select_for_probing(const AddrInfo& ai)
     std::string ai_str = ai.to_string();
     TRC_DEBUG("%s selected for probing", ai_str.c_str());
     i->second.selected_for_probing(pthread_self());
+  }
+}
+
+// If no targets were resolved in either a_resolve_iter or srv_resolve_iter and
+// SAS logs are being taken, this code is called
+void BaseResolver::no_targets_resolved_logging(const std::string name,
+                                               SAS::TrailId trail,
+                                               int allowed_host_state)
+{
+  if ((allowed_host_state == BaseResolver::WHITELISTED) ||
+      (allowed_host_state == BaseResolver::BLACKLISTED))
+  {
+    // The search was restricted to either just blacklisted or just
+    // whitelisted addresses - there were none with the specified state.
+    bool blacklisted = (allowed_host_state == BaseResolver::BLACKLISTED);
+    SAS::Event event(trail, SASEvent::BASERESOLVE_NO_ALLOWED_RECORDS, 0);
+    event.add_var_param(name);
+    event.add_static_param(blacklisted);
+    SAS::report_event(event);
+  }
+  else
+  {
+    // No records at all for this address.
+    SAS::Event event(trail, SASEvent::BASERESOLVE_NO_RECORDS, 0);
+    event.add_var_param(name);
+    SAS::report_event(event);
   }
 }
 
@@ -1155,24 +1164,7 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
     if (targets.empty() && _first_call)
     {
-      if ((_allowed_host_state == BaseResolver::WHITELISTED) ||
-          (_allowed_host_state == BaseResolver::BLACKLISTED))
-      {
-        // The search was restricted to either just blacklisted or just
-        // whitelisted addresses - there were none with the specified state.
-        bool blacklisted = (_allowed_host_state == BaseResolver::BLACKLISTED);
-        SAS::Event event(_trail, SASEvent::BASERESOLVE_NO_ALLOWED_RECORDS, 0);
-        event.add_var_param(_hostname);
-        event.add_static_param(blacklisted);
-        SAS::report_event(event);
-      }
-      else
-      {
-        // No records at all for this address.
-        SAS::Event event(_trail, SASEvent::BASERESOLVE_NO_RECORDS, 0);
-        event.add_var_param(_hostname);
-        SAS::report_event(event);
-      }
+      _resolver->no_targets_resolved_logging(_hostname, _trail, _allowed_host_state);
     }
   }
 
@@ -1180,4 +1172,3 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
   return targets;
 }
-

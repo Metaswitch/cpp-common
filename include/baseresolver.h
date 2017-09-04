@@ -125,6 +125,13 @@ protected:
   /// Converts a DNS A or AAAA record to an IP46Address structure.
   IP46Address to_ip46(const DnsRRecord* rr);
 
+  /// Helper function to create SAS logs if no targets were resolved. Says if
+  /// this was because only whitelisted or blacklisted targets were requested,
+  /// or if there were no records at all for that address
+  void no_targets_resolved_logging(const std::string name,
+                                   SAS::TrailId trail,
+                                   int allowed_host_state);
+
   /// Holds the results of applying NAPTR replacement on a target domain name.
   struct NAPTRReplacement
   {
@@ -283,8 +290,8 @@ protected:
 
   /// Returns true if the state of the host associated with the given AddrInfo
   /// is black or either type of gray, since those are treated as blacklisted.
-  /// Note that even if the address is graylisted and currently being probed by the request
-  /// calling this function, the address will still be considered blacklisted
+  /// Note that even if the address is graylisted and currently being probed by
+  /// the calling code, the address will still be considered blacklisted
   bool blacklisted(const AddrInfo& ai);
 
   /// Indicates that the calling thread is selected to probe the given AddrInfo.
