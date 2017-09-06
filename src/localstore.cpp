@@ -208,7 +208,7 @@ Store::Status LocalStore::set_data(const std::string& table,
   {
     // Found an existing record, so check the expiry and CAS value.
     Record& r = i->second;
-    TRC_DEBUG("Found existing record, CAS = %ld, expiry = %ld (now = %ld)",
+    TRC_DEBUG("Found existing record, CAS = %lu, expiry = %u (now = %u)",
               r.cas, r.expiry, now);
 
     if ((!check_cas) ||
@@ -227,7 +227,7 @@ Store::Status LocalStore::set_data(const std::string& table,
       r.cas = check_cas ? ++cas : (r.cas + 1);
       r.expiry = (expiry == 0) ? 0 : (uint32_t)expiry + now;
       status = Store::Status::OK;
-      TRC_DEBUG("CAS is consistent, updated record, CAS = %ld, expiry = %ld (now = %ld)",
+      TRC_DEBUG("CAS is consistent, updated record, CAS = %lu, expiry = %u (now = %u)",
                 r.cas, r.expiry, now);
     }
   }
@@ -239,7 +239,7 @@ Store::Status LocalStore::set_data(const std::string& table,
     r.cas = 1;
     r.expiry = (expiry == 0) ? 0 : (uint32_t)expiry + now;
     status = Store::Status::OK;
-    TRC_DEBUG("No existing record so inserted new record, CAS = %ld, expiry = %ld (now = %ld)",
+    TRC_DEBUG("No existing record so inserted new record, CAS = %lu, expiry = %u (now = %u)",
               r.cas, r.expiry, now);
   }
 
