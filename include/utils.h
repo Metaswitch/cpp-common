@@ -586,6 +586,9 @@ namespace Utils
   // Calculates a diameter timeout from the target latency.
   void calculate_diameter_timeout(int target_latency_us,
                                   int& diameter_timeout);
+
+  bool in_vector(const std::string& element,
+                 const std::vector<std::string>& elements);
 } // namespace Utils
 
 #endif /* UTILS_H_ */
