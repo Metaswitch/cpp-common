@@ -149,7 +149,7 @@ void DiameterResolver::resolve(const std::string& realm,
 
   if ((targets.empty()) && (host != ""))
   {
-    if (parse_ip_target(host, ai.address))
+    if (Utils::parse_ip_target(host, ai.address))
     {
       // The name is already an IP address, so no DNS resolution is possible.
       // Use specified transport and port or defaults if not specified.

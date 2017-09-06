@@ -59,7 +59,7 @@ BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
   port = (port != 0) ? port : _default_port;
   AddrInfo ai;
 
-  if (parse_ip_target(host, ai.address))
+  if (Utils::parse_ip_target(host, ai.address))
   {
     // The name is already an IP address so no DNS resolution is possible.
     TRC_DEBUG("Target is an IP address");

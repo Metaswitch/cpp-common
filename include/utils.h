@@ -142,18 +142,44 @@ struct AddrInfo
 
   std::string address_and_port_to_string() const
   {
-    std::stringstream os;
+    std::stringstream oss;
     char buf[100];
-    os << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
-    os << ":" << port;
-    return os.str();
+    if (address.af == AF_INET6)
+    {
+      oss << "[";
+    }
+    oss << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
+    if (address.af == AF_INET6)
+    {
+      oss << "]";
+    }
+
+    oss << ":" << port;
+    return oss.str();
   }
 
   std::string to_string() const
   {
-    std::stringstream os;
-    os << address_and_port_to_string() << " transport " << transport;
-    return os.str();
+    std::stringstream oss;
+    oss << address_and_port_to_string() << ";transport=";
+    if (transport == IPPROTO_SCTP)
+    {
+      oss << "SCTP";
+    }
+    else if (transport == IPPROTO_TCP)
+    {
+      oss << "TCP";
+    }
+    else if (transport == IPPROTO_UDP)
+    {
+      oss << "UDP";
+    }
+    else
+    {
+      oss << "Unknown (" << transport << ")";
+    }
+
+    return oss.str();
   }
 };
 
@@ -360,6 +386,9 @@ namespace Utils
   bool split_host_port(const std::string& host_port,
                        std::string& host,
                        int& port);
+
+  /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
+  bool parse_ip_target(const std::string& target, IP46Address& address);
 
   /// Generates a random number which is exponentially distributed
   class ExponentialDistribution

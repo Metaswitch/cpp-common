@@ -55,7 +55,7 @@ void AstaireResolver::resolve(const std::string& host,
     port = PORT;
   }
 
-  if (parse_ip_target(host_without_port, ai.address))
+  if (Utils::parse_ip_target(host_without_port, ai.address))
   {
     // The name is already an IP address, so no DNS resolution is possible.
     TRC_DEBUG("Target is an IP address");

@@ -55,9 +55,6 @@ public:
   /// Indicates that the calling thread has left the given AddrInfo untested.
   virtual void untested(const AddrInfo& ai);
 
-  /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
-  static bool parse_ip_target(const std::string& target, IP46Address& address);
-
   void clear_blacklist();
 
   // LazyAddrIterator must access the private host_state method of BaseResolver, which
