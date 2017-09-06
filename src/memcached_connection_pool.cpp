@@ -36,8 +36,8 @@ memcached_st* MemcachedConnectionPool::create_connection(AddrInfo target)
   //
   // This delay can open up window conditions in failure scenarios. In
   // addition there is not much point in using Nagle. libmemcached's buffers
-  // are large enough that it will never send small message fragments, and
-  // this store's implementation means we very rarely pipeline requests.
+  // are large enough that it will never send small message fragments, and we
+  // very rarely pipeline requests.
   memcached_behavior_set(conn,
                          MEMCACHED_BEHAVIOR_TCP_NODELAY,
                          true);
