@@ -28,6 +28,9 @@ public:
   }
 
   /// Status used to indicate success or failure of store operations.
+  /// These values are logged to SAS so:
+  /// -  Each element must have an explicit value.
+  /// -  If you change the enum you must also update the resource bundle.
   typedef enum {OK=1, NOT_FOUND=2, DATA_CONTENTION=3, ERROR=4} Status;
 
   /// Gets the data for the specified key in the specified namespace.
@@ -60,6 +63,21 @@ public:
                           uint64_t cas,
                           int expiry,
                           SAS::TrailId trail = 0) = 0;
+
+  /// Sets the data for the specified key in the specified namespace, without
+  /// performing a Compare And Swap (CAS) check.
+  ///
+  /// @return         Status value indicating the result of the write.
+  /// @param table    Name of the table to store the data.
+  /// @param key      Key used to index the data within the table.
+  /// @param data     Data to store.
+  /// @param expiry   Expiry period of the data (in seconds).  If zero the
+  ///                 data will expire immediately.
+  virtual Status set_data_without_cas(const std::string& table,
+                                      const std::string& key,
+                                      const std::string& data,
+                                      int expiry,
+                                      SAS::TrailId trail = 0) = 0;
 
   /// Delete the data for the specified key in the specified namespace.
   ///

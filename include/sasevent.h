@@ -18,7 +18,7 @@
 namespace SASEvent {
   // The resource bundle datestamp is updated automatically by Jenkins.
   // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170822";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170905";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -122,6 +122,7 @@ namespace SASEvent {
   const int MEMCACHED_DELETE_FAILURE = COMMON_BASE + 0x00010C;
   const int MEMCACHED_NO_HOSTS = COMMON_BASE + 0x00010D;
   const int MEMCACHED_TRY_HOST = COMMON_BASE + 0x00010E;
+  const int MEMCACHED_SET_WITHOUT_CAS_START = COMMON_BASE + 0x00010F;
 
   const int BASERESOLVE_SRV_RESULT = COMMON_BASE + 0x000200;
   const int BASERESOLVE_A_RESULT_TARGET_SELECT = COMMON_BASE + 0x000201;

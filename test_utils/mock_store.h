@@ -33,6 +33,12 @@ public:
                                 uint64_t cas,
                                 int expiry,
                                 SAS::TrailId trail));
+  MOCK_METHOD5(set_data_without_cas,
+               Status(const std::string& table,
+                      const std::string& key,
+                      const std::string& data,
+                      int expiry,
+                      SAS::TrailId trail));
   MOCK_METHOD3(delete_data, Status(const std::string& table,
                                    const std::string& key,
                                    SAS::TrailId trail));

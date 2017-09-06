@@ -37,7 +37,10 @@ public:
                  BaseCommunicationMonitor* comm_monitor,
                  const std::string& scheme = "http",
                  bool should_omit_body = false,
-                 bool remote_connection = false) :
+                 bool remote_connection = false,
+                 long timeout_ms = -1,
+                 bool log_display_address = false,
+                 std::string server_display_address = "") :
     _scheme(scheme),
     _server(server),
     _client(assert_user,
@@ -47,7 +50,10 @@ public:
             sas_log_level,
             comm_monitor,
             should_omit_body,
-            remote_connection)
+            remote_connection,
+            timeout_ms,
+            log_display_address,
+            server_display_address)
   {
     TRC_STATUS("Configuring HTTP Connection");
     TRC_STATUS("  Connection created for server %s", _server.c_str());
@@ -198,7 +204,10 @@ public:
   virtual long send_put(const std::string& url_tail,
                         const std::string& body,
                         SAS::TrailId trail,
-                        const std::string& username = "");
+                        const std::string& username);
+  virtual long send_put(const std::string& url_tail,
+                        const std::string& body,
+                        SAS::TrailId trail);
   virtual long send_put(const std::string& url_tail,
                         std::string& response,
                         const std::string& body,

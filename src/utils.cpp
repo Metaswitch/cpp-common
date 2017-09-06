@@ -775,3 +775,10 @@ void Utils::calculate_diameter_timeout(int target_latency_us,
   // microseconds, hence division by 500 (i.e. multiplication by 2/1000).
   diameter_timeout_ms = std::ceil(target_latency_us/500);
 }
+
+// Check whether an element is in a vector
+bool Utils::in_vector(const std::string& element,
+               const std::vector<std::string>& vec)
+{
+  return std::find(vec.begin(), vec.end(), element) != vec.end();
+}

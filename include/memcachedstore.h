@@ -138,12 +138,29 @@ public:
                          int expiry,
                          SAS::TrailId trail = 0);
 
+  /// Sets the data for the specified table and key without performing CAS
+  Store::Status set_data_without_cas(const std::string& table,
+                                     const std::string& key,
+                                     const std::string& data,
+                                     int expiry,
+                                     SAS::TrailId trail = 0);
+
   /// Deletes the data for the specified table and key.
   Store::Status delete_data(const std::string& table,
                             const std::string& key,
                             SAS::TrailId trail = 0);
 
 protected:
+  typedef std::function<memcached_return_t(ConnectionHandle<memcached_st*>&)> memcached_func;
+  typedef std::function<memcached_return_t(ConnectionHandle<memcached_st*>&, time_t)> memcached_store_func;
+
+  // Set some data with the provided method
+  Store::Status set_data(const std::string& fqkey,
+                         const std::string& data,
+                         int expiry,
+                         SAS::TrailId trail,
+                         memcached_store_func f);
+
   // The domain name for the memcached proxies.
   std::string _target_domain;
 
@@ -195,7 +212,7 @@ protected:
   memcached_return_t iterate_through_targets(
     std::vector<AddrInfo>& targets,
     SAS::TrailId trail,
-    std::function<memcached_return_t(ConnectionHandle<memcached_st*>&)> fn);
+    memcached_func fn);
 };
 
 #endif

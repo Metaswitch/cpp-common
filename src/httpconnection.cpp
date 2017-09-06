@@ -61,6 +61,16 @@ HTTPCode HttpConnection::send_put(const std::string& url_tail,
 }
 
 HTTPCode HttpConnection::send_put(const std::string& url_tail,
+                                  const std::string& body,
+                                  SAS::TrailId trail)
+{
+  return _client.send_put(_scheme + "://" + _server + url_tail,
+                          body,
+                          trail,
+                          "");
+}
+
+HTTPCode HttpConnection::send_put(const std::string& url_tail,
                                   std::string& response,
                                   const std::string& body,
                                   SAS::TrailId trail,
