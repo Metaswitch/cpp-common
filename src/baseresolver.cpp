@@ -914,6 +914,11 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
 
 std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 {
+  TRC_DEBUG("Attempting to get %d targets for host:%s. allowed_host_state = %d",
+            num_requested_targets,
+            _hostname.c_str(),
+            _allowed_host_state);
+
   // Initialise variables for allowed host states.
   const bool whitelisted_allowed = _allowed_host_state & BaseResolver::WHITELISTED;
   const bool blacklisted_allowed = _allowed_host_state & BaseResolver::BLACKLISTED;
