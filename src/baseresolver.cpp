@@ -890,9 +890,8 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t cu
   return state;
 }
 
-// LCOV_EXCL_START
-
-/// This is excluded from coverage because it is tested in SIPResolver.
+// LCOV_EXCL_START - The blacklisted function is excluded from coverage because
+// it is tested in SIPResolver.
 
 /// Return true if the host state of the given address is gray or black. Gray is
 /// considered blacklisted, even if the given address is graylisted and the
@@ -907,7 +906,6 @@ bool BaseResolver::blacklisted(const AddrInfo& ai)
 
   return (state != Host::State::WHITE);
 }
-
 // LCOV_EXCL_STOP
 
 void BaseResolver::success(const AddrInfo& ai)
