@@ -71,7 +71,7 @@ BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
   {
     int dummy_ttl = 0;
     addr_it = a_resolve_iter(
-      host, _address_family, port, TRANSPORT, dummy_ttl, trail, BaseResolver::ALL_LISTS);
+      host, _address_family, port, TRANSPORT, dummy_ttl, trail, allowed_host_state);
   }
 
   return addr_it;
