@@ -57,9 +57,9 @@ public:
 
   void clear_blacklist();
 
-  // LazyAddrIterator must access the private host_state method of BaseResolver, which
+  // LazyARecordAddrIterator must access the private host_state method of BaseResolver, which
   // it is desirable not to expose
-  friend class LazyAddrIterator;
+  friend class LazyARecordAddrIterator;
 
   // Constants indicating the allowed host state values.
   static const int WHITELISTED = 0x01;
@@ -142,7 +142,7 @@ protected:
 
   /// Factory class to handle populating and evicting entries from the
   /// NAPTR cache.
-  class NAPTRCacheFactory : public CacheFactory<std::string, NAPTRReplacement*>
+  class NAPTRCacheFactory : public CacheFactory<std::string, NAPTRReplacement>
   {
   public:
     NAPTRCacheFactory(const std::map<std::string, int>& services,
@@ -150,8 +150,7 @@ protected:
                       DnsCachedResolver* dns_client);
     virtual ~NAPTRCacheFactory();
 
-    NAPTRReplacement* get(std::string key, int& ttl, SAS::TrailId trail);
-    void evict(std::string key, NAPTRReplacement* value);
+    std::shared_ptr<NAPTRReplacement> get(std::string key, int& ttl, SAS::TrailId trail);
 
   private:
     static bool compare_naptr_order_preference(DnsNaptrRecord* r1,
@@ -168,7 +167,7 @@ protected:
 
   /// The NAPTR cache holds a cache of the results of performing a NAPTR
   /// lookup on a particular target.
-  typedef TTLCache<std::string, NAPTRReplacement*> NAPTRCache;
+  typedef TTLCache<std::string, NAPTRReplacement> NAPTRCache;
   NAPTRCache* _naptr_cache;
 
   /// The SRVPriorityList holds the result of an SRV lookup sorted into
@@ -186,16 +185,14 @@ protected:
   };
   typedef std::map<int, std::vector<SRV> > SRVPriorityList;
 
-  /// Factory class to handle populating and evicting entries from the SRV
-  /// cache.
-  class SRVCacheFactory : public CacheFactory<std::string, SRVPriorityList*>
+  /// Factory class to handle populating entries from the SRV cache.
+  class SRVCacheFactory : public CacheFactory<std::string, SRVPriorityList>
   {
   public:
     SRVCacheFactory(int default_ttl, DnsCachedResolver* dns_client);
     virtual ~SRVCacheFactory();
 
-    SRVPriorityList* get(std::string key, int&ttl, SAS::TrailId trail);
-    void evict(std::string key, SRVPriorityList* value);
+    std::shared_ptr<SRVPriorityList> get(std::string key, int&ttl, SAS::TrailId trail);
 
   private:
     static bool compare_srv_priority(DnsRRecord* r1, DnsRRecord* r2);
@@ -207,7 +204,7 @@ protected:
 
   /// The SRV cache holds a cache of SRVPriorityLists indexed on the SRV domain
   /// name (that is, a domain of the form _<service>._<transport>.<target>).
-  typedef TTLCache<std::string, SRVPriorityList*> SRVCache;
+  typedef TTLCache<std::string, SRVPriorityList> SRVCache;
   SRVCache* _srv_cache;
 
   /// The global hosts map holds a list of IP/transport/port combinations which
@@ -343,17 +340,17 @@ private:
 
 // AddrInfo iterator that uses the blacklist system of a BaseResolver to lazily
 // select targets.
-class LazyAddrIterator : public BaseAddrIterator
+class LazyARecordAddrIterator : public BaseAddrIterator
 {
 public:
   // Constructor. The take method requires that resolver is not NULL.
-  LazyAddrIterator(DnsResult& dns_result,
-                   BaseResolver* resolver,
-                   int port,
-                   int transport,
-                   SAS::TrailId trail,
-                   int allowed_host_state);
-  virtual ~LazyAddrIterator() {}
+  LazyARecordAddrIterator(DnsResult& dns_result,
+                          BaseResolver* resolver,
+                          int port,
+                          int transport,
+                          SAS::TrailId trail,
+                          int allowed_host_state);
+  virtual ~LazyARecordAddrIterator() {}
 
   /// Returns a vector containing at most num_requested_targets AddrInfo targets,
   /// selected based on their current state in the blacklist system of

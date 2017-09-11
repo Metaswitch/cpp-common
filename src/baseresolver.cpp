@@ -158,7 +158,7 @@ BaseAddrIterator* BaseResolver::srv_resolve_iter(const std::string& srv_name,
   // Find/load the relevant SRV priority list from the cache.  This increments
   // a reference, so the list cannot be updated until we have finished with
   // it.
-  SRVPriorityList* srv_list = _srv_cache->get(srv_name, ttl, trail);
+  std::shared_ptr<SRVPriorityList> srv_list = _srv_cache->get(srv_name, ttl, trail);
 
   // These strings are used for logging, to store the servers we've found, and
   // the servers that we're returning as targets.
@@ -421,7 +421,6 @@ BaseAddrIterator* BaseResolver::srv_resolve_iter(const std::string& srv_name,
     }
   }
 
-  _srv_cache->dec_ref(srv_name);
   SimpleAddrIterator*  targets_iter = new SimpleAddrIterator(targets);
   return targets_iter;
 }
@@ -455,7 +454,7 @@ BaseAddrIterator* BaseResolver::a_resolve_iter(const std::string& hostname,
 
   TRC_DEBUG("Found %ld A/AAAA records, creating iterator", result.records().size());
 
-  return new LazyAddrIterator(result, this, port, transport, trail, allowed_host_state);
+  return new LazyARecordAddrIterator(result, this, port, transport, trail, allowed_host_state);
 }
 
 /// Converts a DNS A or AAAA record to an IP46Address structure.
@@ -536,12 +535,12 @@ BaseResolver::NAPTRCacheFactory::~NAPTRCacheFactory()
 {
 }
 
-BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string key, int& ttl, SAS::TrailId trail)
+std::shared_ptr<BaseResolver::NAPTRReplacement> BaseResolver::NAPTRCacheFactory::get(std::string key, int& ttl, SAS::TrailId trail)
 {
   // Iterate NAPTR lookups starting with querying the target domain until
   // we get a terminal result.
   TRC_DEBUG("NAPTR cache factory called for %s", key.c_str());
-  NAPTRReplacement* repl = NULL;
+  std::shared_ptr<NAPTRReplacement> repl = nullptr;
   std::string query_key = key;
   int expires = 0;
   bool loop_again = true;
@@ -634,7 +633,7 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
           else
           {
             // This is a terminal record, so set up the result.
-            repl = new NAPTRReplacement;
+            repl = std::make_shared<NAPTRReplacement>();
             repl->replacement = replacement;
             repl->flags = naptr->flags();
             repl->transport = _services[naptr->service()];
@@ -651,12 +650,6 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
     }
   }
   return repl;
-}
-
-void BaseResolver::NAPTRCacheFactory::evict(std::string key, NAPTRReplacement* value)
-{
-  TRC_DEBUG("Evict NAPTR cache %s", key.c_str());
-  delete value;
 }
 
 bool BaseResolver::NAPTRCacheFactory::parse_regex_replace(const std::string& regex_replace,
@@ -717,10 +710,10 @@ BaseResolver::SRVCacheFactory::~SRVCacheFactory()
 {
 }
 
-BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string key, int& ttl, SAS::TrailId trail)
+std::shared_ptr<BaseResolver::SRVPriorityList> BaseResolver::SRVCacheFactory::get(std::string key, int& ttl, SAS::TrailId trail)
 {
   TRC_DEBUG("SRV cache factory called for %s", key.c_str());
-  SRVPriorityList* srv_list = NULL;
+  std::shared_ptr<SRVPriorityList> srv_list = nullptr;
 
   DnsResult result = _dns_client->dns_query(key, ns_t_srv, trail);
 
@@ -728,7 +721,7 @@ BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string ke
   {
     // We have a result.
     TRC_DEBUG("SRV query returned %d records", result.records().size());
-    srv_list = new SRVPriorityList;
+    srv_list = std::make_shared<SRVPriorityList>();
     ttl = result.ttl();
 
     // Sort the records on priority.
@@ -769,12 +762,6 @@ BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string ke
   }
 
   return srv_list;
-}
-
-void BaseResolver::SRVCacheFactory::evict(std::string key, SRVPriorityList* value)
-{
-  TRC_DEBUG("Evict SRV cache %s", key.c_str());
-  delete value;
 }
 
 bool BaseResolver::SRVCacheFactory::compare_srv_priority(DnsRRecord* r1,
@@ -1000,12 +987,12 @@ std::vector<AddrInfo> SimpleAddrIterator::take(int num_requested_targets)
   return targets;
 }
 
-LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
-                                   BaseResolver* resolver,
-                                   int port,
-                                   int transport,
-                                   SAS::TrailId trail,
-                                   int allowed_host_state) :
+LazyARecordAddrIterator::LazyARecordAddrIterator(DnsResult& dns_result,
+                                                 BaseResolver* resolver,
+                                                 int port,
+                                                 int transport,
+                                                 SAS::TrailId trail,
+                                                 int allowed_host_state) :
   _resolver(resolver),
   _allowed_host_state(allowed_host_state),
   _trail(trail),
@@ -1034,7 +1021,7 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
   std::random_shuffle(_unused_results.begin(), _unused_results.end());
 }
 
-std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
+std::vector<AddrInfo> LazyARecordAddrIterator::take(int num_requested_targets)
 {
   // Initialise variables for allowed host states.
   const bool whitelisted_allowed = _allowed_host_state & BaseResolver::WHITELISTED;
