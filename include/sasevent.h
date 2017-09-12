@@ -16,7 +16,11 @@
 #include "sas.h"
 
 namespace SASEvent {
-  // The resource bundle datestamp is updated automatically by Jenkins.
+  // The resource bundle datestamp is updated automatically by Jenkins.  You
+  // should not normally edit this value by hand.  If you have to, make sure
+  // that you update all of the other code locations that are updated by the
+  // Jenkins job "update-sas-resources".
+  //
   // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
   const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20170911";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
