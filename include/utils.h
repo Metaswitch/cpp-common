@@ -240,6 +240,11 @@ namespace Utils
     }
   }
 
+  std::string strip_uri_scheme(const std::string& uri);
+  std::string remove_visual_separators(const std::string& number);
+  bool is_user_numeric(const std::string& user);
+  bool is_user_numeric(const char* user, size_t user_len);
+
   std::string ip_addr_to_arpa(IP46Address ip_addr);
 
   void create_random_token(size_t length, std::string& token);
