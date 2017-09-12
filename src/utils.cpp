@@ -19,6 +19,7 @@
 #include <list>
 #include <queue>
 #include <string>
+#include <boost/regex.hpp>
 #include <arpa/inet.h>
 
 #include <stdio.h>
@@ -202,6 +203,54 @@ std::string Utils::xml_escape(const std::string& s)
   return r;
 }
 
+std::string Utils::strip_uri_scheme(const std::string& uri)
+{
+  std::string s(uri);
+  size_t colon = s.find(':');
+
+  if (colon != std::string::npos)
+  {
+    s.erase(0, colon + 1);
+  }
+
+  return s;
+}
+
+std::string Utils::remove_visual_separators(const std::string& number)
+{
+  static const boost::regex CHARS_TO_STRIP = boost::regex("[.)(-]");
+  return boost::regex_replace(number, CHARS_TO_STRIP, std::string(""));
+}
+
+bool Utils::is_user_numeric(const std::string& user)
+{
+  return is_user_numeric(user.c_str(), user.length());
+}
+
+bool Utils::is_user_numeric(const char* user, size_t user_len)
+{
+  for (size_t i = 0; i < user_len; i++)
+  {
+    if ((user[i] == '+') ||
+        (user[i] == '-') ||
+        (user[i] == '.') ||
+        (user[i] == '(') ||
+        (user[i] == ')') ||
+        (user[i] == '[') ||
+        (user[i] == ']') ||
+        ((user[i] >= '0') &&
+         (user[i] <= '9')))
+    {
+      continue;
+    }
+    else
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 // LCOV_EXCL_START - This function is tested in Homestead's realmmanager_test.cpp
 std::string Utils::ip_addr_to_arpa(IP46Address ip_addr)
