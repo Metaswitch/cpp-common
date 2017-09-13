@@ -89,7 +89,8 @@ int create_connection_in_namespace(const char* host,
             socket_factory_path);
   
   struct sockaddr_un addr = {AF_LOCAL};
-  strcpy(addr.sun_path, socket_factory_path);
+  size_t max_chars = std::min(sizeof(addr.sun_path), sizeof(socket_factory_path));
+  strncpy(addr.sun_path, socket_factory_path, max_chars);
   int fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 
   if (fd < 0)

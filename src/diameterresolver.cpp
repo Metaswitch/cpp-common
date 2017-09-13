@@ -162,7 +162,6 @@ void DiameterResolver::resolve(const std::string& realm,
     {
       a_resolve(host, _address_family, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, new_ttl, 0);
       ttl = set_ttl ? std::min(ttl, new_ttl) : new_ttl;
-      set_ttl = true;
     }
   }
 }
