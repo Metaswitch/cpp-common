@@ -80,6 +80,11 @@ void TimerCounter::get_statistics(int index, timespec now, SNMP::SimpleStatistic
 
 void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec now, uint32_t interval_ms)
 {
+  if (data == NULL)
+  {
+    return;
+  }
+
   // Compute the updated sum and sqsum based on the previous values, dependent on
   // how long since an update happened. Additionally update the sum of squares as a
   // rolling total, and update the time of the last update. Also maintain a
@@ -100,6 +105,11 @@ void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec
 
 void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_delta)
 {
+  if (data == NULL)
+  {
+    return;
+  }
+
   // Initialise a new value to be used, and pull
   // the current value from the underlying data.
   uint64_t current_value = data->current_value.load();
@@ -148,6 +158,11 @@ void TimerCounter::read_statistics(SNMP::ContinuousStatistics* data,
                                    timespec now,
                                    uint32_t interval_ms)
 {
+  if (data == NULL)
+  {
+    return;
+  }
+
   uint64_t hwm = data->hwm.load();
   uint64_t lwm = data->lwm.load();
   uint64_t sum = data->sum.load();
