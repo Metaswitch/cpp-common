@@ -72,7 +72,8 @@ public:
     }
   };
 
-  MockHttpStack() : HttpStack(1, nullptr, nullptr, nullptr, nullptr) {}
+  MockHttpStack();
+  ~MockHttpStack();
 
   MOCK_METHOD0(initialize, void());
   MOCK_METHOD2(bind_tcp_socket, void(const std::string& bind_address,

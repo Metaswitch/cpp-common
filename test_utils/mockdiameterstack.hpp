@@ -18,6 +18,8 @@
 class MockDiameterStack : public Diameter::Stack
 {
 public:
+  MockDiameterStack();
+  ~MockDiameterStack();
   MOCK_METHOD0(initialize, void());
   MOCK_METHOD3(register_handler, void(const Diameter::Dictionary::Application&, const Diameter::Dictionary::Message&, HandlerInterface*));
   MOCK_METHOD1(register_fallback_handler, void(const Diameter::Dictionary::Application&));
