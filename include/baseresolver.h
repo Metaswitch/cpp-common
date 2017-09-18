@@ -135,6 +135,19 @@ protected:
                                    bool whitelisted_allowed,
                                    bool blacklisted_allowed);
 
+  /// Helper function to allow LazySRVResovleIter to call A Record DNS
+  /// Resolution when preparing a priority level
+  void BaseResolver::dns_query(std::vector<std::string>& domains,
+                               int dnstype,
+                               std::vector<DnsResult>& results,
+                               SAS::TrailId trail);
+
+  /// Helper function for LazySRVResolveIter. Returns a pointer to an SRV
+  /// Priority List for the given SRV name.
+  std::shared_ptr<SRVPriorityList> BaseResolver::get_srv_list(const std::string& srv_name,
+                                                              int &ttl,
+                                                              SAS::TrailId trail);
+
   /// Holds the results of applying NAPTR replacement on a target domain name.
   struct NAPTRReplacement
   {
@@ -388,31 +401,29 @@ class LazySRVResolveIter : public BaseAddrIterator
 {
 public:
   // Constructor. The take method requires that resolver is not nullptr.
-  LazySRVResolveIter(DnsCachedResolver* dns_client,
-                     BaseResolver* resolver,
+  LazySRVResolveIter(BaseResolver* resolver,
                      int af,
                      int transport,
-                     int ttl,
                      const std::string& srv_name,
-                     std::shared_ptr<BaseResolver::SRVPriorityList> srv_list,
                      SAS::TrailId trail,
                      int allowed_host_state);
   virtual ~LazySRVResolveIter() {}
 
   /// Returns a vector containing at most num_requested_targets AddrInfo targets,
   /// selected based on their current state in the blacklist system of
-  /// resolver. Can call both prepare_priority_level and
-  /// get_from_priority_level.
+  /// resolver.
   std::vector<AddrInfo> take(int num_requested_targets);
 
   /// Returns the smallest time to live found for the list of SRVs and various A
-  /// Record DNS resolutions.
+  /// Record DNS resolutions so far.
   int get_min_ttl();
 
 private:
   /// Prepares a whole priority level by applying A/AAAA Record Resolution to
-  /// find the addresses for each SRV, and storing the results in _whitelisted_addresses_by_srv and _unhealthy_addresses_by_srv. The order of the SRVs is random and based on
-  /// the weights, and the order of addresses for an SRV is uniformly random.
+  /// find the addresses for each SRV, and storing the results in
+  /// _whitelisted_addresses_by_srv and _unhealthy_addresses_by_srv. The order
+  /// of the SRVs is random and based on the weights, and the order of addresses
+  /// for an SRV is uniformly random.
   ///
   /// If the iterator is still looking for its first target, ie.
   /// _search_for_gray is true, then the entire priority level will be searched
@@ -432,6 +443,9 @@ private:
   /// adds black and gray addresses to targets and nothing to
   /// _unhealthy_targets.
   ///
+  /// Two strings are passed in to log the whitelisted and unhealthy targets
+  /// found, so that take can log a SAS event with them.
+  ///
   /// Returns the number of targets that are still to be found, or 0 if
   /// num_targets_to_find were all found. If all targets were found, the search
   /// is paused and the position stored in _current_srv, to be resumed when take
@@ -441,10 +455,6 @@ private:
                               int num_requested_targets,
                               std::string& whitelisted_targets_str,
                               std::string& unhealthy_targets_str);
-
-  // Pointer to the DNS Cached Resolver from Base Resolver. Used by
-  // prepare_priority_level for A/AAAA Record Resolution
-  DnsCachedResolver* _dns_client;
 
   // A pointer to the BaseResolver that created this iterator. Used to access
   // Base Resolver methods such as host_state.
@@ -488,7 +498,7 @@ private:
   //
   // Unhealthy is used as a catch-all term for blacklisted and graylisted
   // addresses, since graylisted addresses which are not being probed by this
-  // request are considered blacklisted.
+  // request are treated the same as blacklisted addresses.
   std::vector<std::vector<IP46Address> > _whitelisted_addresses_by_srv;
   std::vector<std::vector<IP46Address> > _unhealthy_addresses_by_srv;
 
@@ -497,17 +507,16 @@ private:
   std::vector<const BaseResolver::SRV*> _srvs;
 
   // Vector where get_from_priority_level stores the black or graylisted targets
-  // it finds when both whitelisted and blacklisted targets are desired.
-  // UseResolver::SRVPriorityListses
+  // it finds when both whitelisted and blacklisted targets are desired.  Uses
   // this to add to targets if every whitelisted target has been returned and
   // still more are needed. If only whitelisted or only blacklisted targets were
   // requested then this vector is left empty.
   std::vector<AddrInfo> _unhealthy_targets;
 
-  // The SRV get_from_priority_level is currently looking at, so that if the
-  // number of targets required is found before the entire priority level is
-  // searched, get_from_priority_level can pause its search of the SRV Records
-  // and resume from the same place if take is called again.
+  // The index of the SRV get_from_priority_level is currently looking at, so
+  // that if the number of targets required is found before the entire priority
+  // level is searched, get_from_priority_level can pause its search of the SRV
+  // Records and resume from the same place if take is called again.
   int _current_srv;
 
   // An iterator to the priority level prepare_priority_level should look
