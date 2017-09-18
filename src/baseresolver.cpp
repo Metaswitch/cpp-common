@@ -142,8 +142,7 @@ BaseAddrIterator* BaseResolver::srv_resolve_iter(const std::string& srv_name,
                                                  int allowed_host_state)
 {
   TRC_DEBUG("Creating a lazy iterator for SRV Resolution");
-  return new LazySRVResolveIter(_dns_client,
-                                this,
+  return new LazySRVResolveIter(this,
                                 af,
                                 transport,
                                 srv_name,
@@ -686,7 +685,7 @@ void BaseResolver::dns_query(std::vector<std::string>& domains,
   _dns_client->dns_query(domains, dnstype, results, trail);
 }
 
-std::shared_ptr<SRVPriorityList> BaseResolver::get_srv_list(const std::string& srv_name,
+std::shared_ptr<BaseResolver::SRVPriorityList> BaseResolver::get_srv_list(const std::string& srv_name,
                                                             int &ttl,
                                                             SAS::TrailId trail)
 {
@@ -936,11 +935,11 @@ LazySRVResolveIter::LazySRVResolveIter(BaseResolver* resolver,
   // returns a shared pointer, so the list will not be deleted until we have
   // finished with it, but the Cache can still update the entry once the list
   // has expired.
-  _srv_list = _srv_cache->get(srv_name, _ttl, trail);
+  _srv_list = _resolver->get_srv_list(srv_name, _ttl, trail);
 
-  if (srv_list != nullptr)
+  if (_srv_list != nullptr)
   {
-    TRC_DEBUG("Found SRV records at %ld priority levels", srv_list->size());
+    TRC_DEBUG("Found SRV records at %ld priority levels", _srv_list->size());
 
     // prepare_priority_level will initially look at the highest priority level.
     _priority_level_iter = _srv_list->begin();
@@ -1052,7 +1051,7 @@ std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
 
     if (num_targets_to_find > 0)
     {
-      TRC_DEBUG("Not enough addresses found of the desired host state. Returning %d out of %ld total requested", targets.size(), num_targets_requested);
+      TRC_DEBUG("Not enough addresses found of the desired host state. Returning %d out of %ld total requested", targets.size(), num_requested_targets);
     }
   }
 

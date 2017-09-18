@@ -127,27 +127,6 @@ protected:
   /// Converts a DNS A or AAAA record to an IP46Address structure.
   IP46Address to_ip46(const DnsRRecord* rr);
 
-  /// Helper function to create SAS logs if no targets were resolved. Says if
-  /// this was because only whitelisted or blacklisted targets were requested,
-  /// or if there were no records at all for that address
-  void no_targets_resolved_logging(const std::string name,
-                                   SAS::TrailId trail,
-                                   bool whitelisted_allowed,
-                                   bool blacklisted_allowed);
-
-  /// Helper function to allow LazySRVResovleIter to call A Record DNS
-  /// Resolution when preparing a priority level
-  void BaseResolver::dns_query(std::vector<std::string>& domains,
-                               int dnstype,
-                               std::vector<DnsResult>& results,
-                               SAS::TrailId trail);
-
-  /// Helper function for LazySRVResolveIter. Returns a pointer to an SRV
-  /// Priority List for the given SRV name.
-  std::shared_ptr<SRVPriorityList> BaseResolver::get_srv_list(const std::string& srv_name,
-                                                              int &ttl,
-                                                              SAS::TrailId trail);
-
   /// Holds the results of applying NAPTR replacement on a target domain name.
   struct NAPTRReplacement
   {
@@ -310,6 +289,27 @@ protected:
   /// Indicates that the calling thread is selected to probe the given AddrInfo.
   /// _hosts_lock must be held when calling this method.
   void select_for_probing(const AddrInfo& ai);
+
+  /// Helper function to create SAS logs if no targets were resolved. Says if
+  /// this was because only whitelisted or blacklisted targets were requested,
+  /// or if there were no records at all for that address
+  void no_targets_resolved_logging(const std::string name,
+                                   SAS::TrailId trail,
+                                   bool whitelisted_allowed,
+                                   bool blacklisted_allowed);
+
+  /// Helper function to allow LazySRVResovleIter to call A Record DNS
+  /// Resolution when preparing a priority level
+  void dns_query(std::vector<std::string>& domains,
+                               int dnstype,
+                               std::vector<DnsResult>& results,
+                               SAS::TrailId trail);
+
+  /// Helper function for LazySRVResolveIter. Returns a pointer to an SRV
+  /// Priority List for the given SRV name.
+  std::shared_ptr<SRVPriorityList> get_srv_list(const std::string& srv_name,
+                                                              int &ttl,
+                                                              SAS::TrailId trail);
 
   int _default_blacklist_duration;
   int _default_graylist_duration;
