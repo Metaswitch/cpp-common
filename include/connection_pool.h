@@ -206,7 +206,7 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
             target.address.to_string().c_str(),
             target.port);
 
-  ConnectionInfo<T>* conn_info_ptr;
+  ConnectionInfo<T>* conn_info_ptr = nullptr;
 
   pthread_mutex_lock(&_conn_pool_lock);
 
