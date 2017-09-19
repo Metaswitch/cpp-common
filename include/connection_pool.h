@@ -15,6 +15,7 @@
 
 #include <map>
 #include <deque>
+#include <forward_list>
 #include <pthread.h>
 #include <time.h>
 
@@ -217,17 +218,20 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
     conn_info_ptr = slot_it->second.front();
     slot_it->second.pop_front();
     TRC_DEBUG("Found existing connection %p in pool", conn_info_ptr);
+    pthread_mutex_unlock(&_conn_pool_lock);
   }
   else
   {
     // If there is no connection in the pool for the given AddrInfo, create a
     // new one
+    // We don't need to create the connection behind the lock, so release the
+    // lock first
+    pthread_mutex_unlock(&_conn_pool_lock);
+
     TRC_DEBUG("No existing connection in pool, create one");
     conn_info_ptr = new ConnectionInfo<T>(create_connection(target), target);
     TRC_DEBUG("Created new connection %p", conn_info_ptr);
   }
-
-  pthread_mutex_unlock(&_conn_pool_lock);
 
   return ConnectionHandle<T>(conn_info_ptr, this);
 }
@@ -259,6 +263,13 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
     {
       // Need to destroy all connections for the same target that are currently
       // in the pool
+      // To do this, we create a list of connections and move all of the
+      // connections currently in the pool for that target into the list.
+      // This means that we can release the lock before we need to actually
+      // destroy the connections, as we have no control over how long that may
+      // take
+      std::forward_list<ConnectionInfo<T>*> conns_to_destroy;
+
       pthread_mutex_lock(&_conn_pool_lock);
 
       typename Pool::iterator slot_it = _conn_pool.find(conn_info_ptr->target);
@@ -268,13 +279,18 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
         while (!slot_it->second.empty())
         {
           ConnectionInfo<T>* conn_info = slot_it->second.front();
+          conns_to_destroy.push_front(conn_info);
           slot_it->second.pop_front();
-          destroy_connection(conn_info->target, conn_info->conn);
-          delete conn_info; conn_info = NULL;
         }
       }
 
       pthread_mutex_unlock(&_conn_pool_lock);
+
+      for (ConnectionInfo<T>* conn_info : conns_to_destroy)
+      {
+        destroy_connection(conn_info->target, conn_info->conn);
+        delete conn_info; conn_info = NULL;
+      }
     }
 
     // Now safely destroy the connection and its associated ConnectionInfo
@@ -290,6 +306,7 @@ template<typename T>
 void ConnectionPool<T>::free_old_connection()
 {
   time_t current_time = time(NULL);
+  ConnectionInfo<T>* conn_to_destroy = NULL;
 
   pthread_mutex_lock(&_conn_pool_lock);
 
@@ -306,23 +323,10 @@ void ConnectionPool<T>::free_old_connection()
 
       if (current_time > oldest_conn_info_ptr->last_used_time_s + _max_idle_time_s)
       {
-        if (Log::enabled(Log::DEBUG_LEVEL))
-        {
-          /// Create strings required for debug logging
-          std::string addr_info_str = oldest_conn_info_ptr->target.address_and_port_to_string();
-          std::string current_time_str = ctime(&current_time);
-          std::string last_used_time_s_str = ctime(&(oldest_conn_info_ptr->last_used_time_s));
-
-          TRC_DEBUG("Free idle connection to target: %s (time now is %s, last used %s)",
-                    addr_info_str.c_str(),
-                    current_time_str.c_str(),
-                    last_used_time_s_str.c_str());
-        }
-
-        // Delete the connection as it is too old
+        // Mark the connection for destruction. Don't actually delete it behind
+        // the lock, as we don't know how long doing so will take
+        conn_to_destroy = oldest_conn_info_ptr;
         slot_it->second.pop_back();
-        destroy_connection(oldest_conn_info_ptr->target, oldest_conn_info_ptr->conn);
-        delete oldest_conn_info_ptr; oldest_conn_info_ptr = NULL;
 
         // Delete the entire slot if it is now empty
         if (slot_it->second.empty())
@@ -330,13 +334,33 @@ void ConnectionPool<T>::free_old_connection()
           _conn_pool.erase(slot_it);
         }
 
-        // We have deleted one old connection, so we stop here
+        // We have an old connection to delete, so we stop here
         break;
       }
     }
   }
 
   pthread_mutex_unlock(&_conn_pool_lock);
+
+  if (conn_to_destroy)
+  {
+    // We have a connection marked for destruction. Destroy it.
+    if (Log::enabled(Log::DEBUG_LEVEL))
+    {
+      /// Create strings required for debug logging
+      std::string addr_info_str = conn_to_destroy->target.address_and_port_to_string();
+      std::string current_time_str = ctime(&current_time);
+      std::string last_used_time_s_str = ctime(&(conn_to_destroy->last_used_time_s));
+
+      TRC_DEBUG("Free idle connection to target: %s (time now is %s, last used %s)",
+                addr_info_str.c_str(),
+                current_time_str.c_str(),
+                last_used_time_s_str.c_str());
+    }
+
+    destroy_connection(conn_to_destroy->target, conn_to_destroy->conn);
+    delete conn_to_destroy; conn_to_destroy = NULL;
+  }
 }
 
 template <typename T>
