@@ -217,8 +217,8 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
     // If there is a connection in the pool for the given AddrInfo, retrieve it
     conn_info_ptr = slot_it->second.front();
     slot_it->second.pop_front();
-    TRC_DEBUG("Found existing connection %p in pool", conn_info_ptr);
     pthread_mutex_unlock(&_conn_pool_lock);
+    TRC_DEBUG("Found existing connection %p in pool", conn_info_ptr);
   }
   else
   {
