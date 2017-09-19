@@ -217,17 +217,15 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
     // If there is a connection in the pool for the given AddrInfo, retrieve it
     conn_info_ptr = slot_it->second.front();
     slot_it->second.pop_front();
-    pthread_mutex_unlock(&_conn_pool_lock);
     TRC_DEBUG("Found existing connection %p in pool", conn_info_ptr);
   }
-  else
+
+  pthread_mutex_unlock(&_conn_pool_lock);
+
+  if (!conn_info_ptr)
   {
     // If there is no connection in the pool for the given AddrInfo, create a
     // new one
-    // We don't need to create the connection behind the lock, so release the
-    // lock first
-    pthread_mutex_unlock(&_conn_pool_lock);
-
     TRC_DEBUG("No existing connection in pool, create one");
     conn_info_ptr = new ConnectionInfo<T>(create_connection(target), target);
     TRC_DEBUG("Created new connection %p", conn_info_ptr);
@@ -289,14 +287,14 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
       for (ConnectionInfo<T>* conn_info : conns_to_destroy)
       {
         destroy_connection(conn_info->target, conn_info->conn);
-        delete conn_info; conn_info = NULL;
+        delete conn_info; conn_info = nullptr;
       }
     }
 
     // Now safely destroy the connection and its associated ConnectionInfo
     // (which isn't in the pool, and hence wasn't destroyed above)
     destroy_connection(conn_info_ptr->target, conn_info_ptr->conn);
-    delete conn_info_ptr; conn_info_ptr = NULL;
+    delete conn_info_ptr; conn_info_ptr = nullptr;
   }
 
   free_old_connection();
@@ -305,8 +303,8 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
 template<typename T>
 void ConnectionPool<T>::free_old_connection()
 {
-  time_t current_time = time(NULL);
-  ConnectionInfo<T>* conn_to_destroy = NULL;
+  time_t current_time = time(nullptr);
+  ConnectionInfo<T>* conn_to_destroy = nullptr;
 
   pthread_mutex_lock(&_conn_pool_lock);
 
@@ -359,7 +357,7 @@ void ConnectionPool<T>::free_old_connection()
     }
 
     destroy_connection(conn_to_destroy->target, conn_to_destroy->conn);
-    delete conn_to_destroy; conn_to_destroy = NULL;
+    delete conn_to_destroy; conn_to_destroy = nullptr;
   }
 }
 
