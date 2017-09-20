@@ -773,8 +773,6 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
   std::string graylisted_targets_str;
   std::string whitelisted_targets_str;
   std::string blacklisted_targets_str;
-  std::string found_whitelisted_str;
-  std::string found_blacklisted_str;
 
   // This lock must be held to safely call the host_state method of
   // BaseResolver.
@@ -812,8 +810,14 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
 
   // Add whitelisted records to the vector of targets to return, and unhealthy
   // records to the unhealthy results vector. Targets should be added until the
-  // required number is reached, or the unused results are exhausted.
-  while ((_unused_results.size() > 0) && (targets.size() < (size_t)num_requested_targets))
+  // required number of targets is reached, or the unused results are exhausted.
+  // If only blacklisted targets are allowed to be returned, the first condition
+  // is instead until the required number of unhealthy results is reached.
+  while ((_unused_results.size() > 0) &&
+         ((whitelisted_allowed && (targets.size() < (size_t)num_requested_targets)) ||
+          (blacklisted_allowed &&
+           !whitelisted_allowed &&
+           (_unhealthy_results.size() < (size_t) num_requested_targets))))
   {
     AddrInfo result = _unused_results.back();
     _unused_results.pop_back();
@@ -821,10 +825,8 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
 
     if (_resolver->host_state(result) == BaseResolver::Host::State::WHITE)
     {
-      // Address is whitelisted. Add it to the log string of addresses found.
-      // If we're allowed to return whitelisted targets, also add it to the
-      // targets vector.
-      found_whitelisted_str += target;
+      // Address is whitelisted. If we're allowed to return whitelisted
+      // targets, also add it to the targets vector.
 
       if (whitelisted_allowed)
       {
@@ -840,12 +842,10 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
     }
     else
     {
-      // Address is blacklisted or graylisted. Add it to the log string of
-      // unhealthy addresses found. If we're allowed to return blacklisted
-      // targets, also add it to the unhealthy results vector, from which we'll
-      // pull in extra targets if we don't have enough whitelisted targets or
-      // if whitelisted targets aren't allowed.
-      found_blacklisted_str += target;
+      // Address is blacklisted or graylisted. If we're allowed to return
+      // blacklisted targets, also add it to the unhealthy results vector, from
+      // which we'll pull in extra targets if we don't have enough whitelisted
+      // targets or if whitelisted targets aren't allowed.
 
       if (blacklisted_allowed)
       {
@@ -853,7 +853,6 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
         _unhealthy_results.push_back(result);
 
         // Update logging.
-        found_blacklisted_str += target;
         TRC_DEBUG("Found an unhealthy server, now have %ld unhealthy results",
                   _unhealthy_results.size());
       }
@@ -884,10 +883,8 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
     SAS::Event event(_trail, SASEvent::BASERESOLVE_A_RESULT_TARGET_SELECT, 0);
     event.add_var_param(_hostname);
     event.add_var_param(graylisted_targets_str);
-    event.add_var_param(found_whitelisted_str);
     event.add_static_param(whitelisted_allowed);
     event.add_var_param(whitelisted_targets_str);
-    event.add_var_param(found_blacklisted_str);
     event.add_static_param(blacklisted_allowed);
     event.add_var_param(blacklisted_targets_str);
     SAS::report_event(event);
@@ -925,7 +922,9 @@ LazySRVResolveIter::LazySRVResolveIter(BaseResolver* resolver,
   _unhealthy_addresses_by_srv(),
   _srvs(),
   _unhealthy_targets(),
-  _current_srv(0)
+  _current_srv(0),
+  _more_in_priority_level(false),
+  _unhealthy_target_pos(0)
 {
   // Initialise variables for allowed host states.
   _whitelisted_allowed = allowed_host_state & BaseResolver::WHITELISTED;
@@ -1034,17 +1033,22 @@ std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
       // or the number of requested targets has been reached. If only whitelisted
       // or blacklisted addresses were requested then _unhealthy_targets is empty,
       // addresses of the desired host state were added straight to targets.
-      size_t to_copy = std::min((size_t) num_targets_to_find, _unhealthy_targets.size());
+      size_t to_copy = std::min((size_t) num_targets_to_find, _unhealthy_targets.size()-_unhealthy_target_pos);
 
       TRC_VERBOSE("Adding %ld unhealthy servers", to_copy);
-      for (size_t ii = 0; ii < to_copy; ++ii)
+
+      int max_unhealthy_index = to_copy + _unhealthy_target_pos;
+      // The for loop is initialised in the class constructor, as the for loop
+      // needs to be paused and resumed in subsequent calls to take, so that the
+      // same unhealthy targets are not returned several times.
+      for (; _unhealthy_target_pos < max_unhealthy_index; ++_unhealthy_target_pos)
       {
-        targets.push_back(_unhealthy_targets[ii]);
+        targets.push_back(_unhealthy_targets[_unhealthy_target_pos]);
         --num_targets_to_find;
         TRC_DEBUG("Added an unhealthy server to targets, now have %ld of %d",
                   targets.size(),
                   num_requested_targets);
-        std::string unhealthy_name = "[" + _unhealthy_targets[ii].address_and_port_to_string() + "]";
+        std::string unhealthy_name = "[" + _unhealthy_targets[_unhealthy_target_pos].address_and_port_to_string() + "]";
         unhealthy_targets_str += unhealthy_name;
       }
     }
@@ -1086,9 +1090,12 @@ bool LazySRVResolveIter::prepare_priority_level()
   {
     TRC_VERBOSE("Processing %d SRVs with priority %d", _priority_level_iter->second.size(), _priority_level_iter->first);
 
-    // As a new priority level is being prepared, resets the position of
-    // get_from_priority_level to the beginning.
+    // As a new priority level is being prepared, resets the parameters used in
+    // the for loop of get_from_priority_level. _more_in_priority_level is
+    // initialised to false, and will be set to true once the for loop reaches
+    // an SRV which will have addresses left in the next run of the for loop.
     _current_srv = 0;
+    _more_in_priority_level = false;
 
     // Clear the vector of SRVs for this priority level.
     _srvs.clear();
@@ -1252,10 +1259,16 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
   // because if one address from a site fails an address from another site is
   // less likely to fail, and it is more important to ensure that a request
   // succeeds than that the load is well balanced.
-  bool more = true;
-  while ((num_targets_to_find > 0) && (more))
+  //
+  // If this function gets the required number of targets before looking at
+  // every address in the priority level, the algorithm will pause and resume
+  // next time this function is called. This means that a do while loop is
+  // needed, as the algorithm may have been halfway through an iteration of the
+  // for loop, so there may have been addresses in the second half of SRVs but
+  // _more_in_priority_level would be false when the function was next called.
+  do
   {
-    more = false;
+    TRC_DEBUG("\n@@@ %d targets left to find", num_targets_to_find);
     AddrInfo ai;
     ai.transport = _transport;
 
@@ -1269,12 +1282,14 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
     if ((size_t) _current_srv == _srvs.size())
     {
       _current_srv = 0;
+      _more_in_priority_level = false;
     }
 
     for (;
          ((size_t) _current_srv < _srvs.size()) && (num_targets_to_find > 0);
          ++_current_srv)
     {
+      TRC_DEBUG("\n@@@ Iteration of for loop! %d %d %d", _current_srv, _srvs.size(), num_targets_to_find);
       ai.port = _srvs[_current_srv]->port;
       ai.priority = _srvs[_current_srv]->priority;
       ai.weight = _srvs[_current_srv]->weight;
@@ -1297,7 +1312,7 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
                     targets.size(),
                     num_requested_targets);
         }
-        else
+        else if (_blacklisted_allowed)
         {
           _unhealthy_addresses_by_srv[_current_srv].push_back(ai.address);
           TRC_DEBUG("%s has moved from the whitelist to the blacklist since priority level %d was prepared",
@@ -1330,7 +1345,6 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
         }
         else
         {
-          _whitelisted_addresses_by_srv[_current_srv].push_back(ai.address);
           TRC_DEBUG("%s has moved from the blacklist or graylist to the whitelist since priority level %d was prepared",
                     ai.to_string().c_str(),
                     _priority_level_iter->first);
@@ -1348,13 +1362,15 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
         _unhealthy_targets.push_back(ai);
       }
 
-      more = more ||
-             ((!_whitelisted_addresses_by_srv[_current_srv].empty()) ||
-             (!_unhealthy_addresses_by_srv[_current_srv].empty()));
+      _more_in_priority_level = _more_in_priority_level ||
+                                ((!_whitelisted_addresses_by_srv[_current_srv].empty()) ||
+                                 (!_unhealthy_addresses_by_srv[_current_srv].empty()));
     }
 
     // host_state no longer needs to be called, so this lock can be relaxed.
     pthread_mutex_unlock(&(_resolver->_hosts_lock));
+    TRC_DEBUG("END OF WHILE! %d %d", num_targets_to_find, (int) _more_in_priority_level);
   }
+  while ((num_targets_to_find > 0) && (_more_in_priority_level));
   return num_targets_to_find;
 }

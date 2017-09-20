@@ -519,6 +519,17 @@ private:
   // Records and resume from the same place if take is called again.
   int _current_srv;
 
+  // Boolean to track whether there's any addresses left in the current priority
+  // level. Initialised to false at the start and whenever a new priority level
+  // is prepared, and is then set to true once an SRV is found which will
+  // have addresses left the next time get_from_priority_level scans through
+  // each SRV at the current priority level.
+  bool _more_in_priority_level;
+
+  // The index of the unhealthy target to return next. Ensures that in
+  // subsequent calls to take the same unhealthy target is not returned twice.
+  int _unhealthy_target_pos;
+
   // An iterator to the priority level prepare_priority_level should look
   // at. Goes through all priority levels in order of highest to lowest
   // priority. Incremented by prepare_priority_level once it has finished
