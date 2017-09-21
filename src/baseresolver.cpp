@@ -101,20 +101,25 @@ void BaseResolver::destroy_blacklist()
 }
 
 /// This algorithm selects a number of targets (IP address/port/transport
-/// tuples) following the SRV selection algorithm in RFC2782, with a couple
-/// of modifications.
+/// tuples) following the SRV selection algorithm in RFC2782, with a couple of
+/// modifications.
 /// -  Where SRV records resolve to multiple A/AAAA records, the SRVs at each
-///    priority level are round-robined in the selected order, with IP
-///    addresses chosen at random.  SRV at the next priority level are only
-///    used when all A/AAAA records at higher riority levels have been used.
+///    priority level are round-robined in a randomly selected order according
+///    to the weights, with IP addresses chosen at random.  SRV at the next
+///    priority level are only used when all A/AAAA records at higher priority
+///    levels have been used.
 ///    (This behaviour isn't specified in RFC2782, but is a corollary of the
 ///    requirements that
 ///    -  retries should initially be to different SRVs
-///    -  servers at lower priority levels should not be used if servers from
-///       a higher priority level are contactable.
-/// -  Targets are checked against a blacklist.  Blacklisted targets are only
+///    -  servers at lower priority levels should not be used if servers from a
+///       higher priority level are contactable.)
+/// -  Targets are checked against a blacklist. Blacklisted targets are only
 ///    used if there are insufficient un-blacklisted targets.
-///
+/// -  Targets are checked against a graylist. If there are unprobed graylisted
+///    targets at the highest priority level then exactly one of them will
+///    always be probed as the first target. This takes precedence over
+///    respecting the weights. Any remaining graylisted targets will be treated
+///    as though they were blacklisted.
 void BaseResolver::srv_resolve(const std::string& srv_name,
                                int af,
                                int transport,
@@ -124,306 +129,25 @@ void BaseResolver::srv_resolve(const std::string& srv_name,
                                SAS::TrailId trail,
                                int allowed_host_state)
 {
-  BaseAddrIterator* targets_iter = srv_resolve_iter(srv_name, af, transport, retries, ttl, trail, allowed_host_state);
+  LazySRVResolveIter* targets_iter = (LazySRVResolveIter*) srv_resolve_iter(srv_name, af, transport, trail, allowed_host_state);
   targets = targets_iter->take(retries);
+  ttl = targets_iter->get_min_ttl();
   delete targets_iter; targets_iter = nullptr;
 }
 
 BaseAddrIterator* BaseResolver::srv_resolve_iter(const std::string& srv_name,
-                                                int af,
-                                                int transport,
-                                                int retries,
-                                                int& ttl,
-                                                SAS::TrailId trail,
-                                                int allowed_host_state)
+                                                 int af,
+                                                 int transport,
+                                                 SAS::TrailId trail,
+                                                 int allowed_host_state)
 {
-  // Accumulate blacklisted targets in case they are needed.
-  std::vector<AddrInfo> blacklisted_targets;
-
-  // Vector of addresses. An iterator to this will be returned.
-  std::vector<AddrInfo> targets;
-
-  // Boolean to ensure that at most one graylisted target is added. This allows
-  // us to ensure that if a graylisted target is added it is the first target,
-  // and so is guaranteed to be probed.
-  bool search_for_gray = true;
-
-  // Initialise variables for allowed host states.
-  const bool whitelisted_allowed = allowed_host_state & BaseResolver::WHITELISTED;
-  const bool blacklisted_allowed = allowed_host_state & BaseResolver::BLACKLISTED;
-
-  // Clear the list of targets just in case.
-  targets.clear();
-
-  // Find/load the relevant SRV priority list from the cache.  This increments
-  // a reference, so the list cannot be updated until we have finished with
-  // it.
-  SRVPriorityList* srv_list = _srv_cache->get(srv_name, ttl, trail);
-
-  // These strings are used for logging, to store the servers we've found, and
-  // the servers that we're returning as targets.
-  std::string found_whitelisted_str;
-  std::string whitelisted_targets_str;
-  std::string found_blacklisted_str;
-  std::string blacklisted_targets_str;
-  std::string graylisted_targets_str;
-
-  if (srv_list != NULL)
-  {
-    TRC_VERBOSE("SRV list found, %d priority levels", srv_list->size());
-
-    // Select the SRV records in priority/weighted order.
-    for (SRVPriorityList::const_iterator i = srv_list->begin();
-         i != srv_list->end();
-         ++i)
-    {
-      TRC_VERBOSE("Processing %d SRVs with priority %d", i->second.size(), i->first);
-
-      std::vector<const SRV*> srvs;
-      srvs.reserve(i->second.size());
-
-      // Build a cumulative weighted tree for this priority level.
-      WeightedSelector<SRV> selector(i->second);
-
-      // Select entries while there are any with non-zero weights.
-      while (selector.total_weight() > 0)
-      {
-        int ii = selector.select();
-        TRC_DEBUG("Selected SRV %s:%d, weight = %d",
-                  i->second[ii].target.c_str(),
-                  i->second[ii].port,
-                  i->second[ii].weight);
-        srvs.push_back(&i->second[ii]);
-      }
-
-      // Do A/AAAA record look-ups for the selected SRV targets.
-      std::vector<std::string> a_targets;
-      std::vector<DnsResult> a_results;
-
-      for (size_t ii = 0; ii < srvs.size(); ++ii)
-      {
-        a_targets.push_back(srvs[ii]->target);
-      }
-      TRC_VERBOSE("Do A record look-ups for %ld SRVs", a_targets.size());
-      _dns_client->dns_query(a_targets,
-                             (af == AF_INET) ? ns_t_a : ns_t_aaaa,
-                             a_results,
-                             trail);
-
-      // Now form temporary lists for each SRV target containing the active
-      // and blacklisted addresses, in randomized order.
-      std::vector<std::vector<IP46Address> > active_addr(srvs.size());
-      std::vector<std::vector<IP46Address> > blacklist_addr(srvs.size());
-
-      for (size_t ii = 0; ii < srvs.size(); ++ii)
-      {
-        DnsResult& a_result = a_results[ii];
-        TRC_DEBUG("SRV %s:%d returned %ld IP addresses",
-                  srvs[ii]->target.c_str(),
-                  srvs[ii]->port,
-                  a_result.records().size());
-        std::vector<IP46Address>& active = active_addr[ii];
-        std::vector<IP46Address>& blacklist = blacklist_addr[ii];
-        active.reserve(a_result.records().size());
-        blacklist.reserve(a_result.records().size());
-
-        // This lock must be held to safely call the host_state method of
-        // BaseResolver.
-        pthread_mutex_lock(&_hosts_lock);
-
-        for (size_t jj = 0; jj < a_result.records().size(); ++jj)
-        {
-          AddrInfo ai;
-          ai.transport = transport;
-          ai.port = srvs[ii]->port;
-          ai.address = to_ip46(a_result.records()[jj]);
-
-          Host::State addr_state = host_state(ai);
-          std::string target = "[" + ai.address_and_port_to_string() + "] ";
-
-          // If whitelisted targets are requested, the first graylisted target
-          // reached will be selected for probing and put at the start of the
-          // list of targets - it is treated like it is whitelisted. However, if
-          // only blacklisted targets are requested then it is not probed and
-          // treated as though it is blacklisted. So it is possible that one
-          // address will be a target for this request regardless of whether
-          // blacklisted or whitelisted targets are requested.
-          if (addr_state == Host::State::GRAY_NOT_PROBING && search_for_gray && whitelisted_allowed)
-          {
-            // First graylisted address reached which isn't already being
-            // probed. It is the first address added to targets, since the
-            // graylisted address must be tested. This takes precedence over the
-            // weighting since only a small proportion of requests are used for
-            // probing, so the effect on request distribution is neglible.
-
-            // Only probe one graylisted address with this request.
-            search_for_gray = false;
-
-            // Add this to the list of targets
-            AddrInfo ai_gray;
-            ai_gray.transport = transport;
-            ai_gray.port = srvs[ii]->port;
-            ai_gray.weight = srvs[ii]->weight;
-            ai_gray.priority = srvs[ii]->priority;
-            ai_gray.address = ai.address;
-            targets.push_back(ai_gray);
-            select_for_probing(ai_gray);
-
-            // Update logging.
-            graylisted_targets_str += ai.address_and_port_to_string() + "; ";
-            TRC_DEBUG("Added a graylisted server as a target, now have %ld of %d",
-                      targets.size(),
-                      retries);
-          }
-          else if (addr_state == Host::State::WHITE)
-          {
-            // Address is whitelisted. Add it to the log string of addresses
-            // found. If we're allowed to return whitelisted targets, also add
-            // it to the active address vector, from which we'll select targets.
-            found_whitelisted_str += target;
-
-            if (whitelisted_allowed)
-            {
-              active.push_back(ai.address);
-            }
-          }
-          else
-          {
-            // Address is blacklisted or graylisted and not being probed by this
-            // request. Add it to the log string of blacklisted addresses found.
-            // If we're allowed to return blacklisted targets, also add it to
-            // the blacklist address vector, from which we'll pull in extra
-            // targets if we don't have enough whitelisted addresses to form
-            // targets or if whitelisted targets aren't allowed.
-            found_blacklisted_str += target;
-
-            if (blacklisted_allowed)
-            {
-              blacklist.push_back(ai.address);
-            }
-          }
-
-          // Take the smallest ttl returned so far.
-          ttl = std::min(ttl, a_result.ttl());
-        }
-
-        pthread_mutex_unlock(&_hosts_lock);
-
-        // Randomize the order of both vectors.
-        std::random_shuffle(active.begin(), active.end());
-        std::random_shuffle(blacklist.begin(), blacklist.end());
-      }
-
-      // Finally select the appropriate number of targets by looping through the
-      // SRV records taking one address each time until either we have enough
-      // for the number of retries allowed, or we have no more addresses.
-      //
-      // This takes one target from each site at this priority level and then
-      // repeats, even if one site contains multiple addresses, so if the first
-      // target fails the weighting will be ignored. This is desirable because
-      // if one address from a site fails an address from another site is less
-      // likely to fail.
-      bool more = true;
-      while ((targets.size() < (size_t)retries) &&
-             (more))
-      {
-        more = false;
-        AddrInfo ai;
-        ai.transport = transport;
-
-        for (size_t ii = 0;
-             (ii < srvs.size()) && (targets.size() < (size_t)retries);
-             ++ii)
-        {
-          ai.port = srvs[ii]->port;
-          ai.priority = srvs[ii]->priority;
-          ai.weight = srvs[ii]->weight;
-
-          if (!active_addr[ii].empty())
-          {
-            ai.address = active_addr[ii].back();
-            active_addr[ii].pop_back();
-            targets.push_back(ai);
-            std::string target = "[" + ai.address_and_port_to_string() + "] ";
-            whitelisted_targets_str += target;
-            TRC_VERBOSE("Added a server, now have %ld of %d", targets.size(), retries);
-          }
-
-          if (!blacklist_addr[ii].empty())
-          {
-            ai.address = blacklist_addr[ii].back();
-            blacklist_addr[ii].pop_back();
-            blacklisted_targets.push_back(ai);
-          }
-
-          more = more || ((!active_addr[ii].empty()) || (!blacklist_addr[ii].empty()));
-        }
-
-      }
-
-      if (targets.size() >= (size_t)retries)
-      {
-        // We have enough targets so don't move to the next priority level.
-        break;
-      }
-
-      if (targets.size() > 0)
-      {
-        // If no whitelisted or unprobed graylisted addresses were found at
-        // higher priority levels, we want to keep searching for a graylisted
-        // address to probed. eg if every address at priority levels 1 and 2 was
-        // blacklisted, we will keep searching for graylisted targets to probe
-        // at level 3
-        search_for_gray=false;
-      }
-    }
-
-    // If we've gone through the whole set of SRVs and haven't found enough
-    // unblacklisted addresses, add blacklisted addresses to the list of
-    // targets.
-    if (targets.size() < (size_t)retries)
-    {
-      size_t to_copy = (size_t)retries - targets.size();
-
-      if (to_copy > blacklisted_targets.size())
-      {
-        to_copy = blacklisted_targets.size();
-      }
-
-      TRC_VERBOSE("Adding %ld servers from blacklist", to_copy);
-
-      for (size_t ii = 0; ii < to_copy; ++ii)
-      {
-        targets.push_back(blacklisted_targets[ii]);
-        std::string blacklistee = blacklisted_targets[ii].address_and_port_to_string();
-        std::string bl = "[" + blacklistee + "]";
-        blacklisted_targets_str = blacklisted_targets_str + bl;
-      }
-    }
-  }
-
-  if (trail != 0)
-  {
-    SAS::Event event(trail, SASEvent::BASERESOLVE_SRV_RESULT, 0);
-    event.add_var_param(srv_name);
-    event.add_var_param(graylisted_targets_str);
-    event.add_var_param(found_whitelisted_str);
-    event.add_static_param(whitelisted_allowed);
-    event.add_var_param(whitelisted_targets_str);
-    event.add_var_param(found_blacklisted_str);
-    event.add_static_param(blacklisted_allowed);
-    event.add_var_param(blacklisted_targets_str);
-    SAS::report_event(event);
-
-    if (targets.empty())
-    {
-      no_targets_resolved_logging(srv_name, trail, allowed_host_state);
-    }
-  }
-
-  _srv_cache->dec_ref(srv_name);
-  SimpleAddrIterator*  targets_iter = new SimpleAddrIterator(targets);
-  return targets_iter;
+  TRC_DEBUG("Creating a lazy iterator for SRV Resolution");
+  return new LazySRVResolveIter(this,
+                                af,
+                                transport,
+                                srv_name,
+                                trail,
+                                allowed_host_state);
 }
 
 /// Does A/AAAA record queries for the specified hostname.
@@ -455,7 +179,7 @@ BaseAddrIterator* BaseResolver::a_resolve_iter(const std::string& hostname,
 
   TRC_DEBUG("Found %ld A/AAAA records, creating iterator", result.records().size());
 
-  return new LazyAddrIterator(result, this, port, transport, trail, allowed_host_state);
+  return new LazyAResolveIter(result, this, port, transport, trail, allowed_host_state);
 }
 
 /// Converts a DNS A or AAAA record to an IP46Address structure.
@@ -536,12 +260,14 @@ BaseResolver::NAPTRCacheFactory::~NAPTRCacheFactory()
 {
 }
 
-BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string key, int& ttl, SAS::TrailId trail)
+std::shared_ptr<BaseResolver::NAPTRReplacement> BaseResolver::NAPTRCacheFactory::get(std::string key,
+                                                                                     int& ttl,
+                                                                                     SAS::TrailId trail)
 {
   // Iterate NAPTR lookups starting with querying the target domain until
   // we get a terminal result.
   TRC_DEBUG("NAPTR cache factory called for %s", key.c_str());
-  NAPTRReplacement* repl = NULL;
+  std::shared_ptr<NAPTRReplacement> repl = nullptr;
   std::string query_key = key;
   int expires = 0;
   bool loop_again = true;
@@ -634,7 +360,7 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
           else
           {
             // This is a terminal record, so set up the result.
-            repl = new NAPTRReplacement;
+            repl = std::make_shared<NAPTRReplacement>();
             repl->replacement = replacement;
             repl->flags = naptr->flags();
             repl->transport = _services[naptr->service()];
@@ -651,12 +377,6 @@ BaseResolver::NAPTRReplacement* BaseResolver::NAPTRCacheFactory::get(std::string
     }
   }
   return repl;
-}
-
-void BaseResolver::NAPTRCacheFactory::evict(std::string key, NAPTRReplacement* value)
-{
-  TRC_DEBUG("Evict NAPTR cache %s", key.c_str());
-  delete value;
 }
 
 bool BaseResolver::NAPTRCacheFactory::parse_regex_replace(const std::string& regex_replace,
@@ -717,10 +437,12 @@ BaseResolver::SRVCacheFactory::~SRVCacheFactory()
 {
 }
 
-BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string key, int& ttl, SAS::TrailId trail)
+std::shared_ptr<BaseResolver::SRVPriorityList> BaseResolver::SRVCacheFactory::get(std::string key,
+                                                                                  int& ttl,
+                                                                                  SAS::TrailId trail)
 {
   TRC_DEBUG("SRV cache factory called for %s", key.c_str());
-  SRVPriorityList* srv_list = NULL;
+  std::shared_ptr<BaseResolver::SRVPriorityList> srv_list = nullptr;
 
   DnsResult result = _dns_client->dns_query(key, ns_t_srv, trail);
 
@@ -728,7 +450,7 @@ BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string ke
   {
     // We have a result.
     TRC_DEBUG("SRV query returned %d records", result.records().size());
-    srv_list = new SRVPriorityList;
+    srv_list = std::make_shared<BaseResolver::SRVPriorityList>();
     ttl = result.ttl();
 
     // Sort the records on priority.
@@ -771,19 +493,13 @@ BaseResolver::SRVPriorityList* BaseResolver::SRVCacheFactory::get(std::string ke
   return srv_list;
 }
 
-void BaseResolver::SRVCacheFactory::evict(std::string key, SRVPriorityList* value)
-{
-  TRC_DEBUG("Evict SRV cache %s", key.c_str());
-  delete value;
-}
-
 bool BaseResolver::SRVCacheFactory::compare_srv_priority(DnsRRecord* r1,
                                                          DnsRRecord* r2)
 {
   return (((DnsSrvRecord*)r1)->priority() < ((DnsSrvRecord*)r2)->priority());
 }
 
-BaseResolver::Host::Host(int blacklist_ttl,int graylist_ttl) :
+BaseResolver::Host::Host(int blacklist_ttl, int graylist_ttl) :
   _being_probed(false)
 {
   time_t current_time = time(NULL);
@@ -856,7 +572,8 @@ void BaseResolver::Host::selected_for_probing(pthread_t user_id)
   }
 }
 
-BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai, time_t current_time)
+BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai,
+                                                   time_t current_time)
 {
   Host::State state;
   Hosts::iterator i = _hosts.find(ai);
@@ -944,17 +661,16 @@ void BaseResolver::select_for_probing(const AddrInfo& ai)
 // SAS logs are being taken, this code is called
 void BaseResolver::no_targets_resolved_logging(const std::string name,
                                                SAS::TrailId trail,
-                                               int allowed_host_state)
+                                               bool whitelisted_allowed,
+                                               bool blacklisted_allowed)
 {
-  if ((allowed_host_state == BaseResolver::WHITELISTED) ||
-      (allowed_host_state == BaseResolver::BLACKLISTED))
+  if (whitelisted_allowed != blacklisted_allowed)
   {
     // The search was restricted to either just blacklisted or just
     // whitelisted addresses - there were none with the specified state.
-    bool blacklisted = (allowed_host_state == BaseResolver::BLACKLISTED);
     SAS::Event event(trail, SASEvent::BASERESOLVE_NO_ALLOWED_RECORDS, 0);
     event.add_var_param(name);
-    event.add_static_param(blacklisted);
+    event.add_static_param(blacklisted_allowed);
     SAS::report_event(event);
   }
   else
@@ -964,6 +680,21 @@ void BaseResolver::no_targets_resolved_logging(const std::string name,
     event.add_var_param(name);
     SAS::report_event(event);
   }
+}
+
+void BaseResolver::dns_query(std::vector<std::string>& domains,
+                             int dnstype,
+                             std::vector<DnsResult>& results,
+                             SAS::TrailId trail)
+{
+  _dns_client->dns_query(domains, dnstype, results, trail);
+}
+
+std::shared_ptr<BaseResolver::SRVPriorityList> BaseResolver::get_srv_list(const std::string& srv_name,
+                                                                          int &ttl,
+                                                                          SAS::TrailId trail)
+{
+  return _srv_cache->get(srv_name, ttl, trail);
 }
 
 bool BaseAddrIterator::next(AddrInfo &target)
@@ -1000,7 +731,7 @@ std::vector<AddrInfo> SimpleAddrIterator::take(int num_requested_targets)
   return targets;
 }
 
-LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
+LazyAResolveIter::LazyAResolveIter(DnsResult& dns_result,
                                    BaseResolver* resolver,
                                    int port,
                                    int transport,
@@ -1034,7 +765,7 @@ LazyAddrIterator::LazyAddrIterator(DnsResult& dns_result,
   std::random_shuffle(_unused_results.begin(), _unused_results.end());
 }
 
-std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
+std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
 {
   // Initialise variables for allowed host states.
   const bool whitelisted_allowed = _allowed_host_state & BaseResolver::WHITELISTED;
@@ -1047,8 +778,6 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
   std::string graylisted_targets_str;
   std::string whitelisted_targets_str;
   std::string blacklisted_targets_str;
-  std::string found_whitelisted_str;
-  std::string found_blacklisted_str;
 
   // This lock must be held to safely call the host_state method of
   // BaseResolver.
@@ -1086,8 +815,14 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
   // Add whitelisted records to the vector of targets to return, and unhealthy
   // records to the unhealthy results vector. Targets should be added until the
-  // required number is reached, or the unused results are exhausted.
-  while ((_unused_results.size() > 0) && (targets.size() < (size_t)num_requested_targets))
+  // required number of targets is reached, or the unused results are exhausted.
+  // If only blacklisted targets are allowed to be returned, the first condition
+  // is instead until the required number of unhealthy results is reached.
+  while ((_unused_results.size() > 0) &&
+         ((whitelisted_allowed && (targets.size() < (size_t)num_requested_targets)) ||
+          (blacklisted_allowed &&
+           !whitelisted_allowed &&
+           (_unhealthy_results.size() < (size_t) num_requested_targets))))
   {
     AddrInfo result = _unused_results.back();
     _unused_results.pop_back();
@@ -1095,10 +830,8 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
 
     if (_resolver->host_state(result) == BaseResolver::Host::State::WHITE)
     {
-      // Address is whitelisted. Add it to the log string of addresses found.
-      // If we're allowed to return whitelisted targets, also add it to the
-      // targets vector.
-      found_whitelisted_str += target;
+      // Address is whitelisted. If we're allowed to return whitelisted
+      // targets, also add it to the targets vector.
 
       if (whitelisted_allowed)
       {
@@ -1114,12 +847,10 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
     }
     else
     {
-      // Address is blacklisted or graylisted. Add it to the log string of
-      // unhealthy addresses found. If we're allowed to return blacklisted
-      // targets, also add it to the unhealthy results vector, from which we'll
-      // pull in extra targets if we don't have enough whitelisted targets or
-      // if whitelisted targets aren't allowed.
-      found_blacklisted_str += target;
+      // Address is blacklisted or graylisted. If we're allowed to return
+      // blacklisted targets, also add it to the unhealthy results vector, from
+      // which we'll pull in extra targets if we don't have enough whitelisted
+      // targets or if whitelisted targets aren't allowed.
 
       if (blacklisted_allowed)
       {
@@ -1127,7 +858,6 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
         _unhealthy_results.push_back(result);
 
         // Update logging.
-        found_blacklisted_str += target;
         TRC_DEBUG("Found an unhealthy server, now have %ld unhealthy results",
                   _unhealthy_results.size());
       }
@@ -1156,23 +886,527 @@ std::vector<AddrInfo> LazyAddrIterator::take(int num_requested_targets)
   if (_trail != 0)
   {
     SAS::Event event(_trail, SASEvent::BASERESOLVE_A_RESULT_TARGET_SELECT, 0);
+    event.add_static_param(whitelisted_allowed);
+    event.add_static_param(blacklisted_allowed);
     event.add_var_param(_hostname);
     event.add_var_param(graylisted_targets_str);
-    event.add_var_param(found_whitelisted_str);
-    event.add_static_param(whitelisted_allowed);
     event.add_var_param(whitelisted_targets_str);
-    event.add_var_param(found_blacklisted_str);
-    event.add_static_param(blacklisted_allowed);
     event.add_var_param(blacklisted_targets_str);
     SAS::report_event(event);
 
     if (targets.empty() && _first_call)
     {
-      _resolver->no_targets_resolved_logging(_hostname, _trail, _allowed_host_state);
+      _resolver->no_targets_resolved_logging(_hostname,
+                                             _trail,
+                                             whitelisted_allowed,
+                                             blacklisted_allowed);
     }
   }
 
   _first_call = false;
 
   return targets;
+}
+
+LazySRVResolveIter::LazySRVResolveIter(BaseResolver* resolver,
+                                       int af,
+                                       int transport,
+                                       const std::string& srv_name,
+                                       SAS::TrailId trail,
+                                       int allowed_host_state) :
+  _resolver(resolver),
+  _af(af),
+  _transport(transport),
+  _srv_name(srv_name),
+  _ttl(0),
+  _trail(trail),
+  _search_for_gray(true),
+  _unprobed_gray_target(),
+  _gray_found(false),
+  _whitelisted_addresses_by_srv(),
+  _unhealthy_addresses_by_srv(),
+  _unhealthy_targets(),
+  _more_in_priority_level(false),
+  _finished_priority_level(true),
+  _current_srv(0),
+  _unhealthy_target_pos(0)
+{
+  // Initialise variables for allowed host states.
+  _whitelisted_allowed = allowed_host_state & BaseResolver::WHITELISTED;
+  _blacklisted_allowed = allowed_host_state & BaseResolver::BLACKLISTED;
+
+  // Finds and loads the relevant SRV priority list from the cache.  This
+  // returns a shared pointer, so the list will not be deleted until we have
+  // finished with it, but the Cache can still update the entry once the list
+  // has expired.
+  _srv_list = _resolver->get_srv_list(srv_name, _ttl, trail);
+
+  if (_srv_list != nullptr)
+  {
+    TRC_DEBUG("Found SRV records at %ld priority levels", _srv_list->size());
+
+    // prepare_priority_level will initially look at the highest priority level.
+    _priority_level_iter = _srv_list->begin();
+  }
+  else
+  {
+    TRC_DEBUG("No SRV records found");
+  }
+}
+
+std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
+{
+  // The vector of targets to be returned.
+  std::vector<AddrInfo> targets;
+
+  // Reserve sufficient space for targets that it will never need to be
+  // reallocated.
+  targets.reserve(num_requested_targets);
+
+  // Boolean to track whether unhealthy targets should be added. Is only set to
+  // true if both whitelisted and blacklisted targets were requested, and every
+  // whitelisted target has been returned, without reaching the number of
+  // requested targets.
+  bool add_unhealthy = false;
+
+  // These strings are used for logging, to store the servers we've found, and
+  // the servers that we're returning as targets.
+  std::string whitelisted_targets_str;
+  std::string unhealthy_targets_str;
+  std::string graylisted_targets_str;
+
+  // Tracks the number of targets left to be added.
+  int num_targets_to_find = num_requested_targets;
+
+  // Checks whether a list of SRV Records was found by DNS Resolution. If it
+  // wasn't, an empty vector will be returned.
+  if (_srv_list != nullptr)
+  {
+    while (num_targets_to_find > 0)
+    {
+      // _finished_priority_level can only be false at this point if the take
+      // method was previously called, and get_from_priority_level found the
+      // desired number of targets before it had finished searching its current
+      // priority level, and paused the search.
+      if (_finished_priority_level)
+      {
+        // Prepares the next priority level. If this returns false then all
+        // priority levels have already been searched for targets of the desired
+        // state.
+        if (!prepare_priority_level())
+        {
+          if (_whitelisted_allowed && _blacklisted_allowed)
+          {
+            // All whitelisted targets have been returned but not enough targets
+            // have been found, and both types of host state were requested, so
+            // unhealthy targets should be returned.
+            add_unhealthy = true;
+          }
+          break;
+        }
+      }
+
+      // If this is the first request, or the previous priority level has been
+      // finished, then both vectors of *_addresses_by_srv will be empty and
+      // get_from_priority_level will do nothing and return the same number of
+      // targets. Otherwise, this resumes the search of the current priority
+      // level from a previous call of take.
+      num_targets_to_find = get_from_priority_level(targets,
+                                                    num_targets_to_find,
+                                                    num_requested_targets,
+                                                    whitelisted_targets_str,
+                                                    unhealthy_targets_str);
+    }
+
+    if (add_unhealthy)
+    {
+      // This adds unhealthy targets until either no unhealthy targets are left,
+      // or the number of requested targets has been reached. If only whitelisted
+      // or blacklisted addresses were requested then _unhealthy_targets is empty,
+      // addresses of the desired host state were added straight to targets.
+      size_t to_copy = std::min((size_t) num_targets_to_find, _unhealthy_targets.size()-_unhealthy_target_pos);
+
+      TRC_VERBOSE("Adding %ld unhealthy servers", to_copy);
+
+      int max_unhealthy_index = to_copy + _unhealthy_target_pos;
+      // The for loop is initialised in the class constructor, as the for loop
+      // needs to be paused and resumed in subsequent calls to take, so that the
+      // same unhealthy targets are not returned several times.
+      for (; _unhealthy_target_pos < max_unhealthy_index; ++_unhealthy_target_pos)
+      {
+        targets.push_back(_unhealthy_targets[_unhealthy_target_pos]);
+        --num_targets_to_find;
+        TRC_DEBUG("Added an unhealthy server to targets, now have %ld of %d",
+                  targets.size(),
+                  num_requested_targets);
+        std::string unhealthy_name = "[" + _unhealthy_targets[_unhealthy_target_pos].address_and_port_to_string() + "]";
+        unhealthy_targets_str += unhealthy_name;
+      }
+    }
+
+    if (num_targets_to_find > 0)
+    {
+      TRC_DEBUG("Not enough addresses found of the desired host state. Returning %d out of %ld total requested", targets.size(), num_requested_targets);
+    }
+  }
+
+  if (_trail != 0)
+  {
+    SAS::Event event(_trail, SASEvent::BASERESOLVE_SRV_RESULT, 0);
+    event.add_static_param(_whitelisted_allowed);
+    event.add_static_param(_blacklisted_allowed);
+    event.add_var_param(_srv_name);
+    event.add_var_param(graylisted_targets_str);
+    event.add_var_param(whitelisted_targets_str);
+    event.add_var_param(unhealthy_targets_str);
+    SAS::report_event(event);
+
+    if (targets.empty())
+    {
+      _resolver->no_targets_resolved_logging(_srv_name, _trail, _whitelisted_allowed, _blacklisted_allowed);
+    }
+  }
+
+  return targets;
+}
+
+int LazySRVResolveIter::get_min_ttl()
+{
+  return _ttl;
+}
+
+bool LazySRVResolveIter::prepare_priority_level()
+{
+  if (_priority_level_iter != _srv_list->end())
+  {
+    TRC_VERBOSE("Processing %d SRVs with priority %d", _priority_level_iter->second.size(), _priority_level_iter->first);
+
+    // A new priority level is being prepared, so note that
+    // get_from_priority_level has not finished searching it.
+    _finished_priority_level = false;
+
+    // Clear the data member vectors that need to be reused for the new priority
+    // level
+    _whitelisted_addresses_by_srv.clear();
+    _unhealthy_addresses_by_srv.clear();
+
+    // As a new priority level is being prepared, resets the parameters used in
+    // the for loop of get_from_priority_level. _more_in_priority_level is
+    // initialised to false, and will be set to true once the for loop reaches
+    // an SRV which will have addresses left in the next run of the for loop.
+    _current_srv = 0;
+    _more_in_priority_level = false;
+
+    std::vector<const BaseResolver::SRV*> srvs;
+    srvs.reserve(_priority_level_iter->second.size());
+
+    // Build a cumulative weighted tree for this priority level.
+    WeightedSelector<BaseResolver::SRV> selector(_priority_level_iter->second);
+
+    // Select entries while there are any with non-zero weights.
+    while (selector.total_weight() > 0)
+    {
+      int ii = selector.select();
+      TRC_DEBUG("Selected SRV %s:%d, weight = %d",
+                _priority_level_iter->second[ii].target.c_str(),
+                _priority_level_iter->second[ii].port,
+                _priority_level_iter->second[ii].weight);
+      srvs.push_back(&_priority_level_iter->second[ii]);
+    }
+
+    // Do A/AAAA record look-ups for the selected SRV targets.
+    std::vector<std::string> a_targets;
+    std::vector<DnsResult> a_results;
+    a_targets.reserve(srvs.size());
+    a_results.reserve(srvs.size());
+
+    for (size_t ii = 0; ii < srvs.size(); ++ii)
+    {
+      a_targets.push_back(srvs[ii]->target);
+    }
+
+    TRC_VERBOSE("Do A record look-ups for %ld SRVs", a_targets.size());
+    _resolver->dns_query(a_targets,
+                         (_af == AF_INET) ? ns_t_a : ns_t_aaaa,
+                         a_results,
+                         _trail);
+
+    // Give each 2D vector an empty vector corresponding to each SRV record.
+    _whitelisted_addresses_by_srv.resize(srvs.size());
+    _unhealthy_addresses_by_srv.resize(srvs.size());
+
+    for (size_t ii = 0; ii < srvs.size(); ++ii)
+    {
+      DnsResult& a_result = a_results[ii];
+      TRC_DEBUG("SRV %s:%d returned %ld IP addresses",
+                srvs[ii]->target.c_str(),
+                srvs[ii]->port,
+                a_result.records().size());
+      std::vector<AddrInfo> &whitelisted_addresses = _whitelisted_addresses_by_srv[ii];
+      std::vector<AddrInfo> &unhealthy_addresses = _unhealthy_addresses_by_srv[ii];
+
+      // This lock must be held to safely call the host_state method of
+      // BaseResolver.
+      pthread_mutex_lock(&(_resolver->_hosts_lock));
+
+      // Creates a template address info object. Each iteration of the for loop
+      // adds a copy with the correct address to a *_addresses vector.
+      AddrInfo ai;
+      ai.transport = _transport;
+      ai.port = srvs[ii]->port;
+      ai.weight = srvs[ii]->weight;
+      ai.priority = srvs[ii]->priority;
+
+      for (size_t jj = 0; jj < a_result.records().size(); ++jj)
+      {
+        ai.address = _resolver->to_ip46(a_result.records()[jj]);
+
+        BaseResolver::Host::State addr_state = _resolver->host_state(ai);
+        std::string target = "[" + ai.address_and_port_to_string() + "] ";
+
+        // If whitelisted targets are requested, the first unprobed graylisted
+        // target reached will be selected for probing and put at the start of
+        // the list of targets, it is treated like it is whitelisted. However,
+        // if only blacklisted targets are requested then this function will not
+        // search for a graylisted target to probe, all graylisted addresses
+        // will be treated as though they were blacklisted.
+        if ((addr_state == BaseResolver::Host::State::GRAY_NOT_PROBING) &&
+            _search_for_gray &&
+            _whitelisted_allowed)
+        {
+          // First graylisted address reached which isn't already being probed.
+          // Since the graylisted address must be tested, take must add it as
+          // the first target. This takes precedence over the weighting since
+          // only a small proportion of requests are used for probing, so the
+          // effect on request distribution is neglible.
+
+          // Only probe one graylisted address with this request.
+          _search_for_gray = false;
+
+          // Tells take that a graylisted address has been found and should be
+          // added to targets.
+          _gray_found = true;
+
+          // Stores the address in _unprobed_gray_target, so
+          // get_from_priority_level can access it.
+          _unprobed_gray_target = ai;
+        }
+        else if (addr_state == BaseResolver::Host::State::WHITE)
+        {
+          // Address is whitelisted.  If we're allowed to return whitelisted
+          // targets, also add it to the whitelisted_addresses vector, from
+          // which we'll select targets.
+          if (_whitelisted_allowed)
+          {
+            whitelisted_addresses.push_back(ai);
+          }
+        }
+        else
+        {
+          // Address is blacklisted or graylisted and not being probed by this
+          // request.  If we're allowed to return blacklisted targets, add it to
+          // the unhealthy_addresses vector, from which we'll pull in extra
+          // targets if we don't have enough whitelisted addresses to form
+          // targets or to find our targets from if whitelisted targets aren't
+          // allowed.
+          if (_blacklisted_allowed)
+          {
+            unhealthy_addresses.push_back(ai);
+          }
+        }
+
+        // Take the smallest ttl returned so far.
+        _ttl = std::min(_ttl, a_result.ttl());
+      }
+
+      pthread_mutex_unlock(&(_resolver->_hosts_lock));
+
+      // Randomize the order of both vectors.
+      std::random_shuffle(whitelisted_addresses.begin(), whitelisted_addresses.end());
+      std::random_shuffle(unhealthy_addresses.begin(), unhealthy_addresses.end());
+    }
+
+    // The next time prepare_priority_level is called it will prepare the next
+    // highest priority level.
+    ++_priority_level_iter;
+    return true;
+  }
+  else
+  {
+    TRC_DEBUG("All priority levels have been prepared and searched for targets of the desired host state.");
+    // Returns false to show that there was not a valid priority level to
+    // prepare.
+    return false;
+  }
+}
+
+int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
+                                                int num_targets_to_find,
+                                                const int num_requested_targets,
+                                                std::string& whitelisted_targets_str,
+                                                std::string& unhealthy_targets_str)
+{
+  // An AddrInfo object to temporarily store the current AddrInfo object being
+  // looked at from a *_addresses_by_srv vector.
+  AddrInfo ai;
+
+  if (_gray_found && (num_targets_to_find > 0))
+  {
+    // Prepare priority level found a graylisted target to probe, and the
+    // iterator has not yet returned a target. So return a graylisted target for
+    // probing. It is guaranteed that at most one graylisted target is returned
+    // for probing by the iterator, and that this will always be the first
+    // target ever returned by the iterator.
+    targets.push_back(_unprobed_gray_target);
+    _resolver->select_for_probing(_unprobed_gray_target);
+    _gray_found = false;
+    --num_targets_to_find;
+    TRC_DEBUG("Added a graylisted server for probing to targets, now have 1 of %d", num_requested_targets);
+  }
+
+  // Select the appropriate number of targets by looping through the SRV records
+  // taking one address each time until either we have enough for the number of
+  // retries allowed, or we have no more addresses.
+  //
+  // This takes one target from each SRV Record at this priority level and then
+  // repeats, even if one SRV Record contains multiple addresses, so if the
+  // first target fails the weighting will not be strictly obeyed. This is
+  // desirable because if one address from a SRV Record fails an address from
+  // another SRV Record is less likely to fail, and it is more important to
+  // ensure that a request succeeds than that the load is well balanced.
+  //
+  // If this function gets the required number of targets before looking at
+  // every address in the priority level, the algorithm will pause and resume
+  // next time this function is called. This means that a do while loop is
+  // needed, as the algorithm may have been halfway through an iteration of the
+  // for loop, so there may have been addresses in the second half of SRVs but
+  // _more_in_priority_level would be false when the function was next called.
+  do
+  {
+    // This lock must be held to safely call the host_state method of
+    // BaseResolver.
+    pthread_mutex_lock(&(_resolver->_hosts_lock));
+
+    // If we're at the end of the SRV Records, start from the beginning. This
+    // lets get_from_priority_level pause the for loop if it finds enough
+    // targets before reaching the end of the SRV Records and resume when it is
+    // next called.
+    if ((size_t) _current_srv == _whitelisted_addresses_by_srv.size())
+    {
+      _current_srv = 0;
+      _more_in_priority_level = false;
+    }
+
+    for (;
+         ((size_t)_current_srv < _whitelisted_addresses_by_srv.size()) && (num_targets_to_find > 0);
+         ++_current_srv)
+    {
+      std::vector<AddrInfo> &whitelisted_addresses = _whitelisted_addresses_by_srv[_current_srv];
+      std::vector<AddrInfo> &unhealthy_addresses = _unhealthy_addresses_by_srv[_current_srv];
+
+      if (!whitelisted_addresses.empty() && _whitelisted_allowed)
+      {
+        ai = whitelisted_addresses.back();
+        whitelisted_addresses.pop_back();
+
+        if (_resolver->host_state(ai) == BaseResolver::Host::State::WHITE)
+        {
+          // Verifies that the address is still whitelisted. It may have been a
+          // while since the priority level was prepared, so it is possible that
+          // Clearwater since moved the address off of the whitelist.
+          targets.push_back(ai);
+          --num_targets_to_find;
+          std::string target = "[" + ai.address_and_port_to_string() + "] ";
+          whitelisted_targets_str += target;
+          TRC_DEBUG("Added a whitelisted server to targets, now have %ld of %d",
+                    targets.size(),
+                    num_requested_targets);
+        }
+        else if (_blacklisted_allowed)
+        {
+          unhealthy_addresses.push_back(ai);
+          TRC_DEBUG("%s has moved from the whitelist to the blacklist since priority level %d was prepared",
+                    ai.to_string().c_str(),
+                    _priority_level_iter->first);
+        }
+      }
+      else if (!_whitelisted_allowed && _blacklisted_allowed &&
+               !unhealthy_addresses.empty())
+      {
+        // If only blacklisted targets were requested then unhealthy addresses
+        // should be added to targets instead of whitelisted ones.
+        ai = unhealthy_addresses.back();
+        unhealthy_addresses.pop_back();
+        if (_resolver->host_state(ai) != BaseResolver::Host::State::WHITE)
+        {
+          // Verifies that the address is still not whitelisted. It may have been a
+          // while since the priority level was prepared, so it is possible that
+          // Clearwater since moved the address to the whitelist.
+          targets.push_back(ai);
+          --num_targets_to_find;
+          std::string target = "[" + ai.address_and_port_to_string() + "] ";
+          unhealthy_targets_str += target;
+
+          // num_requested_targets was passed to this function solely for logging
+          // purposes.
+          TRC_DEBUG("Only blacklisted targets were requested, so added a blacklisted server to targets, now have %ld of %d",
+                    targets.size(),
+                    num_requested_targets);
+        }
+        else
+        {
+          TRC_DEBUG("%s has moved from the blacklist or graylist to the whitelist since priority level %d was prepared",
+                    ai.to_string().c_str(),
+                    _priority_level_iter->first);
+        }
+      }
+
+      if (!unhealthy_addresses.empty() && _blacklisted_allowed && _whitelisted_allowed)
+      {
+        // If all host states for addresses were requested, a vector of
+        // unhealthy targets is compiled, to be used for additional targets if
+        // there are insufficiently many whitelisted addresses over all priority
+        // levels for take to return.
+        ai = unhealthy_addresses.back();
+        unhealthy_addresses.pop_back();
+        _unhealthy_targets.push_back(ai);
+      }
+
+      _more_in_priority_level = _more_in_priority_level ||
+                                ((!whitelisted_addresses.empty()) ||
+                                 (!unhealthy_addresses.empty()));
+    }
+
+    // host_state no longer needs to be called, so this lock can be
+    // released.
+    pthread_mutex_unlock(&(_resolver->_hosts_lock));
+    TRC_DEBUG("@@@ END OF WHILE! %d %d", num_targets_to_find, (int) _more_in_priority_level);
+  }
+  while ((num_targets_to_find > 0) && (_more_in_priority_level));
+
+  if (targets.size() > 0)
+  {
+    // If a graylisted target is probed by this request, it must be the
+    // first target to guarantee that it is probed. It is important to
+    // respect priority levels, so if targets have been found at a higher
+    // priority level this request should not search for gray targets to
+    // probe.
+    _search_for_gray=false;
+  }
+
+  // If more targets are needed, but none are left in this priority level then
+  // tells the take method to prepare the next priority level.
+  //
+  // There is an edge case where the last address in this priority level was
+  // selected as a target and no more targets need to be found, in which case
+  // _finished_priority_level will remain false. But this does not matter, as
+  // the next time take is called it will call get_from_priority_level, which
+  // will do nothing apart from setting _finished_priority_level to true, and
+  // then the next priority level will be prepared.
+  if ((num_targets_to_find > 0) && !_more_in_priority_level)
+  {
+    _finished_priority_level = true;
+  }
+
+  return num_targets_to_find;
 }
