@@ -1081,6 +1081,10 @@ bool LazySRVResolveIter::prepare_priority_level()
   {
     TRC_VERBOSE("Processing %d SRVs with priority %d", _priority_level_iter->second.size(), _priority_level_iter->first);
 
+    // A new priority level is being prepared, so note that
+    // get_from_priority_level has not finished searching it.
+    _finished_priority_level = false;
+
     // Clear the data member vectors that need to be reused for the new priority
     // level
     _whitelisted_addresses_by_srv.clear();
@@ -1376,7 +1380,7 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
     // host_state no longer needs to be called, so this lock can be
     // released.
     pthread_mutex_unlock(&(_resolver->_hosts_lock));
-    TRC_DEBUG("END OF WHILE! %d %d", num_targets_to_find, (int) _more_in_priority_level);
+    TRC_DEBUG("@@@ END OF WHILE! %d %d", num_targets_to_find, (int) _more_in_priority_level);
   }
   while ((num_targets_to_find > 0) && (_more_in_priority_level));
 
@@ -1390,7 +1394,16 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
     _search_for_gray=false;
   }
 
-  if (!_more_in_priority_level)
+  // If more targets are needed, but none are left in this priority level then
+  // tells the take method to prepare the next priority level.
+  //
+  // There is an edge case where the last address in this priority level was
+  // selected as a target and no more targets need to be found, in which case
+  // _finished_priority_level will remain false. But this does not matter, as
+  // the next time take is called it will call get_from_priority_level, which
+  // will do nothing apart from setting _finished_priority_level to true, and
+  // then the next priority level will be prepared.
+  if ((num_targets_to_find > 0) && !_more_in_priority_level)
   {
     _finished_priority_level = true;
   }
