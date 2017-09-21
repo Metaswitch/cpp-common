@@ -298,18 +298,19 @@ protected:
                                    bool whitelisted_allowed,
                                    bool blacklisted_allowed);
 
-  /// Helper function to allow LazySRVResovleIter to call A Record DNS
-  /// Resolution when preparing a priority level
+  /// Allows DNS Resolution to be called with a pointer to the Base Resolver.
+  /// This just returns the (possibly cached) result of a DNS Query, so any
+  /// post-processing of the BaseResolver is returned.
   void dns_query(std::vector<std::string>& domains,
-                               int dnstype,
-                               std::vector<DnsResult>& results,
-                               SAS::TrailId trail);
+                 int dnstype,
+                 std::vector<DnsResult>& results,
+                 SAS::TrailId trail);
 
-  /// Helper function for LazySRVResolveIter. Returns a pointer to an SRV
+  /// Helper function to perform SRV Record DNS Resolution via the SRV Cache and returns a pointer to an SRV
   /// Priority List for the given SRV name.
   std::shared_ptr<SRVPriorityList> get_srv_list(const std::string& srv_name,
-                                                              int &ttl,
-                                                              SAS::TrailId trail);
+                                                int &ttl,
+                                                SAS::TrailId trail);
 
   int _default_blacklist_duration;
   int _default_graylist_duration;
@@ -355,7 +356,7 @@ private:
 };
 
 // AddrInfo iterator that uses the blacklist system of a BaseResolver to lazily
-// select targets from A Record Resolution.
+// select targets using A Record Resolution.
 class LazyAResolveIter : public BaseAddrIterator
 {
 public:
@@ -396,7 +397,7 @@ private:
 };
 
 // AddrInfo iterator that uses the blacklist system of a BaseResolver to lazily
-// select targets from SRV Record Resolution.
+// select targets using SRV Record Resolution.
 class LazySRVResolveIter : public BaseAddrIterator
 {
 public:
@@ -429,7 +430,7 @@ private:
   /// _search_for_gray is true, then the entire priority level will be searched
   /// for an unprobed graylisted address. If one is found then _gray_found will
   /// be set to true and it will be stored in _unprobed_gray_target and not in
-  /// either 2D vector.
+  /// the *_addresses_by_srv vectors.
   ///
   /// Returns true if the priority level was prepared successfully, false if
   /// there were no priority levels left to prepare
@@ -443,8 +444,8 @@ private:
   /// adds black and gray addresses to targets and nothing to
   /// _unhealthy_targets.
   ///
-  /// Two strings are passed in to log the whitelisted and unhealthy targets
-  /// found, so that take can log a SAS event with them.
+  /// Two strings are passed out to log the whitelisted and unhealthy targets
+  /// found, so that the take method can log a SAS event with them.
   ///
   /// Returns the number of targets that are still to be found, or 0 if
   /// num_targets_to_find were all found. If all targets were found, the search
@@ -466,13 +467,12 @@ private:
 
   int _af;
   int _transport;
+  std::string _srv_name;
 
   // The smallest time to live found so far, from all DNS Resolutions. Updated
   // by prepare_priority_level if the DNS resolution finds a smaller time to
   // live.
   int _ttl;
-
-  std::string _srv_name;
 
   // Pointer to a map from priority levels to a vector of SRVs for that priority
   // level.
@@ -499,12 +499,8 @@ private:
   // Unhealthy is used as a catch-all term for blacklisted and graylisted
   // addresses, since graylisted addresses which are not being probed by this
   // request are treated the same as blacklisted addresses.
-  std::vector<std::vector<IP46Address> > _whitelisted_addresses_by_srv;
-  std::vector<std::vector<IP46Address> > _unhealthy_addresses_by_srv;
-
-  // Where prepare_priority_level stores the SRVs from the current priority
-  // level after putting them in a random order with a weighted selector.
-  std::vector<const BaseResolver::SRV*> _srvs;
+  std::vector<std::vector<AddrInfo> > _whitelisted_addresses_by_srv;
+  std::vector<std::vector<AddrInfo> > _unhealthy_addresses_by_srv;
 
   // Vector where get_from_priority_level stores the black or graylisted targets
   // it finds when both whitelisted and blacklisted targets are desired.  Uses
@@ -513,18 +509,29 @@ private:
   // requested then this vector is left empty.
   std::vector<AddrInfo> _unhealthy_targets;
 
-  // The index of the SRV get_from_priority_level is currently looking at, so
-  // that if the number of targets required is found before the entire priority
-  // level is searched, get_from_priority_level can pause its search of the SRV
-  // Records and resume from the same place if take is called again.
-  int _current_srv;
-
   // Boolean to track whether there's any addresses left in the current priority
   // level. Initialised to false at the start and whenever a new priority level
   // is prepared, and is then set to true once an SRV is found which will
   // have addresses left the next time get_from_priority_level scans through
   // each SRV at the current priority level.
   bool _more_in_priority_level;
+
+  // Boolean to track whether every address in the current priority level, ie.
+  // the one last prepared, has been looked at by get_from_priority_level. If it
+  // is true and more targets are needed, the take method will call
+  // prepare_priority_level. Initialised to true, since before
+  // prepare_priority_level is ever called there is no current priority level.
+  bool _finished_priority_level;
+
+  // The following 3 data members track the current position in various vectors
+  // and maps of the iterator, allowing the lazy iterator to pause algorithms
+  // once enough targets have been found, and resume the next time it's called.
+
+  // The index of the SRV get_from_priority_level is currently looking at, so
+  // that if the number of targets required is found before the entire priority
+  // level is searched, get_from_priority_level can pause its search of the SRV
+  // Records and resume from the same place if take is called again.
+  int _current_srv;
 
   // The index of the unhealthy target to return next. Ensures that in
   // subsequent calls to take the same unhealthy target is not returned twice.

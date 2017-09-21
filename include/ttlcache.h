@@ -32,6 +32,10 @@ public:
 /// on cache misses.  The cache is thread-safe and guarantees that multiple
 /// concurrent calls to get for the same key will only result in a single call
 /// to the factory.
+///
+/// When the destructor for the class used for Value is called, it must free all
+/// resources associated with that Value object, since that object is only
+/// accessed by shared_ptr's.
 template <class K, class V>
 class TTLCache
 {
@@ -52,13 +56,14 @@ class TTLCache
     enum {PENDING, COMPLETE} state;
     pthread_mutex_t lock;
     ExpiryIterator expiry_i;
-    std::shared_ptr<V> data;
+    std::shared_ptr<V> data_ptr;
   };
 
   typedef std::map<K, Entry> KeyMap;
   typedef typename KeyMap::iterator KeyMapIterator;
 
 public:
+  /// factory is assumed to not be null.
   TTLCache(CacheFactory<K, V>* factory) :
     _factory(factory),
     _lock(PTHREAD_MUTEX_INITIALIZER),
@@ -84,43 +89,34 @@ public:
 
     if (i == _cache.end())
     {
-      if (_factory != NULL)
-      {
-        // The entry is not in the cache, so create a placeholder.
-        TRC_DEBUG("Entry not in cache, so create new entry");
-        Entry& entry = _cache[key];
-        pthread_mutex_init(&entry.lock, NULL);
-        entry.state = Entry::PENDING;
-        entry.expiry_i = _expiry_list.end();
-        pthread_mutex_lock(&entry.lock);
+      // The entry is not in the cache, so create a placeholder.
+      TRC_DEBUG("Entry not in cache, so create new entry");
+      Entry& entry = _cache[key];
+      pthread_mutex_init(&entry.lock, NULL);
+      entry.state = Entry::PENDING;
+      entry.expiry_i = _expiry_list.end();
+      pthread_mutex_lock(&entry.lock);
 
-        // Release the global lock and invoke the factory to populate the
-        // cache data.
-        pthread_mutex_unlock(&_lock);
-        entry.data = _factory->get(key, ttl, trail);
+      // Release the global lock and invoke the factory to populate the
+      // cache data.
+      pthread_mutex_unlock(&_lock);
+      entry.data_ptr = _factory->get(key, ttl, trail);
 
-        // Cache data should now be populated, so get the global lock again,
-        // and mark the entry as complete.
-        pthread_mutex_lock(&_lock);
-        entry.state = Entry::COMPLETE;
+      // Cache data should now be populated, so get the global lock again,
+      // and mark the entry as complete.
+      pthread_mutex_lock(&_lock);
+      entry.state = Entry::COMPLETE;
 
-        // Add the entry to the expiry list.
-        TRC_DEBUG("Adding entry to expiry list, TTL=%d, expiry time = %d", ttl, ttl + time(NULL));
-        entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
+      // Add the entry to the expiry list.
+      TRC_DEBUG("Adding entry to expiry list, TTL=%d, expiry time = %d", ttl, ttl + time(NULL));
+      entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
 
-        // Unlock the entry, so other threads can read it.
-        pthread_mutex_unlock(&entry.lock);
+      // Unlock the entry, so other threads can read it.
+      pthread_mutex_unlock(&entry.lock);
 
-        pthread_mutex_unlock(&_lock);
+      pthread_mutex_unlock(&_lock);
 
-        return entry.data;
-      }
-      else
-      {
-        // No entry in the cache, and no factory, so just return an empty value.
-        pthread_mutex_unlock(&_lock);
-        return std::make_shared<V>();
-      }
+      return entry.data_ptr;
     }
     else
     {
@@ -142,7 +138,7 @@ public:
         pthread_mutex_unlock(&entry.lock);
       }
 
-      return entry.data;
+      return entry.data_ptr;
     }
   }
 
