@@ -52,11 +52,6 @@ protected:
   // current view.
   std::string _options;
 
-  // The time to wait before timing out a connection to memcached.
-  // (This is only used during normal running - at start-of-day we use
-  // a fixed 10ms time, to start up as quickly as possible).
-  unsigned int _max_connect_latency_ms;
-
   // The maximum expiration delta that memcached expects.  Any expiration
   // value larger than this is assumed to be an absolute rather than relative
   // value.  This matches the REALTIME_MAXDELTA constant defined by memcached.
@@ -77,8 +72,7 @@ protected:
   // Constructor. This is protected to prevent the BaseMemcachedStore from being
   // instantiated directly.
   BaseMemcachedStore(bool binary,
-                     BaseCommunicationMonitor* comm_monitor,
-                     bool remote_store);
+                     BaseCommunicationMonitor* comm_monitor);
 
   // Perform a get request to a single replica.
   memcached_return_t get_from_replica(memcached_st* replica,
@@ -144,12 +138,29 @@ public:
                          int expiry,
                          SAS::TrailId trail = 0);
 
+  /// Sets the data for the specified table and key without performing CAS
+  Store::Status set_data_without_cas(const std::string& table,
+                                     const std::string& key,
+                                     const std::string& data,
+                                     int expiry,
+                                     SAS::TrailId trail = 0);
+
   /// Deletes the data for the specified table and key.
   Store::Status delete_data(const std::string& table,
                             const std::string& key,
                             SAS::TrailId trail = 0);
 
 protected:
+  typedef std::function<memcached_return_t(ConnectionHandle<memcached_st*>&)> memcached_func;
+  typedef std::function<memcached_return_t(ConnectionHandle<memcached_st*>&, time_t)> memcached_store_func;
+
+  // Set some data with the provided method
+  Store::Status set_data(const std::string& fqkey,
+                         const std::string& data,
+                         int expiry,
+                         SAS::TrailId trail,
+                         memcached_store_func f);
+
   // The domain name for the memcached proxies.
   std::string _target_domain;
 
@@ -201,7 +212,7 @@ protected:
   memcached_return_t iterate_through_targets(
     std::vector<AddrInfo>& targets,
     SAS::TrailId trail,
-    std::function<memcached_return_t(ConnectionHandle<memcached_st*>&)> fn);
+    memcached_func fn);
 };
 
 #endif

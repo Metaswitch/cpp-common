@@ -153,7 +153,14 @@ void cwtest_completely_control_time(bool start_of_epoch)
     }
   }
 
-  abs_time = real_time(NULL);
+  if (start_of_epoch)
+  {
+    abs_time = 0L;
+  }
+  else
+  {
+    abs_time = real_time(NULL);
+  }
 
   pthread_mutex_unlock(&time_lock);
 }

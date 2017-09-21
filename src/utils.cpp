@@ -202,6 +202,54 @@ std::string Utils::xml_escape(const std::string& s)
   return r;
 }
 
+std::string Utils::strip_uri_scheme(const std::string& uri)
+{
+  std::string s(uri);
+  size_t colon = s.find(':');
+
+  if (colon != std::string::npos)
+  {
+    s.erase(0, colon + 1);
+  }
+
+  return s;
+}
+
+std::string Utils::remove_visual_separators(const std::string& number)
+{
+  static const boost::regex CHARS_TO_STRIP = boost::regex("[.)(-]");
+  return boost::regex_replace(number, CHARS_TO_STRIP, std::string(""));
+}
+
+bool Utils::is_user_numeric(const std::string& user)
+{
+  return is_user_numeric(user.c_str(), user.length());
+}
+
+bool Utils::is_user_numeric(const char* user, size_t user_len)
+{
+  for (size_t i = 0; i < user_len; i++)
+  {
+    if (((user[i] >= '0') &&
+         (user[i] <= '9')) ||
+        (user[i] == '+') ||
+        (user[i] == '-') ||
+        (user[i] == '.') ||
+        (user[i] == '(') ||
+        (user[i] == ')') ||
+        (user[i] == '[') ||
+        (user[i] == ']'))
+    {
+      continue;
+    }
+    else
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 // LCOV_EXCL_START - This function is tested in Homestead's realmmanager_test.cpp
 std::string Utils::ip_addr_to_arpa(IP46Address ip_addr)
@@ -360,6 +408,35 @@ bool Utils::split_host_port(const std::string& host_port,
   }
 
   return true;
+}
+
+/// Parses a target as if it was an IPv4 or IPv6 address and returns the
+/// status of the parse.
+bool Utils::parse_ip_target(const std::string& target, IP46Address& address)
+{
+  // Assume the parse fails.
+  TRC_DEBUG("Attempt to parse %s as IP address", target.c_str());
+  bool rc = false;
+
+  // Strip start and end white-space, and any brackets if this is an IPv6
+  // address
+  std::string ip_target = Utils::remove_brackets_from_ip(target);
+  Utils::trim(ip_target);
+
+  if (inet_pton(AF_INET6, ip_target.c_str(), &address.addr.ipv6) == 1)
+  {
+    // Parsed the address as a valid IPv6 address.
+    address.af = AF_INET6;
+    rc = true;
+  }
+  else if (inet_pton(AF_INET, ip_target.c_str(), &address.addr.ipv4) == 1)
+  {
+    // Parsed the address as a valid IPv4 address.
+    address.af = AF_INET;
+    rc = true;
+  }
+
+  return rc;
 }
 
 bool Utils::overflow_less_than(uint32_t a, uint32_t b)
@@ -745,4 +822,11 @@ void Utils::calculate_diameter_timeout(int target_latency_us,
   // that the former is expressed in milliseconds and the latter in
   // microseconds, hence division by 500 (i.e. multiplication by 2/1000).
   diameter_timeout_ms = std::ceil(target_latency_us/500);
+}
+
+// Check whether an element is in a vector
+bool Utils::in_vector(const std::string& element,
+               const std::vector<std::string>& vec)
+{
+  return std::find(vec.begin(), vec.end(), element) != vec.end();
 }

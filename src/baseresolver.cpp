@@ -218,35 +218,6 @@ void BaseResolver::blacklist(const AddrInfo& ai,
   pthread_mutex_unlock(&_hosts_lock);
 }
 
-/// Parses a target as if it was an IPv4 or IPv6 address and returns the
-/// status of the parse.
-bool BaseResolver::parse_ip_target(const std::string& target, IP46Address& address)
-{
-  // Assume the parse fails.
-  TRC_DEBUG("Attempt to parse %s as IP address", target.c_str());
-  bool rc = false;
-
-  // Strip start and end white-space, and any brackets if this is an IPv6
-  // address
-  std::string ip_target = Utils::remove_brackets_from_ip(target);
-  Utils::trim(ip_target);
-
-  if (inet_pton(AF_INET6, ip_target.c_str(), &address.addr.ipv6) == 1)
-  {
-    // Parsed the address as a valid IPv6 address.
-    address.af = AF_INET6;
-    rc = true;
-  }
-  else if (inet_pton(AF_INET, ip_target.c_str(), &address.addr.ipv4) == 1)
-  {
-    // Parsed the address as a valid IPv4 address.
-    address.af = AF_INET;
-    rc = true;
-  }
-
-  return rc;
-}
-
 BaseResolver::NAPTRCacheFactory::NAPTRCacheFactory(const std::map<std::string, int>& services,
                                                    int default_ttl,
                                                    DnsCachedResolver* dns_client) :
@@ -767,6 +738,11 @@ LazyAResolveIter::LazyAResolveIter(DnsResult& dns_result,
 
 std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
 {
+  TRC_DEBUG("Attempting to get %d targets for host:%s. allowed_host_state = %d",
+            num_requested_targets,
+            _hostname.c_str(),
+            _allowed_host_state);
+
   // Initialise variables for allowed host states.
   const bool whitelisted_allowed = _allowed_host_state & BaseResolver::WHITELISTED;
   const bool blacklisted_allowed = _allowed_host_state & BaseResolver::BLACKLISTED;

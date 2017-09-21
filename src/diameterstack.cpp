@@ -808,9 +808,15 @@ bool Stack::add(Peer* peer)
   free(info.config.pic_realm);
   while (!FD_IS_LIST_EMPTY(&info.pi_endpoints))
   {
-    struct fd_list * li = info.pi_endpoints.next;
+    // scan-build currently detects this loop as double freeing memory, as it
+    // doesn't recognise that the value of li changes each loop iteration.
+    // Excluding from analysis while this bug is present
+    // (https://bugs.llvm.org/show_bug.cgi?id=18222).
+    #ifndef __clang_analyzer__
+    struct fd_list* li = info.pi_endpoints.next;
     fd_list_unlink(li);
     free(li);
+    #endif
   }
 
   if (rc != 0)

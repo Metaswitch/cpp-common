@@ -66,7 +66,9 @@ public:
              BaseCommunicationMonitor* comm_monitor,
              bool should_omit_body = false,
              bool remote_connection = false,
-             long timeout_ms = -1);
+             long timeout_ms = -1,
+             bool log_display_address = false,
+             std::string server_display_address = "");
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
@@ -77,16 +79,25 @@ public:
 
   /// Sends a HTTP GET request to _host with the specified parameters
   ///
-  /// @param url            Full URL to request - includes http(s)?://
-  /// @param headers        Location to store the header part of the retrieved
-  ///                       data
-  /// @param response       Location to store retrieved data
-  /// @param username       Username to assert if assertUser is true, else
-  ///                       ignored
-  /// @param headers_to_add Extra headers to add to the request
-  /// @param trail          SAS trail to use
+  /// @param url                Full URL to request - includes http(s)?://
+  /// @param headers            Location to store the header part of the retrieved
+  ///                           data
+  /// @param response           Location to store retrieved data
+  /// @param username           Username to assert if assertUser is true, else
+  ///                           ignored
+  /// @param headers_to_add     Extra headers to add to the request
+  /// @param trail              SAS trail to use
+  /// @param allowed_host_state what lists to resolve hosts from, where we
+  ///                           can take whitelisted, blacklisted, or all results
   ///
-  /// @returns              HTTP code representing outcome of request
+  /// @returns                  HTTP code representing outcome of request
+  virtual long send_get(const std::string& url,
+                        std::map<std::string, std::string>& headers,
+                        std::string& response,
+                        const std::string& username,
+                        std::vector<std::string> headers_to_add,
+                        SAS::TrailId trail,
+                        int allowed_host_state);
   virtual long send_get(const std::string& url,
                         std::map<std::string, std::string>& headers,
                         std::string& response,
@@ -109,16 +120,25 @@ public:
 
   /// Sends a HTTP DELETE request to _host with the specified parameters
   ///
-  /// @param url      Full URL to request - includes http(s)?://
-  /// @param headers  Location to store the header part of the retrieved
-  ///                 data
-  /// @param response Location to store retrieved data
-  /// @param trail    SAS trail to use
-  /// @param body     Body to send on the request
-  /// @param username Username to assert if assertUser is true, else
-  ///                 ignored
+  /// @param url                Full URL to request - includes http(s)?://
+  /// @param headers            Location to store the header part of the retrieved
+  ///                           data
+  /// @param response           Location to store retrieved data
+  /// @param trail              SAS trail to use
+  /// @param body               Body to send on the request
+  /// @param username           Username to assert if assertUser is true, else
+  ///                           ignored
+  /// @param allowed_host_state what lists to resolve hosts from, where we
+  ///                           can take whitelisted, blacklisted, or all results
   ///
-  /// @returns        HTTP code representing outcome of request
+  /// @returns                   HTTP code representing outcome of request
+  virtual long send_delete(const std::string& url,
+                           std::map<std::string, std::string>& headers,
+                           std::string& response,
+                           SAS::TrailId trail,
+                           const std::string& body,
+                           const std::string& username,
+                           int allowed_host_state);
   virtual long send_delete(const std::string& url,
                            std::map<std::string, std::string>& headers,
                            std::string& response,
@@ -135,17 +155,27 @@ public:
 
   /// Sends a HTTP PUT request to _host with the specified parameters
   ///
-  /// @param url               Full URL to request - includes http(s)?://
-  /// @param headers           Location to store the header part of the retrieved
-  ///                          data
-  /// @param response          Location to store retrieved data
-  /// @param body              Body to send on the request
-  /// @param extra_req_headers Extra headers to add to the request
-  /// @param trail             SAS trail to use
-  /// @param username          Username to assert if assertUser is true, else
-  ///                          ignored
+  /// @param url                Full URL to request - includes http(s)?://
+  /// @param headers            Location to store the header part of the retrieved
+  ///                           data
+  /// @param response           Location to store retrieved data
+  /// @param body               Body to send on the request
+  /// @param extra_req_headers  Extra headers to add to the request
+  /// @param trail              SAS trail to use
+  /// @param username           Username to assert if assertUser is true, else
+  ///                           ignored
+  /// @param allowed_host_state what lists to resolve hosts from, where we
+  ///                           can take whitelisted, blacklisted, or all results
   ///
-  /// @returns                 HTTP code representing outcome of request
+  /// @returns                  HTTP code representing outcome of request
+  virtual long send_put(const std::string& url,
+                        std::map<std::string, std::string>& headers,
+                        std::string& response,
+                        const std::string& body,
+                        const std::vector<std::string>& extra_req_headers,
+                        SAS::TrailId trail,
+                        const std::string& username,
+                        int allowed_host_state);
   virtual long send_put(const std::string& url,
                         std::map<std::string, std::string>& headers,
                         std::string& response,
@@ -170,16 +200,25 @@ public:
 
   /// Sends a HTTP POST request to _host with the specified parameters
   ///
-  /// @param url      Full URL to request - includes http(s)?://
-  /// @param headers  Location to store the header part of the retrieved
-  ///                 data
-  /// @param response Location to store retrieved data
-  /// @param body     Body to send on the request
-  /// @param trail    SAS trail to use
-  /// @param username Username to assert if assertUser is true, else
-  ///                 ignored
+  /// @param url                Full URL to request - includes http(s)?://
+  /// @param headers            Location to store the header part of the retrieved
+  ///                           data
+  /// @param response           Location to store retrieved data
+  /// @param body               Body to send on the request
+  /// @param trail              SAS trail to use
+  /// @param username           Username to assert if assertUser is true, else
+  ///                           ignored
+  /// @param allowed_host_state what lists to resolve hosts from, where we
+  ///                           can take whitelisted, blacklisted, or all results
   ///
-  /// @returns                HTTP code representing outcome of request
+  /// @returns                  HTTP code representing outcome of request
+  virtual long send_post(const std::string& url,
+                         std::map<std::string, std::string>& headers,
+                         std::string& response,
+                         const std::string& body,
+                         SAS::TrailId trail,
+                         const std::string& username,
+                         int allowed_host_state);
   virtual long send_post(const std::string& url,
                          std::map<std::string, std::string>& headers,
                          std::string& response,
@@ -256,7 +295,8 @@ private:
                             const std::string& username,
                             SAS::TrailId trail,
                             std::vector<std::string> headers_to_add,
-                            std::map<std::string, std::string>* response_headers);
+                            std::map<std::string, std::string>* response_headers,
+                            int allowed_host_state);
 
   /// Helper function that builds the curl header in the set_curl_options
   /// method.
@@ -364,4 +404,6 @@ private:
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
   bool _should_omit_body;
+  bool _log_display_address;
+  std::string _server_display_address;
 };

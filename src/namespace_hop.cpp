@@ -89,7 +89,16 @@ int create_connection_in_namespace(const char* host,
             socket_factory_path);
   
   struct sockaddr_un addr = {AF_LOCAL};
-  strcpy(addr.sun_path, socket_factory_path);
+  size_t sfp_size = strlen(socket_factory_path) + 1;
+  size_t asp_size = sizeof(addr.sun_path);
+  size_t max_chars = std::min(asp_size, sfp_size);
+
+  TRC_DEBUG("Size of path is: %d, size of addr.sun_path: %d, max_chars: %d",
+            sfp_size,
+            asp_size,
+            max_chars);
+
+  strncpy(addr.sun_path, socket_factory_path, max_chars);
   int fd = socket(AF_LOCAL, SOCK_STREAM, 0);
 
   if (fd < 0)
@@ -99,10 +108,16 @@ int create_connection_in_namespace(const char* host,
   }
 
   int ret = connect(fd, (struct sockaddr *)&addr, sizeof(addr));
-  if (ret < 0)
+  if (ret != 0)
   {
-    TRC_ERROR("Failed to connect to cross-namespace socket factory %s",
-              socket_factory_path);
+    int err = errno;
+    TRC_ERROR("Failed to connect to cross-namespace socket factory %s on FD: %d with result: %d and error: %d - 0x%x - %s",
+              socket_factory_path,
+              fd,
+              ret,
+              err,
+              err,
+              strerror(err));
     return -1;
   }
 

@@ -27,6 +27,7 @@ public:
   void force_contention();
   void force_error();
   void force_get_error();
+  void force_delete_error();
   void swap_dbs(LocalStore* rhs);
 
   Store::Status get_data(const std::string& table,
@@ -40,10 +41,22 @@ public:
                          uint64_t cas,
                          int expiry,
                          SAS::TrailId trail = 0);
+  Store::Status set_data_without_cas(const std::string& table,
+                                     const std::string& key,
+                                     const std::string& data,
+                                     int expiry,
+                                     SAS::TrailId trail = 0);
   Store::Status delete_data(const std::string& table,
                             const std::string& key,
                             SAS::TrailId trail = 0);
 private:
+  Store::Status set_data(const std::string& table,
+                         const std::string& key,
+                         const std::string& data,
+                         uint64_t cas,
+                         bool check_cas,
+                         int expiry,
+                         SAS::TrailId trail = 0);
   typedef struct record
   {
     std::string data;
@@ -55,6 +68,7 @@ private:
   std::map<std::string, Record> _db;
   bool _force_error_on_set_flag;
   bool _force_error_on_get_flag;
+  bool _force_error_on_delete_flag;
   std::map<std::string, Record> _old_db;
 };
 

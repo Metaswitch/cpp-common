@@ -38,16 +38,18 @@ void ARecordResolver::resolve(const std::string& host,
                               int port,
                               int max_targets,
                               std::vector<AddrInfo>& targets,
-                              SAS::TrailId trail)
+                              SAS::TrailId trail,
+                              int allowed_host_state)
 {
-  BaseAddrIterator* addr_it = resolve_iter(host, port, trail);
+  BaseAddrIterator* addr_it = resolve_iter(host, port, trail, allowed_host_state);
   targets = addr_it->take(max_targets);
   delete addr_it; addr_it = nullptr;
 }
 
 BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
                                                 int port,
-                                                SAS::TrailId trail)
+                                                SAS::TrailId trail,
+                                                int allowed_host_state)
 {
   BaseAddrIterator* addr_it;
 
@@ -57,7 +59,7 @@ BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
   port = (port != 0) ? port : _default_port;
   AddrInfo ai;
 
-  if (parse_ip_target(host, ai.address))
+  if (Utils::parse_ip_target(host, ai.address))
   {
     // The name is already an IP address so no DNS resolution is possible.
     TRC_DEBUG("Target is an IP address");
@@ -69,7 +71,7 @@ BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
   {
     int dummy_ttl = 0;
     addr_it = a_resolve_iter(
-      host, _address_family, port, TRANSPORT, dummy_ttl, trail, BaseResolver::ALL_LISTS);
+      host, _address_family, port, TRANSPORT, dummy_ttl, trail, allowed_host_state);
   }
 
   return addr_it;
