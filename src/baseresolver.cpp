@@ -792,13 +792,11 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
   // Add whitelisted records to the vector of targets to return, and unhealthy
   // records to the unhealthy results vector. Targets should be added until the
   // required number of targets is reached, or the unused results are exhausted.
-  // If only blacklisted targets are allowed to be returned, the first condition
-  // is instead until the required number of unhealthy results is reached.
+  // If only blacklisted targets are allowed to be returned, instead add
+  // unhealthy results to targets and add nothing to the unhealthy results
+  // vector.
   while ((_unused_results.size() > 0) &&
-         ((whitelisted_allowed && (targets.size() < (size_t)num_requested_targets)) ||
-          (blacklisted_allowed &&
-           !whitelisted_allowed &&
-           (_unhealthy_results.size() < (size_t) num_requested_targets))))
+         (targets.size() < (size_t)num_requested_targets))
   {
     AddrInfo result = _unused_results.back();
     _unused_results.pop_back();
@@ -830,12 +828,25 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
 
       if (blacklisted_allowed)
       {
-        // Add the record to the list of unhealthy targets.
-        _unhealthy_results.push_back(result);
+        if (whitelisted_allowed)
+        {
+          // Add the record to the list of unhealthy targets.
+          _unhealthy_results.push_back(result);
 
-        // Update logging.
-        TRC_DEBUG("Found an unhealthy server, now have %ld unhealthy results",
-                  _unhealthy_results.size());
+          // Update logging.
+          TRC_DEBUG("Found an unhealthy server, now have %ld unhealthy results",
+                    _unhealthy_results.size());
+        }
+        else
+        {
+          // Only blacklisted targets are requested, so add these unhealthy
+          // addresses straight to the vector of targets. Graylisted addresses
+          // are considered blacklisted in this case.
+          targets.push_back(result);
+          TRC_DEBUG("Added a blacklisted or graylisted server to targets, now have %ld of %d",
+                    targets.size(),
+                    num_requested_targets);
+        }
       }
     }
   }
@@ -843,7 +854,8 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
   pthread_mutex_unlock(&(_resolver->_hosts_lock));
 
   // If the targets vector does not yet contain enough targets, add unhealthy
-  // targets
+  // targets. If only whitelisted or only blacklisted targets were requested,
+  // the unhealthy results vector is empty.
   while ((_unhealthy_results.size() > 0) && (targets.size() < (size_t)num_requested_targets))
   {
     AddrInfo result = _unhealthy_results.back();
@@ -902,8 +914,6 @@ LazySRVResolveIter::LazySRVResolveIter(BaseResolver* resolver,
   _whitelisted_addresses_by_srv(),
   _unhealthy_addresses_by_srv(),
   _unhealthy_targets(),
-  _more_in_priority_level(false),
-  _finished_priority_level(true),
   _current_srv(0),
   _unhealthy_target_pos(0)
 {
@@ -922,7 +932,7 @@ LazySRVResolveIter::LazySRVResolveIter(BaseResolver* resolver,
     TRC_DEBUG("Found SRV records at %ld priority levels", _srv_list->size());
 
     // prepare_priority_level will initially look at the highest priority level.
-    _priority_level_iter = _srv_list->begin();
+    _next_priority_level = _srv_list->begin();
   }
   else
   {
@@ -960,24 +970,20 @@ std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
   {
     while (num_targets_to_find > 0)
     {
-      // _finished_priority_level can only be false at this point if the take
-      // method was previously called, and get_from_priority_level found the
-      // desired number of targets before it had finished searching its current
-      // priority level, and paused the search.
-      if (_finished_priority_level)
+      // If get_from_priority_level finished searching the previous priority
+      // level, or no priority level has yet been prepared, prepare the next
+      // one.
+      if (priority_level_complete())
       {
         // Prepares the next priority level. If this returns false then all
         // priority levels have already been searched for targets of the desired
         // state.
         if (!prepare_priority_level())
         {
-          if (_whitelisted_allowed && _blacklisted_allowed)
-          {
-            // All whitelisted targets have been returned but not enough targets
-            // have been found, and both types of host state were requested, so
-            // unhealthy targets should be returned.
-            add_unhealthy = true;
-          }
+          // If both whitelisted and blacklisted targets were requested, all
+          // whitelisted targets have been returned but not enough targets
+          // have been found, so unhealthy targets should be returned.
+          add_unhealthy = _whitelisted_allowed && _blacklisted_allowed;
           break;
         }
       }
@@ -1000,16 +1006,19 @@ std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
       // or the number of requested targets has been reached. If only whitelisted
       // or blacklisted addresses were requested then _unhealthy_targets is empty,
       // addresses of the desired host state were added straight to targets.
-      size_t to_copy = std::min((size_t) num_targets_to_find, _unhealthy_targets.size()-_unhealthy_target_pos);
-
+      size_t to_copy = std::min((size_t) num_targets_to_find, _unhealthy_targets.size() - _unhealthy_target_pos);
       TRC_VERBOSE("Adding %ld unhealthy servers", to_copy);
 
-      int max_unhealthy_index = to_copy + _unhealthy_target_pos;
       // The for loop is initialised in the class constructor, as the for loop
       // needs to be paused and resumed in subsequent calls to take, so that the
-      // same unhealthy targets are not returned several times.
-      for (; _unhealthy_target_pos < max_unhealthy_index; ++_unhealthy_target_pos)
+      // same unhealthy targets are not returned several times. The for loop
+      // increments _unhealthy_targets_pos each time, so ii is used solely to
+      // ensure that the for loop runs for the correct number of iterations.
+      for (size_t ii = 0; ii < to_copy; ++ii)
       {
+        // A class data member tracks the position in the unhealthy target
+        // vector, so that in subsequent calls to take the same unhealthy
+        // targets are not returned twice.
         targets.push_back(_unhealthy_targets[_unhealthy_target_pos]);
         --num_targets_to_find;
         TRC_DEBUG("Added an unhealthy server to targets, now have %ld of %d",
@@ -1017,6 +1026,8 @@ std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
                   num_requested_targets);
         std::string unhealthy_name = "[" + _unhealthy_targets[_unhealthy_target_pos].address_and_port_to_string() + "]";
         unhealthy_targets_str += unhealthy_name;
+
+        ++_unhealthy_target_pos;
       }
     }
 
@@ -1053,41 +1064,38 @@ int LazySRVResolveIter::get_min_ttl()
 
 bool LazySRVResolveIter::prepare_priority_level()
 {
-  if (_priority_level_iter != _srv_list->end())
+  if (_next_priority_level != _srv_list->end())
   {
-    TRC_VERBOSE("Processing %d SRVs with priority %d", _priority_level_iter->second.size(), _priority_level_iter->first);
-
-    // A new priority level is being prepared, so note that
-    // get_from_priority_level has not finished searching it.
-    _finished_priority_level = false;
+    TRC_VERBOSE("Processing %d SRVs with priority %d", _next_priority_level->second.size(), _next_priority_level->first);
 
     // Clear the data member vectors that need to be reused for the new priority
     // level
     _whitelisted_addresses_by_srv.clear();
     _unhealthy_addresses_by_srv.clear();
 
-    // As a new priority level is being prepared, resets the parameters used in
-    // the for loop of get_from_priority_level. _more_in_priority_level is
-    // initialised to false, and will be set to true once the for loop reaches
-    // an SRV which will have addresses left in the next run of the for loop.
+    // As a new priority level is being prepared, tell get_from_priority_level
+    // to start searching the priority level from the first SRV.
     _current_srv = 0;
-    _more_in_priority_level = false;
 
     std::vector<const BaseResolver::SRV*> srvs;
-    srvs.reserve(_priority_level_iter->second.size());
+    srvs.reserve(_next_priority_level->second.size());
 
-    // Build a cumulative weighted tree for this priority level.
-    WeightedSelector<BaseResolver::SRV> selector(_priority_level_iter->second);
+    // Build a cumulative weighted tree for this priority level. This will use
+    // the weights of the SRVs in this priority level to put them in a random
+    // permutation, where an SRV is more likely to be close to the front if it
+    // has a higher weight. This is used for load balancing purposes, as a
+    // request will be sent to the first SRV if possible.
+    WeightedSelector<BaseResolver::SRV> selector(_next_priority_level->second);
 
     // Select entries while there are any with non-zero weights.
     while (selector.total_weight() > 0)
     {
       int ii = selector.select();
       TRC_DEBUG("Selected SRV %s:%d, weight = %d",
-                _priority_level_iter->second[ii].target.c_str(),
-                _priority_level_iter->second[ii].port,
-                _priority_level_iter->second[ii].weight);
-      srvs.push_back(&_priority_level_iter->second[ii]);
+                _next_priority_level->second[ii].target.c_str(),
+                _next_priority_level->second[ii].port,
+                _next_priority_level->second[ii].weight);
+      srvs.push_back(&_next_priority_level->second[ii]);
     }
 
     // Do A/AAAA record look-ups for the selected SRV targets.
@@ -1204,7 +1212,7 @@ bool LazySRVResolveIter::prepare_priority_level()
 
     // The next time prepare_priority_level is called it will prepare the next
     // highest priority level.
-    ++_priority_level_iter;
+    ++_next_priority_level;
     return true;
   }
   else
@@ -1228,11 +1236,11 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
 
   if (_gray_found && (num_targets_to_find > 0))
   {
-    // Prepare priority level found a graylisted target to probe, and the
-    // iterator has not yet returned a target. So return a graylisted target for
-    // probing. It is guaranteed that at most one graylisted target is returned
-    // for probing by the iterator, and that this will always be the first
-    // target ever returned by the iterator.
+    // prepare_priority_level found a graylisted target to probe, so return it.
+    // It is guaranteed that this target will be the first ever returned by the
+    // iterator, since prepare_priority_level will only search for a graylisted
+    // target to probe at the highest priority level, or if no targets at higher
+    // priority levels were returned.
     targets.push_back(_unprobed_gray_target);
     _resolver->select_for_probing(_unprobed_gray_target);
     _gray_found = false;
@@ -1245,19 +1253,17 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
   // retries allowed, or we have no more addresses.
   //
   // This takes one target from each SRV Record at this priority level and then
-  // repeats, even if one SRV Record contains multiple addresses, so if the
-  // first target fails the weighting will not be strictly obeyed. This is
-  // desirable because if one address from a SRV Record fails an address from
-  // another SRV Record is less likely to fail, and it is more important to
-  // ensure that a request succeeds than that the load is well balanced.
+  // goes through the SRVs again in the same order, etc, so if the first target
+  // fails the weighting will not be strictly obeyed. This is desirable because
+  // if one address from a SRV Record fails an address from another SRV Record
+  // is less likely to fail than one from the same SRV Record, and it is more
+  // important to ensure that a request succeeds than that the load is well
+  // balanced.
   //
   // If this function gets the required number of targets before looking at
   // every address in the priority level, the algorithm will pause and resume
-  // next time this function is called. This means that a do while loop is
-  // needed, as the algorithm may have been halfway through an iteration of the
-  // for loop, so there may have been addresses in the second half of SRVs but
-  // _more_in_priority_level would be false when the function was next called.
-  do
+  // next time this function is called.
+  while ((num_targets_to_find > 0) && (!priority_level_complete()))
   {
     // This lock must be held to safely call the host_state method of
     // BaseResolver.
@@ -1270,7 +1276,6 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
     if ((size_t) _current_srv == _whitelisted_addresses_by_srv.size())
     {
       _current_srv = 0;
-      _more_in_priority_level = false;
     }
 
     for (;
@@ -1301,9 +1306,8 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
         else if (_blacklisted_allowed)
         {
           unhealthy_addresses.push_back(ai);
-          TRC_DEBUG("%s has moved from the whitelist to the blacklist since priority level %d was prepared",
-                    ai.to_string().c_str(),
-                    _priority_level_iter->first);
+          TRC_DEBUG("%s has moved from the whitelist to the blacklist since the current priority level",
+                    ai.to_string().c_str());
         }
       }
       else if (!_whitelisted_allowed && _blacklisted_allowed &&
@@ -1331,9 +1335,8 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
         }
         else
         {
-          TRC_DEBUG("%s has moved from the blacklist or graylist to the whitelist since priority level %d was prepared",
-                    ai.to_string().c_str(),
-                    _priority_level_iter->first);
+          TRC_DEBUG("%s has moved from the blacklist or graylist to the whitelist since the current priority level was prepared",
+                    ai.to_string().c_str());
         }
       }
 
@@ -1347,18 +1350,12 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
         unhealthy_addresses.pop_back();
         _unhealthy_targets.push_back(ai);
       }
-
-      _more_in_priority_level = _more_in_priority_level ||
-                                ((!whitelisted_addresses.empty()) ||
-                                 (!unhealthy_addresses.empty()));
     }
 
     // host_state no longer needs to be called, so this lock can be
     // released.
     pthread_mutex_unlock(&(_resolver->_hosts_lock));
-    TRC_DEBUG("@@@ END OF WHILE! %d %d", num_targets_to_find, (int) _more_in_priority_level);
   }
-  while ((num_targets_to_find > 0) && (_more_in_priority_level));
 
   if (targets.size() > 0)
   {
@@ -1370,19 +1367,31 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
     _search_for_gray=false;
   }
 
-  // If more targets are needed, but none are left in this priority level then
-  // tells the take method to prepare the next priority level.
-  //
-  // There is an edge case where the last address in this priority level was
-  // selected as a target and no more targets need to be found, in which case
-  // _finished_priority_level will remain false. But this does not matter, as
-  // the next time take is called it will call get_from_priority_level, which
-  // will do nothing apart from setting _finished_priority_level to true, and
-  // then the next priority level will be prepared.
-  if ((num_targets_to_find > 0) && !_more_in_priority_level)
+  return num_targets_to_find;
+}
+
+/// Returns true if every SRV record in the priority level last prepared has no
+/// whitelisted or unhealthy addresses left that get_from_priority_level hasn't
+/// looked at, or if no priority level has been prepared yet.
+bool LazySRVResolveIter::priority_level_complete()
+{
+  bool complete = true;
+
+  // Scan through each SRV record at the current priority level, and if any of
+  // them still contain an address, return false. If no priority level was
+  // prepared yet, _whitelisted_addresses_by_srv will be empty. Note that
+  // _whitelisted_addresses_by_srv and _unhealthy_addresses_by_src will be the
+  // same size, as they have one entry per SRV at the same priority level.
+  for (size_t ii = 0; ii < _whitelisted_addresses_by_srv.size(); ++ii)
   {
-    _finished_priority_level = true;
+    if (!_whitelisted_addresses_by_srv[ii].empty() ||
+        !_unhealthy_addresses_by_srv[ii].empty())
+    {
+      // At least one address is left in this SRV, so the level is not
+      // complete.
+      complete = false;
+    }
   }
 
-  return num_targets_to_find;
+  return complete;
 }
