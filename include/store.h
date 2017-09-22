@@ -40,11 +40,31 @@ public:
   /// @param key      Key of the data record to retrieve.
   /// @param data     String to return the data.
   /// @param cas      Variable to return the CAS value of the data.
+  /// @param trail    SAS Trail on which to log the data
+  virtual Store::Status get_data(const std::string& table,
+                                 const std::string& key,
+                                 std::string& data,
+                                 uint64_t& cas,
+                                 SAS::TrailId trail = 0)
+  {
+    return get_data(table, key, data, cas, trail, true);
+  }
+
+  /// Gets the data for the specified key in the specified namespace.
+  ///
+  /// @return         Status value indicating the result of the read.
+  /// @param table    Name of the table to retrive the data.
+  /// @param key      Key of the data record to retrieve.
+  /// @param data     String to return the data.
+  /// @param cas      Variable to return the CAS value of the data.
+  /// @param trail    SAS Trail on which to log the data
+  /// @param log_body Should we log the body to SAS?
   virtual Status get_data(const std::string& table,
                           const std::string& key,
                           std::string& data,
                           uint64_t& cas,
-                          SAS::TrailId trail = 0) = 0;
+                          SAS::TrailId trail,
+                          bool log_body) = 0;
 
   /// Sets the data for the specified key in the specified namespace.
   ///
@@ -57,12 +77,37 @@ public:
   ///                 zero if writing a record for the first time.
   /// @param expiry   Expiry period of the data (in seconds).  If zero the
   ///                 data will expire immediately.
+  /// @param trail    SAS Trail on which to log the data
+  virtual Store::Status set_data(const std::string& table,
+                                 const std::string& key,
+                                 const std::string& data,
+                                 uint64_t cas,
+                                 int expiry,
+                                 SAS::TrailId trail = 0)
+  {
+    return set_data(table, key, data, cas, expiry, trail, true);
+  }
+
+  /// Sets the data for the specified key in the specified namespace.
+  ///
+  /// @return         Status value indicating the result of the write.
+  /// @param table    Name of the table to store the data.
+  /// @param key      Key used to index the data within the table.
+  /// @param data     Data to store.
+  /// @param cas      CAS (Check-and-Set) value for the data.  Should be set
+  ///                 to the CAS value returned when the data was read, or
+  ///                 zero if writing a record for the first time.
+  /// @param expiry   Expiry period of the data (in seconds).  If zero the
+  ///                 data will expire immediately.
+  /// @param trail    SAS Trail on which to log the data
+  /// @param log_body Should we log the body to SAS?
   virtual Status set_data(const std::string& table,
                           const std::string& key,
                           const std::string& data,
                           uint64_t cas,
                           int expiry,
-                          SAS::TrailId trail = 0) = 0;
+                          SAS::TrailId trail,
+                          bool log_body) = 0;
 
   /// Sets the data for the specified key in the specified namespace, without
   /// performing a Compare And Swap (CAS) check.
@@ -73,11 +118,14 @@ public:
   /// @param data     Data to store.
   /// @param expiry   Expiry period of the data (in seconds).  If zero the
   ///                 data will expire immediately.
+  /// @param trail    SAS Trail on which to log the data
+  /// @param log_body Should we log the body to SAS?
   virtual Status set_data_without_cas(const std::string& table,
                                       const std::string& key,
                                       const std::string& data,
                                       int expiry,
-                                      SAS::TrailId trail = 0) = 0;
+                                      SAS::TrailId trail,
+                                      bool log_body) = 0;
 
   /// Delete the data for the specified key in the specified namespace.
   ///

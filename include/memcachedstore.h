@@ -128,7 +128,8 @@ public:
                          const std::string& key,
                          std::string& data,
                          uint64_t& cas,
-                         SAS::TrailId trail = 0);
+                         SAS::TrailId trail,
+                         bool log_body);
 
   /// Sets the data for the specified table and key.
   Store::Status set_data(const std::string& table,
@@ -136,14 +137,16 @@ public:
                          const std::string& data,
                          uint64_t cas,
                          int expiry,
-                         SAS::TrailId trail = 0);
+                         SAS::TrailId trail,
+                         bool log_body);
 
   /// Sets the data for the specified table and key without performing CAS
   Store::Status set_data_without_cas(const std::string& table,
                                      const std::string& key,
                                      const std::string& data,
                                      int expiry,
-                                     SAS::TrailId trail = 0);
+                                     SAS::TrailId,
+                                     bool log_body);
 
   /// Deletes the data for the specified table and key.
   Store::Status delete_data(const std::string& table,
