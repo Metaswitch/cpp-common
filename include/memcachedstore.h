@@ -123,6 +123,9 @@ public:
 
   ~TopologyNeutralMemcachedStore() {}
 
+  using Store::get_data;
+  using Store::set_data;
+
   /// Gets the data for the specified table and key.
   Store::Status get_data(const std::string& table,
                          const std::string& key,

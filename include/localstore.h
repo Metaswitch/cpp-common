@@ -30,12 +30,15 @@ public:
   void force_delete_error();
   void swap_dbs(LocalStore* rhs);
 
+  using Store::get_data;
+  using Store::set_data;
+
   Store::Status get_data(const std::string& table,
                          const std::string& key,
                          std::string& data,
                          uint64_t& cas,
                          SAS::TrailId trail,
-                         bool log_body);
+                         bool log_body) override;
 
   Store::Status set_data(const std::string& table,
                          const std::string& key,
@@ -43,26 +46,26 @@ public:
                          uint64_t cas,
                          int expiry,
                          SAS::TrailId trail,
-                         bool log_body);
+                         bool log_body) override;
 
   Store::Status set_data_without_cas(const std::string& table,
                                      const std::string& key,
                                      const std::string& data,
                                      int expiry,
                                      SAS::TrailId trail,
-                                     bool log_body);
+                                     bool log_body) override;
 
   Store::Status delete_data(const std::string& table,
                             const std::string& key,
-                            SAS::TrailId trail = 0);
+                            SAS::TrailId trail = 0) override;
 private:
-  Store::Status set_data(const std::string& table,
-                         const std::string& key,
-                         const std::string& data,
-                         uint64_t cas,
-                         bool check_cas,
-                         int expiry,
-                         SAS::TrailId trail = 0);
+  Store::Status set_data_inner(const std::string& table,
+                               const std::string& key,
+                               const std::string& data,
+                               uint64_t cas,
+                               bool check_cas,
+                               int expiry,
+                               SAS::TrailId trail = 0);
   typedef struct record
   {
     std::string data;
