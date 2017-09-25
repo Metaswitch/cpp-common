@@ -159,7 +159,7 @@ Store::Status LocalStore::set_data_without_cas(const std::string& table,
   TRC_DEBUG("set_data_without_cas table=%s key=%s expiry=%d",
             table.c_str(), key.c_str(), expiry);
 
-  return set_data(table, key, data, 0, false, expiry, trail);
+  return set_data_inner(table, key, data, 0, false, expiry, trail);
 }
 
 Store::Status LocalStore::set_data(const std::string& table,
@@ -173,16 +173,16 @@ Store::Status LocalStore::set_data(const std::string& table,
   TRC_DEBUG("set_data table=%s key=%s CAS=%ld expiry=%d",
             table.c_str(), key.c_str(), cas, expiry);
 
-  return set_data(table, key, data, cas, true, expiry, trail);
+  return set_data_inner(table, key, data, cas, true, expiry, trail);
 }
 
-Store::Status LocalStore::set_data(const std::string& table,
-                                   const std::string& key,
-                                   const std::string& data,
-                                   uint64_t cas,
-                                   bool check_cas,
-                                   int expiry,
-                                   SAS::TrailId trail)
+Store::Status LocalStore::set_data_inner(const std::string& table,
+                                         const std::string& key,
+                                         const std::string& data,
+                                         uint64_t cas,
+                                         bool check_cas,
+                                         int expiry,
+                                         SAS::TrailId trail)
 {
   Store::Status status = Store::Status::DATA_CONTENTION;
 
