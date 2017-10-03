@@ -27,6 +27,18 @@ void PrintTo(const AddrInfo& ai, std::ostream* os)
   *os << ai.to_string();
 }
 
+void BaseResolver::add_target_to_log_string(std::string& log_string,
+                                            const AddrInfo& addr,
+                                            const std::string& state)
+{
+  if (!log_string.empty())
+  {
+    log_string += ", ";
+  }
+
+  log_string += addr.address_and_port_to_string() + "(" + state + ")";
+}
+
 BaseResolver::BaseResolver(DnsCachedResolver* dns_client) :
   _naptr_factory(),
   _naptr_cache(),
@@ -749,11 +761,7 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
 
   // Vector of targets to be returned
   std::vector<AddrInfo> targets;
-
-  // Strings for logging purposes.
-  std::string graylisted_targets_str;
-  std::string whitelisted_targets_str;
-  std::string blacklisted_targets_str;
+  std::string targets_log_str;
 
   // This lock must be held to safely call the host_state method of
   // BaseResolver.
@@ -777,7 +785,7 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
         targets.push_back(*result_it);
 
         // Update logging.
-        graylisted_targets_str += result_it->address_and_port_to_string() + ";";
+        BaseResolver::add_target_to_log_string(targets_log_str, *result_it, "graylisted");
         TRC_DEBUG("Added a graylisted server to targets, now have %ld of %d",
                   targets.size(),
                   num_requested_targets);
@@ -813,7 +821,7 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
         targets.push_back(result);
 
         // Update logging.
-        whitelisted_targets_str += target;
+        BaseResolver::add_target_to_log_string(targets_log_str, result, "whitelisted");
         TRC_DEBUG("Added a whitelisted server to targets, now have %ld of %d",
                   targets.size(),
                   num_requested_targets);
@@ -865,7 +873,7 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
     targets.push_back(result);
 
     // Update logging.
-    blacklisted_targets_str += result.address_and_port_to_string() + ";";
+    BaseResolver::add_target_to_log_string(targets_log_str, result, "unhealthy");
     TRC_DEBUG("Added an unhealthy server to targets, now have %ld of %d",
               targets.size(),
               num_requested_targets);
@@ -877,9 +885,7 @@ std::vector<AddrInfo> LazyAResolveIter::take(int num_requested_targets)
     event.add_static_param(whitelisted_allowed);
     event.add_static_param(blacklisted_allowed);
     event.add_var_param(_hostname);
-    event.add_var_param(graylisted_targets_str);
-    event.add_var_param(whitelisted_targets_str);
-    event.add_var_param(blacklisted_targets_str);
+    event.add_var_param(targets_log_str);
     SAS::report_event(event);
 
     if (targets.empty() && _first_call)
@@ -955,11 +961,8 @@ std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
   // requested targets.
   bool add_unhealthy = false;
 
-  // These strings are used for logging, to store the servers we've found, and
-  // the servers that we're returning as targets.
-  std::string whitelisted_targets_str;
-  std::string unhealthy_targets_str;
-  std::string graylisted_targets_str;
+  // String used for SAS logging the targets we've returned.
+  std::string targets_log_str;
 
   // Tracks the number of targets left to be added.
   int num_targets_to_find = num_requested_targets;
@@ -996,8 +999,7 @@ std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
       num_targets_to_find = get_from_priority_level(targets,
                                                     num_targets_to_find,
                                                     num_requested_targets,
-                                                    whitelisted_targets_str,
-                                                    unhealthy_targets_str);
+                                                    targets_log_str);
     }
 
     if (add_unhealthy)
@@ -1020,13 +1022,15 @@ std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
         // vector, so that in subsequent calls to take the same unhealthy
         // targets are not returned twice.
         targets.push_back(_unhealthy_targets[_unhealthy_target_pos]);
-        --num_targets_to_find;
+
+        BaseResolver::add_target_to_log_string(targets_log_str,
+                                               _unhealthy_targets[_unhealthy_target_pos],
+                                               "unhealthy");
         TRC_DEBUG("Added an unhealthy server to targets, now have %ld of %d",
                   targets.size(),
                   num_requested_targets);
-        std::string unhealthy_name = "[" + _unhealthy_targets[_unhealthy_target_pos].address_and_port_to_string() + "]";
-        unhealthy_targets_str += unhealthy_name;
 
+        --num_targets_to_find;
         ++_unhealthy_target_pos;
       }
     }
@@ -1043,9 +1047,7 @@ std::vector<AddrInfo> LazySRVResolveIter::take(int num_requested_targets)
     event.add_static_param(_whitelisted_allowed);
     event.add_static_param(_blacklisted_allowed);
     event.add_var_param(_srv_name);
-    event.add_var_param(graylisted_targets_str);
-    event.add_var_param(whitelisted_targets_str);
-    event.add_var_param(unhealthy_targets_str);
+    event.add_var_param(targets_log_str);
     SAS::report_event(event);
 
     if (targets.empty())
@@ -1227,8 +1229,7 @@ bool LazySRVResolveIter::prepare_priority_level()
 int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
                                                 int num_targets_to_find,
                                                 const int num_requested_targets,
-                                                std::string& whitelisted_targets_str,
-                                                std::string& unhealthy_targets_str)
+                                                std::string& targets_log_str)
 {
   // An AddrInfo object to temporarily store the current AddrInfo object being
   // looked at from a *_addresses_by_srv vector.
@@ -1297,8 +1298,8 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
           // Clearwater since moved the address off of the whitelist.
           targets.push_back(ai);
           --num_targets_to_find;
-          std::string target = "[" + ai.address_and_port_to_string() + "] ";
-          whitelisted_targets_str += target;
+
+          BaseResolver::add_target_to_log_string(targets_log_str, ai, "whitelisted");
           TRC_DEBUG("Added a whitelisted server to targets, now have %ld of %d",
                     targets.size(),
                     num_requested_targets);
@@ -1324,11 +1325,8 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
           // Clearwater since moved the address to the whitelist.
           targets.push_back(ai);
           --num_targets_to_find;
-          std::string target = "[" + ai.address_and_port_to_string() + "] ";
-          unhealthy_targets_str += target;
 
-          // num_requested_targets was passed to this function solely for logging
-          // purposes.
+          BaseResolver::add_target_to_log_string(targets_log_str, ai, "unhealthy");
           TRC_DEBUG("Only blacklisted targets were requested, so added a blacklisted server to targets, now have %ld of %d",
                     targets.size(),
                     num_requested_targets);

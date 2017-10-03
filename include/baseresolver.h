@@ -295,6 +295,16 @@ protected:
                                    bool whitelisted_allowed,
                                    bool blacklisted_allowed);
 
+  /// Utility function for building up strings representing targets to log to
+  /// SAS.
+  ///
+  /// @param log_string - Logging string that is updated in place.
+  /// @param addr       - The address to log.
+  /// @param state      - The target's state for the purposes of SAS logging.
+  static void add_target_to_log_string(std::string& log_string,
+                                       const AddrInfo& addr,
+                                       const std::string& state);
+
   /// Allows DNS Resolution to be called with a pointer to the Base Resolver.
   /// This just returns the (possibly cached) result of a DNS Query, so any
   /// post-processing of the BaseResolver is not returned.
@@ -441,18 +451,17 @@ private:
   /// adds black and gray addresses to targets and nothing to
   /// _unhealthy_targets.
   ///
-  /// Two strings are passed out to log the whitelisted and unhealthy targets
-  /// found, so that the take method can log a SAS event with them.
-  ///
   /// Returns the number of targets that are still to be found, or 0 if
   /// num_targets_to_find were all found. If all targets were found, the search
   /// is paused and the position stored in _current_srv, to be resumed when take
   /// is next called.
+  ///
+  /// The last argument receives a string containing the list of targets
+  /// selected, for SAS logging.
   int get_from_priority_level(std::vector<AddrInfo> &targets,
                               int num_targets_to_find,
                               int num_requested_targets,
-                              std::string& whitelisted_targets_str,
-                              std::string& unhealthy_targets_str);
+                              std::string& targets_log_str);
 
   /// Helper function that returns true if get_from_priority_level has looked at
   /// every address in both *_addresses_by_srv vectors, or if no priority level
