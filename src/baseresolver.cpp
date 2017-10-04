@@ -36,7 +36,7 @@ void BaseResolver::add_target_to_log_string(std::string& log_string,
     log_string += ", ";
   }
 
-  log_string += addr.address_and_port_to_string() + "(" + state + ")";
+  log_string += addr.address_and_port_to_string() + " (" + state + ")";
 }
 
 BaseResolver::BaseResolver(DnsCachedResolver* dns_client) :
@@ -1243,6 +1243,10 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
     // target to probe at the highest priority level, or if no targets at higher
     // priority levels were returned.
     targets.push_back(_unprobed_gray_target);
+    BaseResolver::add_target_to_log_string(targets_log_str,
+                                           _unprobed_gray_target,
+                                           "graylisted");
+
     _resolver->select_for_probing(_unprobed_gray_target);
     _gray_found = false;
     --num_targets_to_find;
