@@ -52,9 +52,6 @@ public:
   /// Indicates that the given AddrInfo has responded.
   virtual void success(const AddrInfo& ai);
 
-  /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
-  static bool parse_ip_target(const std::string& target, IP46Address& address);
-
   void clear_blacklist();
 
   // LazyAResolveIter and LazySRVResolveIter must access the private host_state
@@ -298,16 +295,26 @@ protected:
                                    bool whitelisted_allowed,
                                    bool blacklisted_allowed);
 
+  /// Utility function for building up strings representing targets to log to
+  /// SAS.
+  ///
+  /// @param log_string - Logging string that is updated in place.
+  /// @param addr       - The address to log.
+  /// @param state      - The target's state for the purposes of SAS logging.
+  static void add_target_to_log_string(std::string& log_string,
+                                       const AddrInfo& addr,
+                                       const std::string& state);
+
   /// Allows DNS Resolution to be called with a pointer to the Base Resolver.
   /// This just returns the (possibly cached) result of a DNS Query, so any
-  /// post-processing of the BaseResolver is returned.
+  /// post-processing of the BaseResolver is not returned.
   void dns_query(std::vector<std::string>& domains,
                  int dnstype,
                  std::vector<DnsResult>& results,
                  SAS::TrailId trail);
 
-  /// Helper function to perform SRV Record DNS Resolution via the SRV Cache and returns a pointer to an SRV
-  /// Priority List for the given SRV name.
+  /// Helper function to perform SRV Record DNS Resolution via the SRV Cache and
+  /// returns a pointer to an SRV Priority List for the given SRV name.
   std::shared_ptr<SRVPriorityList> get_srv_list(const std::string& srv_name,
                                                 int &ttl,
                                                 SAS::TrailId trail);
@@ -444,18 +451,22 @@ private:
   /// adds black and gray addresses to targets and nothing to
   /// _unhealthy_targets.
   ///
-  /// Two strings are passed out to log the whitelisted and unhealthy targets
-  /// found, so that the take method can log a SAS event with them.
-  ///
   /// Returns the number of targets that are still to be found, or 0 if
   /// num_targets_to_find were all found. If all targets were found, the search
   /// is paused and the position stored in _current_srv, to be resumed when take
   /// is next called.
+  ///
+  /// The last argument receives a string containing the list of targets
+  /// selected, for SAS logging.
   int get_from_priority_level(std::vector<AddrInfo> &targets,
                               int num_targets_to_find,
                               int num_requested_targets,
-                              std::string& whitelisted_targets_str,
-                              std::string& unhealthy_targets_str);
+                              std::string& targets_log_str);
+
+  /// Helper function that returns true if get_from_priority_level has looked at
+  /// every address in both *_addresses_by_srv vectors, or if no priority level
+  /// has been prepared yet.
+  bool priority_level_complete();
 
   // A pointer to the BaseResolver that created this iterator. Used to access
   // Base Resolver methods such as host_state.
@@ -509,20 +520,6 @@ private:
   // requested then this vector is left empty.
   std::vector<AddrInfo> _unhealthy_targets;
 
-  // Boolean to track whether there's any addresses left in the current priority
-  // level. Initialised to false at the start and whenever a new priority level
-  // is prepared, and is then set to true once an SRV is found which will
-  // have addresses left the next time get_from_priority_level scans through
-  // each SRV at the current priority level.
-  bool _more_in_priority_level;
-
-  // Boolean to track whether every address in the current priority level, ie.
-  // the one last prepared, has been looked at by get_from_priority_level. If it
-  // is true and more targets are needed, the take method will call
-  // prepare_priority_level. Initialised to true, since before
-  // prepare_priority_level is ever called there is no current priority level.
-  bool _finished_priority_level;
-
   // The following 3 data members track the current position in various vectors
   // and maps of the iterator, allowing the lazy iterator to pause algorithms
   // once enough targets have been found, and resume the next time it's called.
@@ -541,6 +538,6 @@ private:
   // at. Goes through all priority levels in order of highest to lowest
   // priority. Incremented by prepare_priority_level once it has finished
   // searching the current priority level.
-  BaseResolver::SRVPriorityList::const_iterator _priority_level_iter;
+  BaseResolver::SRVPriorityList::const_iterator _next_priority_level;
 };
 #endif

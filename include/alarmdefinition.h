@@ -14,14 +14,14 @@
 
 #include <string>
 #include <vector>
-#include <boost/algorithm/string.hpp> 
+#include <boost/algorithm/string.hpp>
 
 // To add a new alarm:
 //
 //   - Add it to the JSON alarm file in the relevant repository.
-//   
-//   - If it's a new repo, then make sure that the alarm file gets 
-//     installed to /usr/share/clearwater/infrastructure/alarms. 
+//
+//   - If it's a new repo, then make sure that the alarm file gets
+//     installed to /usr/share/clearwater/infrastructure/alarms.
 namespace AlarmDef {
 
   // Sprout alarms: 1000->1499
@@ -43,6 +43,7 @@ namespace AlarmDef {
   // Alarms 11000->11499 are reserved
   // Alarms 11500->11999 are reserved
   // Alarms 12000->12499 are reserved
+  // Alarms 12500->12999 are reserved
 
   enum Severity {
     UNDEFINED_SEVERITY,

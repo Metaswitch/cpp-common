@@ -14,11 +14,26 @@
 
 #include <string>
 
+#include "gtest/gtest.h"
+
 void cwtest_add_host_mapping(std::string host, std::string target);
 void cwtest_clear_host_mapping();
 void cwtest_advance_time_ms(long delta_ms);
 void cwtest_reset_time();
 void cwtest_completely_control_time(bool start_of_epoch = false);
+
+class ControlTimeTest : public testing::Test
+{
+  static void SetUpTestCase()
+  {
+    cwtest_completely_control_time();
+  }
+
+  static void TearDownTestCase()
+  {
+    cwtest_reset_time();
+  }
+};
 
 // Control file manipulation.
 void cwtest_control_fopen(FILE* fd);

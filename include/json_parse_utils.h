@@ -15,6 +15,7 @@
 #include "rapidjson/writer.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/document.h"
+#include "rapidjson/error/en.h"
 
 // Clearwater code that handles JSON typically uses rapidjson to parse JSON text
 // into a DOM. However as JSON is schemaless the code then needs to validate the
@@ -224,6 +225,41 @@ struct JsonFormatError
     {                                                                          \
       (TARGET) = (NODE)[(ATTR_NAME)].GetBool();                                \
     }                                                                          \
+}
+
+template<typename T>
+void extract_json_string_array(rapidjson::Value& json,
+                               const char* key,
+                               T& array)
+{
+  if (json.HasMember(key) && json[key].IsArray())
+  {
+    const rapidjson::Value& arr = json[key];
+
+    for (rapidjson::Value::ConstValueIterator it = arr.Begin();
+         it != arr.End();
+         ++it)
+    {
+      JSON_ASSERT_STRING(*it);
+      array.push_back(it->GetString());
+    }
+  }
+}
+
+template<typename T>
+void write_json_string_array(rapidjson::Writer<rapidjson::StringBuffer>& writer,
+                             const char* key,
+                             T& array)
+{
+  writer.String(key);
+  writer.StartArray();
+
+  for (const std::string& element : array)
+  {
+    writer.String(element.c_str());
+  }
+
+  writer.EndArray();
 }
 
 #endif

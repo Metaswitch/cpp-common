@@ -142,18 +142,44 @@ struct AddrInfo
 
   std::string address_and_port_to_string() const
   {
-    std::stringstream os;
+    std::stringstream oss;
     char buf[100];
-    os << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
-    os << ":" << port;
-    return os.str();
+    if (address.af == AF_INET6)
+    {
+      oss << "[";
+    }
+    oss << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
+    if (address.af == AF_INET6)
+    {
+      oss << "]";
+    }
+
+    oss << ":" << port;
+    return oss.str();
   }
 
   std::string to_string() const
   {
-    std::stringstream os;
-    os << address_and_port_to_string() << " transport " << transport;
-    return os.str();
+    std::stringstream oss;
+    oss << address_and_port_to_string() << ";transport=";
+    if (transport == IPPROTO_SCTP)
+    {
+      oss << "SCTP";
+    }
+    else if (transport == IPPROTO_TCP)
+    {
+      oss << "TCP";
+    }
+    else if (transport == IPPROTO_UDP)
+    {
+      oss << "UDP";
+    }
+    else
+    {
+      oss << "Unknown (" << transport << ")";
+    }
+
+    return oss.str();
   }
 };
 
@@ -213,6 +239,11 @@ namespace Utils
       return s;
     }
   }
+
+  std::string strip_uri_scheme(const std::string& uri);
+  std::string remove_visual_separators(const std::string& number);
+  bool is_user_numeric(const std::string& user);
+  bool is_user_numeric(const char* user, size_t user_len);
 
   std::string ip_addr_to_arpa(IP46Address ip_addr);
 
@@ -360,6 +391,9 @@ namespace Utils
   bool split_host_port(const std::string& host_port,
                        std::string& host,
                        int& port);
+
+  /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
+  bool parse_ip_target(const std::string& target, IP46Address& address);
 
   /// Generates a random number which is exponentially distributed
   class ExponentialDistribution
@@ -586,6 +620,9 @@ namespace Utils
   // Calculates a diameter timeout from the target latency.
   void calculate_diameter_timeout(int target_latency_us,
                                   int& diameter_timeout);
+
+  bool in_vector(const std::string& element,
+                 const std::vector<std::string>& elements);
 } // namespace Utils
 
 #endif /* UTILS_H_ */
