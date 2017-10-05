@@ -36,7 +36,7 @@ public:
     virtual ~Backend() {}
 
     // Returns a reference to the element at the 'front' of the container.
-    virtual T& front() = 0;
+    virtual const T& front() = 0;
 
     // Returns true if the container is empty, and false otherwise.
     virtual bool empty() = 0;
@@ -59,7 +59,7 @@ public:
     QueueBackend() : _queue() {}
     virtual ~QueueBackend() {}
 
-    virtual T& front()
+    virtual const T& front()
     {
       return _queue.front();
     }
