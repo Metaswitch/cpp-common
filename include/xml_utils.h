@@ -64,6 +64,7 @@ namespace RegDataXMLUtils
 {
   const char* const PRIORITY = "Priority";
   const char* const CLEARWATER_REG_DATA = "ClearwaterRegData";
+  const char* const PREVIOUS_REGISTRATION_STATE = "PreviousRegistrationState";
   const char* const REGISTRATION_STATE = "RegistrationState";
   const char* const CHARGING_ADDRESSES = "ChargingAddresses";
   const char* const CCF = "CCF";
