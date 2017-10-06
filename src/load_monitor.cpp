@@ -84,7 +84,7 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
   TRC_STATUS("   Min token fill rate/s    : %f", init_min_token_rate);
 
   REQUESTS_BEFORE_ADJUSTMENT = 20;
-  SECONDS_BEFORE_ADJUSTMENT = 2;
+  PERCENTAGE_BEFORE_ADJUSTMENT = 0.5;
 
   // Adjustment parameters for token bucket
   DECREASE_THRESHOLD = 0.0;
@@ -185,96 +185,93 @@ void LoadMonitor::request_complete(int latency)
 
   if (adjust_count >= REQUESTS_BEFORE_ADJUSTMENT)
   {
-    // We've seen the right number of requests, but ensure
-    // that an appropriate amount of time has passed, so the rate doesn't
-    // fluctuate wildly if latency spikes for a few milliseconds
+    // We've seen the right number of requests.
     timespec current_time;
     clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
     unsigned long current_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_nsec / 1000000);
-    if (current_time_ms >= (last_adjustment_time_ms + (SECONDS_BEFORE_ADJUSTMENT * 1000)))
+
+    // This algorithm is based on the Welsh and Culler "Adaptive Overload
+    // Control for Busy Internet Servers" paper, although based on a smoothed
+    // mean latency, rather than the 90th percentile as per the paper.
+    // Also, the additive increase is scaled as a proportion of the maximum
+    // bucket size, rather than an absolute number as per the paper.
+    float err = ((float) (smoothed_latency - target_latency)) / target_latency;
+
+    // Work out the percentage of accepted requests (for logs)
+    float accepted_percent = (accepted + rejected == 0) ?
+                              100.0 :
+                              100 * (((float) accepted) / (accepted + rejected));
+
+    TRC_INFO("Accepted %f%% of requests, latency error = %f, overload responses = %d",
+        accepted_percent, err, penalties);
+
+    if (err > DECREASE_THRESHOLD || penalties > 0)
     {
-      // This algorithm is based on the Welsh and Culler "Adaptive Overload
-      // Control for Busy Internet Servers" paper, although based on a smoothed
-      // mean latency, rather than the 90th percentile as per the paper.
-      // Also, the additive increase is scaled as a proportion of the maximum
-      // bucket size, rather than an absolute number as per the paper.
-      float err = ((float) (smoothed_latency - target_latency)) / target_latency;
-
-      // Work out the percentage of accepted requests (for logs)
-      float accepted_percent = (accepted + rejected == 0) ? 100.0 : 100 * (((float) accepted) / (accepted + rejected));
-
-      TRC_INFO("Accepted %f%% of requests, latency error = %f, overload responses = %d",
-          accepted_percent, err, penalties);
-
-      // latency is above where we want it to be, or we are getting overload responses from
-      // Homer/Homestead, so adjust the rate downwards by a multiplicative factor
-
-      if (err > DECREASE_THRESHOLD || penalties > 0)
+      // Latency is above where we want it to be, or we are getting overload
+      // responses from downstream nodes, so adjust the rate downwards by a
+      // multiplicative factor
+      float new_rate = bucket.rate / DECREASE_FACTOR;
+      if (new_rate < min_token_rate)
       {
-        float new_rate = bucket.rate / DECREASE_FACTOR;
-        if (new_rate < min_token_rate)
-        {
-          new_rate = min_token_rate;
-        }
+        new_rate = min_token_rate;
+      }
+      bucket.update_rate(new_rate);
+      TRC_STATUS("Maximum incoming request rate/second decreased to %f "
+                 "(based on a smoothed mean latency of %d and %d upstream overload responses)",
+                 bucket.rate,
+                 smoothed_latency,
+                 penalties);
+    }
+    else if (err < INCREASE_THRESHOLD)
+    {
+      // Our latency is below the threshold, so increasing our permitted request
+      // rate would be sensible. Before doing that, we check that we're using a
+      // significant proportion of our current rate - if we're allowing 100
+      // requests/sec, and we get 1 request/sec because it's a quiet period,
+      // then it's going to be handled quickly, but that's not sufficient
+      // evidence to increase our rate.
+      int ms_passed = (current_time_ms - last_adjustment_time_ms);
+      float maximum_permitted_requests = bucket.rate * ms_passed / 1000;
+      float minimum_threshold = maximum_permitted_requests * PERCENTAGE_BEFORE_ADJUSTMENT;
+
+      if (accepted > minimum_threshold)
+      {
+        float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
         bucket.update_rate(new_rate);
-        TRC_STATUS("Maximum incoming request rate/second decreased to %f "
-                   "(based on a smoothed mean latency of %d and %d upstream overload responses)",
+        TRC_STATUS("Maximum incoming request rate/second increased to %f "
+                   "(based on a smoothed mean latency of %d, %d upstream "
+                   "overload responses, %dms time passing, %d accepted "
+                   "requests, and %d rejected requests).",
                    bucket.rate,
                    smoothed_latency,
-                   penalties);
-      }
-      else if (err < INCREASE_THRESHOLD)
-      {
-        // Our latency is below the threshold, so increasing our permitted request rate would be
-        // sensible. Before doing that, we check that we're using a significant proportion of our
-        // current rate - if we're allowing 100 requests/sec, and we get 1 request/sec because it's
-        // a quiet period, then it's going to be handled quickly, but that's not sufficient evidence
-        // to increase our rate.
-        int ms_passed = (current_time_ms - last_adjustment_time_ms);
-        float maximum_permitted_requests = bucket.rate * ms_passed / 1000;
-
-        // Arbitrary threshold - require 50% of our current permitted rate to be used
-        float minimum_threshold = maximum_permitted_requests * 0.5;
-
-        if (accepted > minimum_threshold)
-        {
-          float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
-          bucket.update_rate(new_rate);
-          TRC_STATUS("Maximum incoming request rate/second increased to %f "
-                     "(based on a smoothed mean latency of %d, %d upstream "
-                     "overload responses, %dms time passing, %d accepted "
-                     "requests, and %d rejected requests).",
-                     bucket.rate,
-                     smoothed_latency,
-                     penalties,
-                     ms_passed,
-                     accepted,
-                     rejected);
-        }
-        else
-        {
-          TRC_STATUS("Maximum incoming request rate/second unchanged - only handled %d requests"
-                     " in last %dms, minimum threshold for a change is %f",
-                     accepted,
-                     ms_passed,
-                     minimum_threshold);
-        }
+                   penalties,
+                   ms_passed,
+                   accepted,
+                   rejected);
       }
       else
       {
-        TRC_DEBUG("Maximum incoming request rate/second is unchanged at %f",
-                  bucket.rate);
+        TRC_STATUS("Maximum incoming request rate/second unchanged - only handled %d requests"
+                   " in last %dms, minimum threshold for a change is %f",
+                   accepted,
+                   ms_passed,
+                   minimum_threshold);
       }
-
-      update_statistics();
-
-      // Reset counts
-      last_adjustment_time_ms = current_time_ms;
-      adjust_count = 0;
-      accepted = 0;
-      rejected = 0;
-      penalties = 0;
     }
+    else
+    {
+      TRC_DEBUG("Maximum incoming request rate/second is unchanged at %f",
+                bucket.rate);
+    }
+
+    update_statistics();
+
+    // Reset counts
+    last_adjustment_time_ms = current_time_ms;
+    adjust_count = 0;
+    accepted = 0;
+    rejected = 0;
+    penalties = 0;
   }
 
   pthread_mutex_unlock(&_lock);
