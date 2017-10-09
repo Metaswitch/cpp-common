@@ -301,6 +301,7 @@ private:
   /// Helper function that builds the curl header in the set_curl_options
   /// method.
   struct curl_slist* build_headers(std::vector<std::string> headers_to_add,
+                                   bool has_body,
                                    bool assert_user,
                                    const std::string& username,
                                    std::string uuid_str);
