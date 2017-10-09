@@ -29,5 +29,6 @@ class MockLoadMonitor : public LoadMonitor
   MOCK_METHOD0(get_target_latency, int());
   MOCK_METHOD0(get_current_latency, int());
   MOCK_METHOD0(get_rate_limit, float());
+};
 
 #endif
