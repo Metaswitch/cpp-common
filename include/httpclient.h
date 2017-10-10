@@ -125,7 +125,7 @@ public:
   ///                           data
   /// @param response           Location to store retrieved data
   /// @param trail              SAS trail to use
-  /// @param body               Body to send on the request
+  /// @param body               JSON body to send on the request
   /// @param username           Username to assert if assertUser is true, else
   ///                           ignored
   /// @param allowed_host_state what lists to resolve hosts from, where we
@@ -159,7 +159,7 @@ public:
   /// @param headers            Location to store the header part of the retrieved
   ///                           data
   /// @param response           Location to store retrieved data
-  /// @param body               Body to send on the request
+  /// @param body               JSON body to send on the request
   /// @param extra_req_headers  Extra headers to add to the request
   /// @param trail              SAS trail to use
   /// @param username           Username to assert if assertUser is true, else
@@ -204,7 +204,7 @@ public:
   /// @param headers            Location to store the header part of the retrieved
   ///                           data
   /// @param response           Location to store retrieved data
-  /// @param body               Body to send on the request
+  /// @param body               JSON body to send on the request
   /// @param trail              SAS trail to use
   /// @param username           Username to assert if assertUser is true, else
   ///                           ignored
@@ -278,7 +278,7 @@ private:
   ///
   /// @param request_type     The type of HTTP request to send
   /// @param url              Full URL to request - includes http(s)?://
-  /// @param body             Body to send on the request
+  /// @param body             JSON body to send on the request
   /// @param response         Location to store retrieved data
   /// @param username         Username to assert if assertUser is true, else
   ///                         ignored
