@@ -18,10 +18,28 @@ class HttpResolver : public ARecordResolver
 {
 public:
   HttpResolver(DnsCachedResolver* dns_client,
+               int address_family) :
+    HttpResolver(dns_client, address_family, DEFAULT_BLACKLIST_DURATION)
+  {
+  }
+
+  /// This constructor is called when graylisting is desired but we don't want
+  /// to set a specific duration.
+  HttpResolver(DnsCachedResolver* dns_client,
                int address_family,
-               int blacklist_duration = DEFAULT_BLACKLIST_DURATION,
-               int graylist_duration = DEFAULT_GRAYLIST_DURATION)
-    : ARecordResolver(dns_client,
+               int blacklist_duration) :
+    HttpResolver(dns_client,
+                   address_family,
+                   blacklist_duration,
+                   blacklist_duration)
+  {
+  }
+
+  HttpResolver(DnsCachedResolver* dns_client,
+               int address_family,
+               int blacklist_duration,
+               int graylist_duration) :
+    ARecordResolver(dns_client,
                       address_family,
                       blacklist_duration,
                       graylist_duration,
