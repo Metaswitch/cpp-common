@@ -515,7 +515,8 @@ namespace Utils
         if (_ok)
         {
           result_us = (now.tv_nsec - _start.tv_nsec) / 1000L +
-                      (now.tv_sec - _start.tv_sec) * 1000000L;
+                      (now.tv_sec - _start.tv_sec) * 1000000L +
+                      _elapsed_us;
         }
         else
         {
