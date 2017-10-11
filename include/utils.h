@@ -650,4 +650,13 @@ namespace Utils
   };
 } // namespace Utils
 
+#define CW_IO_STARTS(MSG)                                                      \
+  {                                                                            \
+    std::string description = MSG;                                             \
+    Utils::IOHook::io_starts(description);
+
+#define CW_IO_COMPLETES()                                                      \
+    Utils::IOHook::io_completes(description);                                  \
+  }
+
 #endif /* UTILS_H_ */
