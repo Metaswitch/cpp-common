@@ -830,3 +830,45 @@ bool Utils::in_vector(const std::string& element,
 {
   return std::find(vec.begin(), vec.end(), element) != vec.end();
 }
+
+//
+// IOHook methods.
+//
+
+Utils::IOHook::IOHook(IoStartedCallback start_cb,
+       IoCompletedCallback complete_cb) :
+  _io_started_cb(start_cb),
+  _io_completed_cb(complete_cb)
+{
+  _next_hook = _top_hook;
+  _top_hook = this;
+}
+
+Utils::IOHook::~IOHook()
+{
+  _top_hook = _next_hook;
+}
+
+void Utils::IOHook::io_starts(const std::string& msg)
+{
+  IOHook* hook = _top_hook;
+
+  while (hook != nullptr)
+  {
+    hook->_io_started_cb(msg);
+    hook = hook->_next_hook;
+  }
+}
+
+void Utils::IOHook::io_completes(const std::string& msg)
+{
+  IOHook* hook = _top_hook;
+
+  while (hook != nullptr)
+  {
+    hook->_io_completed_cb(msg);
+    hook = hook->_next_hook;
+  }
+}
+
+thread_local Utils::IOHook* Utils::IOHook::_top_hook = nullptr;

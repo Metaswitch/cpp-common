@@ -623,6 +623,31 @@ namespace Utils
 
   bool in_vector(const std::string& element,
                  const std::vector<std::string>& elements);
+
+  class IOHook
+  {
+  public:
+    using IoStartedCallback = std::function<void(const std::string& msg)>;
+    using IoCompletedCallback = std::function<void(const std::string& msg)>;
+
+    IOHook(IoStartedCallback start_cb,
+           IoCompletedCallback complete_cb);
+
+    virtual ~IOHook();
+
+    static void io_starts(const std::string& msg);
+    static void io_completes(const std::string& msg);
+
+    static void NOOP_ON_START(const std::string& msg) {};
+    static void NOOP_ON_COMPLETE(const std::string& msg) {};
+
+  private:
+    static thread_local IOHook* _top_hook;
+    IOHook* _next_hook;
+
+    IoStartedCallback _io_started_cb;
+    IoCompletedCallback _io_completed_cb;
+  };
 } // namespace Utils
 
 #endif /* UTILS_H_ */
