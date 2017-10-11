@@ -66,7 +66,11 @@ memcached_return_t BaseMemcachedStore::get_from_replica(memcached_st* replica,
 
   // We must use memcached_mget because memcached_get does not retrieve CAS
   // values.
-  rc = memcached_mget(replica, &key_ptr, &key_len, 1);
+  CW_IO_STARTS("Memcached GET for " + std::string(key_ptr, key_len))
+  {
+    rc = memcached_mget(replica, &key_ptr, &key_len, 1);
+  }
+  CW_IO_COMPLETES()
 
   if (memcached_success(rc))
   {
@@ -119,27 +123,35 @@ memcached_return_t BaseMemcachedStore::add_overwriting_tombstone(memcached_st* r
     if (cas == 0)
     {
       TRC_DEBUG("Attempting memcached ADD command");
-      rc = memcached_add_vb(replica,
-                            key_ptr,
-                            key_len,
-                            _binary ? vbucket : 0,
-                            data.data(),
-                            data.length(),
-                            memcached_expiration,
-                            flags);
+      CW_IO_STARTS("Memcached ADD for " + std::string(key_ptr, key_len))
+      {
+        rc = memcached_add_vb(replica,
+                              key_ptr,
+                              key_len,
+                              _binary ? vbucket : 0,
+                              data.data(),
+                              data.length(),
+                              memcached_expiration,
+                              flags);
+      }
+      CW_IO_COMPLETES()
     }
     else
     {
       TRC_DEBUG("Attempting memcached CAS command (cas = %d)", cas);
-      rc = memcached_cas_vb(replica,
-                            key_ptr,
-                            key_len,
-                            _binary ? vbucket : 0,
-                            data.data(),
-                            data.length(),
-                            memcached_expiration,
-                            flags,
-                            cas);
+      CW_IO_STARTS("Memcached CAS for " + std::string(key_ptr, key_len))
+      {
+        rc = memcached_cas_vb(replica,
+                              key_ptr,
+                              key_len,
+                              _binary ? vbucket : 0,
+                              data.data(),
+                              data.length(),
+                              memcached_expiration,
+                              flags,
+                              cas);
+      }
+      CW_IO_COMPLETES()
     }
 
     if ((rc == MEMCACHED_DATA_EXISTS) ||
@@ -482,15 +494,19 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
     {
       // This is an update to an existing record, so use memcached_cas
       // to make sure it is atomic.
-      rc = memcached_cas_vb(conn_handle.get_connection(),
-                            fqkey.data(),
-                            fqkey.length(),
-                            0,
-                            data.data(),
-                            data.length(),
-                            memcached_expiration,
-                            0,
-                            cas);
+      CW_IO_STARTS("Memcached CAS for " + fqkey)
+      {
+        rc = memcached_cas_vb(conn_handle.get_connection(),
+                              fqkey.data(),
+                              fqkey.length(),
+                              0,
+                              data.data(),
+                              data.length(),
+                              memcached_expiration,
+                              0,
+                              cas);
+      }
+      CW_IO_COMPLETES()
     }
     return rc;
   };
@@ -543,14 +559,18 @@ Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::str
     [&] (ConnectionHandle<memcached_st*>& conn_handle,
          time_t memcached_expiration) -> memcached_return_t
   {
-    return memcached_set_vb(conn_handle.get_connection(),
-                            fqkey.data(),
-                            fqkey.length(),
-                            0,
-                            data.data(),
-                            data.length(),
-                            memcached_expiration,
-                            0);
+    CW_IO_STARTS("Memcached SET for " + fqkey)
+    {
+      return memcached_set_vb(conn_handle.get_connection(),
+                              fqkey.data(),
+                              fqkey.length(),
+                              0,
+                              data.data(),
+                              data.length(),
+                              memcached_expiration,
+                              0);
+    }
+    CW_IO_COMPLETES()
   };
 
   return set_data(fqkey,
@@ -692,18 +712,26 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
 
     if (_tombstone_lifetime == 0)
     {
-      rc = memcached_delete(conn_handle.get_connection(), fqkey.data(), fqkey.length(), 0);
+      CW_IO_STARTS("Memcached DELETE for " + fqkey)
+      {
+        rc = memcached_delete(conn_handle.get_connection(), fqkey.data(), fqkey.length(), 0);
+      }
+      CW_IO_COMPLETES()
     }
     else
     {
-      rc = memcached_set_vb(conn_handle.get_connection(),
-                            fqkey.data(),
-                            fqkey.length(),
-                            0,
-                            TOMBSTONE.data(),
-                            TOMBSTONE.length(),
-                            _tombstone_lifetime,
-                            0);
+      CW_IO_STARTS("Memcached SET for " + fqkey)
+      {
+        rc = memcached_set_vb(conn_handle.get_connection(),
+                              fqkey.data(),
+                              fqkey.length(),
+                              0,
+                              TOMBSTONE.data(),
+                              TOMBSTONE.length(),
+                              _tombstone_lifetime,
+                              0);
+      }
+      CW_IO_COMPLETES()
     }
     return rc;
   });
