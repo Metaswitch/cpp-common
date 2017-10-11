@@ -849,24 +849,24 @@ Utils::IOHook::~IOHook()
   _top_hook = _next_hook;
 }
 
-void Utils::IOHook::io_starts(const std::string& msg)
+void Utils::IOHook::io_starts(const std::string& reason)
 {
   IOHook* hook = _top_hook;
 
   while (hook != nullptr)
   {
-    hook->_io_started_cb(msg);
+    hook->_io_started_cb(reason);
     hook = hook->_next_hook;
   }
 }
 
-void Utils::IOHook::io_completes(const std::string& msg)
+void Utils::IOHook::io_completes(const std::string& reason)
 {
   IOHook* hook = _top_hook;
 
   while (hook != nullptr)
   {
-    hook->_io_completed_cb(msg);
+    hook->_io_completed_cb(reason);
     hook = hook->_next_hook;
   }
 }
