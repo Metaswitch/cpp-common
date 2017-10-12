@@ -559,18 +559,22 @@ Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::str
     [&] (ConnectionHandle<memcached_st*>& conn_handle,
          time_t memcached_expiration) -> memcached_return_t
   {
+    memcached_return_t rc;
+
     CW_IO_STARTS("Memcached SET for " + fqkey)
     {
-      return memcached_set_vb(conn_handle.get_connection(),
-                              fqkey.data(),
-                              fqkey.length(),
-                              0,
-                              data.data(),
-                              data.length(),
-                              memcached_expiration,
-                              0);
+      rc = memcached_set_vb(conn_handle.get_connection(),
+                            fqkey.data(),
+                            fqkey.length(),
+                            0,
+                            data.data(),
+                            data.length(),
+                            memcached_expiration,
+                            0);
     }
-    CW_IO_COMPLETES()
+    CW_IO_COMPLETES();
+
+    return rc;
   };
 
   return set_data(fqkey,
