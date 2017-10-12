@@ -841,11 +841,13 @@ Utils::IOHook::IOHook(IoStartedCallback start_cb,
   _io_completed_cb(complete_cb)
 {
   _hooks.push_back(this);
+  TRC_DEBUG("Added IOHook %p to stack. There are now %d hooks", this, _hooks.size());
 }
 
 Utils::IOHook::~IOHook()
 {
-  std::remove(_hooks.begin(), _hooks.end(), this);
+  _hooks.erase(std::remove(_hooks.begin(), _hooks.end(), this));
+  TRC_DEBUG("Removed IOHook %p to stack. There are now %d hooks", this, _hooks.size());
 }
 
 void Utils::IOHook::io_starts(const std::string& reason)
