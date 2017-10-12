@@ -47,6 +47,7 @@ void LocalStore::flush_all()
   pthread_mutex_lock(&_db_lock);
   TRC_DEBUG("Flushing local store");
   _db.clear();
+  _old_db.clear();
   pthread_mutex_unlock(&_db_lock);
 }
 
@@ -56,6 +57,7 @@ void LocalStore::flush_all()
 // if the flag is true.
 void LocalStore::force_contention()
 {
+  TRC_DEBUG("Setting _data_contention_flag");
   _data_contention_flag = true;
 }
 
