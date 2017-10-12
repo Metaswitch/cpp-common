@@ -840,35 +840,36 @@ Utils::IOHook::IOHook(IoStartedCallback start_cb,
   _io_started_cb(start_cb),
   _io_completed_cb(complete_cb)
 {
-  _next_hook = _top_hook;
-  _top_hook = this;
+  _hooks.push_back(this);
 }
 
 Utils::IOHook::~IOHook()
 {
-  _top_hook = _next_hook;
+  std::remove(_hooks.begin(), _hooks.end(), this);
 }
 
 void Utils::IOHook::io_starts(const std::string& reason)
 {
-  IOHook* hook = _top_hook;
-
-  while (hook != nullptr)
+  // Iterate through the hooks in reverse order so the one most recently
+  // registered gets invoked first.
+  for(std::vector<IOHook*>::reverse_iterator hook = _hooks.rbegin();
+      hook != _hooks.rend();
+      hook++)
   {
-    hook->_io_started_cb(reason);
-    hook = hook->_next_hook;
+    (*hook)->_io_started_cb(reason);
   }
 }
 
 void Utils::IOHook::io_completes(const std::string& reason)
 {
-  IOHook* hook = _top_hook;
-
-  while (hook != nullptr)
+  // Iterate through the hooks in reverse order so the one most recently
+  // registered gets invoked first.
+  for(std::vector<IOHook*>::reverse_iterator hook = _hooks.rbegin();
+      hook != _hooks.rend();
+      hook++)
   {
-    hook->_io_completed_cb(reason);
-    hook = hook->_next_hook;
+    (*hook)->_io_completed_cb(reason);
   }
 }
 
-thread_local Utils::IOHook* Utils::IOHook::_top_hook = nullptr;
+thread_local std::vector<Utils::IOHook*> Utils::IOHook::_hooks = {};

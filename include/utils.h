@@ -675,8 +675,7 @@ namespace Utils
     static void NOOP_ON_COMPLETE(const std::string& reason) {};
 
   private:
-    static thread_local IOHook* _top_hook;
-    IOHook* _next_hook;
+    static thread_local std::vector<IOHook*> _hooks;
 
     IoStartedCallback _io_started_cb;
     IoCompletedCallback _io_completed_cb;
