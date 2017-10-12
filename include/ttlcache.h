@@ -15,6 +15,7 @@
 #include <pthread.h>
 
 #include <map>
+#include <memory>
 
 #include "log.h"
 
@@ -23,16 +24,18 @@ template <class K, class V>
 class CacheFactory
 {
 public:
-  virtual V get(K key, int& ttl, SAS::TrailId trail) = 0;
-  virtual void evict(K key, V value) = 0;
+  virtual std::shared_ptr<V> get(K key, int& ttl, SAS::TrailId trail) = 0;
 };
 
-/// Templated class implementing a cache of items with a specified TTL.
-/// Users of this class can use it in a couple of ways, either inserting
-/// entries manually using the add API, or registering a factory when the
-/// cache is created which is used to create entries on cache misses.
-/// The cache is thread-safe and guarantees that multiple concurrent calls
-/// to get for the same key will only result in a single call to the factory.
+/// Templated class implementing a cache of items with a specified TTL.  Users
+/// registed a factory when the cache is created which is used to greate entries
+/// on cache misses.  The cache is thread-safe and guarantees that multiple
+/// concurrent calls to get for the same key will only result in a single call
+/// to the factory.
+///
+/// When the destructor for the class used for Value is called, it must free all
+/// resources associated with that Value object, since that object is only
+/// accessed by shared_ptr's.
 template <class K, class V>
 class TTLCache
 {
@@ -42,26 +45,25 @@ class TTLCache
   typedef typename ExpiryList::iterator ExpiryIterator;
 
   /// The cache itself is a map indexed on the key, where each entry contains
-  /// the value plus various housekeeping fields ...
+  /// a shared pointer to the value plus various housekeeping fields ...
   /// -   state and lock fields used to ensure that each cache entry is only
   ///     populated once even if multiple threads try to get it at the same
   ///     time
-  /// -   a reference count
   /// -   the iterator of the item in the expiry list (or expiry_list.end() if
   ///     it is not yet in the list.
   struct Entry
   {
     enum {PENDING, COMPLETE} state;
     pthread_mutex_t lock;
-    int refs;
     ExpiryIterator expiry_i;
-    V data;
+    std::shared_ptr<V> data_ptr;
   };
 
   typedef std::map<K, Entry> KeyMap;
   typedef typename KeyMap::iterator KeyMapIterator;
 
 public:
+  /// factory is assumed to not be null.
   TTLCache(CacheFactory<K, V>* factory) :
     _factory(factory),
     _lock(PTHREAD_MUTEX_INITIALIZER),
@@ -72,21 +74,11 @@ public:
 
   ~TTLCache()
   {
-    if (_factory != NULL)
-    {
-      // Call evict for every entry in the cache.
-      for (KeyMapIterator i = _cache.begin();
-           i != _cache.end();
-           ++i)
-      {
-        _factory->evict(i->first, i->second.data);
-      }
-    }
     pthread_mutex_destroy(&_lock);
   }
 
   /// Get or create an entry in the cache.
-  V get(K key, int& ttl, SAS::TrailId trail)
+  std::shared_ptr<V> get(K key, int& ttl, SAS::TrailId trail)
   {
     pthread_mutex_lock(&_lock);
 
@@ -97,58 +89,39 @@ public:
 
     if (i == _cache.end())
     {
-      if (_factory != NULL)
-      {
-        // The entry is not in the cache, so create a placeholder.
-        TRC_DEBUG("Entry not in cache, so create new entry");
-        Entry& entry = _cache[key];
-        pthread_mutex_init(&entry.lock, NULL);
-        entry.state = Entry::PENDING;
-        entry.expiry_i = _expiry_list.end();
-        pthread_mutex_lock(&entry.lock);
+      // The entry is not in the cache, so create a placeholder.
+      TRC_DEBUG("Entry not in cache, so create new entry");
+      Entry& entry = _cache[key];
+      pthread_mutex_init(&entry.lock, NULL);
+      entry.state = Entry::PENDING;
+      entry.expiry_i = _expiry_list.end();
+      pthread_mutex_lock(&entry.lock);
 
-        // Release the global lock and invoke the factory to populate the
-        // cache data.
-        pthread_mutex_unlock(&_lock);
-        entry.data = _factory->get(key, ttl, trail);
+      // Release the global lock and invoke the factory to populate the
+      // cache data.
+      pthread_mutex_unlock(&_lock);
+      entry.data_ptr = _factory->get(key, ttl, trail);
 
-        // Cache data should now be populated, so get the global lock again,
-        // and mark the entry as complete.
-        pthread_mutex_lock(&_lock);
-        entry.state = Entry::COMPLETE;
+      // Cache data should now be populated, so get the global lock again,
+      // and mark the entry as complete.
+      pthread_mutex_lock(&_lock);
+      entry.state = Entry::COMPLETE;
 
-        // Add the entry to the expiry list, and add one to the reference count
-        // for this reference.
-        ++entry.refs;
-        TRC_DEBUG("Adding entry to expiry list, TTL=%d, expiry time = %d", ttl, ttl + time(NULL));
-        entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
+      // Add the entry to the expiry list.
+      TRC_DEBUG("Adding entry to expiry list, TTL=%d, expiry time = %d", ttl, ttl + time(NULL));
+      entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
 
-        // Unlock the entry, so other threads can read it.
-        pthread_mutex_unlock(&entry.lock);
+      // Unlock the entry, so other threads can read it.
+      pthread_mutex_unlock(&entry.lock);
 
-        // Increment the reference count on the entry as we are about to return
-        // it to an user.
-        ++entry.refs;
+      pthread_mutex_unlock(&_lock);
 
-        pthread_mutex_unlock(&_lock);
-
-        return entry.data;
-      }
-      else
-      {
-        // No entry in the cache, and no factory, so just return an empty value.
-        pthread_mutex_unlock(&_lock);
-        return V();
-      }
+      return entry.data_ptr;
     }
     else
     {
       TRC_DEBUG("Found the entry in the cache");
       Entry& entry = i->second;
-
-      // Add a reference to the entry so it doesn't get evicted and destroyed
-      // from under our feet.
-      ++entry.refs;
 
       // It's now safe to release the global lock.
       pthread_mutex_unlock(&_lock);
@@ -165,7 +138,7 @@ public:
         pthread_mutex_unlock(&entry.lock);
       }
 
-      return entry.data;
+      return entry.data_ptr;
     }
   }
 
@@ -188,52 +161,6 @@ public:
     pthread_mutex_unlock(&_lock);
 
     return rc;
-  }
-
-  /// Add an item to the cache with the specified time to live.
-  void add(K key, V value, int ttl)
-  {
-    pthread_mutex_lock(&_lock);
-
-    // Evict any old entries.
-    evict();
-
-    KeyMapIterator i = _cache.find(key);
-
-    if (i == _cache.end())
-    {
-      // Add the entry to the cache.
-      Entry& entry = _cache[key];
-      pthread_mutex_init(&entry.lock, NULL);
-      entry.data = value;
-      entry.state = Entry::COMPLETE;
-
-      // Add the entry to the expiry list, and add one to the reference count
-      // for this reference.
-      ++entry.refs;
-      entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
-    }
-    else
-    {
-      // Update the cache entry.
-      Entry& entry = i->second;
-      if (_factory != NULL)
-      {
-        _factory->evict(key, entry.data);
-      }
-      entry.data = value;
-
-      // Move the entry in the expiry list.
-      if (entry.expiry_i != _expiry_list.end())
-      {
-        _expiry_list.erase(entry.expiry_i);
-        --entry.refs;
-      }
-      ++entry.refs;
-      entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
-    }
-
-    pthread_mutex_unlock(&_lock);
   }
 
   /// Returns the TTL of an item in the cache.  Returns zero if the item isn't
@@ -262,32 +189,6 @@ public:
     return ttl;
   }
 
-  void dec_ref(K key)
-  {
-    // Remove a reference on the specified entry and evict it if it has
-    // timed out and there are no more references.
-    pthread_mutex_lock(&_lock);
-    KeyMapIterator j = _cache.find(key);
-
-    if (j != _cache.end())
-    {
-      Entry& entry = j->second;
-      if (--entry.refs <= 0)
-      {
-        // Don't release the global lock around eviction - assumption is it
-        // isn't a blocking operation.
-        if (_factory != NULL)
-        {
-          _factory->evict(j->first, entry.data);
-        }
-        pthread_mutex_destroy(&entry.lock);
-        _cache.erase(j);
-      }
-    }
-
-    pthread_mutex_unlock(&_lock);
-  }
-
 private:
 
   void evict()
@@ -303,31 +204,25 @@ private:
 
       if (j != _cache.end())
       {
-        // Decrement the reference count as the entry is no longer referenced
-        // from the expiry list.  If the reference count is now zero we can
-        // evict immediately, otherwise wait for other references to end.
         // Set the expiry iterator to _expiry_list.end() as we are about to
         // remove from the expiry list.
         Entry& entry = j->second;
         entry.expiry_i = _expiry_list.end();
-        if (--(entry.refs) <= 0)
-        {
-          // Don't release the global lock around eviction - assumption is it
-          // isn't a blocking operation.
-          if (_factory != NULL)
-          {
-            _factory->evict(j->first, entry.data);
-          }
-          pthread_mutex_destroy(&entry.lock);
-          _cache.erase(j);
-        }
+
+        pthread_mutex_destroy(&entry.lock);
+
+        // Erasing the entry in the cache deletes this instance of the shared
+        // pointer. This means new calls of get to the cache will get an
+        // up-to-date version of V, but old calls won't have their shared
+        // pointers overwritten until they've all finished with them.
+        _cache.erase(j);
       }
       _expiry_list.erase(i);
 
     }
   }
 
-  /// Factory object used to get and evict cache data.
+  /// Factory object used to get cache data.
   CacheFactory<K, V>* _factory;
 
   /// Lock protecting the global structures in the cache.  This lock must be

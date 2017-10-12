@@ -497,6 +497,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
 
     // Construct and add extra headers
     struct curl_slist* extra_headers = build_headers(headers_to_add,
+                                                     !body.empty(),
                                                      _assert_user,
                                                      username,
                                                      uuid_str);
@@ -802,12 +803,17 @@ HTTPCode HttpClient::send_request(RequestType request_type,
 }
 
 struct curl_slist* HttpClient::build_headers(std::vector<std::string> headers_to_add,
+                                             bool has_body,
                                              bool assert_user,
                                              const std::string& username,
                                              std::string uuid_str)
 {
   struct curl_slist* extra_headers = NULL;
-  extra_headers = curl_slist_append(extra_headers, "Content-Type: application/json");
+
+  if (has_body)
+  {
+    extra_headers = curl_slist_append(extra_headers, "Content-Type: application/json");
+  }
 
   // Add the UUID for SAS correlation to the HTTP message.
   extra_headers = curl_slist_append(extra_headers,

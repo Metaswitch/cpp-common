@@ -71,7 +71,7 @@ void DiameterResolver::resolve(const std::string& realm,
     // Realm is specified, so do a NAPTR lookup for the target.
     TRC_DEBUG("Do NAPTR look-up for %s", realm.c_str());
 
-    NAPTRReplacement* naptr = _naptr_cache->get(realm, ttl, 0);
+    std::shared_ptr<NAPTRReplacement> naptr = _naptr_cache->get(realm, ttl, 0);
 
     if (naptr != NULL)
     {
@@ -127,8 +127,6 @@ void DiameterResolver::resolve(const std::string& realm,
         set_ttl = true;
       }
     }
-
-    _naptr_cache->dec_ref(realm);
 
     // We might now have got SRV or A domain names, so do lookups for them if so.
     if (srv_name != "")
