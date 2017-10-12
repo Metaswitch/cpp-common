@@ -140,6 +140,12 @@ public:
   /// Send a termination signal via the queue.
   void terminate()
   {
+    std::vector<T> remaining_elts;
+    terminate(remaining_elts);
+  }
+
+  void terminate(std::vector<T>& remaining_elts)
+  {
     pthread_mutex_lock(&_m);
 
     _terminated = true;
@@ -151,6 +157,12 @@ public:
       // as we're relying on wait-morphing being supported by the OS (so
       // there will be no spurious context switches).
       pthread_cond_broadcast(&_r_cond);
+    }
+
+    while (!_q->empty())
+    {
+       remaining_elts.push_back(_q->front());
+       _q->pop();
     }
 
     pthread_mutex_unlock(&_m);
