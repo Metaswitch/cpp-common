@@ -47,6 +47,7 @@ void TokenBucket::replenish_bucket()
   clock_gettime(CLOCK_MONOTONIC, &new_replenish_time);
   float timediff = (new_replenish_time.tv_nsec - replenish_time.tv_nsec) / 1000.0 +
                    (new_replenish_time.tv_sec - replenish_time.tv_sec) * 1000000.0;
+
   // The rate is in tokens/sec, and the timediff is in usec.
   tokens += ((rate * timediff) / 1000000.0);
   replenish_time = new_replenish_time;
@@ -95,15 +96,14 @@ LoadMonitor::LoadMonitor(int init_target_latency, int max_bucket_size,
   accepted = 0;
   rejected = 0;
   penalties = 0;
-  pending_count = 0;
-  max_pending_count = 0;
   target_latency = init_target_latency;
   smoothed_latency = init_target_latency;
   adjust_count = 0;
 
   timespec current_time;
   clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
-  last_adjustment_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_nsec / 1000000);
+  last_adjustment_time_ms = (current_time.tv_sec * 1000) +
+                            (current_time.tv_nsec / 1000000);
   min_token_rate = init_min_token_rate;
 
   // As this statistics reporting is continuous, we should
@@ -130,12 +130,6 @@ bool LoadMonitor::admit_request(SAS::TrailId trail)
 
     // Got a token from the bucket, so admit the request
     accepted += 1;
-    pending_count += 1;
-
-    if (pending_count > max_pending_count)
-    {
-      max_pending_count = pending_count;
-    }
 
     pthread_mutex_unlock(&_lock);
     return true;
@@ -176,19 +170,24 @@ int LoadMonitor::get_target_latency_us()
   return target_latency;
 }
 
-void LoadMonitor::request_complete(int latency)
+void LoadMonitor::request_complete(int latency,
+                                   SAS::TrailId trail)
 {
   pthread_mutex_lock(&_lock);
-  pending_count -= 1;
   smoothed_latency = (7 * smoothed_latency + latency) / 8;
   adjust_count += 1;
 
   if (adjust_count >= REQUESTS_BEFORE_ADJUSTMENT)
   {
+    SAS::Event recalculate(trail, SASEvent::LOAD_MONITOR_RECALCULATE_RATE, trail);
+    recalculate.add_static_param(REQUESTS_BEFORE_ADJUSTMENT);
+    SAS::report_event(recalculate);
+
     // We've seen the right number of requests.
     timespec current_time;
     clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
-    unsigned long current_time_ms = (current_time.tv_sec * 1000) + (current_time.tv_nsec / 1000000);
+    unsigned long current_time_ms = (current_time.tv_sec * 1000) +
+                                    (current_time.tv_nsec / 1000000);
 
     // This algorithm is based on the Welsh and Culler "Adaptive Overload
     // Control for Busy Internet Servers" paper, although based on a smoothed
@@ -197,30 +196,45 @@ void LoadMonitor::request_complete(int latency)
     // bucket size, rather than an absolute number as per the paper.
     float err = ((float) (smoothed_latency - target_latency)) / target_latency;
 
-    // Work out the percentage of accepted requests (for logs)
-    float accepted_percent = (accepted + rejected == 0) ?
-                              100.0 :
-                              100 * (((float) accepted) / (accepted + rejected));
-
-    TRC_INFO("Accepted %f%% of requests, latency error = %f, overload responses = %d",
-        accepted_percent, err, penalties);
-
     if (err > DECREASE_THRESHOLD || penalties > 0)
     {
       // Latency is above where we want it to be, or we are getting overload
       // responses from downstream nodes, so adjust the rate downwards by a
       // multiplicative factor
       float new_rate = bucket.rate / DECREASE_FACTOR;
+
       if (new_rate < min_token_rate)
       {
         new_rate = min_token_rate;
       }
+
+      if (penalties > 0)
+      {
+        SAS::Event decrease(trail, SASEvent::LOAD_MONITOR_DECREASE_PENALTIES, trail);
+        decrease.add_static_param(new_rate);
+        decrease.add_static_param(bucket.rate);
+        SAS::report_event(decrease);
+      }
+      else
+      {
+        SAS::Event decrease(trail, SASEvent::LOAD_MONITOR_DECREASE_RATE, trail);
+        decrease.add_static_param(new_rate);
+        decrease.add_static_param(bucket.rate);
+        decrease.add_static_param(smoothed_latency);
+        decrease.add_static_param(target_latency);
+        SAS::report_event(decrease);
+      }
+
+      TRC_DEBUG("Maximum incoming request rate/second decreased to %f from %f "
+                "(based on a smoothed mean latency of %d, a target latency of "
+                "%d and %d overload responses).",
+                new_rate,
+                bucket.rate,
+                smoothed_latency,
+                target_latency,
+                penalties);
+
       bucket.update_rate(new_rate);
-      TRC_STATUS("Maximum incoming request rate/second decreased to %f "
-                 "(based on a smoothed mean latency of %d and %d upstream overload responses)",
-                 bucket.rate,
-                 smoothed_latency,
-                 penalties);
     }
     else if (err < INCREASE_THRESHOLD)
     {
@@ -230,37 +244,62 @@ void LoadMonitor::request_complete(int latency)
       // requests/sec, and we get 1 request/sec because it's a quiet period,
       // then it's going to be handled quickly, but that's not sufficient
       // evidence to increase our rate.
-      int ms_passed = (current_time_ms - last_adjustment_time_ms);
-      float maximum_permitted_requests = bucket.rate * ms_passed / 1000;
-      float minimum_threshold = maximum_permitted_requests * PERCENTAGE_BEFORE_ADJUSTMENT;
 
-      if (accepted > minimum_threshold)
+      // TODO too coarse
+      int ms_passed = (current_time_ms - last_adjustment_time_ms);
+
+      float threshold_rate = bucket.rate * PERCENTAGE_BEFORE_ADJUSTMENT;
+      float current_rate = (ms_passed != 0) ?
+                           REQUESTS_BEFORE_ADJUSTMENT * 1000/ms_passed :
+                           0;
+
+      if (current_rate > threshold_rate)
       {
         float new_rate = bucket.rate + (-1 * err * bucket.max_size * INCREASE_FACTOR);
+
+        SAS::Event increase(trail, SASEvent::LOAD_MONITOR_INCREASE_RATE, trail);
+        increase.add_static_param(new_rate);
+        increase.add_static_param(bucket.rate);
+        increase.add_static_param(smoothed_latency);
+        increase.add_static_param(target_latency);
+        SAS::report_event(increase);
+
+        TRC_DEBUG("Maximum incoming request rate/second increased to %f from %f "
+                  "(based on a smoothed mean latency of %d and a target latency of "
+                  "%d).",
+                  new_rate,
+                  bucket.rate,
+                  smoothed_latency,
+                  target_latency);
+
         bucket.update_rate(new_rate);
-        TRC_STATUS("Maximum incoming request rate/second increased to %f "
-                   "(based on a smoothed mean latency of %d, %d upstream "
-                   "overload responses, %dms time passing, %d accepted "
-                   "requests, and %d rejected requests).",
-                   bucket.rate,
-                   smoothed_latency,
-                   penalties,
-                   ms_passed,
-                   accepted,
-                   rejected);
       }
       else
       {
-        TRC_STATUS("Maximum incoming request rate/second unchanged - only handled %d requests"
-                   " in last %dms, minimum threshold for a change is %f",
-                   accepted,
-                   ms_passed,
-                   minimum_threshold);
+        SAS::Event unchanged_threshold(trail,
+                                       SASEvent::LOAD_MONITOR_UNCHANGED_THRESHOLD,
+                                       trail);
+        unchanged_threshold.add_static_param(bucket.rate);
+        unchanged_threshold.add_static_param(smoothed_latency);
+        unchanged_threshold.add_static_param(target_latency);
+        unchanged_threshold.add_static_param(current_rate);
+        unchanged_threshold.add_static_param(threshold_rate);
+        SAS::report_event(unchanged_threshold);
+
+        TRC_DEBUG("Maximum incoming request rate/second unchanged - current "
+                  "rate is %f requests/sec, minimum threshold for a change is "
+                  "%f requests/sec.",
+                  current_rate,
+                  threshold_rate);
       }
     }
     else
     {
-      TRC_DEBUG("Maximum incoming request rate/second is unchanged at %f",
+      SAS::Event unchanged(trail, SASEvent::LOAD_MONITOR_UNCHANGED_RATE, trail);
+      unchanged.add_static_param(bucket.rate);
+      SAS::report_event(unchanged);
+
+      TRC_DEBUG("Maximum incoming request rate/second is unchanged at %f.",
                 bucket.rate);
     }
 

@@ -91,7 +91,7 @@ void HttpStack::send_reply(Request& req,
   {
     if (_load_monitor != NULL)
     {
-      _load_monitor->request_complete(latency_us);
+      _load_monitor->request_complete(latency_us, trail);
     }
 
     if (_stats != NULL)

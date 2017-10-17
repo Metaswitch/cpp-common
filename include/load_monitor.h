@@ -47,7 +47,7 @@ class LoadMonitor
     virtual bool admit_request(SAS::TrailId trail);
     virtual void incr_penalties();
     virtual int get_target_latency_us();
-    virtual void request_complete(int latency);
+    virtual void request_complete(int latency, SAS::TrailId trail);
     virtual void update_statistics();
 
     int get_target_latency() { return target_latency; }
