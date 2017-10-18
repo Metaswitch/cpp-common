@@ -65,7 +65,15 @@ BaseAddrIterator* ARecordResolver::resolve_iter(const std::string& host,
     TRC_DEBUG("Target is an IP address");
     ai.port = port;
     ai.transport = TRANSPORT;
-    addr_it = new SimpleAddrIterator(std::vector<AddrInfo>(1, ai));
+
+    std::vector<AddrInfo> targets;
+
+    if (select_address(ai, trail, allowed_host_state))
+    {
+      targets.push_back(ai);
+    }
+
+    addr_it = new SimpleAddrIterator(targets);
   }
   else
   {
