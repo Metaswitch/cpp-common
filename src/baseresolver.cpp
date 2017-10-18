@@ -628,9 +628,11 @@ bool BaseResolver::select_address(const AddrInfo& addr,
     break;
 
   default:
+    // LCOV_EXCL_START
     TRC_WARNING("Unknown host state %d", (int)state);
     allowed = false;
     break;
+    // LCOV_EXCL_STOP
   }
 
   pthread_mutex_unlock(&_hosts_lock);
