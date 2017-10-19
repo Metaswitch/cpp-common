@@ -590,23 +590,79 @@ BaseResolver::Host::State BaseResolver::host_state(const AddrInfo& ai,
   return state;
 }
 
-// LCOV_EXCL_START - The blacklisted function is excluded from coverage because
-// it is tested in SIPResolver.
-
-/// Return true if the host state of the given address is gray or black. Gray is
-/// considered blacklisted, even if the given address is graylisted and the
-/// calling code is currently probing that address.
-bool BaseResolver::blacklisted(const AddrInfo& ai)
+bool BaseResolver::select_address(const AddrInfo& addr,
+                                  SAS::TrailId trail,
+                                  int allowed_host_state)
 {
+  bool allowed;
+  const bool whitelisted_allowed = allowed_host_state & BaseResolver::WHITELISTED;
+  const bool blacklisted_allowed = allowed_host_state & BaseResolver::BLACKLISTED;
+
   pthread_mutex_lock(&_hosts_lock);
 
-  Host::State state = host_state(ai);
+  BaseResolver::Host::State state = host_state(addr);
+
+  switch (state)
+  {
+  case BaseResolver::Host::State::WHITE:
+    allowed = whitelisted_allowed;
+    break;
+
+  case BaseResolver::Host::State::GRAY_NOT_PROBING:
+    allowed = whitelisted_allowed;
+
+    // If the address is allowed, we need to mark it as being probed (so that
+    // further requests do not consider it to whitelisted).
+    if (allowed)
+    {
+      select_for_probing(addr);
+    }
+    break;
+
+  case BaseResolver::Host::State::GRAY_PROBING:
+    allowed = blacklisted_allowed;
+    break;
+
+  case BaseResolver::Host::State::BLACK:
+    allowed = blacklisted_allowed;
+    break;
+
+  default:
+    // LCOV_EXCL_START
+    TRC_WARNING("Unknown host state %d", (int)state);
+    allowed = false;
+    break;
+    // LCOV_EXCL_STOP
+  }
 
   pthread_mutex_unlock(&_hosts_lock);
 
-  return (state != Host::State::WHITE);
+  std::string host_state_str = BaseResolver::Host::state_to_string(state);
+  std::string addr_str = addr.address_and_port_to_string();
+
+  TRC_DEBUG("Address %s is in state %s and %s allowed to be used based on an "
+            "allowed host state bitfield of 0x%x",
+            addr_str.c_str(),
+            host_state_str.c_str(),
+            allowed ? "is" : "is not",
+            allowed_host_state);
+
+  if (allowed)
+  {
+    SAS::Event event(trail, SASEvent::BASERESOLVE_IP_ALLOWED, 0);
+    event.add_var_param(addr_str);
+  }
+  else
+  {
+    SAS::Event event(trail, SASEvent::BASERESOLVE_IP_NOT_ALLOWED, 0);
+    event.add_static_param(whitelisted_allowed);
+    event.add_static_param(blacklisted_allowed);
+    event.add_var_param(addr_str);
+    event.add_var_param(host_state_str);
+  }
+
+  return allowed;
 }
-// LCOV_EXCL_STOP
 
 void BaseResolver::success(const AddrInfo& ai)
 {

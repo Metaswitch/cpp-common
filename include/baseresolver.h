@@ -121,6 +121,22 @@ protected:
                                            SAS::TrailId trail,
                                            int allowed_host_state);
 
+  /// Called to check whether the base resolver is happy with an address being
+  /// used as a target. It is allowed to reject the address if the current state
+  /// of the address is incompatible with the allowed host state.
+  ///
+  /// By calling this method, the caller guarantees that it will use the address
+  /// (assuming it is found to be acceptable to the resolver).
+  ///
+  /// @param addr               - The address to check.
+  /// @param trail              - SAS trail ID.
+  /// @param allowed_host_state - A bitmask containing the allowed hosts states.
+  ///
+  /// @return                   - Whether the address is acceptable.
+  bool select_address(const AddrInfo& addr,
+                      SAS::TrailId trail,
+                      int allowed_host_state=ALL_LISTS);
+
   /// Converts a DNS A or AAAA record to an IP46Address structure.
   IP46Address to_ip46(const DnsRRecord* rr);
 
@@ -276,12 +292,6 @@ protected:
   /// must be held when calling this method.
   Host::State host_state(const AddrInfo& ai) {return host_state(ai, time(NULL));}
   Host::State host_state(const AddrInfo& ai, time_t current_time);
-
-  /// Returns true if the state of the host associated with the given AddrInfo
-  /// is black or either type of gray, since those are treated as blacklisted.
-  /// Note that even if the address is graylisted and currently being probed by
-  /// the calling code, the address will still be considered blacklisted
-  bool blacklisted(const AddrInfo& ai);
 
   /// Indicates that the calling thread is selected to probe the given AddrInfo.
   /// _hosts_lock must be held when calling this method.
