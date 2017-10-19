@@ -123,10 +123,10 @@ protected:
 
   /// Called to check whether the base resolver is happy with an address being
   /// used as a target. It is allowed to reject the address if the current state
-  /// of the address is compatible with the allowed host state.
+  /// of the address is incompatible with the allowed host state.
   ///
   /// By calling this method, the caller guarantees that it will use the address
-  /// (assuming ti is found to be acceptable to the resolver).
+  /// (assuming it is found to be acceptable to the resolver).
   ///
   /// @param addr               - The address to check.
   /// @param trail              - SAS trail ID.
