@@ -835,8 +835,8 @@ bool Utils::in_vector(const std::string& element,
 // IOHook methods.
 //
 
-Utils::IOHook::IOHook(IoStartedCallback start_cb,
-       IoCompletedCallback complete_cb) :
+Utils::IOHook::IOHook(IOStartedCallback start_cb,
+                      IOCompletedCallback complete_cb) :
   _io_started_cb(start_cb),
   _io_completed_cb(complete_cb)
 {

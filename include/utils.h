@@ -647,15 +647,15 @@ namespace Utils
   public:
     /// Type aliases for the callbacks. Each callback takes a string which
     /// contains the reason that the I/O has been performed.
-    using IoStartedCallback = std::function<void(const std::string& reason)>;
-    using IoCompletedCallback = std::function<void(const std::string& reason)>;
+    using IOStartedCallback = std::function<void(const std::string& reason)>;
+    using IOCompletedCallback = std::function<void(const std::string& reason)>;
 
     /// Constructor.
     ///
     /// @param start_cb -    Callback called when the I/O operation starts.
     /// @param complete_cb - Callback called when the I/O operation completes.
-    IOHook(IoStartedCallback start_cb,
-           IoCompletedCallback complete_cb);
+    IOHook(IOStartedCallback start_cb,
+           IOCompletedCallback complete_cb);
 
     /// Destructor.
     virtual ~IOHook();
@@ -677,8 +677,8 @@ namespace Utils
   private:
     static thread_local std::vector<IOHook*> _hooks;
 
-    IoStartedCallback _io_started_cb;
-    IoCompletedCallback _io_completed_cb;
+    IOStartedCallback _io_started_cb;
+    IOCompletedCallback _io_completed_cb;
   };
 } // namespace Utils
 
