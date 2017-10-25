@@ -95,13 +95,15 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   const char* mod = strrchr(module, '/');
   module = (mod != NULL) ? mod + 1 : module;
 
+  pthread_t thread = pthread_self();
+
   if (line_number)
   {
-    written = snprintf(logline, MAX_LOGLINE - 2, "%s %s:%d: ", log_level[level], module, line_number);
+    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %s %s:%d: ", thread, log_level[level], module, line_number);
   }
   else
   {
-    written = snprintf(logline, MAX_LOGLINE - 2, "%s %s: ", log_level[level], module);
+    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %s %s: ", thread, log_level[level], module);
   }
 
   // snprintf and vsnprintf return the bytes that would have been
