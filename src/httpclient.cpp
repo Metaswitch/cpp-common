@@ -582,7 +582,12 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // Send the request.
     doc.clear();
     TRC_DEBUG("Sending HTTP request : %s (trying %s)", url.c_str(), remote_ip);
-    rc = curl_easy_perform(curl);
+
+    CW_IO_STARTS("HTTP request to " + url)
+    {
+      rc = curl_easy_perform(curl);
+    }
+    CW_IO_COMPLETES()
 
     // If a request was sent, log it to SAS.
     if (recorder.request.length() > 0)

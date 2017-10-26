@@ -515,7 +515,8 @@ namespace Utils
         if (_ok)
         {
           result_us = (now.tv_nsec - _start.tv_nsec) / 1000L +
-                      (now.tv_sec - _start.tv_sec) * 1000000L;
+                      (now.tv_sec - _start.tv_sec) * 1000000L +
+                      _elapsed_us;
         }
         else
         {
@@ -623,6 +624,81 @@ namespace Utils
 
   bool in_vector(const std::string& element,
                  const std::vector<std::string>& elements);
+
+  /// This hook allows a thread to perform actions when Clearwater code does
+  /// blocking I/O.
+  ///
+  /// The caller passes two callbacks when constructing this class: one that is
+  /// called when some blocking I/O starts on this thread, and one that is
+  /// called when it completes.  Code can signal that I/O is starting/completing
+  /// using the helper macros below.
+  ///
+  /// When an instance of this class is constructed, it is added to the top of a
+  /// thread-local stack of IO hooks (implemented as a singly linked list). When
+  /// I/O starts or ends, each hook is invoked, starting at the top of the stack
+  /// and moving down.
+  ///
+  /// The destructor removes the hook from the stack. For this reason, it is
+  /// important that instances are destroyed in the opposite order they are
+  /// created in. This means that hooks should only be stored on the stack and
+  /// not on the heap.
+  class IOHook
+  {
+  public:
+    /// Type aliases for the callbacks. Each callback takes a string which
+    /// contains the reason that the I/O has been performed.
+    using IOStartedCallback = std::function<void(const std::string& reason)>;
+    using IOCompletedCallback = std::function<void(const std::string& reason)>;
+
+    /// Constructor.
+    ///
+    /// @param start_cb -    Callback called when the I/O operation starts.
+    /// @param complete_cb - Callback called when the I/O operation completes.
+    IOHook(IOStartedCallback start_cb,
+           IOCompletedCallback complete_cb);
+
+    /// Destructor.
+    virtual ~IOHook();
+
+    /// Called to signal the start of an I/O operation.
+    /// @param reason - The reason for the I/O operation.
+    static void io_starts(const std::string& reason);
+
+    /// Called to signal the completion of an I/O operation.
+    /// @param reason - The reason for the I/O operation.
+    static void io_completes(const std::string& reason);
+
+    /// No-op implementations of the two callbacks. This is useful for users of
+    /// this class that don't want to do anything on one or other of the
+    /// callbacks.
+    static void NOOP_ON_START(const std::string& reason) {};
+    static void NOOP_ON_COMPLETE(const std::string& reason) {};
+
+  private:
+    static thread_local std::vector<IOHook*> _hooks;
+
+    IOStartedCallback _io_started_cb;
+    IOCompletedCallback _io_completed_cb;
+  };
 } // namespace Utils
+
+/// Helper macros to make it easier to invoke an I/O hook, and that means the
+/// caller does not need to duplicate the reason string.
+///
+/// Example:
+///
+///     CW_IO_STARTS("HTTP request")
+///     {
+///       // Do some blocking I/O.
+///     }
+///     CW_IO_COMPLETES()
+#define CW_IO_STARTS(REASON)                                                   \
+  {                                                                            \
+    std::string description = REASON;                                          \
+    Utils::IOHook::io_starts(description);
+
+#define CW_IO_COMPLETES()                                                      \
+    Utils::IOHook::io_completes(description);                                  \
+  }
 
 #endif /* UTILS_H_ */
