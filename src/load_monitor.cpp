@@ -17,11 +17,13 @@
 
 TokenBucket::TokenBucket(int initial_size,
                          float initial_rate_s,
-                         float min_rate_s) :
+                         float min_rate_s,
+                         float max_rate_s) :
   _tokens(initial_size),
   _max_size(initial_size),
   _rate_s(initial_rate_s),
-  _min_rate_s(min_rate_s)
+  _min_rate_s(min_rate_s),
+  _max_rate_s(max_rate_s)
 {
   clock_gettime(CLOCK_MONOTONIC, &_replenish_time_us);
 }
@@ -41,7 +43,10 @@ bool TokenBucket::get_token()
 
 void TokenBucket::update_rate(float new_rate_s)
 {
+  // The new rate must be greater than the min rate, and less than the
+  // max rate (if set).
   _rate_s = (new_rate_s > _min_rate_s) ? new_rate_s : _min_rate_s;
+  _rate_s = ((_max_rate_s != 0) && (_rate_s > _max_rate_s)) ? _max_rate_s : _rate_s;
 }
 
 void TokenBucket::replenish_bucket()
@@ -64,6 +69,7 @@ LoadMonitor::LoadMonitor(uint64_t init_target_latency_us,
                          int max_bucket_size,
                          float init_token_rate_s,
                          float init_min_token_rate_s,
+                         float init_max_token_rate_s,
                          SNMP::AbstractContinuousAccumulatorTable* token_rate_table,
                          SNMP::AbstractScalar* smoothed_latency_scalar,
                          SNMP::AbstractScalar* target_latency_scalar,
@@ -71,7 +77,8 @@ LoadMonitor::LoadMonitor(uint64_t init_target_latency_us,
                          SNMP::AbstractScalar* token_rate_scalar) :
   _bucket(max_bucket_size,
           init_token_rate_s,
-          init_min_token_rate_s),
+          init_min_token_rate_s,
+          init_max_token_rate_s),
   _smoothed_latency_us(init_target_latency_us),
   _target_latency_us(init_target_latency_us),
   _smoothed_rate_s(0),
@@ -85,11 +92,16 @@ LoadMonitor::LoadMonitor(uint64_t init_target_latency_us,
   _penalties_scalar(penalties_scalar),
   _token_rate_scalar(token_rate_scalar)
 {
+  std::string max_token_fill_rate = (init_max_token_rate_s == 0) ?
+    "No maximum" :
+    std::to_string(init_max_token_rate_s);
+
   TRC_STATUS("Constructing LoadMonitor");
   TRC_STATUS("   Target latency (usecs)    : %d", init_target_latency_us);
   TRC_STATUS("   Max bucket size           : %d", max_bucket_size);
   TRC_STATUS("   Initial token fill rate/s : %f", init_token_rate_s);
   TRC_STATUS("   Min token fill rate/s     : %f", init_min_token_rate_s);
+  TRC_STATUS("   Max token fill rate/s     : %s", max_token_fill_rate.c_str());
 
   // Create the lock
   pthread_mutexattr_t attrs;
