@@ -23,7 +23,8 @@ class TokenBucket
   public:
     TokenBucket(int max_size,
                 float initial_rate_s,
-                float minimum_rate_s);
+                float minimum_rate_s,
+                float maximum_rate_s);
 
     // Tests if there's at least one token in the bucket. If there is, decrement
     // the token count.
@@ -55,6 +56,10 @@ class TokenBucket
     // The minimum possible value for the token refill rate (in tokens/second).
     float _min_rate_s;
 
+    // The maximum possible value for the token refill rate (in tokens/second).
+    // If this is 0, then no maximum rate is applied.
+    float _max_rate_s;
+
     // When the bucket was last replenished (in microseconds since the epoch).
     timespec _replenish_time_us;
 };
@@ -66,6 +71,7 @@ class LoadMonitor
                 int max_bucket_size,
                 float initial_rate_s,
                 float minimum_rate_s,
+                float maximum_rate_s,
                 SNMP::AbstractContinuousAccumulatorTable* token_rate_tbl = NULL,
                 SNMP::AbstractScalar* smoothed_latency_scalar = NULL,
                 SNMP::AbstractScalar* target_latency_scalar = NULL,
