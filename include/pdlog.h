@@ -66,7 +66,7 @@ public:
     // The range 10000-11999 is reserved
     CL_PYTHON_COMMON_ID = 12000,
     CL_CREST_ID = 13000,
-    CL_QUEUE_MGR_ID = 14000
+    CL_QUEUE_MGR_ID = 14000,
     // The range 15000-15999 is reserved
     // The range 16000-16999 is reserved
     // The range 17000-17999 is reserved
@@ -74,6 +74,7 @@ public:
     // The range 19000-19999 is reserved
     // The range 20000-20999 is reserved
     // The range 21000-21999 is reserved
+    CL_ROGERS_ID = 22000,
   };
 
   PDLogBase(int log_id,
