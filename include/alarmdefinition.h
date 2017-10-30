@@ -32,6 +32,7 @@ namespace AlarmDef {
   // Cassandra alarms: 4000->4499
   // Memento alarms: 5000->5499
   // Astaire alarms: 5500->5999
+  // Clearwater Live Test alarms: 6000->6499
   // Etcd alarms: 6500->6999
   // Alarms 7000->7999 are reserved
   // Cluster-manager alarms: 8000->8499
@@ -44,6 +45,7 @@ namespace AlarmDef {
   // Alarms 11500->11999 are reserved
   // Alarms 12000->12499 are reserved
   // Alarms 12500->12999 are reserved
+  // Rogers alarms: 13000->13499
 
   enum Severity {
     UNDEFINED_SEVERITY,
