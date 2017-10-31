@@ -430,6 +430,13 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
   TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
             data.length(), table.c_str(), key.c_str(), cas, expiry);
 
+  if (data.length() > Store::MAX_DATA_LENGTH)
+  {
+    TRC_WARNING("Attempting to write more than %lu bytes of data -- reject request",
+                Store::MAX_DATA_LENGTH);
+    return Store::Status::ERROR;
+  }
+
   std::string fqkey = get_fq_key(table, key);
 
   if (trail != 0)
