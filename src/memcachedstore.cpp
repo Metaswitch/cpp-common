@@ -430,13 +430,6 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
   TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
             data.length(), table.c_str(), key.c_str(), cas, expiry);
 
-  if (data.length() > Store::MAX_DATA_LENGTH)
-  {
-    TRC_WARNING("Attempting to write more than %lu bytes of data -- reject request",
-                Store::MAX_DATA_LENGTH);
-    return Store::Status::ERROR;
-  }
-
   std::string fqkey = get_fq_key(table, key);
 
   if (trail != 0)
@@ -463,6 +456,20 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
     start.add_static_param(cas);
     start.add_static_param(expiry);
     SAS::report_event(start);
+  }
+
+  if (data.length() > Store::MAX_DATA_LENGTH)
+  {
+    if (trail != 0)
+    {
+      SAS::Event err(trail, SASEvent::MEMCACHED_REQ_TOO_LARGE, 0);
+      err.add_static_param(data.length());
+      SAS::report_event(err);
+    }
+
+    TRC_INFO("Attempting to write more than %lu bytes of data -- reject request",
+             Store::MAX_DATA_LENGTH);
+    return Store::Status::ERROR;
   }
 
   memcached_store_func f =
