@@ -188,6 +188,13 @@ Store::Status LocalStore::set_data_inner(const std::string& table,
 {
   Store::Status status = Store::Status::DATA_CONTENTION;
 
+  if (data.length() > Store::MAX_DATA_LENGTH)
+  {
+    TRC_WARNING("Attempting to write more than %lu bytes of data -- reject request",
+                Store::MAX_DATA_LENGTH);
+    return Store::Status::ERROR;
+  }
+
   // This is for the purpose of testing data SETs failing.  If the flag is set
   // to true, then we'll just return an error.
   if (_force_error_on_set_flag)
