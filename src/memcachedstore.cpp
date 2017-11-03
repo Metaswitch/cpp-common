@@ -432,7 +432,7 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
 
   std::string fqkey = get_fq_key(table, key);
 
-  // Check whether this request is too big.  Note that neither Astaire nor
+  // Check whether this request is too big.  Note that neither Rogers nor
   // memcached impose a limit on the maximum request length, but there is no
   // legitimate case for needing to store more than this maximum and permitting
   // it opens us up to DoS attacks where e.g. a subscriber firing in rapid
