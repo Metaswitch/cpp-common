@@ -33,7 +33,7 @@ public:
   /// -  If you change the enum you must also update the resource bundle.
   typedef enum {OK=1, NOT_FOUND=2, DATA_CONTENTION=3, ERROR=4} Status;
 
-  /// Maximum length of data that we will try to write to memcached.  There are
+  /// Maximum length of data that we will try to write to the store. There are
   /// no legitimate cases for trying to write more than this, and attempting to
   /// do so would open us up to DoS attacks.
   static const uint32_t MAX_DATA_LENGTH=1024*64;

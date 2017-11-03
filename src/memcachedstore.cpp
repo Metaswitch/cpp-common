@@ -432,6 +432,27 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
 
   std::string fqkey = get_fq_key(table, key);
 
+  // Check whether this request is too big.  Note that neither Astaire nor
+  // memcached impose a limit on the maximum request length, but there is no
+  // legitimate case for needing to store more than this maximum and permitting
+  // it opens us up to DoS attacks where e.g. a subscriber firing in rapid
+  // REGISTERs leads to us storing arbitrarily large values in memcached.
+  uint32_t data_length = data.length();
+  if (data_length > Store::MAX_DATA_LENGTH)
+  {
+    if (trail != 0)
+    {
+      SAS::Event err(trail, SASEvent::MEMCACHED_REQ_TOO_LARGE, 0);
+      err.add_var_param(fqkey);
+      err.add_static_param(data_length);
+      SAS::report_event(err);
+    }
+
+    TRC_INFO("Attempting to write more than %lu bytes of data -- reject request",
+             Store::MAX_DATA_LENGTH);
+    return Store::Status::ERROR;
+  }
+
   if (trail != 0)
   {
     int event;
@@ -450,26 +471,14 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
 
     if (log_body)
     {
+      // Note that we do this _after_ policing the maximum length which means
+      // that data is less than the maximum 64k supported by SAS.
       start.add_var_param(data);
     }
 
     start.add_static_param(cas);
     start.add_static_param(expiry);
     SAS::report_event(start);
-  }
-
-  if (data.length() > Store::MAX_DATA_LENGTH)
-  {
-    if (trail != 0)
-    {
-      SAS::Event err(trail, SASEvent::MEMCACHED_REQ_TOO_LARGE, 0);
-      err.add_static_param(data.length());
-      SAS::report_event(err);
-    }
-
-    TRC_INFO("Attempting to write more than %lu bytes of data -- reject request",
-             Store::MAX_DATA_LENGTH);
-    return Store::Status::ERROR;
   }
 
   memcached_store_func f =
