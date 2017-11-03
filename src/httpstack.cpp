@@ -514,10 +514,24 @@ void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
                                           uint32_t instance_id)
 {
   std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);
+
   if (correlator != "")
   {
     SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, instance_id);
     corr_marker.add_var_param(correlator);
+
+    // Report a correlating marker to SAS.  Set the option that means any
+    // associations will not reactivate the trail group.  Otherwise
+    // interactions with this server that happen after the call ends will cause
+    // long delays in the call appearing in SAS.
+    SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
+  }
+  std::string qs_correlator = req.header(SASEvent::HTTP_SPAN_ID);
+
+  if (qs_correlator != "")
+  {
+    SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, instance_id);
+    corr_marker.add_var_param(qs_correlator);
 
     // Report a correlating marker to SAS.  Set the option that means any
     // associations will not reactivate the trail group.  Otherwise
