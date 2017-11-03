@@ -317,7 +317,7 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     }
     else
     {
-      SAS::Event event(pmd->trail, SASEvent::DIAMETER_REQUEST_ERROR, 0);
+      SAS::Event event(pmd->trail, SASEvent::DIAMETER_MSG_ROUTING_ERROR, 0);
       event.add_var_param((char *)other);
       event.add_var_param(dest_host);
       event.add_var_param(dest_realm);
