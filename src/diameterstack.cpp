@@ -279,16 +279,16 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     _host_counter->increment();
   }
 
-  // Make a SAS log if either of the following conditions holds:
+  // Make a SAS log. If either of the following conditions holds:
   //
   // - the number of managed peers is zero (suggesting a configuration or DNS problem).
   // - the number of currently connected peers is zero.
   //
-  // FreeDiameter should only call us if the set of connected peers is zero (for one
-  // of these reasons), but we check explicitly below to ensure that no SAS
-  // log is made if we don't know the reason why.
+  // make a SAS log corresponding to the condition. We use counts given to us by upstream
+  // applications, if any exist.
   //
-  // We use counts given to us by upstream applications, if any exist.
+  // If neither condition holds, make a "catch all" SAS log to cover us in the event
+  // that freeDiameter rejects a request for some unexpected reason.
   bool no_peers;
   bool no_connected_peers;
   pthread_mutex_lock(&_peer_counts_lock);
@@ -310,6 +310,14 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     else if (no_connected_peers)
     {
       SAS::Event event(pmd->trail, SASEvent::DIAMETER_NO_CONNECTED_PEERS, 0);
+      event.add_var_param((char *)other);
+      event.add_var_param(dest_host);
+      event.add_var_param(dest_realm);
+      SAS::report_event(event);
+    }
+    else
+    {
+      SAS::Event event(pmd->trail, SASEvent::DIAMETER_MSG_ROUTING_ERROR, 0);
       event.add_var_param((char *)other);
       event.add_var_param(dest_host);
       event.add_var_param(dest_realm);
