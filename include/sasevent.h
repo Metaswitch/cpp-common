@@ -30,6 +30,9 @@ namespace SASEvent {
   // Name of the HTTP header we use to correlate the client and server in SAS.
   const std::string HTTP_BRANCH_HEADER_NAME = "X-SAS-HTTP-Branch-ID";
 
+  // Name of the header used by microservices for trail correlation.
+  const std::string HTTP_SPAN_ID = "X-Span-Id";
+
   // The levels at which clearwater nodes may log HTTP messages.
   enum struct HttpLogLevel
   {
