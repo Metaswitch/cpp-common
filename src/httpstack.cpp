@@ -508,6 +508,7 @@ bool HttpStack::Request::get_local_ip_port(std::string& ip, unsigned short& port
 //
 // SasLogger methods.
 //
+
 void HttpStack::SasLogger::log_correlators(SAS::TrailId trail,
                                           Request& req,
                                           uint32_t instance_id)
@@ -543,7 +544,7 @@ void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
     SAS::Marker corr_marker(trail, marker_type, instance_id);
     corr_marker.add_var_param(correlator);
 
-    // Generic correlators have a uniqueness scope. Use UUIDs for HTTP headers
+    // Generic correlators have a uniqueness scope. Use UUIDs for HTTP requests
     if (marker_type == MARKED_ID_GENERIC_CORRELATOR) {
       corr_marker.add_static_param(
         static_cast<uint32_t>(UniquenessScopes::UUID_RFC4122));
