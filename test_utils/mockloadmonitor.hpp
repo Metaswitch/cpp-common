@@ -18,12 +18,15 @@
 class MockLoadMonitor : public LoadMonitor
 {
 public:
-  MockLoadMonitor() : LoadMonitor(0, 0, 0.0, 0.0) {}
+  MockLoadMonitor() : LoadMonitor(0, 0, 0.0, 0.0, 0.0) {}
   virtual ~MockLoadMonitor() {}
 
   MOCK_METHOD1(admit_request, bool(SAS::TrailId id));
   MOCK_METHOD0(incr_penalties, void());
-  MOCK_METHOD1(request_complete, void(int latency));
+  MOCK_METHOD2(request_complete, void(uint64_t latency,
+                                      SAS::TrailId id));
+  MOCK_METHOD0(get_target_latency_us, int());
+  MOCK_METHOD0(update_statistics, void());
 };
 
 #endif

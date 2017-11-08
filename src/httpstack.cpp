@@ -91,7 +91,7 @@ void HttpStack::send_reply(Request& req,
   {
     if (_load_monitor != NULL)
     {
-      _load_monitor->request_complete(latency_us);
+      _load_monitor->request_complete(latency_us, trail);
     }
 
     if (_stats != NULL)
@@ -348,8 +348,8 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   {
     request.sas_log_overload(trail,
                              503,
-                             _load_monitor->get_target_latency(),
-                             _load_monitor->get_current_latency(),
+                             _load_monitor->get_target_latency_us(),
+                             _load_monitor->get_current_latency_us(),
                              _load_monitor->get_rate_limit(),
                              0);
     send_reply_internal(request, 503, trail);
