@@ -46,6 +46,9 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   // timeout because libmemcached tries to connect to all servers sequentially
   // during start-up, and if any are not up we don't want to wait for any
   // significant length of time.
+  // Note that the poll timeout needs to be at least double the timeout used by
+  // the MemcachedBackend to give Rogers time to try a second replica if the
+  // request to the first replica times out.
   _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS --POLL-TIMEOUT=100";
   _options += (_binary) ? " --BINARY-PROTOCOL" : "";
 }
