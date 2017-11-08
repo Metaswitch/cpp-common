@@ -31,9 +31,9 @@ namespace HttpStackUtils
   HandlerThreadPool::HandlerThreadPool(unsigned int num_threads,
                                        ExceptionHandler* exception_handler,
                                        unsigned int max_queue) :
-    _pool(num_threads, 
-          exception_handler, 
-          &exception_callback, 
+    _pool(num_threads,
+          exception_handler,
+          &exception_callback,
           max_queue),
     _wrappers()
   {
@@ -124,7 +124,7 @@ namespace HttpStackUtils
                                              HttpStack::Request& req,
                                              uint32_t instance_id)
   {
-    log_correlator(trail, req, instance_id);
+    log_correlators(trail, req, instance_id);
     log_req_event(trail, req, instance_id, SASEvent::HttpLogLevel::DETAIL);
   }
 
