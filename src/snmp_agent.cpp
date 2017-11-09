@@ -53,7 +53,7 @@ int SNMPAgent::start(void)
   init_snmp(_name.c_str());
   pthread_mutex_unlock(&_netsnmp_lock);
 
-  int rc = pthread_create(&_thread, NULL, thread_fn, NULL);
+  int rc = pthread_create(&_thread, NULL, thread_fn, this);
   return rc;
 }
 
