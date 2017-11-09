@@ -208,7 +208,9 @@ void LoadMonitor::request_complete(uint64_t latency_us,
     // bucket size, rather than an absolute number as per the paper.
     float err = ((float)(_smoothed_latency_us) - _target_latency_us) /
                  _target_latency_us;
-    TRC_ERROR("err %f, smooth %lu, target %lu", err, _smoothed_latency_us, _target_latency_us);
+    TRC_INFO("Rate adjustment calculation inputs: "
+             "err %f, smoothed latency %lu, target latency %lu",
+             err, _smoothed_latency_us, _target_latency_us);
 
     if (err > DECREASE_THRESHOLD || _penalties > 0)
     {
@@ -235,14 +237,14 @@ void LoadMonitor::request_complete(uint64_t latency_us,
         SAS::report_event(decrease);
       }
 
-      TRC_ERROR("Maximum incoming request rate/second decreased to %f from %f "
-                "(based on a smoothed mean latency of %dus, a target latency of "
-                "%dus and %d overload responses).",
-                _bucket.rate(),
-                old_rate_s,
-                _smoothed_latency_us,
-                _target_latency_us,
-                _penalties);
+      TRC_INFO("Maximum incoming request rate/second decreased to %f from %f "
+               "(based on a smoothed mean latency of %dus, a target latency of "
+               "%dus and %d overload responses).",
+               _bucket.rate(),
+               old_rate_s,
+               _smoothed_latency_us,
+               _target_latency_us,
+               _penalties);
     }
     else if (err < INCREASE_THRESHOLD)
     {
@@ -268,14 +270,13 @@ void LoadMonitor::request_complete(uint64_t latency_us,
         increase.add_static_param(_target_latency_us);
         SAS::report_event(increase);
 
-        // TODO - reduce level
-        TRC_ERROR("Maximum incoming request rate/second increased to %f from %f "
-                  "(based on a smoothed mean latency of %dus and a target "
-                  "latency of %dus).",
-                  _bucket.rate(),
-                  old_rate_s,
-                  _smoothed_latency_us,
-                  _target_latency_us);
+        TRC_INFO("Maximum incoming request rate/second increased to %f from %f "
+                 "(based on a smoothed mean latency of %dus and a target "
+                 "latency of %dus).",
+                 _bucket.rate(),
+                 old_rate_s,
+                 _smoothed_latency_us,
+                 _target_latency_us);
       }
       else
       {
@@ -289,9 +290,10 @@ void LoadMonitor::request_complete(uint64_t latency_us,
         unchanged_threshold.add_static_param(threshold_rate_s);
         SAS::report_event(unchanged_threshold);
 
-        TRC_ERROR("Maximum incoming request rate/second unchanged - current "
-                  "rate is %f requests/sec, minimum threshold for a change is "
-                  "%f requests/sec.",
+        TRC_INFO("Maximum incoming request rate/second unchanged at %f (current "
+                  "request rate is %f requests/sec, minimum threshold for a "
+                  "change is %f requests/sec).",
+                  _bucket.rate(),
                   _smoothed_rate_s,
                   threshold_rate_s);
       }
