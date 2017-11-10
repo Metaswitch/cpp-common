@@ -190,9 +190,9 @@ public:
                                     instance_id);
     }
 
-    inline Utils::StopWatch& get_stopwatch()
+    inline Utils::StopWatch* get_stopwatch()
     {
-      return _stopwatch;
+      return &_stopwatch;
     }
 
   protected:
