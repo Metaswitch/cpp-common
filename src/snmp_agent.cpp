@@ -9,6 +9,7 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
+#include <limits.h>
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_agent.h"
 #include "log.h"
@@ -97,7 +98,7 @@ void SNMPAgent::thread_fn()
     fd_set read_fds;
     FD_ZERO(&read_fds);
     struct timeval timeout;
-    timeout.tv_sec = 0;
+    timeout.tv_sec = LONG_MAX;
     timeout.tv_usec = 0;
     int block = 0;
     pthread_mutex_lock(&_netsnmp_lock);
