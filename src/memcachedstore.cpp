@@ -54,7 +54,7 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   // connect and/or write to a failed memcached replica.
   // See comment on LOCAL_MEMCACHED_CONNECTION_LATENCY_MS to understand why a
   // relatively long poll timeout is needed even for a local store.
-  _options += " --POLL-TIMEOUT=" + (remote_store) ? "250" : "100";
+  _options += " --POLL-TIMEOUT=" + (remote_store) ? "300" : "100";
 
   _options += (_binary) ? " --BINARY-PROTOCOL" : "";
   TRC_DEBUG("Memcached options: %s", _options.c_str());
