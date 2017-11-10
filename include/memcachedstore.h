@@ -72,6 +72,7 @@ protected:
   // Constructor. This is protected to prevent the BaseMemcachedStore from being
   // instantiated directly.
   BaseMemcachedStore(bool binary,
+                     bool remote_store,
                      BaseCommunicationMonitor* comm_monitor);
 
   // Perform a get request to a single replica.

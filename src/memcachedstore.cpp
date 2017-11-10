@@ -36,6 +36,7 @@
 static const std::string TOMBSTONE = "";
 
 BaseMemcachedStore::BaseMemcachedStore(bool binary,
+                                       bool remote_store,
                                        BaseCommunicationMonitor* comm_monitor) :
   _binary(binary),
   _options(),
@@ -46,13 +47,17 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   // timeout because libmemcached tries to connect to all servers sequentially
   // during start-up, and if any are not up we don't want to wait for any
   // significant length of time.
-  //
+  _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS";
+
   // When the MemcachedStore is being used to write to memcached via Rogers,
   // the poll-timeout needs to be long enough to accomodate Rogers failing to
   // connect and/or write to a failed memcached replica.
-  // See comment on LOCAL_MEMCACHED_CONNECTION_LATENCY_MS.
-  _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS --POLL-TIMEOUT=100";
+  // See comment on LOCAL_MEMCACHED_CONNECTION_LATENCY_MS to understand why a
+  // relatively long poll timeout is needed even for a local store.
+  _options += " --POLL-TIMEOUT=" + (remote_store) ? "250" : "100";
+
   _options += (_binary) ? " --BINARY-PROTOCOL" : "";
+  TRC_DEBUG("Memcached options: %s", _options.c_str());
 }
 
 
@@ -243,7 +248,7 @@ TopologyNeutralMemcachedStore(const std::string& target_domain,
                               bool remote_store,
                               BaseCommunicationMonitor* comm_monitor) :
   // Always use binary, as this is all Astaire supports.
-  BaseMemcachedStore(true, comm_monitor),
+  BaseMemcachedStore(true, remote_store, comm_monitor),
   _target_domain(target_domain),
   _resolver(resolver),
   _attempts(2),
