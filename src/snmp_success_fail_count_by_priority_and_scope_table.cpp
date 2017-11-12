@@ -13,6 +13,7 @@
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_internal/snmp_counts_by_other_type_and_scope_table.h"
 #include "snmp_statistics_structures.h"
+#include "sip_event_priority.h"
 #include "logger.h"
 
 namespace SNMP
@@ -62,22 +63,22 @@ public:
 
 static std::vector<int> priorities =
 {
-  0,
-  1,
-  2,
-  3,
-  4,
-  5,
-  6,
-  7,
-  8,
-  9,
-  10,
-  11,
-  12,
-  13,
-  14,
-  15
+  SIPEventPriorityLevel::NORMAL_PRIORITY,
+  SIPEventPriorityLevel::HIGH_PRIORITY_1,
+  SIPEventPriorityLevel::HIGH_PRIORITY_2,
+  SIPEventPriorityLevel::HIGH_PRIORITY_3,
+  SIPEventPriorityLevel::HIGH_PRIORITY_4,
+  SIPEventPriorityLevel::HIGH_PRIORITY_5,
+  SIPEventPriorityLevel::HIGH_PRIORITY_6,
+  SIPEventPriorityLevel::HIGH_PRIORITY_7,
+  SIPEventPriorityLevel::HIGH_PRIORITY_8,
+  SIPEventPriorityLevel::HIGH_PRIORITY_9,
+  SIPEventPriorityLevel::HIGH_PRIORITY_10,
+  SIPEventPriorityLevel::HIGH_PRIORITY_11,
+  SIPEventPriorityLevel::HIGH_PRIORITY_12,
+  SIPEventPriorityLevel::HIGH_PRIORITY_13,
+  SIPEventPriorityLevel::HIGH_PRIORITY_14,
+  SIPEventPriorityLevel::HIGH_PRIORITY_15
 };
 
 class SuccessFailCountByPriorityAndScopeTableImpl: public CountsByOtherTypeAndScopeTableImpl<SuccessFailCountByPriorityAndScopeRow, SuccessFailCount>,
