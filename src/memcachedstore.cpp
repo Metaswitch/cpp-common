@@ -43,20 +43,23 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   _comm_monitor(comm_monitor),
   _tombstone_lifetime(200)
 {
-  // Set up the fixed options for memcached.  We use a very short connect
-  // timeout because libmemcached tries to connect to all servers sequentially
-  // during start-up, and if any are not up we don't want to wait for any
-  // significant length of time.
-  _options = "--CONNECT-TIMEOUT=10 --SUPPORT-CAS";
+  // Set up the fixed options for memcached.  See also the options configured
+  // on the MemcachedConnectionPool (including the connect timeout).
+  _options = "--SUPPORT-CAS";
 
   // When the MemcachedStore is being used to write to memcached via Rogers,
   // the poll-timeout needs to be long enough to accomodate Rogers failing to
-  // connect and/or write to a failed memcached replica.
-  // See comment on LOCAL_MEMCACHED_CONNECTION_LATENCY_MS to understand why a
-  // relatively long poll timeout is needed even for a local store.
+  // connect and/or access a failed memcached replica which can take a long
+  // time: see comment on the values of connection latency used in the
+  // MemcachedConnectionPool.
+  //
+  // - For a local store, we need to allow sufficient time for Rogers to fail
+  //   to connect and access one replica and then succeed in accessing another.
+  // - For a remote store, we need to allow the same time + 100ms latency in
+  //   each direction.
   _options += (remote_store) ? " --POLL-TIMEOUT=300" : " --POLL-TIMEOUT=100";
-
   _options += (_binary) ? " --BINARY-PROTOCOL" : "";
+
   TRC_DEBUG("Memcached options: %s", _options.c_str());
 }
 
