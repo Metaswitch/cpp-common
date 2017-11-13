@@ -50,12 +50,10 @@ public:
 
     // Construct and return a ColumnData with the appropriate values
     ColumnData ret;
-    ret[1] = Value::integer(this->_index);
-    ret[2] = Value::integer(this->_type_index);
-    ret[3] = Value::uint(attempts);
-    ret[4] = Value::uint(successes);
-    ret[5] = Value::uint(failures);
-    ret[6] = Value::uint(success_percent_in_ten_thousands);
+    ret[4] = Value::uint(attempts);
+    ret[5] = Value::uint(successes);
+    ret[6] = Value::uint(failures);
+    ret[7] = Value::uint(success_percent_in_ten_thousands);
     return ret;
   }
   static int get_count_size() { return 4; }
