@@ -24,7 +24,7 @@ memcached_st* MemcachedConnectionPool::create_connection(AddrInfo target)
   // Disable Nagle's algorithm
   // (https://en.wikipedia.org/wiki/Nagle%27s_algorithm). If we leave it on
   // there can be up to 500ms delay between this code sending an
-  //chedConnectionPool asynchronous SET and it actually being sent on the wire, e.g.
+  // asynchronous SET and it actually being sent on the wire, e.g.
   //
   // * Ask libmemcached to do async SET.
   // * Async SET sent on the wire.
