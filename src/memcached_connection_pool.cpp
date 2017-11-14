@@ -42,7 +42,13 @@ memcached_st* MemcachedConnectionPool::create_connection(AddrInfo target)
                          MEMCACHED_BEHAVIOR_TCP_NODELAY,
                          true);
 
-  memcached_server_add(conn, target.address.to_string().c_str(), target.port);
+  std::string address = target.address.to_string();
+
+  CW_IO_STARTS("Memcached Server Add for " + address)
+  {
+    memcached_server_add(conn, address.c_str(), target.port);
+  }
+  CW_IO_COMPLETES()
 
   return conn;
 }

@@ -91,7 +91,12 @@ memcached_return_t BaseMemcachedStore::get_from_replica(memcached_st* replica,
     TRC_DEBUG("Fetch result");
     memcached_result_st result;
     memcached_result_create(replica, &result);
-    memcached_fetch_result(replica, &result, &rc);
+
+    CW_IO_STARTS("Memcached GET fetch result for " + std::string(key_ptr, key_len))
+    {
+      memcached_fetch_result(replica, &result, &rc);
+    }
+    CW_IO_COMPLETES()
 
     if (memcached_success(rc))
     {
