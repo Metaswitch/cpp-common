@@ -89,7 +89,7 @@ public:
   {
     // We're not necessarily on the Net-SNMP thread, so we can't call into
     // Net-SNMP here.  Call into SNMP Agent to add the row to the table.
-    SNMPAgent::instance()->add_row_to_table(_table, row->get_netsnmp_row());
+    SNMP::Agent::instance()->add_row_to_table(_table, row->get_netsnmp_row());
   };
 
   // Remove a Row from the underlying table.
@@ -97,7 +97,7 @@ public:
   {
     // We're not necessarily on the Net-SNMP thread, so we can't call into
     // Net-SNMP here.  Call into SNMP Agent to remove the row to the table.
-    SNMPAgent::instance()->remove_row_from_table(_table, row->get_netsnmp_row());
+    SNMP::Agent::instance()->remove_row_from_table(_table, row->get_netsnmp_row());
   };
 
 protected:

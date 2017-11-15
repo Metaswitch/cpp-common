@@ -10,13 +10,30 @@
  */
 
 #include <limits.h>
+#include <net-snmp/library/large_fd_set.h>
 #include "snmp_internal/snmp_includes.h"
 #include "snmp_agent.h"
 #include "log.h"
 
-SNMPAgent* SNMPAgent::_instance = NULL;
+namespace SNMP
+{
 
-int SNMPAgent::initialize()
+Agent* Agent::_instance = NULL;
+
+void Agent::instantiate(std::string name)
+{
+  delete(_instance);
+  _instance = NULL;
+  _instance = new Agent(name);
+}
+
+void Agent::deinstantiate()
+{
+  delete(_instance);
+  _instance = NULL;
+}
+
+Agent::Agent(std::string name) : _name(name)
 {
   pthread_mutex_lock(&_netsnmp_lock);
 
@@ -42,23 +59,40 @@ int SNMPAgent::initialize()
 
   netsnmp_container_init_list();
   int rc = init_agent(_name.c_str());
+  if (rc != 0)
+  {
+    snmp_unregister_callback(SNMP_CALLBACK_LIBRARY, SNMP_CALLBACK_LOGGING, logging_callback, NULL, 1);
+    netsnmp_container_free_list();
+  }
 
   pthread_mutex_unlock(&_netsnmp_lock);
 
-  return rc;
+  if (rc != 0)
+  {
+    throw rc;
+  }
 }
 
-int SNMPAgent::start(void)
+Agent::~Agent()
+{
+  snmp_unregister_callback(SNMP_CALLBACK_LIBRARY, SNMP_CALLBACK_LOGGING, logging_callback, NULL, 1);
+  netsnmp_container_free_list();
+}
+
+void Agent::start(void)
 {
   pthread_mutex_lock(&_netsnmp_lock);
   init_snmp(_name.c_str());
   pthread_mutex_unlock(&_netsnmp_lock);
 
   int rc = pthread_create(&_thread, NULL, thread_fn, this);
-  return rc;
+  if (rc != 0)
+  {
+    throw rc;
+  }
 }
 
-void SNMPAgent::stop(void)
+void Agent::stop(void)
 {
   pthread_cancel(_thread);
 
@@ -68,45 +102,49 @@ void SNMPAgent::stop(void)
   pthread_mutex_unlock(&_netsnmp_lock);
 }
 
-void SNMPAgent::add_row_to_table(netsnmp_tdata* table, netsnmp_tdata_row* row)
+void Agent::add_row_to_table(netsnmp_tdata* table, netsnmp_tdata_row* row)
 {
   pthread_mutex_lock(&_netsnmp_lock);
   netsnmp_tdata_add_row(table, row);
   pthread_mutex_unlock(&_netsnmp_lock);
 }
 
-void SNMPAgent::remove_row_from_table(netsnmp_tdata* table, netsnmp_tdata_row* row)
+void Agent::remove_row_from_table(netsnmp_tdata* table, netsnmp_tdata_row* row)
 {
   pthread_mutex_lock(&_netsnmp_lock);
   netsnmp_tdata_remove_row(table, row);
   pthread_mutex_unlock(&_netsnmp_lock);
 }
 
-void* SNMPAgent::thread_fn(void* snmp_agent)
+void* Agent::thread_fn(void* snmp_agent)
 {
-  ((SNMPAgent*)snmp_agent)->thread_fn();
+  ((Agent*)snmp_agent)->thread_fn();
   return NULL;
 }
 
-void SNMPAgent::thread_fn()
+void Agent::thread_fn()
 {
+  int num_fds;
+  netsnmp_large_fd_set read_fds;
+  netsnmp_large_fd_set_init(&read_fds, FD_SETSIZE);
+  struct timeval timeout;
+  int block;
+
   while (1)
   {
     // Set up some variables and call into Net-SNMP to initialize them ready
     // for the select call.
-    int num_fds = 0;
-    fd_set read_fds;
-    FD_ZERO(&read_fds);
-    struct timeval timeout;
+    num_fds = 0;
+    NETSNMP_LARGE_FD_ZERO(&read_fds);
     timeout.tv_sec = LONG_MAX;
     timeout.tv_usec = 0;
-    int block = 0;
+    block = 0;
     pthread_mutex_lock(&_netsnmp_lock);
-    snmp_select_info(&num_fds, &read_fds, &timeout, &block);
+    snmp_select_info2(&num_fds, &read_fds, &timeout, &block);
     pthread_mutex_unlock(&_netsnmp_lock);
 
     // Wait for some SNMP work or the timeout to expire, and then process.
-    int select_rc = select(num_fds, &read_fds, NULL, NULL, (!block) ? &timeout : NULL);
+    int select_rc = netsnmp_large_fd_set_select(num_fds, &read_fds, NULL, NULL, (!block) ? &timeout : NULL);
 
     if (select_rc >= 0)
     {
@@ -114,7 +152,7 @@ void SNMPAgent::thread_fn()
       pthread_mutex_lock(&_netsnmp_lock);
       if (select_rc > 0)
       {
-        snmp_read(&read_fds);
+        snmp_read2(&read_fds);
       }
       else if (select_rc == 0)
       {
@@ -130,7 +168,7 @@ void SNMPAgent::thread_fn()
   }
 };
 
-int SNMPAgent::logging_callback(int majorID, int minorID, void* serverarg, void* clientarg)
+int Agent::logging_callback(int majorID, int minorID, void* serverarg, void* clientarg)
 {
   snmp_log_message* log_message = (snmp_log_message*)serverarg;
   int snmp_priority = log_message->priority;
@@ -170,26 +208,36 @@ int SNMPAgent::logging_callback(int majorID, int minorID, void* serverarg, void*
   return 0;
 }
 
+}
+
 // Set up the SNMP agent. Returns 0 if it succeeds.
 int snmp_setup(const char* name)
 {
-  SNMPAgent::instance(new SNMPAgent(name));
-  int rc = SNMPAgent::instance()->initialize();
-  if (rc != 0)
+  try
+  {
+    SNMP::Agent::instantiate(name);
+    TRC_STATUS("AgentX agent initialised");
+    return 0;
+  }
+  catch (int rc)
   {
     TRC_WARNING("SNMP AgentX initialization failed");
+    return rc;
   }
-  else
-  {
-    TRC_STATUS("AgentX agent initialised");
-  }
-  return rc;
 }
 
 // Set up the SNMP handling threads. Returns 0 if it succeeds.
 int init_snmp_handler_threads(const char* name)
 {
-  return SNMPAgent::instance()->start();
+  try
+  {
+    SNMP::Agent::instance()->start();
+    return 0;
+  }
+  catch (int rc)
+  {
+    return rc;
+  }
 }
 
 // Cancel the handler thread and shut down the SNMP agent.
@@ -200,5 +248,6 @@ int init_snmp_handler_threads(const char* name)
 // between CentOS and Ubuntu when it is passed NULL.
 void snmp_terminate(const char* name)
 {
-  SNMPAgent::instance()->stop();
+  SNMP::Agent::instance()->stop();
+  SNMP::Agent::deinstantiate();
 }
