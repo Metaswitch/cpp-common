@@ -14,6 +14,7 @@
 
 #include <pthread.h>
 #include <setjmp.h>
+#include <atomic>
 
 #include "health_checker.h"
 
@@ -21,7 +22,7 @@ class ExceptionHandler
 {
 public:
   /// Constructor
-  ExceptionHandler(int ttl, 
+  ExceptionHandler(int ttl,
                    bool attempt_quiesce,
                    HealthChecker* health_checker);
 
@@ -35,7 +36,7 @@ public:
   void delayed_exit_thread();
 
 private:
-  /// Called by a new thread when an exception is hit. Kills the 
+  /// Called by a new thread when an exception is hit. Kills the
   /// process after a random time
   static void* delayed_exit_thread_func(void* det);
 
@@ -50,6 +51,32 @@ private:
 
   /// Pointer to the service's health checker
   HealthChecker* _health_checker;
+
+  /// Field containing:
+  /// -  The PID of the process that this process has forked to write out a core
+  ///    file.
+  /// -  Flags used in the management of this field.
+  ///
+  /// The possible flags are:
+  /// -  Lock flag (top bit). If set no other thread should access this field.
+  ///    It is used by a thread that wants to dump a core to prevent other
+  ///    threads from starting a core dump simultaneously.
+  ///
+  /// All bits that are not used as flags are used to store the PID of the child
+  /// process.
+  std::atomic<uint32_t> _core_pid_and_flags;
+
+  const uint32_t PID_LOCK_FLAG = (1 << 31);
+  const uint32_t PID_MASK = (uint32_t)(-1) & ~PID_LOCK_FLAG;
+
+  /// Dump a core file. This function ensures that only one core file can be
+  /// being dumped at any one time, and does nothing if a core is already being
+  /// dumped.
+  void dump_one_core();
+
+  /// If a core file has previously been dumped, reap the process, and clean up
+  /// internal state to allow a new core to be dumped in future.
+  void reap_core_dump_process();
 };
 
 /// Stored environment
@@ -68,7 +95,7 @@ if (setjmp(env) == 0)                                                          \
 else                                                                           \
 {                                                                              \
   /* Spin off waiting thread */                                                \
-  HANDLE_EXCEPTION->delayed_exit_thread(); 
+  HANDLE_EXCEPTION->delayed_exit_thread();
 
 /// END Macro
 #define CW_END                                                                 \
@@ -76,6 +103,6 @@ else                                                                           \
   pthread_setspecific(_jmp_buf, NULL);                                         \
   pthread_exit(NULL);                                                          \
 }                                                                              \
-pthread_setspecific(_jmp_buf, NULL);                                         
+pthread_setspecific(_jmp_buf, NULL);
 
 #endif
