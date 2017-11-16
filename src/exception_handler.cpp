@@ -17,6 +17,7 @@
 
 #include "exception_handler.h"
 #include "health_checker.h"
+#include "log.h"
 
 pthread_key_t _jmp_buf;
 
@@ -88,9 +89,15 @@ void ExceptionHandler::dump_one_core()
 
   if (!dumped_core && _dumped_core.compare_exchange_strong(dumped_core, true))
   {
+    TRC_STATUS("Dumping core file");
+
     if (!fork())
     {
       abort();
     }
+  }
+  else
+  {
+    TRC_STATUS("Not dumping core file - core has already been dumped for this process");
   }
 }
