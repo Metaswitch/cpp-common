@@ -20,7 +20,7 @@
 
 pthread_key_t _jmp_buf;
 
-ExceptionHandler::ExceptionHandler(int ttl, 
+ExceptionHandler::ExceptionHandler(int ttl,
                                    bool attempt_quiesce,
                                    HealthChecker* health_checker) :
   _ttl(ttl),
@@ -42,11 +42,7 @@ void ExceptionHandler::handle_exception()
 
   if (env != NULL)
   {
-    // Create a child thread, then abort it to create a core file.
-    if (!fork())
-    {
-      abort();
-    }
+    dump_one_core();
 
     // Let the health check know that an exception has occurred
     _health_checker->hit_exception();
@@ -67,12 +63,12 @@ void ExceptionHandler::delayed_exit_thread()
 
 void* ExceptionHandler::delayed_exit_thread_func(void* det)
 {
-  // Wait for a random time up to the _ttl. This thread was detached when it 
+  // Wait for a random time up to the _ttl. This thread was detached when it
   // was created, so we can safely call sleep
   int sleep_time = rand() % ((ExceptionHandler*)det)->_ttl;
   sleep(sleep_time);
 
-  // Raise a SIGQUIT if needed. 
+  // Raise a SIGQUIT if needed.
   if (((ExceptionHandler*)det)->_attempt_quiesce)
   {
     raise(SIGQUIT);
@@ -80,4 +76,21 @@ void* ExceptionHandler::delayed_exit_thread_func(void* det)
   }
 
   exit(1);
+}
+
+void ExceptionHandler::dump_one_core()
+{
+  // Only dump a core if:
+  // - We've not dumped one already.
+  // - We can CAS the dumped core flag to true. If we can't another thread must
+  //   have beaten us to it.
+  bool dumped_core = _dumped_core.load();
+
+  if (!dumped_core && _dumped_core.compare_exchange_strong(dumped_core, true))
+  {
+    if (!fork())
+    {
+      abort();
+    }
+  }
 }
