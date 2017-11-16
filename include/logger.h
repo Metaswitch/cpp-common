@@ -17,6 +17,7 @@
 
 #include <string>
 #include <pthread.h>
+#include <atomic>
 
 class Logger
 {
@@ -76,6 +77,7 @@ private:
   std::string _filename;
   std::string _directory;
   pthread_mutex_t _lock;
+  std::atomic<bool> _dumping_adv_backtrace;
 
   /// Defines how frequently (in seconds) we will try to reopen a log
   /// file when we have previously failed to use it.
