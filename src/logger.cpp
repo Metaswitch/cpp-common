@@ -54,7 +54,8 @@ Logger::Logger(const std::string& directory, const std::string& filename) :
   _discards(0),
   _saved_errno(0),
   _filename(filename),
-  _directory(directory)
+  _directory(directory),
+  _dumping_adv_backtrace(false)
 {
   pthread_mutex_init(&_lock, NULL);
 }
@@ -278,28 +279,46 @@ void Logger::backtrace(const char *data)
     size_t num_entries = ::backtrace(stack, MAX_BACKTRACE_STACK_ENTRIES);
     backtrace_symbols_fd(stack, num_entries, fileno(_fd));
 
-    // Now try dumping with gdb.  This might not work (e.g. because gdb isn't
-    // installed), but it gives much better output.  We need to swap some file
-    // descriptors around before and after invoking gdb to make sure that
-    // stdout and stderr from gdb go to the log file.
-    fprintf(_fd, "\nAdvanced stack dump (requires gdb):\n");
-    fflush(_fd);
-    int fd1 = dup(1);
-    dup2(fileno(_fd), 1);
-    int fd2 = dup(2);
-    dup2(fileno(_fd), 2);
-    char gdb_cmd[256];
-    sprintf(gdb_cmd, "/usr/bin/gdb -nx --batch /proc/%d/exe %d -ex 'thread apply all bt'", getpid(), getpid());
-    int rc = system(gdb_cmd);
-    dup2(fd1, 1);
-    close(fd1);
-    dup2(fd2, 2);
-    close(fd2);
-    fprintf(_fd, "\n");
+    // Only try dumping a stack trace with gdb if we're not already doing this
+    // in another thread. If not, change the flag value with a CAS to avoid
+    // race conditions.
+    bool dumping_adv_backtrace = _dumping_adv_backtrace.load();
 
-    if (rc != 0)
+    if (!dumping_adv_backtrace &&
+        _dumping_adv_backtrace.compare_exchange_strong(dumping_adv_backtrace, true))
     {
-      fprintf(_fd, "gdb failed with return code %d\n", rc);
+      // Now try dumping with gdb.  This might not work (e.g. because gdb isn't
+      // installed), but it gives much better output.  We need to swap some file
+      // descriptors around before and after invoking gdb to make sure that
+      // stdout and stderr from gdb go to the log file.
+      fprintf(_fd, "\nAdvanced stack dump (requires gdb):\n");
+      fflush(_fd);
+      int fd1 = dup(1);
+      dup2(fileno(_fd), 1);
+      int fd2 = dup(2);
+      dup2(fileno(_fd), 2);
+      char gdb_cmd[256];
+      sprintf(gdb_cmd, "/usr/bin/gdb -nx --batch /proc/%d/exe %d -ex 'thread apply all bt'", getpid(), getpid());
+      int rc = system(gdb_cmd);
+      dup2(fd1, 1);
+      close(fd1);
+      dup2(fd2, 2);
+      close(fd2);
+      fprintf(_fd, "\n");
+
+      if (rc != 0)
+      {
+        fprintf(_fd, "gdb failed with return code %d\n", rc);
+      }
+
+      _dumping_adv_backtrace.store(false);
+    }
+    else
+    {
+      // Another thread is already doing a stack dump with GDB. Don't start
+      // another one, as if there are many crashes going on simultaneously this
+      // spawns very many gdb processes.
+      fprintf(_fd, "\nSkipping advance stack dump as it is already in progress\n");
     }
 
     fflush(_fd);
