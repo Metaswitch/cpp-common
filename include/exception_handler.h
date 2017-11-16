@@ -14,6 +14,7 @@
 
 #include <pthread.h>
 #include <setjmp.h>
+#include <atomic>
 
 #include "health_checker.h"
 
@@ -21,7 +22,7 @@ class ExceptionHandler
 {
 public:
   /// Constructor
-  ExceptionHandler(int ttl, 
+  ExceptionHandler(int ttl,
                    bool attempt_quiesce,
                    HealthChecker* health_checker);
 
@@ -35,7 +36,7 @@ public:
   void delayed_exit_thread();
 
 private:
-  /// Called by a new thread when an exception is hit. Kills the 
+  /// Called by a new thread when an exception is hit. Kills the
   /// process after a random time
   static void* delayed_exit_thread_func(void* det);
 
@@ -50,6 +51,15 @@ private:
 
   /// Pointer to the service's health checker
   HealthChecker* _health_checker;
+
+  // Whether we have already dumped a core file (in which case we won't dump any
+  // more).
+  std::atomic<bool> _dumped_core;
+
+  // Dump a single core file. If this process has already dumped a core file we
+  // won't dump another one (to avoid accidentally writing up lots of cores
+  // simultaneously in the event of a systematic error).
+  void dump_one_core();
 };
 
 /// Stored environment
@@ -68,7 +78,7 @@ if (setjmp(env) == 0)                                                          \
 else                                                                           \
 {                                                                              \
   /* Spin off waiting thread */                                                \
-  HANDLE_EXCEPTION->delayed_exit_thread(); 
+  HANDLE_EXCEPTION->delayed_exit_thread();
 
 /// END Macro
 #define CW_END                                                                 \
@@ -76,6 +86,6 @@ else                                                                           \
   pthread_setspecific(_jmp_buf, NULL);                                         \
   pthread_exit(NULL);                                                          \
 }                                                                              \
-pthread_setspecific(_jmp_buf, NULL);                                         
+pthread_setspecific(_jmp_buf, NULL);
 
 #endif
