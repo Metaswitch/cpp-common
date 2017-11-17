@@ -161,6 +161,10 @@ void Agent::thread_fn()
 
       // Process any "alarms" - note these aren't SNMP TRAPs, but timers run by SNMP itself.
       run_alarms();
+
+      // ...and finally process any delegated or queued requests.
+      netsnmp_check_outstanding_agent_requests();
+
       pthread_mutex_unlock(&_netsnmp_lock);
     }
     else if ((select_rc != -1) || (errno != EINTR))
