@@ -158,6 +158,9 @@ void Agent::thread_fn()
       {
         snmp_timeout();
       }
+
+      // Process any "alarms" - note these aren't SNMP TRAPs, but timers run by SNMP itself.
+      run_alarms();
       pthread_mutex_unlock(&_netsnmp_lock);
     }
     else if ((select_rc != -1) || (errno != EINTR))
