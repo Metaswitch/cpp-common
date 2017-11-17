@@ -26,7 +26,8 @@ ExceptionHandler::ExceptionHandler(int ttl,
                                    HealthChecker* health_checker) :
   _ttl(ttl),
   _attempt_quiesce(attempt_quiesce),
-  _health_checker(health_checker)
+  _health_checker(health_checker),
+  _dumped_core(false)
 {
   pthread_key_create(&_jmp_buf, NULL);
 }
