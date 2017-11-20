@@ -190,6 +190,11 @@ public:
                                     instance_id);
     }
 
+    inline Utils::StopWatch* get_stopwatch()
+    {
+      return &_stopwatch;
+    }
+
   protected:
     htp_method _method;
     std::string _rx_body;
