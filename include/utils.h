@@ -531,17 +531,18 @@ namespace Utils
       return _ok;
     }
 
+    /// Adds the specified time in microseconds to the elapsed time
+    inline void add_time(unsigned long add_us)
+    {
+      _elapsed_us += add_us;
+    }
+
     /// Subtracts the specified time in microseconds from the elapsed time
     inline void subtract_time(unsigned long subtract_us)
     {
       _elapsed_us -= subtract_us;
     }
 
-    /// Adds the specified time in microseconds to the elapsed time
-    inline void add_time(unsigned long subtract_us)
-    {
-      _elapsed_us += subtract_us;
-    }
 
   private:
     struct timespec _start;
