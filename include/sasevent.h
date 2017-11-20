@@ -22,7 +22,7 @@ namespace SASEvent {
   // Jenkins job "update-sas-resources".
   //
   // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20171108";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20171115";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -74,6 +74,7 @@ namespace SASEvent {
   const int BIFROST_BASE = 0x8A0000;
   const int WEATHERWAX_BASE = 0x8B0000;
   const int RPE_BASE = 0x8C0000;
+  const int CHRONOS_BASE = 0x8D0000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.

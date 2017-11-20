@@ -13,6 +13,7 @@
 #include <map>
 #include <string>
 
+#include "snmp_agent.h"
 #include "snmp_row.h"
 #include "snmp_includes.h"
 #include "log.h"
@@ -86,13 +87,17 @@ public:
   // Add a Row into the underlying table.
   void add(T* row)
   {
-    netsnmp_tdata_add_row(_table, row->get_netsnmp_row());
+    // We're not necessarily on the Net-SNMP thread, so we can't call into
+    // Net-SNMP here.  Call into SNMP Agent to add the row to the table.
+    SNMP::Agent::instance()->add_row_to_table(_table, row->get_netsnmp_row());
   };
 
   // Remove a Row from the underlying table.
   void remove(T* row)
   {
-    netsnmp_tdata_remove_row(_table, row->get_netsnmp_row());
+    // We're not necessarily on the Net-SNMP thread, so we can't call into
+    // Net-SNMP here.  Call into SNMP Agent to remove the row to the table.
+    SNMP::Agent::instance()->remove_row_from_table(_table, row->get_netsnmp_row());
   };
 
 protected:
