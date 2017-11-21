@@ -220,6 +220,14 @@ int Agent::logging_callback(int majorID, int minorID, void* serverarg, void* cli
 // Set up the SNMP agent. Returns 0 if it succeeds.
 int snmp_setup(const char* name)
 {
+  // First, check if we'd previously instantiated an SNMP agent, and tidy it up
+  // if so.
+  if (SNMP::Agent::instance() != NULL)
+  {
+    SNMP::Agent::deinstantiate();
+  }
+
+  // Then, instantiate the new one.
   try
   {
     SNMP::Agent::instantiate(name);
@@ -256,5 +264,9 @@ int init_snmp_handler_threads(const char* name)
 void snmp_terminate(const char* name)
 {
   SNMP::Agent::instance()->stop();
-  SNMP::Agent::deinstantiate();
+
+  // We don't deinitialize here to minimize termination race conditions.  We
+  // deinitialize the next time snmp_setup is called (if it is called).  Yes,
+  // this is a leak, but it's a very small, one-off leak, and it's easier than
+  // getting Net-SNMP to terminate cleanly.
 }
