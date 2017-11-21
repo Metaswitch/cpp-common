@@ -537,7 +537,11 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
     // request further.
     TRC_DEBUG("Wait for query responses");
     pthread_mutex_unlock(&_cache_lock);
-    wait_for_replies(channel);
+    CW_IO_STARTS("DNS query")
+    {
+      wait_for_replies(channel);
+    }
+    CW_IO_COMPLETES()
     pthread_mutex_lock(&_cache_lock);
     TRC_DEBUG("Received all query responses");
   }
@@ -556,7 +560,11 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
       // We must release the global lock and let the other thread finish
       // the query.
       TRC_DEBUG("Waiting for (non-cached) DNS query for %s", i->c_str());
-      pthread_cond_wait(&_got_reply_cond, &_cache_lock);
+      CW_IO_STARTS("DNS pending query")
+      {
+        pthread_cond_wait(&_got_reply_cond, &_cache_lock);
+      }
+      CW_IO_COMPLETES()
       ce = get_cache_entry(*i, dnstype);
       TRC_DEBUG("Reawoken from wait for %s type %d", i->c_str(), dnstype);
     }
