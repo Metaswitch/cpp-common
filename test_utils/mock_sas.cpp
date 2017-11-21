@@ -60,6 +60,22 @@ MockSASMessage* mock_sas_find_marker(uint32_t marker_id)
   return NULL;
 }
 
+std::vector<MockSASMessage*> mock_sas_find_marker_multiple(uint32_t marker_id)
+{
+  std::vector<MockSASMessage*> messages;
+
+  for(std::vector<MockSASMessage>::iterator msg = mock_sas_messages.begin();
+      msg != mock_sas_messages.end();
+      ++msg)
+  {
+    if (msg->marker && (msg->id == marker_id))
+    {
+      messages.push_back(&(*msg));
+    }
+  }
+  return messages;
+}
+
 MockSASMessage* mock_sas_find_event(uint32_t event_id)
 {
   // The 3rd party API sets the top byte to 0x0F

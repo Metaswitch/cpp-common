@@ -25,6 +25,7 @@ void mock_sas_collect_messages(bool collect);
 void mock_sas_discard_messages();
 
 MockSASMessage* mock_sas_find_marker(uint32_t marker_id);
+std::vector<MockSASMessage*> mock_sas_find_marker_multiple(uint32_t marker_id);
 MockSASMessage* mock_sas_find_event(uint32_t event_id);
 
 // Helper macros for checking for the presence / absence of SAS events and
