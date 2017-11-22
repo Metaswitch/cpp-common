@@ -100,6 +100,13 @@ void ExceptionHandler::dump_one_core()
       // Unset the SIGABRT handler so we don't try to print a stack trace.
       signal(SIGABRT, SIG_DFL);
 
+      // Dump an advanced backtrace.
+      TRC_BACKTRACE_ADV();
+
+      // Ensure the log files are complete - the core file created by abort()
+      // below will trigger the log files to be copied to the diags bundle
+      TRC_COMMIT();
+
       // Now abort to generate the corefile.
       abort();
     }

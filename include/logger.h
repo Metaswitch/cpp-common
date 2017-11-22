@@ -35,10 +35,23 @@ public:
   virtual void flush();
   virtual void commit();
 
-  // Dumps a backtrace.  Note that this is not thread-safe and should only be
-  // called when no other threads are running - generally from a signal
-  // handler.
-  virtual void backtrace(const char* data);
+  // Dump a simple backtrace (using functionality available from within the
+  // process). This is fast but not very good - in particular it doesn't print out
+  // function names or arguments.
+  //
+  // This function is called from a signal handler and so can
+  // only use functions that are safe to be called from one.  In particular,
+  // locking functions are _not_ safe to call from signal handlers, so this
+  // function is not thread-safe.
+  virtual void backtrace_simple();
+
+  // Dump an advanced backtrace using GDB. This captures function names and
+  // arguments but stops the process temporarily. Because of this it should only
+  // be used when the process is about to exit.
+  //
+  // Note that this is not thread-safe and should only be called when no other
+  // threads are running - generally from a signal handler.
+  virtual void backtrace_advanced();
 
 protected:
   virtual void gettime_monotonic(struct timespec* ts);

@@ -138,28 +138,24 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
 
 // LCOV_EXCL_START Only used in exceptional signal handlers - not hit in UT
 
-void Log::backtrace(const char *fmt, ...)
+void Log::backtrace()
 {
   if (!Log::logger)
   {
     return;
   }
 
-  va_list args;
-  char logline[MAX_LOGLINE];
-  va_start(args, fmt);
-  // snprintf and vsnprintf return the bytes that would have been
-  // written if their second argument was large enough, so we need to
-  // reduce the size of written to compensate if it is too large.
-  int written = vsnprintf(logline, MAX_LOGLINE - 2, fmt, args);
-  written = std::min(written, MAX_LOGLINE - 2);
-  va_end(args);
+  Log::logger->backtrace_simple();
+}
 
-  // Add a new line and null termination.
-  logline[written] = '\n';
-  logline[written+1] = '\0';
+void Log::backtrace_adv()
+{
+  if (!Log::logger)
+  {
+    return;
+  }
 
-  Log::logger->backtrace(logline);
+  Log::logger->backtrace_advanced();
 }
 
 void Log::commit()

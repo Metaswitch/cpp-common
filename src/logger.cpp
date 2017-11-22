@@ -260,25 +260,47 @@ void Logger::cycle_log_file(const timestamp_t& ts)
 // Maximum number of stack entries to trace out.
 #define MAX_BACKTRACE_STACK_ENTRIES 32
 
-// Dump a backtrace.  This function is called from a signal handler and so can
+// Dump a simple backtrace (using functionality available from within the
+// process). This is fast but not very good - in particular it doesn't print out
+// function names or arguments.
+//
+// This function is called from a signal handler and so can
 // only use functions that are safe to be called from one.  In particular,
 // locking functions are _not_ safe to call from signal handlers, so this
 // function is not thread-safe.
-void Logger::backtrace(const char *data)
+void Logger::backtrace_simple()
 {
   // If the file exists, dump a header and then the backtrace.
   if (_fd != NULL)
   {
-    fprintf(_fd, "\n%s", data);
-
-    // First dump the backtrace ourselves.  This is robust but not very good.
-    // In particular, it doesn't include good function names or other threads.
     fprintf(_fd, "\nBasic stack dump:\n");
     fflush(_fd);
     void *stack[MAX_BACKTRACE_STACK_ENTRIES];
     size_t num_entries = ::backtrace(stack, MAX_BACKTRACE_STACK_ENTRIES);
     backtrace_symbols_fd(stack, num_entries, fileno(_fd));
 
+    fflush(_fd);
+
+    if (ferror(_fd))
+    {
+      fclose(_fd);
+      _fd = NULL;
+    }
+  }
+}
+
+// Dump an advanced backtrace using GDB. This captures function names and
+// arguments but stops the process temporarily. Because of this it should only
+// be used when the process is about to exit.
+//
+// This function is called from a signal handler and so can only use functions
+// that are safe to be called from one.  In particular, locking functions are
+// _not_ safe to call from signal handlers, so this function is not thread-safe.
+void Logger::backtrace_advanced()
+{
+  // If the file exists, dump a header and then the backtrace.
+  if (_fd != NULL)
+  {
     // Only try dumping a stack trace with gdb if we're not already doing this
     // in another thread. If not, change the flag value with a CAS to avoid
     // race conditions.
