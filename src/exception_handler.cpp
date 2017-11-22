@@ -97,6 +97,10 @@ void ExceptionHandler::dump_one_core()
 
     if (!fork())
     {
+      // Unset the SIGABRT handler so we don't try to print a stack trace.
+      signal(SIGABRT, SIG_DFL);
+
+      // Now abort to generate the corefile.
       abort();
     }
   }
