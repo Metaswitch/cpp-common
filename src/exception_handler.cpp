@@ -68,15 +68,18 @@ void* ExceptionHandler::delayed_exit_thread_func(void* det)
   // Wait for a random time up to the _ttl. This thread was detached when it
   // was created, so we can safely call sleep
   int sleep_time = rand() % ((ExceptionHandler*)det)->_ttl;
+  TRC_WARNING("Delayed exit will shutdown this process in %d seconds", sleep_time);
   sleep(sleep_time);
 
   // Raise a SIGQUIT if needed.
   if (((ExceptionHandler*)det)->_attempt_quiesce)
   {
+    TRC_WARNING("Delayed exit attempting to quiesce process");
     raise(SIGQUIT);
     sleep(10);
   }
 
+  TRC_WARNING("Delayed exit shutting down process");
   exit(1);
 }
 
