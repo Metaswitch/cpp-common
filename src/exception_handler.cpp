@@ -95,13 +95,20 @@ void ExceptionHandler::dump_one_core()
   {
     TRC_STATUS("Dumping core file");
 
-    if (!fork())
-    {
-      // Unset the SIGABRT handler so we don't try to print a stack trace.
-      signal(SIGABRT, SIG_DFL);
+    int rc = fork();
 
-      // Dump an advanced backtrace.
-      TRC_BACKTRACE_ADV();
+    if (rc < 0)
+    {
+      TRC_WARNING("Unable to fork to produce a core file. Error: %d %s",
+                  errno, strerror(errno));
+    }
+    else if (rc == 0)
+    {
+      // In the child process.
+
+      // Unset the SIGABRT handler so we don't try to handle the abort call
+      // below.
+      signal(SIGABRT, SIG_DFL);
 
       // Ensure the log files are complete - the core file created by abort()
       // below will trigger the log files to be copied to the diags bundle
