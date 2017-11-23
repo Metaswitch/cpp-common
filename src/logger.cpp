@@ -278,6 +278,7 @@ void Logger::backtrace_simple()
     void *stack[MAX_BACKTRACE_STACK_ENTRIES];
     size_t num_entries = ::backtrace(stack, MAX_BACKTRACE_STACK_ENTRIES);
     backtrace_symbols_fd(stack, num_entries, fileno(_fd));
+    fprintf(_fd, "\n");
 
     fflush(_fd);
 
