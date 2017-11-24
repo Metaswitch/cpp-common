@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <cstdlib>
 #include <signal.h>
+#include <string.h>
 
 #include "exception_handler.h"
 #include "health_checker.h"
@@ -109,6 +110,9 @@ void ExceptionHandler::dump_one_core()
       // Unset the SIGABRT handler so we don't try to handle the abort call
       // below.
       signal(SIGABRT, SIG_DFL);
+
+      // We're in the child process so we can safely get advanced stack trace.
+      TRC_BACKTRACE_ADV();
 
       // Ensure the log files are complete - the core file created by abort()
       // below will trigger the log files to be copied to the diags bundle
