@@ -54,8 +54,7 @@ Logger::Logger(const std::string& directory, const std::string& filename) :
   _discards(0),
   _saved_errno(0),
   _filename(filename),
-  _directory(directory),
-  _dumping_adv_backtrace(false)
+  _directory(directory)
 {
   pthread_mutex_init(&_lock, NULL);
 }
@@ -186,6 +185,13 @@ void Logger::get_timestamp(timestamp_t& ts)
   ts.yday = dt.tm_yday;
 }
 
+void Logger::format_timestamp(const timestamp_t& ts, char* buf, size_t len)
+{
+  snprintf(buf, len,
+           "%2.2d-%2.2d-%4.4d %2.2d:%2.2d:%2.2d.%3.3d UTC",
+           ts.mday, (ts.mon+1), (ts.year + 1900),
+           ts.hour, ts.min, ts.sec, ts.msec);
+}
 
 /// Writes a log to the file with timestamp if configured.
 void Logger::write_log_file(const char *data, const timestamp_t& ts)
@@ -193,10 +199,8 @@ void Logger::write_log_file(const char *data, const timestamp_t& ts)
   if (_flags & ADD_TIMESTAMPS)
   {
     char timestamp[100];
-    sprintf(timestamp, "%2.2d-%2.2d-%4.4d %2.2d:%2.2d:%2.2d.%3.3d UTC ",
-            ts.mday, (ts.mon+1), (ts.year + 1900),
-            ts.hour, ts.min, ts.sec, ts.msec);
-    fputs(timestamp, _fd);
+    format_timestamp(ts, timestamp, sizeof(timestamp));
+    fprintf(_fd, "%s ", timestamp);
   }
 
   // Write the log to the current file.
@@ -302,46 +306,50 @@ void Logger::backtrace_advanced()
   // If the file exists, dump a header and then the backtrace.
   if (_fd != NULL)
   {
-    // Only try dumping a stack trace with gdb if we're not already doing this
-    // in another thread. If not, change the flag value with a CAS to avoid
-    // race conditions.
-    bool dumping_adv_backtrace = _dumping_adv_backtrace.load();
+    // Dumping might not work (e.g. because gdb isn't installed), but it gives
+    // much better output.  We need to swap some file descriptors around before
+    // and after invoking gdb to make sure that stdout and stderr from gdb go to
+    // stderr.
+    int fd1 = dup(1);
+    dup2(2, 1);
 
-    if (!dumping_adv_backtrace &&
-        _dumping_adv_backtrace.compare_exchange_strong(dumping_adv_backtrace, true))
+   // Get a timestamp so we can put that into stderr to correlate with the other
+   // logs in the logfile.
+    timestamp_t ts;
+    char timestamp[100];
+    get_timestamp(ts);
+    format_timestamp(ts, timestamp, sizeof(timestamp));
+
+    // Dump the stack trace to stderr. Given we are writing to a file from two
+    // processes, we flush our buffers after writing to stderr to minimize the
+    // chance of any re-ordering.
+    fprintf(stderr, "\n%s Advanced stack dump (requires gdb):\n", timestamp); fflush(stderr);
+
+    char gdb_cmd[256];
+    sprintf(gdb_cmd,
+            "/usr/bin/gdb -nx --batch /proc/%d/exe %d -ex 'thread apply all bt'",
+            getpid(),
+            getpid());
+    int rc = system(gdb_cmd);
+
+    if (rc != 0)
     {
-      // Now try dumping with gdb.  This might not work (e.g. because gdb isn't
-      // installed), but it gives much better output.  We need to swap some file
-      // descriptors around before and after invoking gdb to make sure that
-      // stdout and stderr from gdb go to the log file.
-      fprintf(_fd, "\nAdvanced stack dump (requires gdb):\n");
-      fflush(_fd);
-      int fd1 = dup(1);
-      dup2(fileno(_fd), 1);
-      int fd2 = dup(2);
-      dup2(fileno(_fd), 2);
-      char gdb_cmd[256];
-      sprintf(gdb_cmd, "/usr/bin/gdb -nx --batch /proc/%d/exe %d -ex 'thread apply all bt'", getpid(), getpid());
-      int rc = system(gdb_cmd);
-      dup2(fd1, 1);
-      close(fd1);
-      dup2(fd2, 2);
-      close(fd2);
-      fprintf(_fd, "\n");
+      fprintf(stderr, "gdb failed with return code %d\n", rc); fflush(stderr);
+    }
 
-      if (rc != 0)
-      {
-        fprintf(_fd, "gdb failed with return code %d\n", rc);
-      }
+    // Put the file descriptors back the way they were.
+    dup2(fd1, 1);
+    close(fd1);
 
-      _dumping_adv_backtrace.store(false);
+    // Also print a message to the logfile saying what just happened.
+    if (rc != 0)
+    {
+      fprintf(_fd, "\nAdvanced stack dump failed: gdb returned %d\n\n", rc);
     }
     else
     {
-      // Another thread is already doing a stack dump with GDB. Don't start
-      // another one, as if there are many crashes going on simultaneously this
-      // spawns very many gdb processes.
-      fprintf(_fd, "\nSkipping advance stack dump as it is already in progress\n");
+      fprintf(_fd, "\nAdvanced stack dump written to stderr (with timestamp %s)\n\n",
+              timestamp);
     }
 
     fflush(_fd);

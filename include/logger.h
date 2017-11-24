@@ -73,6 +73,7 @@ private:
 
   void get_timestamp(timestamp_t& ts);
   void write_log_file(const char* data, const timestamp_t& ts);
+  void format_timestamp(const timestamp_t& ts, char* buf, size_t len);
   void cycle_log_file(const timestamp_t& ts);
 
   // Two methods to use with pthread_cleanup_push to release the lock if the logging thread is
@@ -90,7 +91,6 @@ private:
   std::string _filename;
   std::string _directory;
   pthread_mutex_t _lock;
-  std::atomic<bool> _dumping_adv_backtrace;
 
   /// Defines how frequently (in seconds) we will try to reopen a log
   /// file when we have previously failed to use it.
