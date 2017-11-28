@@ -121,6 +121,10 @@ public:
   void add_work(T& work)
   {
     _queue.push(work);
+    if (_queue_size_table)
+    {
+      _queue_size_table->accumulate(_queue.size());
+    }
   }
 
   // Add a work item to the thread pool by moving it into the pool.
