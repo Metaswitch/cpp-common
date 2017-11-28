@@ -121,6 +121,7 @@ public:
   void add_work(T& work)
   {
     _queue.push(work);
+
     if (_queue_size_table)
     {
       _queue_size_table->accumulate(_queue.size());
@@ -133,6 +134,7 @@ public:
   void add_work(T&& work)
   {
     _queue.push(work);
+
     if (_queue_size_table)
     {
       _queue_size_table->accumulate(_queue.size());
