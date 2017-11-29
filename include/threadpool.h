@@ -14,6 +14,7 @@
 #include <eventq.h>
 #include "exception_handler.h"
 #include <log.h>
+#include "snmp_event_accumulator_by_scope_table.h"
 
 #ifndef THREADPOOL_H__
 #define THREADPOOL_H__
@@ -41,16 +42,20 @@ public:
   //
   // @param num_threads the number of threads in the pool.
   // @param max_queue the number of work items that can be queued waiting for a
-  //   free thread (0 => no limit).
+  //                  free thread (0 => no limit).
+  // @param queue_size_table an optional pointer to an SNMP table to track the
+  //                         size of the queue.
   ThreadPool(unsigned int num_threads,
              ExceptionHandler* exception_handler,
              void (*callback)(T),
-             unsigned int max_queue = 0) :
+             unsigned int max_queue = 0,
+             SNMP::EventAccumulatorByScopeTable* queue_size_table = nullptr) :
     _num_threads(num_threads),
     _exception_handler(exception_handler),
     _threads(0),
     _queue(max_queue),
-    _callback(callback)
+    _callback(callback),
+    _queue_size_table(queue_size_table)
   {}
 
   // Destroy the thread pool.
@@ -116,6 +121,11 @@ public:
   void add_work(T& work)
   {
     _queue.push(work);
+
+    if (_queue_size_table)
+    {
+      _queue_size_table->accumulate(_queue.size());
+    }
   }
 
   // Add a work item to the thread pool by moving it into the pool.
@@ -124,6 +134,11 @@ public:
   void add_work(T&& work)
   {
     _queue.push(work);
+
+    if (_queue_size_table)
+    {
+      _queue_size_table->accumulate(_queue.size());
+    }
   }
 
 private:
@@ -134,6 +149,9 @@ private:
 
   // Recovery function provided by the callers
   void (*_callback)(T);
+
+  // SNMP table to track the queue size
+  SNMP::EventAccumulatorByScopeTable* _queue_size_table;
 
   // Static worker thread function that is passed into pthread_create.
   //
