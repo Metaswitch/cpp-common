@@ -87,7 +87,7 @@ LoadMonitor::LoadMonitor(uint64_t init_target_latency_us,
   _penalties(0),
   _adjust_count(0),
   _token_rate_table(token_rate_table),
-  _smoothed_latency_scalar(0),
+  _smoothed_latency_scalar(smoothed_latency_scalar),
   _target_latency_scalar(target_latency_scalar),
   _penalties_scalar(penalties_scalar),
   _token_rate_scalar(token_rate_scalar)
