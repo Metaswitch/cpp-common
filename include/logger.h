@@ -43,7 +43,7 @@ public:
   // only use functions that are safe to be called from one.  In particular,
   // locking functions are _not_ safe to call from signal handlers, so this
   // function is not thread-safe.
-  virtual void backtrace_simple();
+  virtual void backtrace_simple(const char* data);
 
   // Dump an advanced backtrace using GDB. This captures function names and
   // arguments but stops the process temporarily. Because of this it should only
