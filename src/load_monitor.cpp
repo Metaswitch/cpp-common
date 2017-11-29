@@ -79,7 +79,7 @@ LoadMonitor::LoadMonitor(uint64_t init_target_latency_us,
           init_token_rate_s,
           init_min_token_rate_s,
           init_max_token_rate_s),
-  _smoothed_latency_us(init_target_latency_us),
+  _smoothed_latency_us(0),
   _target_latency_us(init_target_latency_us),
   _smoothed_rate_s(0),
   _accepted(0),
@@ -87,7 +87,7 @@ LoadMonitor::LoadMonitor(uint64_t init_target_latency_us,
   _penalties(0),
   _adjust_count(0),
   _token_rate_table(token_rate_table),
-  _smoothed_latency_scalar(smoothed_latency_scalar),
+  _smoothed_latency_scalar(0),
   _target_latency_scalar(target_latency_scalar),
   _penalties_scalar(penalties_scalar),
   _token_rate_scalar(token_rate_scalar)
@@ -127,11 +127,11 @@ LoadMonitor::~LoadMonitor()
   pthread_mutex_destroy(&_lock);
 }
 
-bool LoadMonitor::admit_request(SAS::TrailId trail)
+bool LoadMonitor::admit_request(SAS::TrailId trail, bool allow_anyway)
 {
   pthread_mutex_lock(&_lock);
 
-  if (_bucket.get_token())
+  if (_bucket.get_token() || allow_anyway)
   {
     // Got a token from the bucket, so admit the request.
     _accepted += 1;
@@ -180,8 +180,8 @@ void LoadMonitor::request_complete(uint64_t latency_us,
                                    SAS::TrailId trail)
 {
   pthread_mutex_lock(&_lock);
-  _smoothed_latency_us = ((7 * _smoothed_latency_us) + latency_us) / 8;
-  _adjust_count += 1;
+  _smoothed_latency_us = (_smoothed_latency_us * _adjust_count + latency_us) /
+                         (_adjust_count + 1);
 
   timespec current_time;
   clock_gettime(CLOCK_MONOTONIC_COARSE, &current_time);
@@ -192,7 +192,10 @@ void LoadMonitor::request_complete(uint64_t latency_us,
   float current_rate_s = (us_passed != 0) ?
                          REQUESTS_BEFORE_ADJUSTMENT * 1000000/us_passed :
                          0;
-  _smoothed_rate_s = ((7 * _smoothed_rate_s) + current_rate_s) / 8;
+  _smoothed_rate_s = (_smoothed_rate_s * _adjust_count + current_rate_s) /
+                     (_adjust_count + 1);
+
+  _adjust_count += 1;
 
   if (_adjust_count >= REQUESTS_BEFORE_ADJUSTMENT)
   {
@@ -316,6 +319,8 @@ void LoadMonitor::request_complete(uint64_t latency_us,
     _accepted = 0;
     _rejected = 0;
     _penalties = 0;
+    _smoothed_latency_us = 0;
+    _smoothed_rate_s = 0;
   }
   else
   {

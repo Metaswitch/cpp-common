@@ -81,9 +81,11 @@ class LoadMonitor
 
     // Tests whether a request can be admitted.
     //
-    // @param trail     - The SAS trail associated with this request
-    // @returns         - Whether the request can be admitted.
-    virtual bool admit_request(SAS::TrailId trail);
+    // @param trail        - The SAS trail associated with this request
+    // @param allow_anyway - Whether the request should be allowed even if
+    //                       there aren't enough tokens
+    // @returns            - Whether the request can be admitted.
+    virtual bool admit_request(SAS::TrailId trail, bool allow_anyway = false);
 
     // This is called after a request that the load monitor is interested in
     // completes successfully. It adds the latency of the request to the
