@@ -159,17 +159,7 @@ void Log::backtrace(const char *fmt, ...)
   logline[written] = '\n';
   logline[written+1] = '\0';
 
-  Log::logger->backtrace_simple(logline);
-}
-
-void Log::backtrace_adv()
-{
-  if (!Log::logger)
-  {
-    return;
-  }
-
-  Log::logger->backtrace_advanced();
+  Log::logger->backtrace(logline);
 }
 
 void Log::commit()
