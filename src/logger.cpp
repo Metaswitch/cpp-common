@@ -272,11 +272,12 @@ void Logger::cycle_log_file(const timestamp_t& ts)
 // only use functions that are safe to be called from one.  In particular,
 // locking functions are _not_ safe to call from signal handlers, so this
 // function is not thread-safe.
-void Logger::backtrace_simple()
+void Logger::backtrace_simple(const char* data)
 {
   // If the file exists, dump a header and then the backtrace.
   if (_fd != NULL)
   {
+    fprintf(_fd, "\n%s", data);
     fprintf(_fd, "\nBasic stack dump:\n");
     fflush(_fd);
     void *stack[MAX_BACKTRACE_STACK_ENTRIES];

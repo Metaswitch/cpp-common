@@ -84,6 +84,10 @@ void* ExceptionHandler::delayed_exit_thread_func(void* det)
   exit(1);
 }
 
+// Dump a core file, assuming this process had not already dumped one.
+//
+// This function may be called from a signal handler so must only use async-safe
+// functions, and must not use the standard TRC_ macros (which may take locks).
 void ExceptionHandler::dump_one_core()
 {
   // Only dump a core if:
@@ -94,14 +98,13 @@ void ExceptionHandler::dump_one_core()
 
   if (!dumped_core && _dumped_core.compare_exchange_strong(dumped_core, true))
   {
-    TRC_STATUS("Dumping core file");
-
     int rc = fork();
 
     if (rc < 0)
     {
-      TRC_WARNING("Unable to fork to produce a core file. Error: %d %s",
-                  errno, strerror(errno));
+      char buf[256];
+      fprintf(stderr, "Unable to fork to produce a core file. Error: %d %s\n",
+              errno, strerror_r(errno, buf, sizeof(buf)));
     }
     else if (rc == 0)
     {
@@ -124,6 +127,6 @@ void ExceptionHandler::dump_one_core()
   }
   else
   {
-    TRC_STATUS("Not dumping core file - core has already been dumped for this process");
+    fprintf(stderr, "Not dumping core file - core has already been dumped for this process\n");
   }
 }
