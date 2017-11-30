@@ -133,7 +133,8 @@ bool LoadMonitor::admit_request(SAS::TrailId trail, bool allow_anyway)
 
   if (_bucket.get_token() || allow_anyway)
   {
-    // Got a token from the bucket, so admit the request.
+    // Admit the request - we either got a token from the bucket, or we're
+    // meant to accept the request anyway.
     _accepted += 1;
 
     SAS::Event accept(trail, SASEvent::LOAD_MONITOR_ACCEPTED_REQUEST, 0);
