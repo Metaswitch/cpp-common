@@ -875,3 +875,61 @@ void Utils::IOHook::io_completes(const std::string& reason)
 }
 
 thread_local std::vector<Utils::IOHook*> Utils::IOHook::_hooks = {};
+
+//
+// Signal handler code.
+//
+
+// Static variables that the signal handler needs.
+static const PDLog1<const char *>* CRASH_PD_LOG;
+static ExceptionHandler* EXCEPTION_HANDLER;
+
+static void signal_handler(int sig)
+{
+  // Reset the signal handlers so that another exception will cause a crash.
+  signal(SIGABRT, SIG_DFL);
+  signal(SIGSEGV, signal_handler);
+
+  // Log the signal, along with a simple backtrace.
+  TRC_BACKTRACE("Signal %d caught", sig);
+
+  // Check if there's a stored jmp_buf on the thread and handle if there is
+  EXCEPTION_HANDLER->handle_exception();
+
+  //
+  // If we get here it means we didn't handle the exception so we need to exit.
+  //
+
+  CRASH_PD_LOG->log(strsignal(sig));
+
+  // Log a full backtrace to make debugging easier.
+  TRC_BACKTRACE_ADV();
+
+  // Ensure the log files are complete - the core file created by abort() below
+  // will trigger the log files to be copied to the diags bundle
+  TRC_COMMIT();
+
+  // Dump a core.
+  abort();
+}
+
+void Utils::setup_exception_signal_handlers(ExceptionHandler* exception_handler,
+                                            const PDLog1<const char*>* pd_log)
+
+{
+  assert(pd_log != nullptr);
+  CRASH_PD_LOG = pd_log;
+
+  assert(exception_handler != nullptr);
+  EXCEPTION_HANDLER = exception_handler;
+
+  signal(SIGABRT, signal_handler);
+  signal(SIGSEGV, signal_handler);
+}
+
+void Utils::unset_exception_signal_handlers()
+{
+  signal(SIGABRT, SIG_DFL);
+  signal(SIGSEGV, SIG_DFL);
+}
+

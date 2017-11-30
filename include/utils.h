@@ -27,6 +27,8 @@
 #include <arpa/inet.h>
 
 #include "log.h"
+#include "pdlog.h"
+#include "exception_handler.h"
 
 struct IP46Address
 {
@@ -693,6 +695,24 @@ namespace Utils
     IOStartedCallback _io_started_cb;
     IOCompletedCallback _io_completed_cb;
   };
+
+  /// Setup the signal handlers needed to handle exceptions (SIGSEGV and
+  /// SIGABRT).  The signal handlers can be unset by calling
+  /// unset_exception_signal_handlers.
+  ///
+  /// This function must only be called once per process. The arguments must
+  /// live from the time this function until after
+  /// unset_exception_signal_handlers is called.
+  ///
+  /// @param exception_handler - Object that will try to handle the exception.
+  /// @param pd_log            - PD log that is generated if the exception
+  ///                            cannot be handled.
+  void setup_exception_signal_handlers(ExceptionHandler* exception_handler,
+                                       const PDLog1<const char*>* pd_log);
+
+  /// Unset the signal handlers setup by setup_exception_signal_handlers.
+  void unset_exception_signal_handlers();
+
 } // namespace Utils
 
 /// Helper macros to make it easier to invoke an I/O hook, and that means the
