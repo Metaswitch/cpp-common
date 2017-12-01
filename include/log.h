@@ -23,7 +23,8 @@
 #define TRC_VERBOSE(...) if (Log::enabled(Log::VERBOSE_LEVEL)) Log::write(Log::VERBOSE_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
 #define TRC_DEBUG(...) if (Log::enabled(Log::DEBUG_LEVEL)) Log::write(Log::DEBUG_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
 #define TRC_BACKTRACE(...) Log::backtrace(__VA_ARGS__)
-#define TRC_COMMIT(...) Log::commit()
+#define TRC_BACKTRACE_ADV() Log::backtrace_adv()
+#define TRC_COMMIT() Log::commit()
 
 namespace Log
 {
@@ -49,7 +50,8 @@ namespace Log
   Logger* setLogger(Logger *log);
   void write(int level, const char *module, int line_number, const char *fmt, ...);
   void _write(int level, const char *module, int line_number, const char *fmt, va_list args);
-  void backtrace(const char *fmt, ...);
+  void backtrace(const char* fmt, ...);
+  void backtrace_adv();
   void commit();
 }
 
