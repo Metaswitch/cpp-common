@@ -127,6 +127,32 @@ std::string Utils::url_unescape(const std::string& s)
   return r;
 }
 
+std::string Utils::quote_string(const std::string& s)
+{
+  std::string r = "\"";
+  r.reserve((2*s.length()) + 2); // Reserve enough space to avoid continually reallocating.
+
+  for (size_t ii = 0; ii < s.length(); ++ii)
+  {
+    char unquot = s[ii];
+    switch (unquot)
+    {
+      case '"':
+      case '\\':
+        r.append(1, '\\');
+        break;
+
+      default:
+        break;
+    }
+
+    r.append(1, unquot);
+  }
+
+  r.append(1, '"');
+
+  return r;
+}
 
 std::string Utils::url_escape(const std::string& s)
 {
