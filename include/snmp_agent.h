@@ -32,6 +32,7 @@ public:
 
   void start(void);
   void stop(void);
+  inline pthread_mutex_t* get_lock() { return &_netsnmp_lock; }
   void add_row_to_table(netsnmp_tdata* table, netsnmp_tdata_row* row);
   void remove_row_from_table(netsnmp_tdata* table, netsnmp_tdata_row* row);
 
