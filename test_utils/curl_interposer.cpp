@@ -380,6 +380,7 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
 
   case CURLOPT_MAXCONNECTS:
   case CURLOPT_CONNECTTIMEOUT_MS:
+  case CURLOPT_ERRORBUFFER:
   case CURLOPT_DNS_CACHE_TIMEOUT:
   case CURLOPT_TCP_NODELAY:
   case CURLOPT_NOSIGNAL:
