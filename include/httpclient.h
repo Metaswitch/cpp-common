@@ -364,7 +364,8 @@ private:
                           const std::string& method_str,
                           const std::string& url,
                           CURLcode code,
-                          uint32_t instance_id);
+                          uint32_t instance_id,
+                          const char* error);
 
   void sas_log_bad_retry_after_value(SAS::TrailId trail,
                                      const std::string value,

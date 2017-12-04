@@ -569,6 +569,10 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     Recorder recorder;
     curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &recorder);
 
+    // Add a buffer to store error information
+    char errbuf[CURL_ERROR_SIZE];
+    errbuf[0] = '\0';
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
 
     // Set host-specific curl options
     void* host_context = set_curl_options_host(curl, host, port);
@@ -582,6 +586,9 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     // Send the request.
     doc.clear();
     TRC_DEBUG("Sending HTTP request : %s (trying %s)", url.c_str(), remote_ip);
+
+    struct timespec timespec;
+    clock_gettime(CLOCK_REALTIME, &timespec);
 
     CW_IO_STARTS("HTTP request to " + url)
     {
@@ -622,9 +629,29 @@ HTTPCode HttpClient::send_request(RequestType request_type,
     }
     else
     {
-      TRC_WARNING("%s failed at server %s : %s (%d) : fatal",
-                  url.c_str(), remote_ip, curl_easy_strerror(rc), rc);
-      sas_log_curl_error(trail, remote_ip, target.port, method_str, url, rc, 0);
+      const char* error = curl_easy_strerror(rc);
+      struct tm dt;
+      gmtime_r(&timespec.tv_sec, &dt);
+
+      TRC_WARNING("%s failed at server %s : %d: %s - %s trail: %d sent at: "
+                  "%2.2d-%2.2d-%4.4d %2.2d:%2.2d:%2.2d.%3.3d UTC ",
+                  url.c_str(),
+                  remote_ip,
+                  error,
+                  rc,
+                  errbuf,
+                  trail,
+                  dt.tm_mday, (dt.tm_mon+1), (dt.tm_year + 1900),
+                  dt.tm_hour, dt.tm_min, dt.tm_min, (int)(timespec.tv_nsec / 1000000));
+
+      sas_log_curl_error(trail,
+                         remote_ip,
+                         target.port,
+                         method_str,
+                         url,
+                         rc,
+                         0,
+                         strlen(errbuf) > 0 ? errbuf : error);
     }
 
     http_code = curl_code_to_http_code(curl, rc);
@@ -1107,7 +1134,8 @@ void HttpClient::sas_log_curl_error(SAS::TrailId trail,
                                     const std::string& method_str,
                                     const std::string& url,
                                     CURLcode code,
-                                    uint32_t instance_id)
+                                    uint32_t instance_id,
+                                    const char* error)
 {
   if (_sas_log_level != SASEvent::HttpLogLevel::NONE)
   {
@@ -1120,7 +1148,7 @@ void HttpClient::sas_log_curl_error(SAS::TrailId trail,
     event.add_var_param(remote_ip_addr);
     event.add_var_param(method_str);
     event.add_var_param(Utils::url_unescape(url));
-    event.add_var_param(curl_easy_strerror(code));
+    event.add_var_param(error);
 
     SAS::report_event(event);
   }
