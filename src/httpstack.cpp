@@ -690,12 +690,14 @@ void HttpStack::SasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& re
 // DefaultSasLogger methods.
 //
 
+HttpStack::DefaultSasLogger::DefaultSasLogger(SASEvent::HttpLogLevel level) : _level(level) {}
+
 void HttpStack::DefaultSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
                                                       HttpStack::Request& req,
                                                       uint32_t instance_id)
 {
   log_correlators(trail, req, instance_id);
-  log_req_event(trail, req, instance_id);
+  log_req_event(trail, req, instance_id, _level);
 }
 
 
@@ -704,7 +706,7 @@ void HttpStack::DefaultSasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
                                                       int rc,
                                                       uint32_t instance_id)
 {
-  log_rsp_event(trail, req, rc, instance_id);
+  log_rsp_event(trail, req, rc, instance_id, _level);
 }
 
 void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
@@ -715,7 +717,14 @@ void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
                                                    float rate_limit,
                                                    uint32_t instance_id)
 {
-  log_overload_event(trail, req, rc, target_latency, current_latency, rate_limit, instance_id);
+  log_overload_event(trail,
+                     req,
+                     rc,
+                     target_latency,
+                     current_latency,
+                     rate_limit,
+                     instance_id,
+                     _level);
 }
 
 void HttpStack::PrivateSasLogger::sas_log_rx_http_req(SAS::TrailId trail,

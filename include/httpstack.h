@@ -296,10 +296,12 @@ public:
     virtual void add_ip_addrs_and_ports(SAS::Event& event, Request& req);
   };
 
-  /// Default implementation of SAS Logger.  Logs with default severity.
+  /// Default implementation of SAS Logger.  Logs with configurable severity.
   class DefaultSasLogger : public SasLogger
   {
   public:
+    DefaultSasLogger(SASEvent::HttpLogLevel level = SASEvent::HttpLogLevel::PROTOCOL);
+
     virtual void sas_log_rx_http_req(SAS::TrailId trail,
                                      Request& req,
                                      uint32_t instance_id = 0);
@@ -314,6 +316,8 @@ public:
                                   int current_latency,
                                   float rate_limit,
                                   uint32_t instance_id = 0);
+  private:
+    SASEvent::HttpLogLevel _level;
   };
 
   /// SAS logger which omits bodies of requests and responses
@@ -420,6 +424,7 @@ public:
   };
 
   static DefaultSasLogger DEFAULT_SAS_LOGGER;
+  static DefaultSasLogger DETAILED_SAS_LOGGER;
   static PrivateSasLogger PRIVATE_SAS_LOGGER;
   static ProxiedPrivateSasLogger PROXIED_PRIVATE_SAS_LOGGER;
   static NullSasLogger NULL_SAS_LOGGER;
