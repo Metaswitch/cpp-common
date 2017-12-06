@@ -22,7 +22,7 @@ namespace SASEvent {
   // Jenkins job "update-sas-resources".
   //
   // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20171204";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20171206";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
