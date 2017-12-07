@@ -223,6 +223,7 @@ namespace Utils
       std::string& path);
 
   std::string url_unescape(const std::string& s);
+  std::string quote_string(const std::string& s);
   std::string url_escape(const std::string& s);
 
   std::string xml_escape(const std::string& s);
