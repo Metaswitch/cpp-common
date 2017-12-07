@@ -127,6 +127,8 @@ std::string Utils::url_unescape(const std::string& s)
   return r;
 }
 
+// The following function quotes strings in SIP headers as described by RFC 3261 
+// Section 25.1
 std::string Utils::quote_string(const std::string& s)
 {
   std::string r = "\"";
@@ -139,17 +141,17 @@ std::string Utils::quote_string(const std::string& s)
     {
       case '"':
       case '\\':
-        r.append(1, '\\');
+        r.push_back('\\');
         break;
 
       default:
         break;
     }
 
-    r.append(1, unquot);
+    r.push_back(unquot);
   }
 
-  r.append(1, '"');
+  r.push_back('"');
 
   return r;
 }
