@@ -6,7 +6,7 @@
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
  * Otherwise no rights are granted except for those provided to you by
- * Metaswitch Networks in a separate written agreement. COMMENT
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef UTILS_H_
@@ -27,6 +27,7 @@
 #include <arpa/inet.h>
 
 #include "log.h"
+#include "sas.h"
 
 struct IP46Address
 {
