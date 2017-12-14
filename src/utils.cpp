@@ -864,7 +864,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
   }
   else
   {
-    event.add_var_param(s, profile);
+    event.add_var_param(s);
   }
 }
 
@@ -880,7 +880,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
   }
   else
   {
-    event.add_var_param(len, s, profile);
+    event.add_var_param(len, s);
   }
 }
 
@@ -896,7 +896,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
   }
   else
   {
-    event.add_var_param(len, s, profile);
+    event.add_var_param(len, s);
   }
 }
 
@@ -911,7 +911,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
   }
   else
   {
-    event.add_var_param(s, profile);
+    event.add_var_param(s);
   }
 }
 
