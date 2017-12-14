@@ -317,7 +317,8 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
                                                       std::string& data,
                                                       uint64_t& cas,
                                                       SAS::TrailId trail,
-                                                      bool log_body)
+                                                      bool log_body,
+                                                      Format data_format)
 {
   Store::Status status;
   std::vector<AddrInfo> targets;
@@ -379,6 +380,12 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
         }
 
         got_data.add_static_param(cas);
+
+        if (log_body)
+        {
+          got_data.add_static_param(data_format);
+        }
+     
         SAS::report_event(got_data);
       }
 

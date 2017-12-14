@@ -88,7 +88,8 @@ Store::Status LocalStore::get_data(const std::string& table,
                                    std::string& data,
                                    uint64_t& cas,
                                    SAS::TrailId trail,
-                                   bool log_body)
+                                   bool log_body,
+                                   Format data_format)
 {
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
   Store::Status status = Store::Status::NOT_FOUND;

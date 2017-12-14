@@ -32,13 +32,15 @@ public:
 
   using Store::get_data;
   using Store::set_data;
+  using Store::Format;
 
   Store::Status get_data(const std::string& table,
                          const std::string& key,
                          std::string& data,
                          uint64_t& cas,
                          SAS::TrailId trail,
-                         bool log_body) override;
+                         bool log_body,
+                         Format data_format=Format::HEX) override;
 
   Store::Status set_data(const std::string& table,
                          const std::string& key,

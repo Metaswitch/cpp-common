@@ -126,6 +126,7 @@ public:
 
   using Store::get_data;
   using Store::set_data;
+  using Store::Format;
 
   /// Gets the data for the specified table and key.
   Store::Status get_data(const std::string& table,
@@ -133,7 +134,8 @@ public:
                          std::string& data,
                          uint64_t& cas,
                          SAS::TrailId trail,
-                         bool log_body);
+                         bool log_body,
+                         Format data_format=Format::HEX);
 
   /// Sets the data for the specified table and key.
   Store::Status set_data(const std::string& table,
