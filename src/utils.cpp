@@ -855,7 +855,7 @@ void Utils::calculate_diameter_timeout(int target_latency_us,
 // is disabled in etc/clearwater/shared_config.
 void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
                                                 const std::string& s,
-                                                const Profile* profle = NULL,
+                                                const SAS::Profile* profile = NULL,
                                                 bool sas_compress_logs = true)
 {
   if (sas_compress_logs)
@@ -871,7 +871,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
 void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
                                                 size_t len,
                                                 char* s,
-                                                const Profile* profle = NULL,
+                                                const SAS::Profile* profile = NULL,
                                                 bool sas_compress_logs = true)
 {
   if (sas_compress_logs)
@@ -887,7 +887,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
 void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
                                                 size_t len,
                                                 uint8_t* s,
-                                                const Profile* profle = NULL,
+                                                const SAS::Profile* profile = NULL,
                                                 bool sas_compress_logs = true)
 {
   if (sas_compress_logs)
@@ -902,7 +902,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
 
 void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
                                                 const char* s,
-                                                const Profile* profle = NULL,
+                                                const SAS::Profile* profile = NULL,
                                                 bool sas_compress_logs = true)
 {
   if (sas_compress_logs)

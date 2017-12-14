@@ -645,24 +645,24 @@ namespace Utils
   // is true or false and compresses logs sent to SAS accordingly.
   void add_sas_param_compressed_if_toggled(SAS::Event& event,
                                            const std::string& s,
-                                           const Profile* profle = NULL,
+                                           const SAS::Profile* proflie = NULL,
                                            bool sas_compress_logs = true);
 
   void add_sas_param_compressed_if_toggled(SAS::Event& event,
                                            size_t len,
                                            char* s,
-                                           const Profile* profle = NULL,
+                                           const SAS::Profile* profile = NULL,
                                            bool sas_compress_logs = true);
 
   void add_sas_param_compressed_if_toggled(SAS::Event& event,
                                            size_t len,
                                            uint8_t* s,
-                                           const Profile* profle = NULL,
+                                           const SAS::Profile* profile = NULL,
                                            bool sas_compress_logs = true);
 
   void add_sas_param_compressed_if_toggled(SAS::Event& event,
                                            const char* s,
-                                           const Profile* profle = NULL,
+                                           const SAS::Profile* profile = NULL,
                                            bool sas_compress_logs = true);
 
   /// This hook allows a thread to perform actions when Clearwater code does
