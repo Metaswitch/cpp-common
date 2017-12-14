@@ -32,6 +32,7 @@
 
 #include "utils.h"
 #include "log.h"
+#include "sas.h"
 
 bool Utils::parse_http_url(
     const std::string& url,
@@ -854,7 +855,7 @@ void Utils::calculate_diameter_timeout(int target_latency_us,
 
 // Functions to add a var param to a SAS event, compressed or not, depending on whether compression
 // is disabled in etc/clearwater/shared_config.
-void Utils::add_sas_param_compressed_if_toggled(&SAS::Event event,
+void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
                                                 const std::string& s,
                                                 const Profile* profle = NULL,
                                                 bool sas_compress_logs = true)
@@ -869,7 +870,7 @@ void Utils::add_sas_param_compressed_if_toggled(&SAS::Event event,
   }
 }
 
-void Utils::add_sas_param_compressed_if_toggled(&SAS::Event event,
+void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
                                                 size_t len,
                                                 char* s,
                                                 const Profile* profle = NULL,
@@ -885,7 +886,7 @@ void Utils::add_sas_param_compressed_if_toggled(&SAS::Event event,
   }
 }
 
-void Utils::add_sas_param_compressed_if_toggled(&SAS::Event event,
+void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
                                                 size_t len,
                                                 uint8_t* s,
                                                 const Profile* profle = NULL,
@@ -901,7 +902,7 @@ void Utils::add_sas_param_compressed_if_toggled(&SAS::Event event,
   }
 }
 
-void Utils::add_sas_param_compressed_if_toggled(&SAS::Event event,
+void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
                                                 const char* s,
                                                 const Profile* profle = NULL,
                                                 bool sas_compress_logs = true)

@@ -6,7 +6,7 @@
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
  * Otherwise no rights are granted except for those provided to you by
- * Metaswitch Networks in a separate written agreement.
+ * Metaswitch Networks in a separate written agreement. COMMENT
  */
 
 #ifndef UTILS_H_
@@ -638,6 +638,31 @@ namespace Utils
 
   bool in_vector(const std::string& element,
                  const std::vector<std::string>& elements);
+
+
+  // These functions check whether sas_compress_logs, set as "Y" or "N" in etc/clearwater/shared_config,
+  // is true or false and compresses logs sent to SAS accordingly.
+  void add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                           const std::string& s,
+                                           const Profile* profle = NULL,
+                                           bool sas_compress_logs = true);
+
+  void add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                           size_t len,
+                                           char* s,
+                                           const Profile* profle = NULL,
+                                           bool sas_compress_logs = true);
+
+  void add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                           size_t len,
+                                           uint8_t* s,
+                                           const Profile* profle = NULL,
+                                           bool sas_compress_logs = true);
+
+  void add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                           const char* s,
+                                           const Profile* profle = NULL,
+                                           bool sas_compress_logs = true);
 
   /// This hook allows a thread to perform actions when Clearwater code does
   /// blocking I/O.
