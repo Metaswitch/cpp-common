@@ -866,6 +866,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
   {
     event.add_var_param(s);
   }
+  event.add_static_param(sas_compress_logs);
 }
 
 void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
@@ -882,6 +883,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
   {
     event.add_var_param(len, s);
   }
+  event.add_static_param(sas_compress_logs);
 }
 
 void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
@@ -898,6 +900,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
   {
     event.add_var_param(len, s);
   }
+  event.add_static_param(sas_compress_logs);
 }
 
 void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
@@ -913,6 +916,7 @@ void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
   {
     event.add_var_param(s);
   }
+  event.add_static_param(sas_compress_logs);
 }
 
 // Check whether an element is in a vector
