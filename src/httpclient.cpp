@@ -44,7 +44,8 @@ HttpClient::HttpClient(bool assert_user,
                        bool remote_connection,
                        long timeout_ms,
                        bool log_display_address,
-                       std::string server_display_address) :
+                       std::string server_display_address,
+                       bool sas_compress_logs) :
   _assert_user(assert_user),
   _resolver(resolver),
   _load_monitor(load_monitor),
@@ -54,7 +55,8 @@ HttpClient::HttpClient(bool assert_user,
   _conn_pool(load_monitor, stat_table, remote_connection, timeout_ms),
   _should_omit_body(should_omit_body),
   _log_display_address(log_display_address),
-  _server_display_address(server_display_address)
+  _server_display_address(server_display_address),
+  _sas_compress_logs(sas_compress_logs)
 {
   pthread_key_create(&_uuid_thread_local, cleanup_uuid);
   pthread_mutex_init(&_lock, NULL);
