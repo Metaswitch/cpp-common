@@ -69,7 +69,7 @@ public:
              long timeout_ms = -1,
              bool log_display_address = false,
              std::string server_display_address = "",
-             bool sas_compress_logs);
+             bool sas_compress_logs = true);
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,

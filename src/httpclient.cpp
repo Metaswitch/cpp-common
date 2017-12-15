@@ -1069,12 +1069,18 @@ void HttpClient::sas_log_http_req(SAS::TrailId trail,
 
     if (!_should_omit_body)
     {
-      event.add_compressed_param(request_bytes, &SASEvent::PROFILE_HTTP);
+      Utils::add_sas_param_compressed_if_toggled(event,
+                                                 request_bytes,
+                                                 &SASEvent::PROFILE_HTTP,
+                                                 sas_compress_logs);
     }
     else
     {
       std::string message_to_log = get_obscured_message_to_log(request_bytes);
-      event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
+      Utils::add_sas_param_compressed_if_toggled(event,
+                                                 message_to_log,
+                                                 &SASEvent::PROFILE_HTTP,
+                                                 sas_compress_logs);
     }
 
     event.add_var_param(method_str);
@@ -1104,12 +1110,18 @@ void HttpClient::sas_log_http_rsp(SAS::TrailId trail,
 
     if (!_should_omit_body)
     {
-      event.add_compressed_param(response_bytes, &SASEvent::PROFILE_HTTP);
+      Utils::add_sas_param_compressed_if_toggled(event,
+                                                 response_bytes,
+                                                 &SASEvent::PROFILE_HTTP,
+                                                 sas_compress_logs);
     }
     else
     {
       std::string message_to_log = get_obscured_message_to_log(response_bytes);
-      event.add_compressed_param(message_to_log, &SASEvent::PROFILE_HTTP);
+      Utils::add_sas_param_compressed_if_toggled(event,
+                                                 message_to_log,
+                                                 &SASEvent::PROFILE_HTTP,
+                                                 sas_compress_logs);
     }
 
     event.add_var_param(method_str);
