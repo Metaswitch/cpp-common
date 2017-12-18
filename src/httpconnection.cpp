@@ -130,6 +130,21 @@ HTTPCode HttpConnection::send_post(const std::string& url_tail,
 
 HTTPCode HttpConnection::send_post(const std::string& url_tail,
                                    std::map<std::string, std::string>& headers,
+                                   const std::string& body,
+                                   const std::vector<std::string>& extra_req_headers,
+                                   SAS::TrailId trail,
+                                   const std::string& username)
+{
+  return _client.send_post(_scheme + "://" + _server + url_tail,
+                           headers,
+                           body,
+                           extra_req_headers,
+                           trail,
+                           username);
+}
+
+HTTPCode HttpConnection::send_post(const std::string& url_tail,
+                                   std::map<std::string, std::string>& headers,
                                    std::string& response,
                                    const std::string& body,
                                    SAS::TrailId trail,
