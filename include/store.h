@@ -97,9 +97,10 @@ public:
                                  const std::string& data,
                                  uint64_t cas,
                                  int expiry,
-                                 SAS::TrailId trail = 0)
+                                 SAS::TrailId trail = 0,
+                                 Format data_format = Format::HEX)
   {
-    return set_data(table, key, data, cas, expiry, trail, true);
+    return set_data(table, key, data, cas, expiry, trail, true, data_format);
   }
 
   /// Sets the data for the specified key in the specified namespace.
@@ -121,7 +122,8 @@ public:
                           uint64_t cas,
                           int expiry,
                           SAS::TrailId trail,
-                          bool log_body) = 0;
+                          bool log_body,
+                          Format data_format = Format::HEX) = 0;
 
   /// Sets the data for the specified key in the specified namespace, without
   /// performing a Compare And Swap (CAS) check.
@@ -139,7 +141,8 @@ public:
                                       const std::string& data,
                                       int expiry,
                                       SAS::TrailId trail,
-                                      bool log_body) = 0;
+                                      bool log_body,
+                                      Format data_format = Format::HEX) = 0;
 
   /// Delete the data for the specified key in the specified namespace.
   ///

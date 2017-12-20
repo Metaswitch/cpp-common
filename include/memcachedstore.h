@@ -126,7 +126,6 @@ public:
 
   using Store::get_data;
   using Store::set_data;
-  using Store::Format;
 
   /// Gets the data for the specified table and key.
   Store::Status get_data(const std::string& table,
@@ -135,7 +134,7 @@ public:
                          uint64_t& cas,
                          SAS::TrailId trail,
                          bool log_body,
-                         Format data_format=Format::HEX);
+                         Store::Format data_format=Store::Format::HEX);
 
   /// Sets the data for the specified table and key.
   Store::Status set_data(const std::string& table,
@@ -144,7 +143,8 @@ public:
                          uint64_t cas,
                          int expiry,
                          SAS::TrailId trail,
-                         bool log_body);
+                         bool log_body,
+                         Store::Format data_format=Store::Format::HEX);
 
   /// Sets the data for the specified table and key without performing CAS
   Store::Status set_data_without_cas(const std::string& table,
@@ -152,7 +152,8 @@ public:
                                      const std::string& data,
                                      int expiry,
                                      SAS::TrailId,
-                                     bool log_body);
+                                     bool log_body,
+                                     Store::Format data_format=Store::Format::HEX);
 
   /// Deletes the data for the specified table and key.
   Store::Status delete_data(const std::string& table,

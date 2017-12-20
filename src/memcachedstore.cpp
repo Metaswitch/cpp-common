@@ -462,7 +462,8 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
                                                       uint64_t cas,
                                                       int expiry,
                                                       SAS::TrailId trail,
-                                                      bool log_body)
+                                                      bool log_body,
+                                                      Store::Format data_format)
 {
   TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
             data.length(), table.c_str(), key.c_str(), cas, expiry);
@@ -515,6 +516,12 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
 
     start.add_static_param(cas);
     start.add_static_param(expiry);
+
+    if (log_body)
+    {
+      start.add_static_param(data_format);
+    }
+  
     SAS::report_event(start);
   }
 
@@ -571,7 +578,8 @@ Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::str
                                                                   const std::string& data,
                                                                   int expiry,
                                                                   SAS::TrailId trail,
-                                                                  bool log_body)
+                                                                  bool log_body,
+                                                                  Store::Format data_format)
 {
   TRC_DEBUG("Writing %d bytes to table %s key %s, expiry = %d",
             data.length(), table.c_str(), key.c_str(), expiry);
@@ -600,6 +608,12 @@ Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::str
     }
 
     start.add_static_param(expiry);
+
+    if (log_body)
+    {
+      start.add_static_param(data_format);
+    }
+
     SAS::report_event(start);
   }
 
