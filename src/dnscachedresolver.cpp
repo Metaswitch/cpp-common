@@ -863,7 +863,15 @@ void DnsCachedResolver::dns_response(const std::string& domain,
             // Clamp the expiry time to be no more than the default TTL from now
             int max_expires = DEFAULT_NEGATIVE_CACHE_TTL + time(NULL);
             ce->expires = std::min(rr->expires(), max_expires);
+
+            // We must delete any records we remove from the parser
+            delete rr;
             break;
+          }
+          else
+          {
+            // We must delete any records we remove from the parser
+            delete rr;
           }
         }
       }
