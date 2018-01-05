@@ -839,7 +839,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
     {
       // NXDOMAIN, indicating that the DNS entry has been definitively removed
       // (rather than a DNS server failure). Clear the cache for this
-      // entry.
+      // entry and if there's a TTL on the SOA, use that.
       if (trail != 0)
       {
         SAS::Event event(trail, SASEvent::DNS_NOT_FOUND, 0);
@@ -849,6 +849,24 @@ void DnsCachedResolver::dns_response(const std::string& domain,
       }
 
       clear_cache_entry(ce);
+
+      DnsParser parser(abuf, alen);
+      if (parser.parse())
+      {
+        while (!parser.authorities().empty())
+        {
+          DnsRRecord* rr = parser.authorities().front();
+          parser.authorities().pop_front();
+
+          if (rr->rrtype() == ns_t_soa)
+          {
+            // Clamp the expiry time to be no more than the default TTL from now
+            int max_expires = DEFAULT_NEGATIVE_CACHE_TTL + time(NULL);
+            ce->expires = std::min(rr->expires(), max_expires);
+            break;
+          }
+        }
+      }
     }
     else
     {
@@ -1198,7 +1216,7 @@ void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned
     event.add_var_param(_domain);
     SAS::report_event(event);
   }
-  
+
   _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen, _trail);
   --_channel->pending_queries;
   delete this;
