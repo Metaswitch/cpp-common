@@ -32,7 +32,20 @@ public:
                                 std::string& data,
                                 uint64_t& cas,
                                 SAS::TrailId trail,
+                                Format data_format));
+  MOCK_METHOD6(get_data, Status(const std::string& table,
+                                const std::string& key,
+                                std::string& data,
+                                uint64_t& cas,
+                                SAS::TrailId trail,
                                 bool log_body));
+  MOCK_METHOD7(get_data, Status(const std::string& table,
+                                const std::string& key,
+                                std::string& data,
+                                uint64_t& cas,
+                                SAS::TrailId trail,
+                                bool log_body,
+                                Format data_format));
   MOCK_METHOD6(set_data, Status(const std::string& table,
                                 const std::string& key,
                                 const std::string& data,
@@ -45,7 +58,22 @@ public:
                                 uint64_t cas,
                                 int expiry,
                                 SAS::TrailId trail,
+                                Format data_format));
+  MOCK_METHOD7(set_data, Status(const std::string& table,
+                                const std::string& key,
+                                const std::string& data,
+                                uint64_t cas,
+                                int expiry,
+                                SAS::TrailId trail,
                                 bool log_body));
+  MOCK_METHOD8(set_data, Status(const std::string& table,
+                                const std::string& key,
+                                const std::string& data,
+                                uint64_t cas,
+                                int expiry,
+                                SAS::TrailId trail,
+                                bool log_body,
+                                Format data_format));
   MOCK_METHOD6(set_data_without_cas,
                Status(const std::string& table,
                       const std::string& key,
@@ -53,6 +81,14 @@ public:
                       int expiry,
                       SAS::TrailId trail,
                       bool log_body));
+  MOCK_METHOD7(set_data_without_cas,
+               Status(const std::string& table,
+                      const std::string& key,
+                      const std::string& data,
+                      int expiry,
+                      SAS::TrailId trail,
+                      bool log_body,
+                      Format data_format));
   MOCK_METHOD3(delete_data, Status(const std::string& table,
                                    const std::string& key,
                                    SAS::TrailId trail));
