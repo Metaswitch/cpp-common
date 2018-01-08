@@ -287,6 +287,25 @@ HTTPCode HttpClient::send_post(const std::string& url,
 
 HTTPCode HttpClient::send_post(const std::string& url,
                                std::map<std::string, std::string>& headers,
+                               const std::string& body,
+                               const std::vector<std::string>& extra_req_headers,
+                               SAS::TrailId trail,
+                               const std::string& username)
+{
+  std::string unused_response;
+  int default_allowed_address_state = BaseResolver::ALL_LISTS;
+  return send_post(url,
+                   headers,
+                   unused_response,
+                   body,
+                   extra_req_headers,
+                   trail,
+                   username,
+                   default_allowed_address_state);
+}
+
+HTTPCode HttpClient::send_post(const std::string& url,
+                               std::map<std::string, std::string>& headers,
                                std::string& response,
                                const std::string& body,
                                SAS::TrailId trail,
@@ -312,13 +331,32 @@ HTTPCode HttpClient::send_post(const std::string& url,
                                int allowed_host_state)
 {
   std::vector<std::string> unused_extra_headers;
+  return send_post(url,
+                   headers,
+                   response,
+                   body,
+                   unused_extra_headers,
+                   trail,
+                   username,
+                   allowed_host_state);
+}
+
+HTTPCode HttpClient::send_post(const std::string& url,
+                               std::map<std::string, std::string>& headers,
+                               std::string& response,
+                               const std::string& body,
+                               const std::vector<std::string>& extra_req_headers,
+                               SAS::TrailId trail,
+                               const std::string& username,
+                               int allowed_host_state)
+{
   HTTPCode status = send_request(RequestType::POST,
                                  url,
                                  body,
                                  response,
                                  username,
                                  trail,
-                                 unused_extra_headers,
+                                 extra_req_headers,
                                  &headers,
                                  allowed_host_state);
   return status;

@@ -205,6 +205,7 @@ public:
   ///                           data
   /// @param response           Location to store retrieved data
   /// @param body               JSON body to send on the request
+  /// @param extra_req_headers  Extra headers to add to the request
   /// @param trail              SAS trail to use
   /// @param username           Username to assert if assertUser is true, else
   ///                           ignored
@@ -212,6 +213,14 @@ public:
   ///                           can take whitelisted, blacklisted, or all results
   ///
   /// @returns                  HTTP code representing outcome of request
+  virtual long send_post(const std::string& url,
+                         std::map<std::string, std::string>& headers,
+                         std::string& response,
+                         const std::string& body,
+                         const std::vector<std::string>& extra_req_headers,
+                         SAS::TrailId trail,
+                         const std::string& username,
+                         int allowed_host_state);
   virtual long send_post(const std::string& url,
                          std::map<std::string, std::string>& headers,
                          std::string& response,
@@ -228,6 +237,12 @@ public:
   virtual long send_post(const std::string& url,
                          std::map<std::string, std::string>& headers,
                          const std::string& body,
+                         SAS::TrailId trail,
+                         const std::string& username = "");
+  virtual long send_post(const std::string& url,
+                         std::map<std::string, std::string>& headers,
+                         const std::string& body,
+                         const std::vector<std::string>& extra_req_headers,
                          SAS::TrailId trail,
                          const std::string& username = "");
 
