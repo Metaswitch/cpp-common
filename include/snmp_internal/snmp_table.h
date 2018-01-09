@@ -193,40 +193,37 @@ public:
 
   void add(TRowKey key, TRow* row)
   {
-    std::pair<TRowKey, TRow*> new_entry(key, row);
-    _map.insert(new_entry);
-
-    Table<TRow>::add(row);
+    pthread_mutex_lock(&_map_lock);
+    locked_add(key, row);
+    pthread_mutex_unlock(&_map_lock);
   }
 
   // Creates the row keyed off `key`.
   void add(TRowKey key)
   {
-    TRow* row = new_row(key);
-    if (row != NULL)
-    {
-      add(key, row);
-    }
-    else
-    {
-      TRC_ERROR("Failed to add row to table %s", this->_name.c_str());
-    }
+    pthread_mutex_lock(&_map_lock);
+    locked_add(key);
+    pthread_mutex_unlock(&_map_lock);
   }
 
   // Returns the row keyed off `key`, creating it if it does not already exist.
   TRow* get(TRowKey key)
   {
+    pthread_mutex_lock(&_map_lock);
     if (_map.find(key) == _map.end())
     {
-      add(key);
+      locked_add(key);
     }
 
-    return _map.at(key);
+    TRow* ret = _map.at(key);
+    pthread_mutex_unlock(&_map_lock);
+    return ret;
   }
 
   // Deletes the row keyed off `key`.
   void remove(TRowKey key)
   {
+    pthread_mutex_lock(&_map_lock);
     if (_map.find(key) != _map.end())
     {
       TRow* row = _map.at(key);
@@ -234,6 +231,7 @@ public:
       Table<TRow>::remove(row);
       delete row;
     }
+    pthread_mutex_unlock(&_map_lock);
   };
 
 protected:
@@ -241,9 +239,34 @@ protected:
   // create them automatically.
   virtual TRow* new_row(TRowKey key) = 0;
 
+  // This function assumes that map_lock is held.
+  void locked_add(TRowKey key, TRow* row)
+  {
+    std::pair<TRowKey, TRow*> new_entry(key, row);
+    _map.insert(new_entry);
+
+    Table<TRow>::add(row);
+  }
+
+  // Creates the row keyed off `key`.
+  // This function assumes that map_lock is held.
+  void locked_add(TRowKey key)
+  {
+    TRow* row = new_row(key);
+    if (row != NULL)
+    {
+      locked_add(key, row);
+    }
+    else
+    {
+      TRC_ERROR("Failed to add row to table %s", this->_name.c_str());
+    }
+  }
+
   void add(TRow* row) { Table<TRow>::add(row); };
   void remove(TRow* row) { Table<TRow>::remove(row); };
   std::map<TRowKey, TRow*> _map;
+  pthread_mutex_t _map_lock = PTHREAD_MUTEX_INITIALIZER;
 };
 
 } // namespace SNMP
