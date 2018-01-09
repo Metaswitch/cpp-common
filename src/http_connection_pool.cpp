@@ -114,11 +114,10 @@ void HttpConnectionPool::decrement_statistic(AddrInfo target, CURL* conn)
     if (_stat_table->get(ip_address)->decrement() == 0)
     {
       // Commenting out remove below.
-      // This is a workaround to a race condition between removing zero entries
-      // and trying to access something that has been removed. This causes
-      // sprout to crash.
 
-      // If the statistic is now zero, remove from the table
+      // If the statistic is now zero, we would like to remove it from the
+      // table, but this causes a race condition where we remove the row while
+      // someone else is using it, causing sprout to crash. See issue #2905."
       // _stat_table->remove(ip_address);
     }
   }
