@@ -373,16 +373,11 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
 
         SAS::Event got_data(trail, event, 0);
         got_data.add_var_param(fqkey);
-
-        if (log_body)
-        {
-          got_data.add_var_param(data);
-        }
-
         got_data.add_static_param(cas);
 
         if (log_body)
         {
+          got_data.add_var_param(data);
           got_data.add_static_param(data_format);
         }
      
@@ -506,19 +501,14 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
 
     SAS::Event start(trail, event, 0);
     start.add_var_param(fqkey);
+    start.add_static_param(cas);
+    start.add_static_param(expiry);
 
     if (log_body)
     {
       // Note that we do this _after_ policing the maximum length which means
       // that data is less than the maximum 64k supported by SAS.
       start.add_var_param(data);
-    }
-
-    start.add_static_param(cas);
-    start.add_static_param(expiry);
-
-    if (log_body)
-    {
       start.add_static_param(data_format);
     }
   
@@ -601,16 +591,11 @@ Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::str
 
     SAS::Event start(trail, event, 0);
     start.add_var_param(fqkey);
-
-    if (log_body)
-    {
-      start.add_var_param(data);
-    }
-
     start.add_static_param(expiry);
 
     if (log_body)
     {
+      start.add_var_param(data);
       start.add_static_param(data_format);
     }
 
