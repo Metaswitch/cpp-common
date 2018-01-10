@@ -317,7 +317,8 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
                                                       std::string& data,
                                                       uint64_t& cas,
                                                       SAS::TrailId trail,
-                                                      bool log_body)
+                                                      bool log_body,
+                                                      Format data_format)
 {
   Store::Status status;
   std::vector<AddrInfo> targets;
@@ -372,13 +373,14 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
 
         SAS::Event got_data(trail, event, 0);
         got_data.add_var_param(fqkey);
+        got_data.add_static_param(cas);
 
         if (log_body)
         {
           got_data.add_var_param(data);
+          got_data.add_static_param(data_format);
         }
-
-        got_data.add_static_param(cas);
+     
         SAS::report_event(got_data);
       }
 
@@ -455,7 +457,8 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
                                                       uint64_t cas,
                                                       int expiry,
                                                       SAS::TrailId trail,
-                                                      bool log_body)
+                                                      bool log_body,
+                                                      Store::Format data_format)
 {
   TRC_DEBUG("Writing %d bytes to table %s key %s, CAS = %ld, expiry = %d",
             data.length(), table.c_str(), key.c_str(), cas, expiry);
@@ -498,16 +501,17 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
 
     SAS::Event start(trail, event, 0);
     start.add_var_param(fqkey);
+    start.add_static_param(cas);
+    start.add_static_param(expiry);
 
     if (log_body)
     {
       // Note that we do this _after_ policing the maximum length which means
       // that data is less than the maximum 64k supported by SAS.
       start.add_var_param(data);
+      start.add_static_param(data_format);
     }
-
-    start.add_static_param(cas);
-    start.add_static_param(expiry);
+  
     SAS::report_event(start);
   }
 
@@ -564,7 +568,8 @@ Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::str
                                                                   const std::string& data,
                                                                   int expiry,
                                                                   SAS::TrailId trail,
-                                                                  bool log_body)
+                                                                  bool log_body,
+                                                                  Store::Format data_format)
 {
   TRC_DEBUG("Writing %d bytes to table %s key %s, expiry = %d",
             data.length(), table.c_str(), key.c_str(), expiry);
@@ -586,13 +591,14 @@ Store::Status TopologyNeutralMemcachedStore::set_data_without_cas(const std::str
 
     SAS::Event start(trail, event, 0);
     start.add_var_param(fqkey);
+    start.add_static_param(expiry);
 
     if (log_body)
     {
       start.add_var_param(data);
+      start.add_static_param(data_format);
     }
 
-    start.add_static_param(expiry);
     SAS::report_event(start);
   }
 

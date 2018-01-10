@@ -88,7 +88,8 @@ Store::Status LocalStore::get_data(const std::string& table,
                                    std::string& data,
                                    uint64_t& cas,
                                    SAS::TrailId trail,
-                                   bool log_body)
+                                   bool log_body,
+                                   Format data_format)
 {
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
   Store::Status status = Store::Status::NOT_FOUND;
@@ -156,7 +157,8 @@ Store::Status LocalStore::set_data_without_cas(const std::string& table,
                                                const std::string& data,
                                                int expiry,
                                                SAS::TrailId trail,
-                                               bool log_body)
+                                               bool log_body,
+                                               Store::Format data_format)
 {
   TRC_DEBUG("set_data_without_cas table=%s key=%s expiry=%d",
             table.c_str(), key.c_str(), expiry);
@@ -170,7 +172,8 @@ Store::Status LocalStore::set_data(const std::string& table,
                                    uint64_t cas,
                                    int expiry,
                                    SAS::TrailId trail,
-                                   bool log_body)
+                                   bool log_body,
+                                   Store::Format data_format)
 {
   TRC_DEBUG("set_data table=%s key=%s CAS=%ld expiry=%d",
             table.c_str(), key.c_str(), cas, expiry);

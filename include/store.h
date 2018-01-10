@@ -38,38 +38,47 @@ public:
   /// do so would open us up to DoS attacks.
   static const uint32_t MAX_DATA_LENGTH=1024*64;
 
+  /// Format for logging data
+  /// These values are passed to SAS for it to decide how to display the data.
+  /// -  If you change the enum you must also update the resource bundle.
+  typedef enum {HEX=1, JSON=2} Format;
+
   /// Gets the data for the specified key in the specified namespace.
   ///
-  /// @return         Status value indicating the result of the read.
-  /// @param table    Name of the table to retrive the data.
-  /// @param key      Key of the data record to retrieve.
-  /// @param data     String to return the data.
-  /// @param cas      Variable to return the CAS value of the data.
-  /// @param trail    SAS Trail on which to log the data
+  /// @return            Status value indicating the result of the read.
+  /// @param table       Name of the table to retrive the data.
+  /// @param key         Key of the data record to retrieve.
+  /// @param data        String to return the data.
+  /// @param cas         Variable to return the CAS value of the data.
+  /// @param trail       SAS Trail on which to log the data
+  /// @param data_format Data format for logging purposes (optional)
   virtual Store::Status get_data(const std::string& table,
                                  const std::string& key,
                                  std::string& data,
                                  uint64_t& cas,
-                                 SAS::TrailId trail = 0)
+                                 SAS::TrailId trail = 0,
+                                 Format data_format=Format::HEX)
   {
-    return get_data(table, key, data, cas, trail, true);
+    return get_data(table, key, data, cas, trail, true, data_format);
   }
 
   /// Gets the data for the specified key in the specified namespace.
   ///
-  /// @return         Status value indicating the result of the read.
-  /// @param table    Name of the table to retrive the data.
-  /// @param key      Key of the data record to retrieve.
-  /// @param data     String to return the data.
-  /// @param cas      Variable to return the CAS value of the data.
-  /// @param trail    SAS Trail on which to log the data
-  /// @param log_body Should we log the body to SAS?
+  /// @return            Status value indicating the result of the read.
+  /// @param table       Name of the table to retrive the data.
+  /// @param key         Key of the data record to retrieve.
+  /// @param data        String to return the data.
+  /// @param cas         Variable to return the CAS value of the data.
+  /// @param trail       SAS Trail on which to log the data
+  /// @param log_body    Should we log the body to SAS?
+  /// @param data_format Data format for logging purposes (optional)
   virtual Status get_data(const std::string& table,
                           const std::string& key,
                           std::string& data,
                           uint64_t& cas,
                           SAS::TrailId trail,
-                          bool log_body) = 0;
+                          bool log_body,
+                          Format data_format=Format::HEX) = 0;
 
   /// Sets the data for the specified key in the specified namespace.
   ///
@@ -88,9 +97,10 @@ public:
                                  const std::string& data,
                                  uint64_t cas,
                                  int expiry,
-                                 SAS::TrailId trail = 0)
+                                 SAS::TrailId trail = 0,
+                                 Format data_format = Format::HEX)
   {
-    return set_data(table, key, data, cas, expiry, trail, true);
+    return set_data(table, key, data, cas, expiry, trail, true, data_format);
   }
 
   /// Sets the data for the specified key in the specified namespace.
@@ -112,7 +122,8 @@ public:
                           uint64_t cas,
                           int expiry,
                           SAS::TrailId trail,
-                          bool log_body) = 0;
+                          bool log_body,
+                          Format data_format = Format::HEX) = 0;
 
   /// Sets the data for the specified key in the specified namespace, without
   /// performing a Compare And Swap (CAS) check.
@@ -130,7 +141,8 @@ public:
                                       const std::string& data,
                                       int expiry,
                                       SAS::TrailId trail,
-                                      bool log_body) = 0;
+                                      bool log_body,
+                                      Format data_format = Format::HEX) = 0;
 
   /// Delete the data for the specified key in the specified namespace.
   ///
