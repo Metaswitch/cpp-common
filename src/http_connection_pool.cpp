@@ -28,7 +28,7 @@ HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
     TRC_STATUS("Connection pool will use override response timeout of %ldms", _timeout_ms);
   }
   else
-  {    
+  {
     _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                                               load_monitor->get_target_latency_us() :
                                                               DEFAULT_LATENCY_US);
@@ -113,8 +113,12 @@ void HttpConnectionPool::decrement_statistic(AddrInfo target, CURL* conn)
     // safe to access the table
     if (_stat_table->get(ip_address)->decrement() == 0)
     {
-      // If the statistic is now zero, remove from the table
-      _stat_table->remove(ip_address);
+      // Commenting out remove below.
+
+      // If the statistic is now zero, we would like to remove it from the
+      // table, but this causes a race condition where we remove the row while
+      // someone else is using it, causing sprout to crash. See issue #2905."
+      // _stat_table->remove(ip_address);
     }
   }
 }
