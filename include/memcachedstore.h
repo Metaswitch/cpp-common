@@ -134,7 +134,7 @@ public:
                          uint64_t& cas,
                          SAS::TrailId trail,
                          bool log_body,
-                         Store::Format data_format=Store::Format::HEX);
+                         Store::Format data_format);
 
   /// Sets the data for the specified table and key.
   Store::Status set_data(const std::string& table,
@@ -144,7 +144,7 @@ public:
                          int expiry,
                          SAS::TrailId trail,
                          bool log_body,
-                         Store::Format data_format=Store::Format::HEX);
+                         Store::Format data_format);
 
   /// Sets the data for the specified table and key without performing CAS
   Store::Status set_data_without_cas(const std::string& table,
