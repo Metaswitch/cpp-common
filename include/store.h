@@ -51,13 +51,30 @@ public:
   /// @param data        String to return the data.
   /// @param cas         Variable to return the CAS value of the data.
   /// @param trail       SAS Trail on which to log the data
-  /// @param data_format Data format for logging purposes (optional)
   virtual Store::Status get_data(const std::string& table,
                                  const std::string& key,
                                  std::string& data,
                                  uint64_t& cas,
-                                 SAS::TrailId trail = 0,
-                                 Format data_format=Format::HEX)
+                                 SAS::TrailId trail = 0)
+  {
+    return get_data(table, key, data, cas, trail, Format::HEX);
+  }
+
+  /// Gets the data for the specified key in the specified namespace.
+  ///
+  /// @return            Status value indicating the result of the read.
+  /// @param table       Name of the table to retrive the data.
+  /// @param key         Key of the data record to retrieve.
+  /// @param data        String to return the data.
+  /// @param cas         Variable to return the CAS value of the data.
+  /// @param trail       SAS Trail on which to log the data
+  /// @param data_format Data format for logging purposes
+  virtual Store::Status get_data(const std::string& table,
+                                 const std::string& key,
+                                 std::string& data,
+                                 uint64_t& cas,
+                                 SAS::TrailId trail,
+                                 Format data_format)
   {
     return get_data(table, key, data, cas, trail, true, data_format);
   }
@@ -70,15 +87,33 @@ public:
   /// @param data        String to return the data.
   /// @param cas         Variable to return the CAS value of the data.
   /// @param trail       SAS Trail on which to log the data
+  virtual Status get_data(const std::string& table,
+                          const std::string& key,
+                          std::string& data,
+                          uint64_t& cas,
+                          SAS::TrailId trail,
+                          bool log_body)
+  {
+    return get_data(table, key, data, cas, trail, log_body, Format::HEX);
+  }
+
+  /// Gets the data for the specified key in the specified namespace.
+  ///
+  /// @return            Status value indicating the result of the read.
+  /// @param table       Name of the table to retrive the data.
+  /// @param key         Key of the data record to retrieve.
+  /// @param data        String to return the data.
+  /// @param cas         Variable to return the CAS value of the data.
+  /// @param trail       SAS Trail on which to log the data
   /// @param log_body    Should we log the body to SAS?
-  /// @param data_format Data format for logging purposes (optional)
+  /// @param data_format Data format for logging purposes
   virtual Status get_data(const std::string& table,
                           const std::string& key,
                           std::string& data,
                           uint64_t& cas,
                           SAS::TrailId trail,
                           bool log_body,
-                          Format data_format=Format::HEX) = 0;
+                          Format data_format) = 0;
 
   /// Sets the data for the specified key in the specified namespace.
   ///
@@ -97,8 +132,31 @@ public:
                                  const std::string& data,
                                  uint64_t cas,
                                  int expiry,
-                                 SAS::TrailId trail = 0,
-                                 Format data_format = Format::HEX)
+                                 SAS::TrailId trail = 0)
+  {
+    return set_data(table, key, data, cas, expiry, trail, Format::HEX);
+  }
+
+  /// Sets the data for the specified key in the specified namespace.
+  ///
+  /// @return         Status value indicating the result of the write.
+  /// @param table    Name of the table to store the data.
+  /// @param key      Key used to index the data within the table.
+  /// @param data     Data to store.
+  /// @param cas      CAS (Check-and-Set) value for the data.  Should be set
+  ///                 to the CAS value returned when the data was read, or
+  ///                 zero if writing a record for the first time.
+  /// @param expiry   Expiry period of the data (in seconds).  If zero the
+  ///                 data will expire immediately.
+  /// @param trail    SAS Trail on which to log the data
+  /// @param data_format Data format for logging purposes
+  virtual Store::Status set_data(const std::string& table,
+                                 const std::string& key,
+                                 const std::string& data,
+                                 uint64_t cas,
+                                 int expiry,
+                                 SAS::TrailId trail,
+                                 Format data_format)
   {
     return set_data(table, key, data, cas, expiry, trail, true, data_format);
   }
@@ -116,6 +174,7 @@ public:
   ///                 data will expire immediately.
   /// @param trail    SAS Trail on which to log the data
   /// @param log_body Should we log the body to SAS?
+  /// @param data_format Data format for logging purposes (optional)
   virtual Status set_data(const std::string& table,
                           const std::string& key,
                           const std::string& data,

@@ -39,7 +39,7 @@ public:
                          uint64_t& cas,
                          SAS::TrailId trail,
                          bool log_body,
-                         Store::Format data_format=Store::Format::HEX) override;
+                         Store::Format data_format) override;
 
   Store::Status set_data(const std::string& table,
                          const std::string& key,
@@ -48,7 +48,7 @@ public:
                          int expiry,
                          SAS::TrailId trail,
                          bool log_body,
-                         Store::Format data_format=Store::Format::HEX) override;
+                         Store::Format data_format) override;
 
   Store::Status set_data_without_cas(const std::string& table,
                                      const std::string& key,
