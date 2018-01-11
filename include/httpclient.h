@@ -40,6 +40,7 @@ static const long HTTP_FORBIDDEN = 403;
 static const long HTTP_NOT_FOUND = 404;
 static const long HTTP_BADMETHOD = 405;
 static const long HTTP_CONFLICT = 409;
+static const long HTTP_PRECONDITION_FAILED = 412;
 static const long HTTP_UNPROCESSABLE_ENTITY = 422;
 static const long HTTP_TEMP_UNAVAILABLE = 480;
 static const long HTTP_SERVER_ERROR = 500;
