@@ -27,6 +27,7 @@ public:
   virtual void set_username(std::string username); //Unclear if we ever actually use this atm, may be unnecessary
 
   // Sends the request and populates ret code, recv headers, and recv body
+  // Takes a RequestType, as defined in httpclient.h
   virtual void send(RequestType request_type);
 
   // GET methods return empty if not set yet

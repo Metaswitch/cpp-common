@@ -59,6 +59,8 @@ class HttpClient
 public:
   // HttpConnectionPool requires access to the private Recorder class
   friend class HttpConnectionPool;
+  // HttpRequest requires access to the private send_request function
+  friend class HttpRequest;
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
@@ -78,176 +80,6 @@ public:
              BaseCommunicationMonitor* comm_monitor);
 
   virtual ~HttpClient();
-
-  /// Sends a HTTP GET request to _host with the specified parameters
-  ///
-  /// @param url                Full URL to request - includes http(s)?://
-  /// @param headers            Location to store the header part of the retrieved
-  ///                           data
-  /// @param response           Location to store retrieved data
-  /// @param username           Username to assert if assertUser is true, else
-  ///                           ignored
-  /// @param headers_to_add     Extra headers to add to the request
-  /// @param trail              SAS trail to use
-  /// @param allowed_host_state what lists to resolve hosts from, where we
-  ///                           can take whitelisted, blacklisted, or all results
-  ///
-  /// @returns                  HTTP code representing outcome of request
-  virtual long send_get(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& username,
-                        std::vector<std::string> headers_to_add,
-                        SAS::TrailId trail,
-                        int allowed_host_state);
-  virtual long send_get(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& username,
-                        std::vector<std::string> headers_to_add,
-                        SAS::TrailId trail);
-  virtual long send_get(const std::string& path,
-                        std::string& response,
-                        std::vector<std::string> headers,
-                        SAS::TrailId trail);
-  virtual long send_get(const std::string& url,
-                        std::string& response,
-                        const std::string& username,
-                        SAS::TrailId trail);
-  virtual long send_get(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& username,
-                        SAS::TrailId trail);
-
-  /// Sends a HTTP DELETE request to _host with the specified parameters
-  ///
-  /// @param url                Full URL to request - includes http(s)?://
-  /// @param headers            Location to store the header part of the retrieved
-  ///                           data
-  /// @param response           Location to store retrieved data
-  /// @param trail              SAS trail to use
-  /// @param body               JSON body to send on the request
-  /// @param username           Username to assert if assertUser is true, else
-  ///                           ignored
-  /// @param allowed_host_state what lists to resolve hosts from, where we
-  ///                           can take whitelisted, blacklisted, or all results
-  ///
-  /// @returns                   HTTP code representing outcome of request
-  virtual long send_delete(const std::string& url,
-                           std::map<std::string, std::string>& headers,
-                           std::string& response,
-                           SAS::TrailId trail,
-                           const std::string& body,
-                           const std::string& username,
-                           int allowed_host_state);
-  virtual long send_delete(const std::string& url,
-                           std::map<std::string, std::string>& headers,
-                           std::string& response,
-                           SAS::TrailId trail,
-                           const std::string& body = "",
-                           const std::string& username = "");
-  virtual long send_delete(const std::string& url,
-                           SAS::TrailId trail,
-                           const std::string& body = "");
-  virtual long send_delete(const std::string& url,
-                           SAS::TrailId trail,
-                           const std::string& body,
-                           std::string& response);
-
-  /// Sends a HTTP PUT request to _host with the specified parameters
-  ///
-  /// @param url                Full URL to request - includes http(s)?://
-  /// @param headers            Location to store the header part of the retrieved
-  ///                           data
-  /// @param response           Location to store retrieved data
-  /// @param body               JSON body to send on the request
-  /// @param extra_req_headers  Extra headers to add to the request
-  /// @param trail              SAS trail to use
-  /// @param username           Username to assert if assertUser is true, else
-  ///                           ignored
-  /// @param allowed_host_state what lists to resolve hosts from, where we
-  ///                           can take whitelisted, blacklisted, or all results
-  ///
-  /// @returns                  HTTP code representing outcome of request
-  virtual long send_put(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& body,
-                        const std::vector<std::string>& extra_req_headers,
-                        SAS::TrailId trail,
-                        const std::string& username,
-                        int allowed_host_state);
-  virtual long send_put(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& body,
-                        const std::vector<std::string>& extra_req_headers,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-  virtual long send_put(const std::string& url,
-                        const std::string& body,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-  virtual long send_put(const std::string& url,
-                        std::string& response,
-                        const std::string& body,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-  virtual long send_put(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        const std::string& body,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-
-  /// Sends a HTTP POST request to _host with the specified parameters
-  ///
-  /// @param url                Full URL to request - includes http(s)?://
-  /// @param headers            Location to store the header part of the retrieved
-  ///                           data
-  /// @param response           Location to store retrieved data
-  /// @param body               JSON body to send on the request
-  /// @param extra_req_headers  Extra headers to add to the request
-  /// @param trail              SAS trail to use
-  /// @param username           Username to assert if assertUser is true, else
-  ///                           ignored
-  /// @param allowed_host_state what lists to resolve hosts from, where we
-  ///                           can take whitelisted, blacklisted, or all results
-  ///
-  /// @returns                  HTTP code representing outcome of request
-  virtual long send_post(const std::string& url,
-                         std::map<std::string, std::string>& headers,
-                         std::string& response,
-                         const std::string& body,
-                         const std::vector<std::string>& extra_req_headers,
-                         SAS::TrailId trail,
-                         const std::string& username,
-                         int allowed_host_state);
-  virtual long send_post(const std::string& url,
-                         std::map<std::string, std::string>& headers,
-                         std::string& response,
-                         const std::string& body,
-                         SAS::TrailId trail,
-                         const std::string& username,
-                         int allowed_host_state);
-  virtual long send_post(const std::string& url,
-                         std::map<std::string, std::string>& headers,
-                         std::string& response,
-                         const std::string& body,
-                         SAS::TrailId trail,
-                         const std::string& username = "");
-  virtual long send_post(const std::string& url,
-                         std::map<std::string, std::string>& headers,
-                         const std::string& body,
-                         SAS::TrailId trail,
-                         const std::string& username = "");
-  virtual long send_post(const std::string& url,
-                         std::map<std::string, std::string>& headers,
-                         const std::string& body,
-                         const std::vector<std::string>& extra_req_headers,
-                         SAS::TrailId trail,
-                         const std::string& username = "");
-
 
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
@@ -291,7 +123,7 @@ private:
   /// Converts RequestType to string for logging
   static std::string request_type_to_string(RequestType request_type);
 
-  /// Sends a HTTP request to _host with the specified parameters
+  /// Sends a HTTP request with the specified parameters
   ///
   /// @param request_type     The type of HTTP request to send
   /// @param url              Full URL to request - includes http(s)?://
