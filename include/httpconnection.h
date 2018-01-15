@@ -14,6 +14,7 @@
 #include <string>
 
 #include "httpclient.h"
+#include "http_request.h"
 
 /// Provides managed access to data on a single set of HTTP servers. Properly
 /// supports round-robin DNS load balancing.
@@ -25,12 +26,12 @@ class HttpConnection
 {
 public:
   HttpConnection(const std::string& server,
-                 const std::string& scheme = "http",
-                 HttpClient* client) :
+                 HttpClient* client,
+                 const std::string& scheme = "http") :
     _scheme(scheme),
-    _server(server),
-    _client(client)
+    _server(server)
   {
+    _client = client;
     TRC_STATUS("Configuring HTTP Connection");
     TRC_STATUS("  Connection created for server %s", _server.c_str());
   }
@@ -40,7 +41,7 @@ public:
   }
 
   /// Create an HttpRequest with our server and scheme arguments
-  HttpRequest create_request(path)
+  HttpRequest create_request(std::string path)
   {
     return HttpRequest(_server,
                        _scheme,
@@ -52,5 +53,5 @@ protected:
 
   std::string _scheme;
   std::string _server;
-  HttpClient _client;
+  HttpClient* _client;
 };

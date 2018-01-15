@@ -9,6 +9,8 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
+#include "httpclient.h"
+
 class HttpRequest
 {
 public:
@@ -28,7 +30,7 @@ public:
 
   // Sends the request and populates ret code, recv headers, and recv body
   // Takes a RequestType, as defined in httpclient.h
-  virtual void send(RequestType request_type);
+  virtual void send(HttpClient::RequestType request_type);
 
   // GET methods return empty if not set yet
   virtual HTTPCode get_return_code(); 
