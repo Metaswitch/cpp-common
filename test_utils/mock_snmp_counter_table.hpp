@@ -15,6 +15,8 @@
 #include "gmock/gmock.h"
 #include "snmp_counter_table.h"
 
+using ::testing::StrictMock;
+
 class MockSnmpCounterTable : public SNMP::CounterTable
 {
 public:
