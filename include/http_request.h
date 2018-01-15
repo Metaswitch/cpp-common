@@ -9,7 +9,49 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#includes
+#pragma once
+
+#include <map>
+
+#include <curl/curl.h>
+#include <sas.h>
+
+#include <boost/uuid/uuid.hpp>
+#include <boost/uuid/uuid_io.hpp>
+#include <boost/uuid/uuid_generators.hpp>
+
+#include "utils.h"
+#include "httpresolver.h"
+#include "load_monitor.h"
+#include "sasevent.h"
+#include "communicationmonitor.h"
+#include "snmp_ip_count_table.h"
+#include "http_connection_pool.h"
+
+typedef long HTTPCode;
+static const long HTTP_OK = 200;
+static const long HTTP_CREATED = 201;
+static const long HTTP_ACCEPTED = 202;
+static const long HTTP_NO_CONTENT = 204;
+static const long HTTP_PARTIAL_CONTENT = 206;
+static const long HTTP_BAD_REQUEST = 400;
+static const long HTTP_UNAUTHORIZED = 401;
+static const long HTTP_FORBIDDEN = 403;
+static const long HTTP_NOT_FOUND = 404;
+static const long HTTP_BADMETHOD = 405;
+static const long HTTP_CONFLICT = 409;
+static const long HTTP_PRECONDITION_FAILED = 412;
+static const long HTTP_UNPROCESSABLE_ENTITY = 422;
+static const long HTTP_TEMP_UNAVAILABLE = 480;
+static const long HTTP_SERVER_ERROR = 500;
+static const long HTTP_NOT_IMPLEMENTED = 501;
+static const long HTTP_BAD_GATEWAY = 502;
+static const long HTTP_SERVER_UNAVAILABLE = 503;
+static const long HTTP_GATEWAY_TIMEOUT = 504;
+
+static const std::string HEADERS_END = "\r\n\r\n";
+static const std::string BODY_OMITTED = "\r\n\r\n<Body present but not logged>";
+
 
 class HttpRequestBuilder
 {
