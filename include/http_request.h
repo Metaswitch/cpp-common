@@ -84,7 +84,6 @@ public:
 
     // SET methods will overwrite any previous settings
     virtual void set_req_url(std::string);
-    virtual void set_req_server(std::string); // This will be inherited from the builder, but do we ever want to override?
     virtual void set_req_body(std::string body);
     virtual void set_sas_trail(SAS::TrailId trail);
     virtual void set_allowed_host_state(int allowed_host_state);
@@ -99,7 +98,6 @@ public:
 
   private:
     // member variables for storing the request information pre and post send
-    std::string server;
     std::string req_url_tail;
     std::string req_body;
     std::vector<std::string> req_headers;
@@ -115,5 +113,6 @@ private:
   LoadMonitor* load_monitor;
   HttpConnectionPool _conn_pool;
   SNMP::IPCountTable* stat_table;
-  std::string _scheme
+  std::string _scheme;
+  int default_allowed_host_state;
 }
