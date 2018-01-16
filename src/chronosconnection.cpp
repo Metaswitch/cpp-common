@@ -24,23 +24,15 @@
 
 const std::map<std::string, uint32_t> ChronosConnection::EMPTY_TAGS = std::map<std::string, uint32_t>();
 
-ChronosConnection::ChronosConnection(const std::string& server,
-                                     std::string callback_host,
-                                     HttpResolver* resolver,
-                                     BaseCommunicationMonitor* comm_monitor) :
+ChronosConnection::ChronosConnection(std::string callback_host,
+                                     HttpConnection* http) :
   _callback_host(callback_host),
-  _http(new HttpConnection(server,
-                           new HttpClient(false,
-                                          resolver,
-                                          SASEvent::HttpLogLevel::DETAIL,
-                                          comm_monitor)))
+  _http(http)
 {
 }
 
-
 ChronosConnection::~ChronosConnection()
 {
-  delete _http; _http = NULL;
 }
 
 HTTPCode ChronosConnection::send_delete(const std::string& delete_identity,

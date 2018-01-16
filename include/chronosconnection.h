@@ -22,10 +22,8 @@
 class ChronosConnection
 {
 public:
-  ChronosConnection(const std::string& chronos,
-                    std::string callback_host,
-                    HttpResolver* resolver,
-                    BaseCommunicationMonitor* comm_monitor);
+  ChronosConnection(std::string callback_host,
+                    HttpConnection* http);
   virtual ~ChronosConnection();
 
   virtual HTTPCode send_delete(const std::string& delete_id,
