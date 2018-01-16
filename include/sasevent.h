@@ -22,7 +22,7 @@ namespace SASEvent {
   // Jenkins job "update-sas-resources".
   //
   // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20180111";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20180116-applescrumble";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -149,6 +149,7 @@ namespace SASEvent {
   const int BASERESOLVE_NO_ALLOWED_RECORDS = COMMON_BASE + 0x000208;
   const int BASERESOLVE_IP_ALLOWED = COMMON_BASE + 0x000209;
   const int BASERESOLVE_IP_NOT_ALLOWED = COMMON_BASE + 0x00020A;
+  const int DNS_CACHE_USED = COMMON_BASE + 0x00020B;
 
   const int CASS_CONNECT_FAIL = COMMON_BASE + 0x0300;
   const int CASS_TIMEOUT = COMMON_BASE + 0x0301;
