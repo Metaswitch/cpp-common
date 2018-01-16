@@ -60,36 +60,56 @@ void HttpRequest::set_username(std::string username)
 }
 
 ///
+// Send requests
+///
+HttpResponse HttpRequest::send(HttpClient::RequestType request_type)
+{
+  std::string url = _scheme + _server + _path;
+
+  std::string resp_body;
+  std::map<std::string, std::string> resp_headers;
+
+  HTTPCode rc = _client->send_request(request_type,
+                                      url,
+                                      _req_body,
+                                      resp_body,
+                                      _username,
+                                      _trail,
+                                      _req_headers,
+                                      &resp_headers,
+                                      _allowed_host_state);
+
+  return HttpResponse(rc,
+                      resp_body,
+                      resp_headers);
+}
+
+///
+// HTTP Response Object
+///
+HttpResponse::HttpResponse(
+                HTTPCode return_code,
+                const std::string& resp_body,
+                const std::map<std::string, std::string>& resp_headers) :
+    _return_code(return_code),
+    _resp_body(resp_body),
+    _resp_headers(resp_headers)
+    {}
+
+///
 // GET methods
 ///
-HTTPCode HttpRequest::get_return_code()
+HTTPCode HttpResponse::get_return_code()
 {
   return _return_code;
 }
 
-std::string HttpRequest::get_recv_body()
+std::string HttpResponse::get_resp_body()
 {
-  return _recv_body;
+  return _resp_body;
 }
 
-std::map<std::string, std::string> HttpRequest::get_recv_headers()
+std::map<std::string, std::string> HttpResponse::get_resp_headers()
 {
-  return _recv_headers;
-}
-
-///
-// Send requests
-///
-void HttpRequest::send(HttpClient::RequestType request_type)
-{
-  std::string url = _scheme + _server + _path;
-  _return_code = _client->send_request(request_type,
-                                      url,
-                                      _req_body,
-                                      _recv_body,
-                                      _username,
-                                      _trail,
-                                      _req_headers,
-                                      &_recv_headers,
-                                      _allowed_host_state);
+  return _resp_headers;
 }

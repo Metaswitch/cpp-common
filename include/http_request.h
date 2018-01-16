@@ -11,6 +11,26 @@
 
 #include "httpclient.h"
 
+class HttpResponse
+{
+public:
+  HttpResponse(HTTPCode return_code,
+               const std::string& resp_body,
+               const std::map<std::string, std::string>& resp_headers);
+
+  virtual ~HttpResponse();
+
+  // GET methods return empty if not set yet
+  virtual HTTPCode get_return_code(); 
+  virtual std::string get_resp_body();
+  virtual std::map<std::string, std::string> get_resp_headers();
+
+private:
+  HTTPCode _return_code;
+  std::string _resp_body;
+  std::map<std::string, std::string> _resp_headers;   
+};
+
 class HttpRequest
 {
 public:
@@ -18,7 +38,7 @@ public:
               const std::string& scheme,
               HttpClient* client,
               std::string path);
-              ///TODO do we actually want the sas trail in here?
+
   virtual ~HttpRequest();
 
 
@@ -31,12 +51,7 @@ public:
 
   // Sends the request and populates ret code, recv headers, and recv body
   // Takes a RequestType, as defined in httpclient.h
-  virtual void send(HttpClient::RequestType request_type);
-
-  // GET methods return empty if not set yet
-  virtual HTTPCode get_return_code(); 
-  virtual std::string get_recv_body();
-  virtual std::map<std::string, std::string> get_recv_headers();
+  virtual HttpResponse send(HttpClient::RequestType request_type);
 
 private:
   // member variables for storing the request information pre and post send
@@ -49,8 +64,5 @@ private:
   std::string _username;
   std::string _req_body;
   std::vector<std::string> _req_headers;
-  HTTPCode _return_code;
-  std::string _recv_body;
-  std::map<std::string, std::string> _recv_headers;
   int _allowed_host_state = BaseResolver::ALL_LISTS;
 };
