@@ -30,11 +30,10 @@ ChronosConnection::ChronosConnection(const std::string& server,
                                      BaseCommunicationMonitor* comm_monitor) :
   _callback_host(callback_host),
   _http(new HttpConnection(server,
-                           _client)),
-  _client(new HttpClient(false,
-                         resolver,
-                         SASEvent::HttpLogLevel::DETAIL,
-                         comm_monitor))
+                           new HttpClient(false,
+                                          resolver,
+                                          SASEvent::HttpLogLevel::DETAIL,
+                                          comm_monitor)))
 {
 }
 
@@ -42,7 +41,6 @@ ChronosConnection::ChronosConnection(const std::string& server,
 ChronosConnection::~ChronosConnection()
 {
   delete _http; _http = NULL;
-  delete _client; _client = NULL;
 }
 
 HTTPCode ChronosConnection::send_delete(const std::string& delete_identity,

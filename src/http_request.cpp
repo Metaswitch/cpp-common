@@ -64,7 +64,7 @@ void HttpRequest::set_username(std::string username)
 ///
 HttpResponse HttpRequest::send(HttpClient::RequestType request_type)
 {
-  std::string url = _scheme + _server + _path;
+  std::string url = _scheme + "://" + _server + _path;
 
   std::string resp_body;
   std::map<std::string, std::string> resp_headers;
@@ -95,6 +95,8 @@ HttpResponse::HttpResponse(
     _resp_body(resp_body),
     _resp_headers(resp_headers)
     {}
+
+HttpResponse::~HttpResponse() {}
 
 ///
 // GET methods

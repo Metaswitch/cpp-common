@@ -41,7 +41,6 @@ public:
 
   virtual ~HttpRequest();
 
-
   // SET methods will overwrite any previous settings
   virtual void set_req_body(std::string body);
   virtual void set_req_headers(std::string req_header);

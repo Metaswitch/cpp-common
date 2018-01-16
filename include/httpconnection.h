@@ -29,9 +29,9 @@ public:
                  HttpClient* client,
                  const std::string& scheme = "http") :
     _scheme(scheme),
-    _server(server)
+    _server(server),
+    _client(client)
   {
-    _client = client;
     TRC_STATUS("Configuring HTTP Connection");
     TRC_STATUS("  Connection created for server %s", _server.c_str());
   }
