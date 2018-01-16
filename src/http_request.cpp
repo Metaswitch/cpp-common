@@ -9,6 +9,7 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
+#include "httpclient.h"
 #include "http_request.h"
 
 /// Create an HTTP Request builder object.
@@ -17,12 +18,12 @@
 /// @param scheme Scheme of the request being sent
 /// @param client HttpClient object to use in sending the requst
 /// @param path   Path the request should be sent to, starting with '/'
-HttpRequest::HttpRequest(const std::string server,
-                         const std::string& scheme = "http",
+HttpRequest::HttpRequest(const std::string& server,
+                         const std::string& scheme,
                          HttpClient* client,
                          std::string path) :
-  _scheme(scheme),
   _server(server),
+  _scheme(scheme),
   _client(client),
   _path(path)
 {
@@ -33,27 +34,27 @@ HttpRequest::~HttpRequest() {}
 ///
 // SET methods
 ///
-virtual void HttpRequest::set_req_body(std::string body)
+void HttpRequest::set_req_body(std::string body)
 {
   _req_body = body;
 }
 
-virtual void HttpRequest::set_req_headers(std::string req_header)
+void HttpRequest::set_req_headers(std::string req_header)
 {
   _req_headers.push_back(req_header);
 }
 
-virtual void HttpRequest::set_sas_trail(SAS::TrailId trail)
+void HttpRequest::set_sas_trail(SAS::TrailId trail)
 {
   _trail = trail;
 }
 
-virtual void HttpRequest::set_allowed_host_state(int allowed_host_state)
+void HttpRequest::set_allowed_host_state(int allowed_host_state)
 {
   _allowed_host_state = allowed_host_state;
 }
 
-virtual void HttpRequest::set_username(std::string username)
+void HttpRequest::set_username(std::string username)
 {
   _username = username;
 }
@@ -61,34 +62,34 @@ virtual void HttpRequest::set_username(std::string username)
 ///
 // GET methods
 ///
-virtual HTTPCode get_return_code()
+HTTPCode HttpRequest::get_return_code()
 {
   return _return_code;
 }
 
-virtual std::string get_recv_body()
+std::string HttpRequest::get_recv_body()
 {
   return _recv_body;
 }
 
-virtual std::map<std::string, std::string> get_recv_headers()
+std::map<std::string, std::string> HttpRequest::get_recv_headers()
 {
-  return _req_headers;
+  return _recv_headers;
 }
 
 ///
 // Send requests
 ///
-virtual void send(RequestType request_type)
+void HttpRequest::send(HttpClient::RequestType request_type)
 {
-  std::string url = scheme + server + path; //TODO
-  _return_code = _client.send_request(request_type,
+  std::string url = _scheme + _server + _path;
+  _return_code = _client->send_request(request_type,
                                       url,
                                       _req_body,
                                       _recv_body,
                                       _username,
                                       _trail,
                                       _req_headers,
-                                      _recv_headers,
+                                      &_recv_headers,
                                       _allowed_host_state);
 }

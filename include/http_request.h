@@ -14,10 +14,11 @@
 class HttpRequest
 {
 public:
-  HttpRequest(std::string server,
-              std::string scheme,
+  HttpRequest(const std::string& server,
+              const std::string& scheme,
               HttpClient* client,
               std::string path);
+              ///TODO do we actually want the sas trail in here?
   virtual ~HttpRequest();
 
 
@@ -41,12 +42,15 @@ private:
   // member variables for storing the request information pre and post send
   std::string _server;
   std::string _scheme;
-  std::string _req_url_tail;
+  HttpClient* _client;
+  std::string _path;
+  SAS::TrailId _trail;
+
+  std::string _username;
   std::string _req_body;
   std::vector<std::string> _req_headers;
   HTTPCode _return_code;
   std::string _recv_body;
   std::map<std::string, std::string> _recv_headers;
-  SAS::TrailId _trail;
   int _allowed_host_state = BaseResolver::ALL_LISTS;
 };
