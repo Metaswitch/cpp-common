@@ -68,6 +68,7 @@ private:
                           const std::map<std::string, uint32_t>& tags);
   std::string get_location_header(std::map<std::string, std::string> headers);
   HttpConnection* _http;
+  HttpClient* _client;
   static const std::map<std::string, uint32_t> EMPTY_TAGS;
 };
 
