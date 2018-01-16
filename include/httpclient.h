@@ -70,7 +70,8 @@ public:
              bool remote_connection = false,
              long timeout_ms = -1,
              bool log_display_address = false,
-             std::string server_display_address = "");
+             std::string server_display_address = "",
+             bool sas_compress_logs = true);
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
@@ -425,4 +426,5 @@ private:
   bool _should_omit_body;
   bool _log_display_address;
   std::string _server_display_address;
+  bool _sas_compress_logs;
 };

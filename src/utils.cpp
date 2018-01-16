@@ -31,7 +31,6 @@
 #include <boost/regex.hpp>
 
 #include "utils.h"
-#include "log.h"
 
 bool Utils::parse_http_url(
     const std::string& url,
@@ -127,7 +126,7 @@ std::string Utils::url_unescape(const std::string& s)
   return r;
 }
 
-// The following function quotes strings in SIP headers as described by RFC 3261 
+// The following function quotes strings in SIP headers as described by RFC 3261
 // Section 25.1
 std::string Utils::quote_string(const std::string& s)
 {
@@ -852,6 +851,74 @@ void Utils::calculate_diameter_timeout(int target_latency_us,
   diameter_timeout_ms = std::ceil(target_latency_us/500);
 }
 
+// Functions to add a var param to a SAS event, compressed or not, depending on whether compression
+// is disabled in etc/clearwater/shared_config.
+void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                                const std::string& s,
+                                                const SAS::Profile* profile,
+                                                bool sas_compress_logs)
+{
+  if (sas_compress_logs)
+  {
+    event.add_compressed_param(s, profile);
+  }
+  else
+  {
+    event.add_var_param(s);
+  }
+  event.add_static_param(sas_compress_logs);
+}
+
+void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                                size_t len,
+                                                char* s,
+                                                const SAS::Profile* profile,
+                                                bool sas_compress_logs)
+{
+  if (sas_compress_logs)
+  {
+    event.add_compressed_param(len, s, profile);
+  }
+  else
+  {
+    event.add_var_param(len, s);
+  }
+  event.add_static_param(sas_compress_logs);
+}
+
+void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                                size_t len,
+                                                uint8_t* s,
+                                                const SAS::Profile* profile,
+                                                bool sas_compress_logs)
+{
+  if (sas_compress_logs)
+  {
+    event.add_compressed_param(len, s, profile);
+  }
+  else
+  {
+    event.add_var_param(len, s);
+  }
+  event.add_static_param(sas_compress_logs);
+}
+
+void Utils::add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                                const char* s,
+                                                const SAS::Profile* profile,
+                                                bool sas_compress_logs)
+{
+  if (sas_compress_logs)
+  {
+    event.add_compressed_param(s, profile);
+  }
+  else
+  {
+    event.add_var_param(s);
+  }
+  event.add_static_param(sas_compress_logs);
+}
+
 // Check whether an element is in a vector
 bool Utils::in_vector(const std::string& element,
                const std::vector<std::string>& vec)
@@ -903,3 +970,5 @@ void Utils::IOHook::io_completes(const std::string& reason)
 }
 
 thread_local std::vector<Utils::IOHook*> Utils::IOHook::_hooks = {};
+
+

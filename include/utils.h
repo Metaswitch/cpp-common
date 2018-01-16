@@ -27,6 +27,7 @@
 #include <arpa/inet.h>
 
 #include "log.h"
+#include "sas.h"
 
 struct IP46Address
 {
@@ -638,6 +639,31 @@ namespace Utils
 
   bool in_vector(const std::string& element,
                  const std::vector<std::string>& elements);
+
+
+  // These functions check whether sas_compress_logs, set as "Y" or "N" in etc/clearwater/shared_config,
+  // is true or false and compresses logs sent to SAS accordingly.
+  void add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                           const std::string& s,
+                                           const SAS::Profile* proflie = NULL,
+                                           bool sas_compress_logs = true);
+
+  void add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                           size_t len,
+                                           char* s,
+                                           const SAS::Profile* profile = NULL,
+                                           bool sas_compress_logs = true);
+
+  void add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                           size_t len,
+                                           uint8_t* s,
+                                           const SAS::Profile* profile = NULL,
+                                           bool sas_compress_logs = true);
+
+  void add_sas_param_compressed_if_toggled(SAS::Event& event,
+                                           const char* s,
+                                           const SAS::Profile* profile = NULL,
+                                           bool sas_compress_logs = true);
 
   /// This hook allows a thread to perform actions when Clearwater code does
   /// blocking I/O.
