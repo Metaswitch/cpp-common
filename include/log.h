@@ -57,6 +57,12 @@ namespace Log
 
   extern int loggingLevel;
 
+  extern pthread_mutex_t trc_ram_trc_cache_lock;
+
+  int ramCacheTrcCall(const char *module, int lineno, const char*fmt, ...);
+  void ramTrace(int trc_id, const char *fmt, ...);
+  void ramDecode(FILE *output);
+
   inline bool enabled(int level)
   {
 #ifdef UNIT_TEST

@@ -19,6 +19,8 @@
 
 // Define the "Warn unused return" macro (to be nothing) as this macro is
 // needed by printf.h and is apparently undefined under -O2 optimisation
+//#define __wur
+#undef __wur
 #define __wur
 #include <printf.h>
 
