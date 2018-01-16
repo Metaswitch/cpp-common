@@ -122,6 +122,8 @@ private:
     std::string domain;
     int dnstype;
     int expires;
+    std::string original_time;
+    SAS::TrailId original_trail;
     std::vector<DnsRRecord*> records;
   };
 
@@ -172,7 +174,7 @@ private:
   DnsCacheEntryPtr create_cache_entry(const std::string& domain, int dnstype);
   void add_to_expiry_list(DnsCacheEntryPtr ce);
   void expire_cache();
-  void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr);
+  void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr, SAS::TrailId trail);
   void clear_cache_entry(DnsCacheEntryPtr ce);
 
 
