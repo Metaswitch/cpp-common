@@ -13,6 +13,7 @@
 #define MOCK_HTTP_REQUEST_H__
 
 #include "http_request.h"
+#include "gmock/gmock.h"
 
 class MockHttpRequest : public HttpRequest
 {

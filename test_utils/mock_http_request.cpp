@@ -15,6 +15,7 @@ MockHttpRequest::MockHttpRequest() :
     HttpRequest("localhost",
                 "http",
                 nullptr,
+                HttpClient::RequestType::GET,
                 "/path")
   {}
 
