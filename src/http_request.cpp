@@ -21,10 +21,12 @@
 HttpRequest::HttpRequest(const std::string& server,
                          const std::string& scheme,
                          HttpClient* client,
+                         HttpClient::RequestType method,
                          std::string path) :
   _server(server),
   _scheme(scheme),
   _client(client),
+  _method(method),
   _path(path)
 {
 }
@@ -37,11 +39,6 @@ HttpRequest::~HttpRequest() {}
 void HttpRequest::set_req_body(std::string body)
 {
   _req_body = body;
-}
-
-void HttpRequest::set_req_headers(std::string req_header)
-{
-  _req_headers.push_back(req_header);
 }
 
 void HttpRequest::set_sas_trail(SAS::TrailId trail)
@@ -60,16 +57,24 @@ void HttpRequest::set_username(std::string username)
 }
 
 ///
+// ADD methods
+///
+void HttpRequest::add_req_header(std::string req_header)
+{
+  _req_headers.push_back(req_header);
+}
+
+///
 // Send requests
 ///
-HttpResponse HttpRequest::send(HttpClient::RequestType request_type)
+HttpResponse HttpRequest::send()
 {
   std::string url = _scheme + "://" + _server + _path;
 
   std::string resp_body;
   std::map<std::string, std::string> resp_headers;
 
-  HTTPCode rc = _client->send_request(request_type,
+  HTTPCode rc = _client->send_request(_method,
                                       url,
                                       _req_body,
                                       resp_body,

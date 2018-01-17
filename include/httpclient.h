@@ -85,6 +85,9 @@ public:
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
 
+  /// Enum of HTTP request types, used when calling into send_request.
+  enum struct RequestType {DELETE, PUT, POST, GET};
+
 private:
 
   /// Class used to record HTTP transactions.
@@ -115,10 +118,6 @@ private:
 
   static const int DEFAULT_HTTP_PORT = 80;
   static const int DEFAULT_HTTPS_PORT = 443;
-
-
-  /// Enum of HTTP request types that are used in this class
-  enum struct RequestType {DELETE, PUT, POST, GET};
 
   /// Converts RequestType to string for logging
   static std::string request_type_to_string(RequestType request_type);
