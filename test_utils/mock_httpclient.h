@@ -12,6 +12,7 @@
 #ifndef MOCK_HTTPCLIENT_H__
 #define MOCK_HTTPCLIENT_H__
 
+#include "gmock/gmock.h"
 #include "httpclient.h"
 
 class MockHttpClient : public HttpClient
@@ -27,7 +28,7 @@ public:
                                   SAS::TrailId trail,
                                   std::vector<std::string> headers_to_add,
                                   std::map<std::string, std::string>* response_headers,
-                                  int allowed_host_state);
+                                  int allowed_host_state));
 };
 
 #endif
