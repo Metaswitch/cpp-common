@@ -13,7 +13,7 @@
 #define MOCK_HTTPCONNECTION_H__
 
 #include "gmock/gmock.h"
-#include "http_connection.h"
+#include "httpconnection.h"
 
 class MockHttpConnection : public HttpConnection
 {
