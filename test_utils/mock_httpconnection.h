@@ -1,5 +1,5 @@
 /**
- * @file mockhttpconnection.h Mock httpconnection.
+ * @file mock_httpconnection.h Mock httpconnection.
  *
  * Copyright (C) Metaswitch Networks 2018
  * If license terms are provided to you in a COPYING file in the root directory
@@ -9,11 +9,11 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#ifndef MOCKHTTPCONNECTION_H__
-#define MOCKHTTPCONNECTION_H__
+#ifndef MOCK_HTTPCONNECTION_H__
+#define MOCK_HTTPCONNECTION_H__
 
 #include "gmock/gmock.h"
-#include "httpconnection.h"
+#include "http_connection.h"
 
 class MockHttpConnection : public HttpConnection
 {

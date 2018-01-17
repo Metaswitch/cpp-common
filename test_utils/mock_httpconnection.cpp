@@ -1,5 +1,5 @@
 /**
- * @file mockhttpconnection.cpp Mock httpconnection.
+ * @file mock_httpconnection.cpp Mock httpconnection.
  *
  * Copyright (C) Metaswitch Networks 2018
  * If license terms are provided to you in a COPYING file in the root directory
@@ -9,7 +9,7 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#include "mockhttpconnection.h"
+#include "mock_httpconnection.h"
 
 MockHttpConnection::MockHttpConnection() :
     HttpConnection("localhost",
