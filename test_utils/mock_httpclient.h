@@ -1,7 +1,7 @@
 /**
  * @file mock_httpclient.h
  *
- * Copyright (C) Metaswitch Networks 2017
+ * Copyright (C) Metaswitch Networks 2018
  * If license terms are provided to you in a COPYING file in the root directory
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
@@ -16,20 +16,18 @@
 
 class MockHttpClient : public HttpClient
 {
-  MockHttpClient() :
-    HttpClient(false,
-               nullptr,
-               SASEvent::HttpLogLevel::PROTOCOL,
-               nullptr)
-  {}
-
-  MOCK_METHOD5(send_post, long(const std::string& url,
-                               std::map<std::string, std::string>& headers,
-                               const std::string& body,
-                               SAS::TrailId trail,
-                               const std::string& username));
-
-  // Add more mock methods as and when they are required.
+public:
+  MockHttpClient();
+  ~MockHttpClient();
+  MOCK_METHOD9(send_request, long(RequestType request_type,
+                                  const std::string& url,
+                                  std::string body,
+                                  std::string& response,
+                                  const std::string& username,
+                                  SAS::TrailId trail,
+                                  std::vector<std::string> headers_to_add,
+                                  std::map<std::string, std::string>* response_headers,
+                                  int allowed_host_state);
 };
 
 #endif
