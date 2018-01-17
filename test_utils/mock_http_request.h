@@ -21,15 +21,15 @@ public:
   ~MockHttpRequest();
 
   // SET methods
-  MOCK_METHOD2(set_req_body, void(std::string body);
-  MOCK_METHOD2(set_req_headers, void(std::string req_header);
-  MOCK_METHOD2(set_sas_trail, void(SAS::TrailId trail);
-  MOCK_METHOD2(set_allowed_host_state, void(int allowed_host_state);
-  MOCK_METHOD2(set_username, void(std::string username);
+  MOCK_METHOD1(set_req_body, void(std::string body));
+  MOCK_METHOD1(set_req_headers, void(std::string req_header));
+  MOCK_METHOD1(set_sas_trail, void(SAS::TrailId trail));
+  MOCK_METHOD1(set_allowed_host_state, void(int allowed_host_state));
+  MOCK_METHOD1(set_username, void(std::string username));
 
   // Sends the request and populates ret code, recv headers, and recv body
   // Takes a RequestType, as defined in httpclient.h
-  MOCK_METHOD2(send, HttpResponse(HttpClient::RequestType request_type);
+  MOCK_METHOD1(send, HttpResponse(HttpClient::RequestType request_type));
 };
 
 #endif
