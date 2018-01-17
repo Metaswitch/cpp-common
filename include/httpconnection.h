@@ -41,13 +41,14 @@ public:
   }
 
   /// Create an HttpRequest with our server and scheme arguments
-  HttpRequest create_request(HttpClient::RequestType method, std::string path)
+  virtual std::unique_ptr<HttpRequest> create_request(HttpClient::RequestType method, std::string path)
   {
-    return HttpRequest(_server,
-                       _scheme,
-                       _client,
-                       method,
-                       path);
+    std::unique_ptr<HttpRequest> request(new HttpRequest(_server,
+                                                         _scheme,
+                                                         _client,
+                                                         method,
+                                                         path));
+    return request;
   }
 
 protected:
