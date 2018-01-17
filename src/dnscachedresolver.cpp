@@ -605,7 +605,9 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
   }
 }
 
-/// Adds or updates an entry in the cache.
+/// Adds or updates an entry in the cache. This function is only used in unit
+/// tests, to insert entries into the cache so we aren't using a real DNS
+/// lookup.
 void DnsCachedResolver::add_to_cache(const std::string& domain,
                                      int dnstype,
                                      std::vector<DnsRRecord*>& records)
@@ -632,6 +634,7 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   // Copy all the records across to the cache entry.
   for (size_t ii = 0; ii < records.size(); ++ii)
   {
+    // We don't have a trail ID available as this is test code - use trail ID 0.
     add_record_to_cache(ce, records[ii], 0);
   }
 
@@ -1252,13 +1255,13 @@ void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned
 {
   if (timeouts > 0)
   {
+    TRC_ERROR("Resolution of %s timed out", _domain.c_str());
     SAS::Event event(_trail, SASEvent::DNS_TIMEOUT, 0);
     event.add_static_param(_dnstype);
     event.add_static_param(timeouts);
     event.add_var_param(_domain);
     SAS::report_event(event);
   }
-  TRC_ERROR("Resolution of %s timed out", _domain.c_str());
 
   _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen, _trail);
   --_channel->pending_queries;
