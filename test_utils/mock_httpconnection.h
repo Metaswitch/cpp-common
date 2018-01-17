@@ -21,7 +21,7 @@ public:
   MockHttpConnection();
   ~MockHttpConnection();
 
-  MOCK_METHOD2(create_request, HttpRequest(std::string path));
+  MOCK_METHOD2(create_request, HttpRequest(HttpClient::RequestType method, std::string path));
 };
 
 #endif
