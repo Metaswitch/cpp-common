@@ -11,6 +11,9 @@
 
 #include "httpclient.h"
 
+#ifndef HTTP_RESPONSE_H__
+#define HTTP_RESPONSE_H__
+
 class HttpResponse
 {
 public:
@@ -21,14 +24,14 @@ public:
   virtual ~HttpResponse();
 
   // GET methods return empty if not set yet
-  virtual HTTPCode get_return_code(); 
+  virtual HTTPCode get_return_code();
   virtual std::string get_resp_body();
   virtual std::map<std::string, std::string> get_resp_headers();
 
 private:
   HTTPCode _return_code;
   std::string _resp_body;
-  std::map<std::string, std::string> _resp_headers;   
+  std::map<std::string, std::string> _resp_headers;
 };
 
 class HttpRequest
@@ -68,3 +71,5 @@ private:
   std::vector<std::string> _req_headers;
   int _allowed_host_state = BaseResolver::ALL_LISTS;
 };
+
+#endif
