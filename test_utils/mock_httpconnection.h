@@ -21,7 +21,13 @@ public:
   MockHttpConnection();
   ~MockHttpConnection();
 
-  MOCK_METHOD2(create_request, HttpRequest(HttpClient::RequestType method, std::string path));
+  virtual std::unique_ptr<HttpRequest> create_request(HttpClient::RequestType method, std::string path) override
+  {
+    std::unique_ptr<HttpRequest> req(create_request_proxy(method, path));
+    return req;
+  };
+
+  MOCK_METHOD2(create_request_proxy, HttpRequest*(HttpClient::RequestType method, std::string path));
 };
 
 #endif
