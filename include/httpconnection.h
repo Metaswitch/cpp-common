@@ -16,12 +16,12 @@
 #include "httpclient.h"
 #include "http_request.h"
 
-/// Provides managed access to data on a single set of HTTP servers. Properly
-/// supports round-robin DNS load balancing.
+/// This class manages creation of HttpRequests for a single server and scheme.
+/// Allows the user to create HttpRequests without needing to pass the server
+/// name and scheme around their code.
 ///
-/// This class is a thin wrapper around HttpRequest and HttpClient, and should
-/// be used to generate HttpRequests targeted at a single server address
-///
+/// Provides no additional function beyond what is provided by the HttpRequest
+/// and HttpClient objects.
 class HttpConnection
 {
 public:
