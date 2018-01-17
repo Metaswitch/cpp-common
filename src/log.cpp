@@ -173,96 +173,103 @@ namespace Log
 // into ramTrace below to make the RAM trace entry itself.  Subsequently the
 // same trace ID can be passed directly to ramTrace for maximally efficient
 // tracing of the call instance and the parameters passed.
-int Log::ramCacheTrcCall(const char *module, int lineno, const char*fmt, ...)
+
+void Log::ramCacheTrcCall(int *trc_id, const char *module, int lineno, const char*fmt, ...)
 {
-  int trc_id;
+  // Lock the cache before checking our trace ID
+  pthread_mutex_lock(&Log::trc_ram_trc_cache_lock);
 
-  // Lock access to the RAM trace buffer.  We can't allow any ram tracing to take
-  // place while we fiddle with the cache as ram_trc_cache might change under
-  // the realloc call.
-  pthread_mutex_lock(&Log::ram_lock);
-
-  // Realloc (or allocate, if not yet allocated) the RAM trace cache
-  Log::ram_trc_cache_len++;
-  Log::ram_trc_cache = (TRC_RAMTRC_CACHE **)realloc(Log::ram_trc_cache, sizeof(TRC_RAMTRC_CACHE*) * Log::ram_trc_cache_len);
-
-  // Release the ram trace buffer lock.  In principle, this will release any other
-  // threads waiting to make trace calls, though in practise most of them will
-  // be blocked on the trc_ram_trc_cache_lock lock anyway.  Note that any
-  // simultaneous initial calls to this particular TRC_RAMTRACE call WILL
-  // be waiting on trc_ram_trc_cache_lock until the first has successfully
-  // filled the cache slot, so won't e.g. end up referencing the cache slot
-  // before its been initialised.
-  pthread_mutex_unlock(&Log::ram_lock);
-
-  // The trace ID we are going to return is simply the current value of the
-  // cache size (since its a 1-based index)
-  trc_id = Log::ram_trc_cache_len;
-
-  // Firstly, determine whether the format string is just "%s".  If so, then
-  // the intention is clearly to trace out a string that has already been
-  // formatted, and, since we normally store the pointer to any string
-  // parameter rather than the string itself (and therefore will be lucky if
-  // the string is still valid at dump time), we would normally not get any
-  // useful info from such a trace.  Therefore, for "%s" logs only, we store
-  // the string data by value rather than reference
-  size_t num_params;
-  int entry_size;
-  TRC_RAMTRC_CACHE *cache_ent;
-
-  if (strcmp(fmt, "%s") == 0)
+  // Only cache the call if we don't already have a trc_id
+  if (*trc_id == 0)
   {
-    // Allocate an "empty" cache structure (no params)
-    cache_ent = (TRC_RAMTRC_CACHE *)malloc(offsetof(TRC_RAMTRC_CACHE, param_types));
+    // Lock access to the RAM trace buffer.  We can't allow any ram tracing to take
+    // place while we fiddle with the cache as ram_trc_cache might change under
+    // the realloc call.
+    pthread_mutex_lock(&Log::ram_lock);
 
-    // Leave the format blank to indicate that no formatting is to be done
-    cache_ent->fmt = NULL;
-    num_params = 0;
+    // Realloc (or allocate, if not yet allocated) the RAM trace cache
+    Log::ram_trc_cache_len++;
+    Log::ram_trc_cache = (TRC_RAMTRC_CACHE **)realloc(Log::ram_trc_cache, sizeof(TRC_RAMTRC_CACHE*) * Log::ram_trc_cache_len);
 
-    // Set entry size to -1 to indicate that this parameter is not used (the
-    // size of an instance of this log cannot be known in advance)
-    entry_size = -1;
+    // Release the ram trace buffer lock.  In principle, this will release any other
+    // threads waiting to make trace calls, though in practise most of them will
+    // be blocked on the trc_ram_trc_cache_lock lock anyway.  Note that any
+    // simultaneous initial calls to this particular TRC_RAMTRACE call WILL
+    // be waiting on trc_ram_trc_cache_lock until the first has successfully
+    // filled the cache slot, so won't e.g. end up referencing the cache slot
+    // before its been initialised.
+    pthread_mutex_unlock(&Log::ram_lock);
+
+    // The trace ID we are going to return is simply the current value of the
+    // cache size (since its a 1-based index)
+    *trc_id = Log::ram_trc_cache_len;
+
+    // Firstly, determine whether the format string is just "%s".  If so, then
+    // the intention is clearly to trace out a string that has already been
+    // formatted, and, since we normally store the pointer to any string
+    // parameter rather than the string itself (and therefore will be lucky if
+    // the string is still valid at dump time), we would normally not get any
+    // useful info from such a trace.  Therefore, for "%s" logs only, we store
+    // the string data by value rather than reference
+    size_t num_params;
+    int entry_size;
+    TRC_RAMTRC_CACHE *cache_ent;
+
+    if (strcmp(fmt, "%s") == 0)
+    {
+      // Allocate an "empty" cache structure (no params)
+      cache_ent = (TRC_RAMTRC_CACHE *)malloc(offsetof(TRC_RAMTRC_CACHE, param_types));
+
+      // Leave the format blank to indicate that no formatting is to be done
+      cache_ent->fmt = NULL;
+      num_params = 0;
+
+      // Set entry size to -1 to indicate that this parameter is not used (the
+      // size of an instance of this log cannot be known in advance)
+      entry_size = -1;
+    }
+    else
+    {
+      // Determine how many parameters to allow for using the parse_printf_format
+      // function.
+      num_params = parse_printf_format(fmt, 0, NULL);
+      entry_size = RAM_SIZE(num_params);
+
+      // Get sufficient memory for the cache entry using the ANSI standard
+      // algorithm for determining variable structure lengths
+      cache_ent = (TRC_RAMTRC_CACHE *)malloc(offsetof(TRC_RAMTRC_CACHE, param_types) + (num_params * sizeof(int)));
+
+      // Save the format string
+      cache_ent->fmt = fmt;
+
+      // Call the parse function again, this time allowing enough space for the
+      // parameter types to be written out.
+      parse_printf_format(fmt, num_params, cache_ent->param_types);
+    }
+
+    // Save the cache entry at the trace ID offset
+    Log::ram_trc_cache[*trc_id - 1] = cache_ent;
+
+    // Fill in the rest of the entry
+    cache_ent->num_params = num_params;
+    cache_ent->line_number = lineno;
+
+    // Strip off any path header from the module
+    const char *nopath = strrchr(module, '/');
+    if (nopath != NULL)
+    {
+      cache_ent->module = nopath + 1;
+    }
+    else
+    {
+      cache_ent->module = module;
+    }
+
+    cache_ent->entry_size = entry_size;
   }
-  else
-  {
-    // Determine how many parameters to allow for using the parse_printf_format
-    // function.
-    num_params = parse_printf_format(fmt, 0, NULL);
-    entry_size = RAM_SIZE(num_params);
 
-    // Get sufficient memory for the cache entry using the ANSI standard
-    // algorithm for determining variable structure lengths
-    cache_ent = (TRC_RAMTRC_CACHE *)malloc(offsetof(TRC_RAMTRC_CACHE, param_types) + (num_params * sizeof(int)));
-
-    // Save the format string
-    cache_ent->fmt = fmt;
-
-    // Call the parse function again, this time allowing enough space for the
-    // parameter types to be written out.
-    parse_printf_format(fmt, num_params, cache_ent->param_types);
-  }
-
-  // Save the cache entry at the trace ID offset
-  Log::ram_trc_cache[trc_id - 1] = cache_ent;
-
-  // Fill in the rest of the entry
-  cache_ent->num_params = num_params;
-  cache_ent->line_number = lineno;
-
-  // Strip off any path header from the module
-  const char *nopath = strrchr(module, '/');
-  if (nopath != NULL)
-  {
-    cache_ent->module = nopath + 1;
-  }
-  else
-  {
-    cache_ent->module = module;
-  }
-
-  cache_ent->entry_size = entry_size;
-
-  return(trc_id);
+  // Release the cache lock prior to exit
+  pthread_mutex_unlock(&Log::trc_ram_trc_cache_lock);
 }
 
 // Fast RAM trace buffer write routine
