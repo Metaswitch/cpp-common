@@ -475,7 +475,7 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
 
       // Create an empty record for this cache entry.
       TRC_DEBUG("Create cache entry pending query");
-      ce = create_cache_entry(*domain, dnstype);
+      ce = create_cache_entry(*domain, dnstype, trail);
       do_query = true;
       wait_for_query_result = true;
     }
@@ -613,6 +613,8 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
                                      std::vector<DnsRRecord*>& records)
 {
   pthread_mutex_lock(&_cache_lock);
+  // We don't have a trail ID available as this is test code - use trail ID 0.
+  SAS::TrailId no_trail = 0;
 
   TRC_DEBUG("Adding cache entry %s %s",
             domain.c_str(), DnsRRecord::rrtype_to_string(dnstype).c_str());
@@ -623,7 +625,7 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   {
     // Create a new cache entry.
     TRC_DEBUG("Create cache entry");
-    ce = create_cache_entry(domain, dnstype);
+    ce = create_cache_entry(domain, dnstype, no_trail);
   }
   else
   {
@@ -634,8 +636,7 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   // Copy all the records across to the cache entry.
   for (size_t ii = 0; ii < records.size(); ++ii)
   {
-    // We don't have a trail ID available as this is test code - use trail ID 0.
-    add_record_to_cache(ce, records[ii], 0);
+    add_record_to_cache(ce, records[ii], no_trail);
   }
 
   records.clear();
@@ -820,7 +821,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
         if (ace == NULL)
         {
           // No existing cache entry, so create one.
-          ace = create_cache_entry(i->first.second, i->first.first);
+          ace = create_cache_entry(i->first.second, i->first.first, trail);
         }
         else
         {
@@ -949,15 +950,18 @@ DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::get_cache_entry(const std
 }
 
 /// Creates a new empty cache entry for the specified domain name and NS type.
-DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::create_cache_entry(const std::string& domain, int dnstype)
+DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::create_cache_entry(const std::string& domain,
+                                                                          int dnstype,
+                                                                          SAS::TrailId trail)
 {
   DnsCacheEntryPtr ce = DnsCacheEntryPtr(new DnsCacheEntry());
   ce->domain = domain;
   ce->dnstype = dnstype;
   ce->expires = 0;
   ce->pending_query = false;
-  ce->original_trail = 0;
-  ce->original_time = "";
+  ce->original_trail = trail;
+  ce->update_timestamp();
+
   _cache[std::make_pair(dnstype, domain)] = ce;
 
   return ce;
@@ -1034,19 +1038,8 @@ void DnsCachedResolver::add_record_to_cache(DnsCacheEntryPtr ce,
 {
   TRC_STATUS("Adding record to cache entry, TTL=%d, expiry=%ld", rr->ttl(), rr->expires());
   ce->original_trail = trail;
-  struct timespec timespec;
-  struct tm dt;
-  char timestamp[100];
-  clock_gettime(CLOCK_REALTIME, &timespec);
-  gmtime_r(&timespec.tv_sec, &dt);
-  snprintf(timestamp, 100,
-           "%2.2d:%2.2d:%2.2d.%3.3d UTC",
-           dt.tm_hour,
-           dt.tm_min,
-           dt.tm_sec,
-           (int)(timespec.tv_nsec / 1000000));
+  ce->update_timestamp();
 
-  ce->original_time = timestamp;
   if ((ce->expires == 0) ||
       (ce->expires > rr->expires()))
   {
