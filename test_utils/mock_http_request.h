@@ -28,9 +28,7 @@ public:
   MOCK_METHOD1(set_allowed_host_state, void(int allowed_host_state));
   MOCK_METHOD1(set_username, void(std::string username));
 
-  // Sends the request and populates ret code, recv headers, and recv body
-  // Takes a RequestType, as defined in httpclient.h
-  MOCK_METHOD1(send, HttpResponse(HttpClient::RequestType request_type));
+  MOCK_METHOD0(send, HttpResponse());
 };
 
 #endif
