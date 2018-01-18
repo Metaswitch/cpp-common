@@ -64,7 +64,7 @@ private:
   HttpClient* _client;
   HttpClient::RequestType _method;
   std::string _path;
-  SAS::TrailId _trail;
+  SAS::TrailId _trail = 0;
 
   std::string _username;
   std::string _req_body;
