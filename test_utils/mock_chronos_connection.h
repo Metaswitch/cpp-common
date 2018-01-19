@@ -25,7 +25,7 @@ class MockChronosConnection : public ChronosConnection
 {
 public:
   MockChronosConnection();
-  MockChronosConnection(const std::string& chronos);
+  ~MockChronosConnection();
 
   // This sets the Mock to accept any post/put/delete and return 200 OK
   void accept_all_requests()

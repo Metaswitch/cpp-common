@@ -12,10 +12,7 @@
 #include "mock_chronos_connection.h"
 
 MockChronosConnection::MockChronosConnection() :
-  ChronosConnection("chronos", "localhost:10888", NULL, NULL)
-{}
+  ChronosConnection("localhost:10888", NULL)
+  {}
 
-MockChronosConnection::MockChronosConnection(const std::string& chronos) :
-  ChronosConnection(chronos, "localhost:10888", NULL, NULL)
-{
-}
+MockChronosConnection::~MockChronosConnection() {}

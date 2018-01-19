@@ -14,7 +14,7 @@
 #include "gtest/gtest.h"
 #include "sas.h"
 
-FakeChronosConnection::FakeChronosConnection() : ChronosConnection("localhost", "localhost:9888", NULL, NULL)
+FakeChronosConnection::FakeChronosConnection() : ChronosConnection("localhost:9888", NULL)
 {
 }
 
