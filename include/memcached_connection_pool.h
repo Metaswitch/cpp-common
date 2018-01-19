@@ -31,8 +31,8 @@
 /// will block for three times the connect latency (which is one of the following
 /// two values): once when trying to create the connection, and then twice
 /// trying to use it (because libmemcached doesn't pass back the error).
-static int LOCAL_MEMCACHED_CONNECTION_LATENCY_MS = 25;
-static int REMOTE_MEMCACHED_CONNECTION_LATENCY_MS = 250;
+static int LOCAL_SITE_MEMCACHED_CONNECTION_LATENCY_MS = 25;
+static int REMOTE_SITE_MEMCACHED_CONNECTION_LATENCY_MS = 250;
 
 class MemcachedConnectionPool : public ConnectionPool<memcached_st*>
 {
@@ -42,8 +42,9 @@ public:
                           bool remote_store) :
     ConnectionPool<memcached_st*>(max_idle_time_s),
     _options(options),
-    _max_connect_latency_ms(remote_store ? REMOTE_MEMCACHED_CONNECTION_LATENCY_MS :
-                                           LOCAL_MEMCACHED_CONNECTION_LATENCY_MS)
+    _max_connect_latency_ms(remote_store ?
+      REMOTE_SITE_MEMCACHED_CONNECTION_LATENCY_MS :
+      LOCAL_SITE_MEMCACHED_CONNECTION_LATENCY_MS)
   {
   }
 
