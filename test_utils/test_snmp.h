@@ -12,6 +12,7 @@
 #include "gmock/gmock.h"
 #include "utils.h"
 
+#include "snmp_agent.h"
 #include "snmp_event_accumulator_table.h"
 #include "snmp_event_accumulator_by_scope_table.h"
 #include "snmp_continuous_accumulator_table.h"
@@ -36,7 +37,6 @@ public:
   SNMPTest() : alarm_address("16161") { }
   SNMPTest(std::string address) : alarm_address(address) { }
 
-  static void* snmp_thread(void*);
   unsigned int snmp_get(std::string);
   char* snmp_get_raw(std::string, char*, int);
   std::vector<std::string> snmp_walk(std::string);
@@ -56,15 +56,6 @@ private:
 };
 
 pthread_t SNMPTest::thr;
-
-void* SNMPTest::snmp_thread(void* data)
-{
-  while (1)
-  {
-    agent_check_and_process(1);
-  }
-  return NULL;
-}
 
 unsigned int SNMPTest::snmp_get(std::string oid)
 {
@@ -122,23 +113,27 @@ void SNMPTest::SetUpTestCase()
   netsnmp_ds_set_string(NETSNMP_DS_LIBRARY_ID,
                         NETSNMP_DS_LIB_CONFIGURATION_DIR,
                         cwd);
-  // Log SNMPd output to a file
+
+  snmp_setup("fvtest");
+
+  // Override SNMPd logging to send output to a file
+  snmp_disable_calllog();
   snmp_enable_filelog("fvtest-snmpd.out", 0);
 
-  init_agent("fvtest");
+  // Start as a master agent, not a subagent.
+  netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_ROLE, 0);
   init_snmp("fvtest");
   init_master_agent();
 
-
-  // Run a thread to handle SNMP requests
-  pthread_create(&thr, NULL, snmp_thread, NULL);
+  init_snmp_handler_threads("fvtest");
 }
 
 void SNMPTest::TearDownTestCase()
 {
-  pthread_cancel(thr);
-  pthread_join(thr, NULL);
-  snmp_shutdown("fvtest");
+  snmp_terminate("fvtest");
+
+  // Not 100% thread-safe, but we need to do it to avoid memory leaks.
+  SNMP::Agent::deinstantiate();
 }
 
 std::string SNMPTest::time_string_event_oid(std::string base, int stat, int time, std::string string_index)
