@@ -214,28 +214,28 @@ private:
   static const int EXTRA_INVALID_TIME = 300;
 };
 
-  class StaticDnsCacheResolver
-  {
-  public:
-    StaticDnsCacheResolver(const std::string filename = "");
-    ~StaticDnsCacheResolver();
+class StaticDnsCacheResolver
+{
+public:
+  StaticDnsCacheResolver(const std::string filename = "");
+  ~StaticDnsCacheResolver();
 
-    // Parse the _dns_config_file.
-    void reload_static_records;
+  // Parse the _dns_config_file.
+  void reload_static_records;
 
-    // Returns all DNS records from _static_records that match the given
-    // domain/type combination (_static_records are parsed from the
-    // _dns_config_file).
-    std::vector<DnsResult> get_static_dns_records(std::string domain,
-                                                  int dns_type);
+  // Returns all DNS records from _static_records that match the given
+  // domain/type combination (_static_records are parsed from the
+  // _dns_config_file).
+  std::vector<DnsResult> get_static_dns_records(std::string domain,
+                                                int dns_type);
 
-    // Resolves a CNAME record and returns the associated canonical domain.
-    std::string get_canonical_name(std::string domain);
+  // Resolves a CNAME record and returns the associated canonical domain.
+  std::string get_canonical_name(std::string domain);
 
-  private:
-    std::string _dns_config_file;
-    std::map<std::string, std::vector<DnsRRecord*>> _static_records;
+private:
+  std::string _dns_config_file;
+  std::map<std::string, std::vector<DnsRRecord*>> _static_records;
 
-  };
+};
 
 #endif
