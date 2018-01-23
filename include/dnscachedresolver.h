@@ -52,8 +52,8 @@ private:
 class StaticDnsCache
 {
 public:
-  StaticDnsCache(const std::string filename = "");
-  ~StaticDnsCache();
+  StaticDnsCache(const std::string filename = "") {};
+  ~StaticDnsCache() {};
 
   // Parse the _dns_config_file.
   void reload_static_records();
