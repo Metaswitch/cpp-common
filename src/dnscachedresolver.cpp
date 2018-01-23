@@ -398,7 +398,7 @@ DnsCachedResolver::~DnsCachedResolver()
   }
 }
 
-DnsCachedResolver::reload_static_records()
+void DnsCachedResolver::reload_static_records()
 {
   static_cache.reload_static_records();
 }
