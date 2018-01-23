@@ -106,6 +106,8 @@ public:
   // Calls into StaticDnsCacheResolver to reload the records from its
   // _dns_config_file.
   void reload_static_records();
+  std::string _dns_config_file;
+  std::map<std::string, std::vector<DnsRRecord*>> _static_records;
 
   StaticDnsCache static_cache;
 
