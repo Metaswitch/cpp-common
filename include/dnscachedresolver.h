@@ -52,11 +52,14 @@ private:
 class StaticDnsCache
 {
 public:
-  StaticDnsCache(const std::string filename = "") {};
-  ~StaticDnsCache() {};
+  StaticDnsCache(const std::string filename = "");
+  ~StaticDnsCache();
 
   // Parse the _dns_config_file.
   void reload_static_records();
+
+  // Returns the number of records in the cache.
+  int size() {return _static_records.size();};
 
   // Returns all DNS records from _static_records that match the given
   // domain/type combination (_static_records are parsed from the
@@ -102,11 +105,9 @@ public:
   /// Clear the cache
   void clear();
 
-  // Calls into StaticDnsCacheResolver to reload the records from its
+  // Calls into StaticDnsCache to reload the records from its
   // _dns_config_file.
   void reload_static_records();
-
-  StaticDnsCache static_cache;
 
   // Default timeout for DNS requests over the wire (in milliseconds)
   static const int DEFAULT_TIMEOUT = 200;
@@ -221,8 +222,8 @@ private:
   pthread_cond_t _got_reply_cond;
   DnsCache _cache;
 
-  std::string _dns_config_file;
-  std::map<std::string, std::vector<DnsRRecord*>> _static_records;
+  // The static cache contains hard coded DNS records loaded from file.
+  StaticDnsCache _static_cache;
 
   // Expiry is done efficiently by storing pointers to cache entries in a
   // multimap indexed on expiry time.
