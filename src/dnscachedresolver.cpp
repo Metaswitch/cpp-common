@@ -280,15 +280,39 @@ void StaticDnsCache::reload_static_records()
   }
 }
 
-std::vector<DnsResult> StaticDnsCache::get_static_dns_records(std::string domain,
-                                                              int dns_type)
+DnsResult StaticDnsCache::get_static_dns_records(std::string domain,
+                                                 int dns_type)
 {
-  return {};
+  std::vector<DnsRRecord*> found_records;
+
+  // There may be multiple records that match our query, so we iterate over
+  // them all.
+  std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
+                                                                      _static_records.find(domain);
+  if (map_iter != _static_records.end())
+  {
+    for (DnsRRecord* record : map_iter->second)
+    {
+      // Currently only A records are supported.
+      if (record->rrtype() == ns_t_a)
+      {
+        DnsARecord* a_record = (DnsARecord*)record;
+        TRC_VERBOSE("Static A record found: %s -> %s",
+                    domain.c_str(),
+                    a_record->to_string().c_str());
+        found_records.push_back(a_record);
+      }
+    }
+  }
+
+  // In the case where we didn't find anything that matches, found_records will
+  // be empty.
+  return DnsResult(domain, dns_type, found_records, 0);
 }
 
 std::string StaticDnsCache::get_canonical_name(std::string domain)
 {
-  return "";
+  return domain;
 }
 
 void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
@@ -433,7 +457,9 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                                   std::vector<DnsResult>& results,
                                   SAS::TrailId trail)
 {
-  std::vector<std::string> new_domains;
+  // This will contain all of the domains we need to query the cache or perform
+  // a DNS lookup for.
+  std::vector<std::string> query_required;
 
   pthread_mutex_lock(&_cache_lock);
 
@@ -442,34 +468,27 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // _dns_config_file)
   for (const std::string& domain : domains)
   {
-    std::string new_domain = domain;
+    // There may be some CNAME records in the static DNS cache that we should
+    // be using.
+    std::string canonical_domain = static_cache.get_canonical_name(domain);
 
-    std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
-      _static_records.find(domain);
-
-    if (map_iter != _static_records.end())
+    DnsResult static_result = static_cache.get_static_dns_records(canonical_domain, dnstype);
+    if (!static_result.records().empty())
     {
-      for (DnsRRecord* record : map_iter->second)
-      {
-        // Only CNAME records are currently supported
-        if (record->rrtype() == ns_t_cname)
-        {
-          // For static CNAME records, just perform the DNS lookup on the target
-          // hostname instead.
-          DnsCNAMERecord* cname_record = (DnsCNAMERecord*)record;
-          TRC_VERBOSE("Static CNAME record found: %s -> %s",
-                      domain.c_str(),
-                      cname_record->target().c_str());
-          new_domain = cname_record->target();
-          break;
-        }
-      }
+      // There were some DNS records in the static cache - we use these in
+      // preference to a DNS lookup.
+      results.push_back(static_result);
     }
-
-    new_domains.push_back(new_domain);
+    else
+    {
+      // The static cache didn't have any records that matched, so we'll need
+      // to do a DNS lookup.
+      query_required.push_back(canonical_domain);
+    }
   }
+
   // Now do the actual lookup
-  inner_dns_query(new_domains, dnstype, results, trail);
+  inner_dns_query(query_required, dnstype, results, trail);
 
   pthread_mutex_unlock(&_cache_lock);
 }

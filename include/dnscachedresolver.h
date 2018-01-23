@@ -61,8 +61,7 @@ public:
   // Returns all DNS records from _static_records that match the given
   // domain/type combination (_static_records are parsed from the
   // _dns_config_file).
-  std::vector<DnsResult> get_static_dns_records(std::string domain,
-                                                int dns_type);
+  DnsResult get_static_dns_records(std::string domain, int dns_type);
 
   // Resolves a CNAME record and returns the associated canonical domain.
   std::string get_canonical_name(std::string domain);
