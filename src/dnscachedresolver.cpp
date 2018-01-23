@@ -293,7 +293,13 @@ DnsResult StaticDnsCache::get_static_dns_records(std::string domain,
   {
     for (DnsRRecord* record : map_iter->second)
     {
-      // Currently only A records are supported.
+      if (record->rrtype() != dns_type)
+      {
+        // These are not the DNS records you are looking for.
+        continue;
+      }
+
+      // Currently only A and CNAME records are supported.
       if (record->rrtype() == ns_t_a)
       {
         DnsARecord* a_record = (DnsARecord*)record;
@@ -301,6 +307,17 @@ DnsResult StaticDnsCache::get_static_dns_records(std::string domain,
                     domain.c_str(),
                     a_record->to_string().c_str());
         found_records.push_back(a_record);
+      }
+      else if (record->rrtype() == ns_t_cname)
+      {
+        DnsCNAMERecord* cname_record = (DnsCNAMERecord*)record;
+        TRC_VERBOSE("Static CNAME record found: %s -> %s",
+                    domain.c_str(),
+                    cname_record.target().c_str());
+        found_records.push_back(cname_record);
+
+        // There should only be one matching CNAME record.
+        break;
       }
     }
   }
