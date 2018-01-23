@@ -228,7 +228,7 @@ void StaticDnsCache::reload_static_records()
                    targets_it != targets_arr.End();
                    ++targets_it)
               {
-                std::string target = targets_it.GetString();
+                std::string target = targets_it->GetString();
                 struct in_addr address;
                 inet_pton(AF_INET, target.c_str(), &address);
                 DnsARecord* record = new DnsARecord(hostname, 0, address);
@@ -261,11 +261,7 @@ void StaticDnsCache::reload_static_records()
       }
     }
 
-    // Now swap out the old _static_records for the new one. This needs to be
-    // done under the cache lock
-    pthread_mutex_lock(&_cache_lock);
     std::swap(_static_records, static_records);
-    pthread_mutex_unlock(&_cache_lock);
 
     // Finally, clean up the now unused records
     for (const std::pair<std::string, std::vector<DnsRRecord*>>& entry : static_records)
@@ -400,7 +396,9 @@ DnsCachedResolver::~DnsCachedResolver()
 
 void DnsCachedResolver::reload_static_records()
 {
+  pthread_mutex_lock(&_cache_lock);
   static_cache.reload_static_records();
+  pthread_mutex_unlock(&_cache_lock);
 }
 
 DnsResult DnsCachedResolver::dns_query(const std::string& domain,
