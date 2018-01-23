@@ -228,7 +228,7 @@ void StaticDnsCache::reload_static_records()
                    targets_it != targets_arr.End();
                    ++targets_it)
               {
-                std::string target = targets_it.GetString();
+                std::string target = targets_it->GetString();
                 struct in_addr address;
                 inet_pton(AF_INET, target.c_str(), &address);
                 DnsARecord* record = new DnsARecord(hostname, 0, address);
@@ -261,11 +261,8 @@ void StaticDnsCache::reload_static_records()
       }
     }
 
-    // Now swap out the old _static_records for the new one. This needs to be
-    // done under the cache lock
-    pthread_mutex_lock(&_cache_lock);
+    // Now swap out the old _static_records for the new one.
     std::swap(_static_records, static_records);
-    pthread_mutex_unlock(&_cache_lock);
 
     // Finally, clean up the now unused records
     for (const std::pair<std::string, std::vector<DnsRRecord*>>& entry : static_records)
@@ -281,6 +278,17 @@ void StaticDnsCache::reload_static_records()
     TRC_ERROR("Error parsing dns config file %s.", _dns_config_file.c_str());
     CL_DNS_FILE_MALFORMED.log();
   }
+}
+
+std::vector<DnsResult> StaticDnsCache::get_static_dns_records(std::string domain,
+                                                              int dns_type)
+{
+  return {};
+}
+
+std::string StaticDnsCache::get_canonical_name(std::string domain)
+{
+  return "";
 }
 
 void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
@@ -346,8 +354,8 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers
                                      const std::string& filename) :
   _port(DEFAULT_PORT),
   _timeout(timeout),
-  _cache(),
-  _static_cache(filename)
+  _cache()
+  //_static_cache(filename)
 {
   init(dns_servers);
 }
@@ -357,8 +365,8 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers
                                      const std::string& filename) :
   _port(DEFAULT_PORT),
   _timeout(timeout),
-  _cache(),
-  _static_cache(filename)
+  _cache()
+  //_static_cache(filename)
 {
   init_from_server_ips(dns_servers);
 }
@@ -369,8 +377,8 @@ DnsCachedResolver::DnsCachedResolver(const std::string& dns_server,
                                      const std::string& filename) :
   _port(port),
   _timeout(timeout),
-  _cache(),
-  _static_cache(filename)
+  _cache()
+  //_static_cache(filename)
 {
   init_from_server_ips({dns_server});
 }
