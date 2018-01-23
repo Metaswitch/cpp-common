@@ -80,8 +80,11 @@ public:
   /// Clear the cache
   void clear();
 
-  // Reads DNS records from _dns_config_file and stores them in _static_records
+  // Calls into StaticDnsCacheResolver to reload the records from its
+  // _dns_config_file.
   void reload_static_records();
+
+  StaticDnsCacheResolver static_cache;
 
   // Default timeout for DNS requests over the wire (in milliseconds)
   static const int DEFAULT_TIMEOUT = 200;
@@ -104,7 +107,7 @@ private:
   {
   public:
     DnsTsx(DnsChannel* channel, const std::string& domain, int dnstype, SAS::TrailId trail);
-    ~DnsTsx();;
+    ~DnsTsx();
     void execute();
     static void ares_callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen);
     void ares_callback(int status, int timeouts, unsigned char* abuf, int alen);
@@ -196,9 +199,6 @@ private:
   pthread_cond_t _got_reply_cond;
   DnsCache _cache;
 
-  std::string _dns_config_file;
-  std::map<std::string, std::vector<DnsRRecord*>> _static_records;
-
   // Expiry is done efficiently by storing pointers to cache entries in a
   // multimap indexed on expiry time.
   DnsCacheExpiryList _cache_expiry_list;
@@ -213,5 +213,29 @@ private:
   /// unresponsive, but doesn't risk leaking memory.
   static const int EXTRA_INVALID_TIME = 300;
 };
+
+  class StaticDnsCacheResolver
+  {
+  public:
+    StaticDnsCacheResolver(const std::string filename = "");
+    ~StaticDnsCacheResolver();
+
+    // Parse the _dns_config_file.
+    void reload_static_records;
+
+    // Returns all DNS records from _static_records that match the given
+    // domain/type combination (_static_records are parsed from the
+    // _dns_config_file).
+    std::vector<DnsResult> get_static_dns_records(std::string domain,
+                                                  int dns_type);
+
+    // Resolves a CNAME record and returns the associated canonical domain.
+    std::string get_canonical_name(std::string domain);
+
+  private:
+    std::string _dns_config_file;
+    std::map<std::string, std::vector<DnsRRecord*>> _static_records;
+
+  };
 
 #endif
