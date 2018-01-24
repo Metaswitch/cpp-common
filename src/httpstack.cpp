@@ -171,7 +171,6 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
   addrinfo* servinfo = NULL;
 
   std::string full_bind_address = bind_address;
-  std::string local_bind_address = "127.0.0.1";
   const int error_num = getaddrinfo(bind_address.c_str(), NULL, &hints, &servinfo);
 
   if ((error_num == 0) &&
@@ -194,7 +193,6 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
               INET6_ADDRSTRLEN);
     full_bind_address = dest_str;
     full_bind_address = "ipv6:" + full_bind_address;
-    local_bind_address = "ipv6:::1";
   }
 
   freeaddrinfo(servinfo);
@@ -210,23 +208,6 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
     // LCOV_EXCL_STOP
   }
 
-  if ((local_bind_address != full_bind_address) &&
-      (full_bind_address != "0.0.0.0")          &&
-      (full_bind_address != "ipv6:::"))
-  {
-    // Listen on the local address as well as the main address (so long as the
-    // main address isn't all)
-    rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), port, 1024);
-    if (rc != 0)
-    {
-      // LCOV_EXCL_START
-      TRC_ERROR("evhtp_bind_socket failed with address %s and port %d",
-                local_bind_address.c_str(),
-                port);
-      throw Exception("evhtp_bind_socket (tcp) - localhost", rc);
-      // LCOV_EXCL_STOP
-    }
-  }
 }
 
 void HttpStack::bind_unix_socket(const std::string& bind_path)
