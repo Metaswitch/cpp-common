@@ -76,7 +76,7 @@ public:
     pthread_mutex_lock(&_map_lock);
     IPCountRow* ret = ManagedTable<IPCountRow, std::string>::get(key);
     pthread_mutex_unlock(&_map_lock);
-    return ret
+    return ret;
   };
   // void add(std::string key) { ManagedTable<IPCountRow, std::string>::add(key); };
   void add(std::string key)
