@@ -100,5 +100,5 @@ IPCountTable* IPCountTable::create(std::string name, std::string oid)
 {
   return new IPCountTableImpl(name, oid);
 }
-  pthread_mutex_t _map_lock = PTHREAD_MUTEX_INITIALIZER;
+
 }
