@@ -70,7 +70,6 @@ public:
     }
   }
 
-  // IPCountRow* get(std::string key) { return ManagedTable<IPCountRow, std::string>::get(key); };
   IPCountRow* get(std::string key)
   {
     pthread_mutex_lock(&_map_lock);
@@ -78,21 +77,20 @@ public:
     pthread_mutex_unlock(&_map_lock);
     return ret;
   };
-  // void add(std::string key) { ManagedTable<IPCountRow, std::string>::add(key); };
+
   void add(std::string key)
   {
     pthread_mutex_lock(&_map_lock);
     ManagedTable<IPCountRow, std::string>::add(key);
     pthread_mutex_unlock(&_map_lock);
   };
-  // void remove(std::string key) { ManagedTable<IPCountRow, std::string>::remove(key); };
+
   void remove(std::string key)
   {
     pthread_mutex_lock(&_map_lock);
     ManagedTable<IPCountRow, std::string>::remove(key);
     pthread_mutex_unlock(&_map_lock);
   };
-
 
 };
 
