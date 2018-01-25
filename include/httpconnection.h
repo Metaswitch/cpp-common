@@ -40,7 +40,8 @@ public:
                  bool remote_connection = false,
                  long timeout_ms = -1,
                  bool log_display_address = false,
-                 std::string server_display_address = "") :
+                 std::string server_display_address = "",
+                 const std::string& source_address = "") :
     _scheme(scheme),
     _server(server),
     _client(assert_user,
@@ -53,7 +54,8 @@ public:
             remote_connection,
             timeout_ms,
             log_display_address,
-            server_display_address)
+            server_display_address,
+            source_address)
   {
     TRC_STATUS("Configuring HTTP Connection");
     TRC_STATUS("  Connection created for server %s", _server.c_str());
