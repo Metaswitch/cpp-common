@@ -120,7 +120,8 @@ public:
   TopologyNeutralMemcachedStore(const std::string& target_domain,
                                 AstaireResolver* resolver,
                                 bool remote_store,
-                                BaseCommunicationMonitor* comm_monitor = NULL);
+                                BaseCommunicationMonitor* comm_monitor = NULL,
+                                const std::string& source_address = "");
 
   ~TopologyNeutralMemcachedStore() {}
 
