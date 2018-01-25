@@ -193,22 +193,23 @@ curl_socket_t HttpConnectionPool::open_socket(curlsocktype purpose,
 
   struct sockaddr_storage sa_storage = {0};
   size_t sa_size = 0;
+  int rc;
 
   if (address->family == AF_INET)
   {
-    struct sockaddr_in* sa = (struct sockaddr_storage*)&sa_storage;
+    struct sockaddr_in* sa = (struct sockaddr_in*)&sa_storage;
     sa_size = sizeof(*sa);
 
     sa->sin_family = address->family;
-    int rc = inet_pton(address->family, _source_address.c_str(), &sa->sin_addr);
+    rc = inet_pton(address->family, _source_address.c_str(), &sa->sin_addr);
   }
   else
   {
-    struct sockaddr_in6 sa = (struct sockaddr_storage*)&sa_storage;
+    struct sockaddr_in6* sa = (struct sockaddr_in6*)&sa_storage;
     sa_size = sizeof(*sa);
 
-    sa.sin6_family = address->family;
-    int rc = inet_pton(address->family, _source_address.c_str(), &sa.sin6_addr);
+    sa->sin6_family = address->family;
+    rc = inet_pton(address->family, _source_address.c_str(), &sa->sin6_addr);
   }
 
   if (rc == 1)
