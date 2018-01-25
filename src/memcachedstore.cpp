@@ -265,7 +265,7 @@ TopologyNeutralMemcachedStore(const std::string& target_domain,
 {
   if (!source_address.empty())
   {
-    _options += ("--SOURCE-ADDRESS=" + source_address);
+    _options += " --SOURCE-ADDRESS=" + source_address;
   }
 
   TRC_DEBUG("Final memcached options: %s", _options.c_str());
