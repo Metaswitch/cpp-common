@@ -1112,8 +1112,9 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     // anything obviously helpful for UDP connections to the DNS server,
     // but it's what we've always tested with so not worth the risk of removing.
     options.flags = ARES_FLAG_STAYOPEN;
-    // For more DNS servers to query, increase the timeout used.
-    options.timeout = server_count * _timeout;
+    // At start of day large deployments make a large number of DNS requests, allow a single
+    // DNS server more time to respond to such a large volume of requests.
+    options.timeout = (server_count == 1) ? 3 * _timeout : _timeout;
     options.tries = 1;
     options.ndots = 0;
     options.udp_port = _port;
