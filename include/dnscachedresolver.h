@@ -83,8 +83,8 @@ public:
   // Reads DNS records from _dns_config_file and stores them in _static_records
   void reload_static_records();
 
-  // Default timeout for DNS requests over the wire (in milliseconds) per DNS server
-  static const int DEFAULT_TIMEOUT = 200;
+  // Default timeout for DNS requests over the wire (in milliseconds) for a single DNS server
+  static const int DEFAULT_TIMEOUT = 600;
 
   // Default port number for DNS requests
   static const int DEFAULT_PORT = 53;
