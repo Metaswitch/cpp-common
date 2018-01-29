@@ -89,6 +89,9 @@ public:
   // Default port number for DNS requests
   static const int DEFAULT_PORT = 53;
 
+  // Maximum number of DNS servers to poll for a single query
+  static const int MAX_DNS_SERVER_POLL = 3;
+
 private:
   void init(const std::vector<IP46Address>& dns_server);
   void init_from_server_ips(const std::vector<std::string>& dns_server);
