@@ -38,7 +38,7 @@ static const std::string TOMBSTONE = "";
 BaseMemcachedStore::BaseMemcachedStore(bool binary,
                                        bool remote_store,
                                        BaseCommunicationMonitor* comm_monitor,
-                                       const std::string& source_address = "") :
+                                       const std::string& source_address) :
   _binary(binary),
   _options(),
   _comm_monitor(comm_monitor),
