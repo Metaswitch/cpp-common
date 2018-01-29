@@ -1116,7 +1116,7 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     options.flags = ARES_FLAG_STAYOPEN;
     // At start of day large deployments make a large number of DNS requests, allow a low
     // number of DNS servers more time to complete.
-    options.timeout = (MAX_DNS_SERVER_POLL - server_count + 1) * _timeout;
+    options.timeout = _timeout / server_count;
     options.tries = 1;
     options.ndots = 0;
     options.udp_port = _port;
