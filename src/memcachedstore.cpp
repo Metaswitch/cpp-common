@@ -37,7 +37,8 @@ static const std::string TOMBSTONE = "";
 
 BaseMemcachedStore::BaseMemcachedStore(bool binary,
                                        bool remote_store,
-                                       BaseCommunicationMonitor* comm_monitor) :
+                                       BaseCommunicationMonitor* comm_monitor,
+                                       const std::string& source_address = "") :
   _binary(binary),
   _options(),
   _comm_monitor(comm_monitor),
@@ -60,7 +61,12 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
   _options += (remote_store) ? " --POLL-TIMEOUT=300" : " --POLL-TIMEOUT=100";
   _options += (_binary) ? " --BINARY-PROTOCOL" : "";
 
-  TRC_DEBUG("Base memcached options: %s", _options.c_str());
+  if (!source_address.empty())
+  {
+    _options += " --SOURCE-ADDRESS=" + source_address;
+  }
+
+  TRC_DEBUG("Memcached options: %s", _options.c_str());
 }
 
 
@@ -257,18 +263,12 @@ TopologyNeutralMemcachedStore(const std::string& target_domain,
                               BaseCommunicationMonitor* comm_monitor,
                               const std::string& source_address) :
   // Always use binary, as this is all Astaire supports.
-  BaseMemcachedStore(true, remote_store, comm_monitor),
+  BaseMemcachedStore(true, remote_store, comm_monitor, source_address),
   _target_domain(target_domain),
   _resolver(resolver),
   _attempts(2),
   _conn_pool(60, _options, remote_store)
 {
-  if (!source_address.empty())
-  {
-    _options += " --SOURCE-ADDRESS=" + source_address;
-  }
-
-  TRC_DEBUG("Final memcached options: %s", _options.c_str());
 }
 
 memcached_return_t TopologyNeutralMemcachedStore::iterate_through_targets(
