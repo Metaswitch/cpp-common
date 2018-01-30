@@ -63,7 +63,7 @@ BaseMemcachedStore::BaseMemcachedStore(bool binary,
 
   if (!source_address.empty())
   {
-    _options += " --SOURCE-ADDRESS=" + source_address;
+    _options += " --SOURCE-ADDRESS=\"" + source_address + "\"";
   }
 
   TRC_DEBUG("Memcached options: %s", _options.c_str());
