@@ -518,6 +518,11 @@ int Stack::request_callback_fn(struct msg** req,
 {
   HandlerInterface* handler = (HandlerInterface*)handler_param;
 
+  struct msg_hdr* message_header = NULL;
+  fd_msg_hdr(*req, &message_header);
+  TRC_INFO("Handling diameter message with hop-by-hop identifier %u and end-to-end identifier %u",
+           message_header->msg_hbhid, message_header->msg_eteid);
+
   // A SAS trail should have already been allocated in fd_sas_log_diameter_message.
   // Get it if so (or create a new one if not).
   SAS::TrailId trail;
