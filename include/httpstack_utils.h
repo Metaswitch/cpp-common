@@ -302,6 +302,28 @@ namespace HttpStackUtils
     StatisticCounter _stat_rejected_overload;
   };
 
+  /// Common factory for all handlers that deal with timer pops. This is
+  /// a subclass of SpawningHandler that requests HTTP flows to be
+  /// logged at detail level.
+  template<class H, class C>
+  class TimerHandler : public HttpStackUtils::SpawningHandler<H, C>
+  {
+  public:
+    TimerHandler(C* cfg) : HttpStackUtils::SpawningHandler<H, C>(cfg)
+    {}
+
+    virtual ~TimerHandler() {}
+
+    HttpStack::SasLogger* sas_logger(HttpStack::Request& req)
+    {
+      // Note that we use a Chronos SAS Logger here even though this TimerHandler
+      // isn't specific to Chronos.  In reality there isn't anything Chronos
+      // specific about the logger, but we should fix up the naming in future
+      // when we actually support multiple timer services.
+      return &HttpStackUtils::CHRONOS_SAS_LOGGER;
+    }
+  };
+
 } // namespace HttpStackUtils
 
 #endif

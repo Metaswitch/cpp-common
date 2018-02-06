@@ -1140,6 +1140,8 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   Stack* stack = Stack::get_instance();
   Message msg(tsx->_dict, *req, stack);
 
+  TRC_WARNING("Diameter request of type %u timed out to %.*s",
+              msg.command_code(), to_len, to);
   TRC_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
 

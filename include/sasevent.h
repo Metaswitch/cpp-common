@@ -75,6 +75,7 @@ namespace SASEvent {
   const int WEATHERWAX_BASE = 0x8B0000;
   const int RPE_BASE = 0x8C0000;
   const int CHRONOS_BASE = 0x8D0000;
+  const int S4_BASE = 0x8E0000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
