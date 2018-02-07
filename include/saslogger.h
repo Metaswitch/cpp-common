@@ -15,6 +15,12 @@
 
 #include "sas.h"
 
-void sas_write(SAS::log_level_t sas_level, const char *module, int line_number, const char *fmt, ...);
+void sas_write(sasclient_log_level_t level,
+               int32_t log_id_len,
+               unsigned char* log_id,
+               int32_t sas_ip_len,
+               unsigned char* sas_ip,
+               int32_t msg_len,
+               unsigned char* msg);
 
 #endif
