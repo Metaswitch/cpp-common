@@ -44,14 +44,15 @@ HttpClient::HttpClient(bool assert_user,
                        bool remote_connection,
                        long timeout_ms,
                        bool log_display_address,
-                       std::string server_display_address) :
+                       std::string server_display_address,
+                       const std::string& source_address) :
   _assert_user(assert_user),
   _resolver(resolver),
   _load_monitor(load_monitor),
   _sas_log_level(sas_log_level),
   _comm_monitor(comm_monitor),
   _stat_table(stat_table),
-  _conn_pool(load_monitor, stat_table, remote_connection, timeout_ms),
+  _conn_pool(load_monitor, stat_table, remote_connection, timeout_ms, source_address),
   _should_omit_body(should_omit_body),
   _log_display_address(log_display_address),
   _server_display_address(server_display_address)
