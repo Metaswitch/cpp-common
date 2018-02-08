@@ -17,7 +17,7 @@
 
 // LCOV_EXCL_START
 
-void sas_write(sasclient_log_level_t level,
+void sas_write(sasclient_log_level_t sas_level,
                int32_t log_id_len,
                unsigned char* log_id,
                int32_t sas_ip_len,
@@ -30,25 +30,25 @@ void sas_write(sasclient_log_level_t level,
   // Convert the sasclient_log_level_t to the common log level to determine if we need
   // to print the log.
   switch (sas_level) {
-    case SAS::SASCLIENT_LOG_CRITICAL:
+    case SASCLIENT_LOG_CRITICAL:
       level = Log::ERROR_LEVEL;
       break;
-    case SAS::SASCLIENT_LOG_ERROR:
+    case SASCLIENT_LOG_ERROR:
       level = Log::ERROR_LEVEL;
       break;
-    case SAS::SASCLIENT_LOG_WARNING:
+    case SASCLIENT_LOG_WARNING:
       level = Log::WARNING_LEVEL;
       break;
-    case SAS::SASCLIENT_LOG_INFO:
+    case SASCLIENT_LOG_INFO:
       level = Log::INFO_LEVEL;
       break;
-    case SAS::SASCLIENT_LOG_DEBUG:
+    case SASCLIENT_LOG_DEBUG:
       level = Log::DEBUG_LEVEL;
       break;
-    case SAS::SASCLIENT_LOG_TRACE:
+    case SASCLIENT_LOG_TRACE:
       level = Log::DEBUG_LEVEL;
       break;
-    case SAS::SASCLIENT_LOG_STATS:
+    case SASCLIENT_LOG_STATS:
       level = Log::INFO_LEVEL;
       break;
     default:
