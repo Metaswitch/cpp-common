@@ -162,13 +162,13 @@ void Log::write_sas_log(const char* sas_level_str,
 
   pthread_t thread = pthread_self();
 
-  if (!log_id == NULL)
+  if (log_id != NULL)
   {
-    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %d,", thread, sas_level_str);
+    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %s,", thread, sas_level_str);
     written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", log_id_len, log_id);
   }
 
-  if (!sap_ip == NULL)
+  if (sas_ip != NULL)
   {
     written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", sas_ip_len, sas_ip);
   }
