@@ -26,7 +26,6 @@ void sas_write(sasclient_log_level_t sas_level,
                unsigned char* msg)
 {
   int level;
-
   // Convert the sasclient_log_level_t to the common log level to determine if we need
   // to print the log.
   switch (sas_level) {
@@ -61,63 +60,13 @@ void sas_write(sasclient_log_level_t sas_level,
     return;
   }
 
-  pthread_mutex_lock(&Log::serialization_lock);
-  if (!Log::logger)
-  {
-    // LCOV_EXCL_START
-    pthread_mutex_unlock(&Log::serialization_lock);
-    return;
-    // LCOV_EXCL_STOP
-  }
-
-  pthread_cleanup_push(release_lock, 0);
-
-  char logline[MAX_LOGLINE];
-
-  int written = 0;
-  int truncated = 0;
-
-  pthread_t thread = pthread_self();
-
-  if (!log_id == NULL)
-  {
-    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %d,", thread, sas_level);
-    written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", log_id_len, log_id);
-  }
-
-  if (!sap_ip == NULL)
-  {
-    written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", sas_ip_len, sas_ip);
-  }
-
-  written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s\n", msg_len, msg);
-
-
-  // snprintf and vsnprintf return the bytes that would have been
-  // written if their second argument was large enough, so we need to
-  // reduce the size of written to compensate if it is too large.
-  written = std::min(written, MAX_LOGLINE - 2);
-
-  if (written > (MAX_LOGLINE - 2))
-  {
-    truncated = written - (MAX_LOGLINE - 2);
-    written = MAX_LOGLINE - 2;
-  }
-
-  // Add a new line and null termination.
-  logline[written] = '\n';
-  logline[written+1] = '\0';
-
-  Log::logger->write(logline);
-  if (truncated > 0)
-  {
-    char buf[128];
-    snprintf(buf, 128, "Previous log was truncated by %d characters\n", truncated);
-    Log::logger->write(buf);
-  }
-  pthread_cleanup_pop(0);
-  pthread_mutex_unlock(&Log::serialization_lock);
-
+  Log::write_sas_log(sas_level,
+                     log_id_len,
+                     log_id,
+                     sas_ip_len,
+                     sas_ip,
+                     msg_len,
+                     msg);
 }
 
 // LCOV_EXCL_STOP
