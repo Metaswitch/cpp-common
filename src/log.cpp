@@ -136,7 +136,7 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
 
 }
 
-void Log::write_sas_log(sasclient_log_level_t level,
+void Log::write_sas_log(const char* sas_level_str,
                         int32_t log_id_len,
                         unsigned char* log_id,
                         int32_t sas_ip_len,
@@ -164,7 +164,7 @@ void Log::write_sas_log(sasclient_log_level_t level,
 
   if (!log_id == NULL)
   {
-    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %d,", thread, sas_level);
+    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %d,", thread, sas_level_str);
     written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", log_id_len, log_id);
   }
 

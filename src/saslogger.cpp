@@ -11,6 +11,7 @@
  */
 
 #include <cstdarg>
+#include <string>
 
 #include "log.h"
 #include "saslogger.h"
@@ -26,33 +27,45 @@ void sas_write(sasclient_log_level_t sas_level,
                unsigned char* msg)
 {
   int level;
+  std::string sas_level_str;
+
   // Convert the sasclient_log_level_t to the common log level to determine if we need
   // to print the log.
+  // Covert the sasclient_log_level_t to a char* to pass to write_sas_log() as the Log namespace
+  // has no knowledge of SAS-Client specific types.
   switch (sas_level) {
     case SASCLIENT_LOG_CRITICAL:
       level = Log::ERROR_LEVEL;
+      sas_level_str = "CRIT";
       break;
     case SASCLIENT_LOG_ERROR:
       level = Log::ERROR_LEVEL;
+      sas_level_str = "ERR";
       break;
     case SASCLIENT_LOG_WARNING:
       level = Log::WARNING_LEVEL;
+      sas_level_str = "WARN";
       break;
     case SASCLIENT_LOG_INFO:
       level = Log::INFO_LEVEL;
+      sas_level_str = "INFO";
       break;
     case SASCLIENT_LOG_DEBUG:
       level = Log::DEBUG_LEVEL;
+      sas_level_str = "DBG";
       break;
     case SASCLIENT_LOG_TRACE:
       level = Log::DEBUG_LEVEL;
+      sas_level_str = "TRC";
       break;
     case SASCLIENT_LOG_STATS:
       level = Log::INFO_LEVEL;
+      sas_level_str = "STAT";
       break;
     default:
       TRC_ERROR("Unknown SAS log level %d, treating as error level", sas_level);
       level = Log::ERROR_LEVEL;
+      sas_level_str = "ERR";
     }
 
   if (level > Log::loggingLevel)
@@ -60,7 +73,7 @@ void sas_write(sasclient_log_level_t sas_level,
     return;
   }
 
-  Log::write_sas_log(sas_level,
+  Log::write_sas_log(sas_level_str.c_str(),
                      log_id_len,
                      log_id,
                      sas_ip_len,
