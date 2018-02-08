@@ -23,7 +23,7 @@ void sas_write(sasclient_log_level_t level,
                int32_t sas_ip_len,
                unsigned char* sas_ip,
                int32_t msg_len,
-               unsigned char* msg);
+               unsigned char* msg)
 {
   int level;
 
