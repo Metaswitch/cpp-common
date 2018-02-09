@@ -36,36 +36,36 @@ void sas_write(sasclient_log_level_t sas_level,
   switch (sas_level) {
     case SASCLIENT_LOG_CRITICAL:
       level = Log::ERROR_LEVEL;
-      sas_level_str = "CRIT";
+      sas_level_str = "Critical";
       break;
     case SASCLIENT_LOG_ERROR:
       level = Log::ERROR_LEVEL;
-      sas_level_str = "ERR";
+      sas_level_str = "Error";
       break;
     case SASCLIENT_LOG_WARNING:
       level = Log::WARNING_LEVEL;
-      sas_level_str = "WARN";
+      sas_level_str = "Warning";
       break;
     case SASCLIENT_LOG_INFO:
       level = Log::INFO_LEVEL;
-      sas_level_str = "INFO";
+      sas_level_str = "Info";
       break;
     case SASCLIENT_LOG_DEBUG:
       level = Log::DEBUG_LEVEL;
-      sas_level_str = "DBG";
+      sas_level_str = "Debug";
       break;
     case SASCLIENT_LOG_TRACE:
       level = Log::DEBUG_LEVEL;
-      sas_level_str = "TRC";
+      sas_level_str = "Trace";
       break;
     case SASCLIENT_LOG_STATS:
       level = Log::INFO_LEVEL;
-      sas_level_str = "STAT";
+      sas_level_str = "Info";
       break;
     default:
       TRC_ERROR("Unknown SAS log level %d, treating as error level", sas_level);
       level = Log::ERROR_LEVEL;
-      sas_level_str = "ERR";
+      sas_level_str = "Error";
     }
 
   if (level > Log::loggingLevel)

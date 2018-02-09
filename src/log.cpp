@@ -162,9 +162,11 @@ void Log::write_sas_log(const char* sas_level_str,
 
   pthread_t thread = pthread_self();
 
+  written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] ", thread);
+
   if (log_id != NULL)
   {
-    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %s,", thread, sas_level_str);
+    written += snprintf(logline, strlen(logline), MAX_LOGLINE - 2, "%s, ", sas_level_str);
     written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", log_id_len, log_id);
   }
 
@@ -173,7 +175,7 @@ void Log::write_sas_log(const char* sas_level_str,
     written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", sas_ip_len, sas_ip);
   }
 
-  written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s\n", msg_len, msg);
+  written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s", msg_len, msg);
 
 
   // snprintf and vsnprintf return the bytes that would have been
