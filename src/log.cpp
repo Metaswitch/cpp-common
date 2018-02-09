@@ -166,7 +166,7 @@ void Log::write_sas_log(const char* sas_level_str,
 
   if (log_id != NULL)
   {
-    written += snprintf(logline, strlen(logline), MAX_LOGLINE - 2, "%s, ", sas_level_str);
+    written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%s, ", sas_level_str);
     written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", log_id_len, log_id);
   }
 
