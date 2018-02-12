@@ -22,7 +22,7 @@ namespace SASEvent {
   // Jenkins job "update-sas-resources".
   //
   // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20180118";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20180212";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -31,7 +31,7 @@ namespace SASEvent {
   const std::string HTTP_BRANCH_HEADER_NAME = "X-SAS-HTTP-Branch-ID";
 
   // Name of the header used by microservices for trail correlation.
-  const std::string HTTP_SPAN_ID = "X-Span-Id";
+  const std::string HTTP_SPAN_ID = "X-Span-ID";
 
   // The levels at which clearwater nodes may log HTTP messages.
   enum struct HttpLogLevel
