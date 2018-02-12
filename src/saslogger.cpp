@@ -47,7 +47,7 @@ void sas_write(sasclient_log_level_t sas_level,
       sas_level_str = "Warning";
       break;
     case SASCLIENT_LOG_INFO:
-      level = Log::INFO_LEVEL;
+      level = Log::STATUS_LEVEL;
       sas_level_str = "Info";
       break;
     case SASCLIENT_LOG_DEBUG:
