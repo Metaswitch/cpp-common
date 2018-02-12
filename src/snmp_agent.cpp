@@ -95,7 +95,6 @@ void Agent::start(void)
 void Agent::stop(void)
 {
   pthread_cancel(_thread);
-  pthread_join(_thread, NULL);
 
   pthread_mutex_lock(&_netsnmp_lock);
   snmp_shutdown(_name.c_str());
