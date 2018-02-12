@@ -442,12 +442,8 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers
   _port(DEFAULT_PORT),
   _timeout(timeout),
   _cache(),
-<<<<<<< HEAD
-  _static_cache(filename)
-=======
   _dns_config_file(filename),
   _static_records()
->>>>>>> parent of 7a9b09c... Merge remote-tracking branch 'origin/dns_static_cache' into apple_scrumble
 {
   init(dns_servers);
 }
