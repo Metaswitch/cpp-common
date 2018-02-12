@@ -158,8 +158,9 @@ void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns
 
 DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers,
                                      int timeout,
-                                     const std::string& filename) :
-  _port(DEFAULT_PORT),
+                                     const std::string& filename,
+                                     int port) :
+  _port(port),
   _timeout(timeout),
   _cache(),
   _dns_config_file(filename),
@@ -170,8 +171,9 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers
 
 DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers,
                                      int timeout,
-                                     const std::string& filename) :
-  _port(DEFAULT_PORT),
+                                     const std::string& filename,
+                                     int port) :
+  _port(port),
   _timeout(timeout),
   _cache(),
   _dns_config_file(filename),
@@ -181,9 +183,9 @@ DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers
 }
 
 DnsCachedResolver::DnsCachedResolver(const std::string& dns_server,
-                                     int port,
                                      int timeout,
-                                     const std::string& filename) :
+                                     const std::string& filename,
+                                     int port) :
   _port(port),
   _timeout(timeout),
   _cache(),
