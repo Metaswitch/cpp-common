@@ -26,7 +26,6 @@
 
 #include "utils.h"
 #include "dnsrrecords.h"
-#include "static_dns_cache.h"
 #include "sas.h"
 
 class DnsResult
@@ -48,6 +47,31 @@ private:
   int _dnstype;
   std::vector<DnsRRecord*> _records;
   int _ttl;
+};
+
+class StaticDnsCache
+{
+public:
+  StaticDnsCache(const std::string filename = "");
+  ~StaticDnsCache();
+
+  // Parse the _dns_config_file.
+  void reload_static_records();
+
+  // Returns the number of records in the cache.
+  int size() {return _static_records.size();};
+
+  // Returns all DNS records from _static_records that match the given
+  // domain/type combination (_static_records are parsed from the
+  // _dns_config_file).
+  DnsResult get_static_dns_records(std::string domain, int dns_type);
+
+  // Resolves a CNAME record and returns the associated canonical domain.
+  std::string get_canonical_name(std::string domain);
+
+private:
+  std::string _dns_config_file;
+  std::map<std::string, std::vector<DnsRRecord*>> _static_records;
 };
 
 class DnsCachedResolver
