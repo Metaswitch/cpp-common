@@ -86,8 +86,8 @@ void StaticDnsCache::reload_static_records()
     return;
   }
 
-  TRC_STATUS("Loading static DNS records from %s",
-             _dns_config_file.c_str());
+  TRC_DEBUG("Loading static DNS records from %s",
+            _dns_config_file.c_str());
 
   // File exists and is ready
   std::string dns_config((std::istreambuf_iterator<char>(fs)),
@@ -231,9 +231,6 @@ void StaticDnsCache::reload_static_records()
 
     // Now swap out the old _static_records for the new one.
     std::swap(_static_records, static_records);
-    TRC_STATUS("Loaded %d static DNS records from %s",
-               _static_records.size(),
-               _dns_config_file.c_str());
 
     // Finally, clean up the now unused records
     for (const std::pair<std::string, std::vector<DnsRRecord*>>& entry : static_records)
