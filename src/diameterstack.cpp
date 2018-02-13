@@ -518,6 +518,11 @@ int Stack::request_callback_fn(struct msg** req,
 {
   HandlerInterface* handler = (HandlerInterface*)handler_param;
 
+  struct msg_hdr* message_header = NULL;
+  fd_msg_hdr(*req, &message_header);
+  TRC_INFO("Handling diameter message with hop-by-hop identifier %u and end-to-end identifier %u",
+           message_header->msg_hbhid, message_header->msg_eteid);
+
   // A SAS trail should have already been allocated in fd_sas_log_diameter_message.
   // Get it if so (or create a new one if not).
   SAS::TrailId trail;
@@ -1135,6 +1140,8 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   Stack* stack = Stack::get_instance();
   Message msg(tsx->_dict, *req, stack);
 
+  TRC_WARNING("Diameter request of type %u timed out to %.*s",
+              msg.command_code(), to_len, to);
   TRC_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
 

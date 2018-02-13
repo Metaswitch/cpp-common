@@ -49,6 +49,31 @@ private:
   int _ttl;
 };
 
+class StaticDnsCache
+{
+public:
+  StaticDnsCache(const std::string filename = "");
+  ~StaticDnsCache();
+
+  // Parse the _dns_config_file.
+  void reload_static_records();
+
+  // Returns the number of records in the cache.
+  int size() {return _static_records.size();};
+
+  // Returns all DNS records from _static_records that match the given
+  // domain/type combination (_static_records are parsed from the
+  // _dns_config_file).
+  DnsResult get_static_dns_records(std::string domain, int dns_type);
+
+  // Resolves a CNAME record and returns the associated canonical domain.
+  std::string get_canonical_name(std::string domain);
+
+private:
+  std::string _dns_config_file;
+  std::map<std::string, std::vector<DnsRRecord*>> _static_records;
+};
+
 class DnsCachedResolver
 {
 public:
@@ -125,7 +150,27 @@ private:
     std::string domain;
     int dnstype;
     int expires;
+    std::string original_time;
+    SAS::TrailId original_trail;
     std::vector<DnsRRecord*> records;
+
+    void update_timestamp() {
+      struct timespec timespec;
+      struct tm dt;
+      char timestamp[100];
+      clock_gettime(CLOCK_REALTIME, &timespec);
+      gmtime_r(&timespec.tv_sec, &dt);
+      snprintf(timestamp, 100,
+               "%2.2d:%2.2d:%2.2d.%3.3d UTC",
+               dt.tm_hour,
+               dt.tm_min,
+               dt.tm_sec,
+               (int)(timespec.tv_nsec / 1000000));
+
+      this->original_time = timestamp;
+
+
+    }
   };
 
   class DnsCacheKeyCompare
@@ -172,10 +217,10 @@ private:
   bool caching_enabled(int rrtype);
 
   DnsCacheEntryPtr get_cache_entry(const std::string& domain, int dnstype);
-  DnsCacheEntryPtr create_cache_entry(const std::string& domain, int dnstype);
+  DnsCacheEntryPtr create_cache_entry(const std::string& domain, int dnstype, SAS::TrailId trail);
   void add_to_expiry_list(DnsCacheEntryPtr ce);
   void expire_cache();
-  void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr);
+  void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr, SAS::TrailId trail);
   void clear_cache_entry(DnsCacheEntryPtr ce);
 
 

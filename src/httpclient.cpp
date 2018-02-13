@@ -664,6 +664,14 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_rc);
       sas_log_http_rsp(trail, curl, http_rc, method_str, url, recorder.response, 0);
       TRC_DEBUG("Received HTTP response: status=%d, doc=%s", http_rc, doc.c_str());
+      if (http_rc >= 400)
+      {
+        TRC_WARNING("Received HTTP response %d from server %s for URL %s",
+                  http_rc,
+                  remote_ip,
+                  url.c_str());
+      }
+
     }
     else
     {
