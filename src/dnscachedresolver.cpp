@@ -98,24 +98,122 @@ DnsResult::~DnsResult()
   }
 }
 
-StaticDnsCache::StaticDnsCache(std::string filename) :
-  _dns_config_file(filename)
+void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
 {
-  // The StaticDnsCache needs to be populated at start of day.
-  reload_static_records();
+  _dns_servers = dns_servers;
+  _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+  TRC_DEBUG("Timeout = %d", _timeout);
+
+  // Initialize the ares library.  This might have already been done by curl
+  // but it's safe to do it twice.
+  ares_library_init(ARES_LIB_INIT_ALL);
+
+  // We store a DNSResolver in thread-local data, so create the thread-local
+  // store.
+  pthread_key_create(&_thread_local, (void(*)(void*))&destroy_dns_channel);
+
+  pthread_condattr_t cond_attr;
+  pthread_condattr_init(&cond_attr);
+  pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+  pthread_cond_init(&_got_reply_cond, &cond_attr);
+  pthread_condattr_destroy(&cond_attr);
 }
 
-StaticDnsCache::~StaticDnsCache()
+void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns_servers)
 {
-  // Clean up any static_records.
+  std::vector<IP46Address> dns_server_ips;
+
+  TRC_STATUS("Creating Cached Resolver using servers:");
+  for (size_t i = 0; i < dns_servers.size(); i++)
+  {
+    if (dns_servers[i] == "0.0.0.0")
+    {
+      // Skip this DNS server
+      continue;
+    }
+
+    IP46Address addr;
+    TRC_STATUS("    %s", dns_servers[i].c_str());
+    // Parse the DNS server's IP address.
+    if (inet_pton(AF_INET, dns_servers[i].c_str(), &(addr.addr.ipv4)))
+    {
+      addr.af = AF_INET;
+    }
+    else if (inet_pton(AF_INET6, dns_servers[i].c_str(), &(addr.addr.ipv6)))
+    {
+      addr.af = AF_INET6;
+    }
+    else
+    {
+      TRC_ERROR("Failed to parse '%s' as IP address - defaulting to 127.0.0.1", dns_servers[i].c_str());
+      addr.af = AF_INET;
+      (void)inet_aton("127.0.0.1", &(addr.addr.ipv4));
+    }
+    dns_server_ips.push_back(addr);
+  }
+
+  init(dns_server_ips);
+}
+
+
+DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers,
+                                     int timeout,
+                                     const std::string& filename) :
+  _port(DEFAULT_PORT),
+  _timeout(timeout),
+  _cache(),
+  _dns_config_file(filename),
+  _static_records()
+{
+  init(dns_servers);
+}
+
+DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers,
+                                     int timeout,
+                                     const std::string& filename) :
+  _port(DEFAULT_PORT),
+  _timeout(timeout),
+  _cache(),
+  _dns_config_file(filename),
+  _static_records()
+{
+  init_from_server_ips(dns_servers);
+}
+
+DnsCachedResolver::DnsCachedResolver(const std::string& dns_server,
+                                     int port,
+                                     int timeout,
+                                     const std::string& filename) :
+  _port(port),
+  _timeout(timeout),
+  _cache(),
+  _dns_config_file(filename),
+  _static_records()
+{
+  init_from_server_ips({dns_server});
+}
+
+DnsCachedResolver::~DnsCachedResolver()
+{
+  DnsChannel* channel = (DnsChannel*)pthread_getspecific(_thread_local);
+  if (channel != NULL)
+  {
+    pthread_setspecific(_thread_local, NULL);
+    destroy_dns_channel(channel);
+  }
+  pthread_key_delete(_thread_local);
+
+  // Clear the cache.
+  clear();
+
+  // Delete entries in the _static_records map
   for (const std::pair<std::string, std::vector<DnsRRecord*>>& entry : _static_records)
   {
-    for (DnsRRecord *record : entry.second)
+    for (DnsRRecord* record : entry.second)
     {
       delete record;
     }
   }
-  _static_records.clear();
 }
 
 // Reads static dns records from the specified _dns_config_file.
@@ -138,7 +236,7 @@ StaticDnsCache::~StaticDnsCache()
 //   "rrtype": "CNAME",
 //   "target": <target>
 // }
-void StaticDnsCache::reload_static_records()
+void DnsCachedResolver::reload_static_records()
 {
   if (_dns_config_file == "")
   {
@@ -221,7 +319,7 @@ void StaticDnsCache::reload_static_records()
             std::string type;
             JSON_GET_STRING_MEMBER(*records_it, "rrtype", type);
 
-            // Currently we only support CNAME and A records.
+            // Currently, we only support CNAME records
             if (type == "CNAME")
             {
               // CNAME records should have a target, but only one per hostname is allowed
@@ -237,26 +335,6 @@ void StaticDnsCache::reload_static_records()
               {
                 TRC_ERROR("Multiple CNAME entries found for hostname %s", hostname.c_str());
                 CL_DNS_FILE_DUPLICATES.log();
-              }
-            }
-            else if (type == "A")
-            {
-              // An A record can have multiple targets in the JSON file. For
-              // each one, we create a separate DnsARecord instance to return.
-              JSON_ASSERT_CONTAINS(*records_it, "targets");
-              JSON_ASSERT_ARRAY((*records_it)["targets"]);
-              const rapidjson::Value& targets_arr = (*records_it)["targets"];
-
-              for (rapidjson::Value::ConstValueIterator targets_it = targets_arr.Begin();
-                   targets_it != targets_arr.End();
-                   ++targets_it)
-              {
-                JSON_ASSERT_STRING(*targets_it);
-                std::string target = targets_it->GetString();
-                struct in_addr address;
-                inet_pton(AF_INET, target.c_str(), &address);
-                DnsARecord* record = new DnsARecord(hostname, 0, address);
-                records.push_back(record);
               }
             }
             else
@@ -285,8 +363,11 @@ void StaticDnsCache::reload_static_records()
       }
     }
 
-    // Now swap out the old _static_records for the new one.
+    // Now swap out the old _static_records for the new one. This needs to be
+    // done under the cache lock
+    pthread_mutex_lock(&_cache_lock);
     std::swap(_static_records, static_records);
+    pthread_mutex_unlock(&_cache_lock);
 
     // Finally, clean up the now unused records
     for (const std::pair<std::string, std::vector<DnsRRecord*>>& entry : static_records)
@@ -302,193 +383,6 @@ void StaticDnsCache::reload_static_records()
     TRC_ERROR("Error parsing dns config file %s.", _dns_config_file.c_str());
     CL_DNS_FILE_MALFORMED.log();
   }
-}
-
-DnsResult StaticDnsCache::get_static_dns_records(std::string domain,
-                                                 int dns_type)
-{
-  std::vector<DnsRRecord*> found_records;
-
-  // There may be multiple records that match our query, so we iterate over
-  // them all.
-  std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
-                                                                      _static_records.find(domain);
-  if (map_iter != _static_records.end())
-  {
-    TRC_DEBUG("Found records for domain %s", domain.c_str());
-    for (DnsRRecord* record : map_iter->second)
-    {
-      if (record->rrtype() != dns_type)
-      {
-        // These are not the DNS records you are looking for.
-        continue;
-      }
-
-      // Currently only A and CNAME records are supported.
-      if (record->rrtype() == ns_t_a)
-      {
-        DnsARecord* a_record = (DnsARecord*)record;
-        TRC_VERBOSE("Static A record found: %s -> %s",
-                    domain.c_str(),
-                    a_record->to_string().c_str());
-        found_records.push_back(a_record);
-      }
-      else if (record->rrtype() == ns_t_cname)
-      {
-        DnsCNAMERecord* cname_record = (DnsCNAMERecord*)record;
-        TRC_VERBOSE("Static CNAME record found: %s -> %s",
-                    domain.c_str(),
-                    cname_record->target().c_str());
-        found_records.push_back(cname_record);
-
-        // There should only be one matching CNAME record.
-        break;
-      }
-    }
-  }
-  else
-  {
-    TRC_DEBUG("No static records found matching %s", domain.c_str());
-  }
-
-
-  // In the case where we didn't find anything that matches, found_records will
-  // be empty.
-  return DnsResult(domain, dns_type, found_records, 0);
-}
-
-// If a valid CNAME record is found in the static cache, we return that value.
-// Otherwise, return the domain that was passed in.
-std::string StaticDnsCache::get_canonical_name(std::string domain)
-{
-  DnsResult static_result = get_static_dns_records(domain, ns_t_cname);
-  if (!static_result.records().empty())
-  {
-    // We've found a CNAME record in the static cache - let's use that.
-    DnsCNAMERecord *cname_record = (DnsCNAMERecord*)static_result.records().front();
-    TRC_VERBOSE("Found matching CNAME record in static cache", cname_record->target().c_str());
-    return cname_record->target();
-  }
-  else
-  {
-    // There's no valid CNAME record in the cache, so just use the passed in
-    // domain name.
-    TRC_VERBOSE("No matching CNAME record found in static cache");
-    return domain;
-  }
-}
-
-void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
-{
-  _dns_servers = dns_servers;
-  _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
-  TRC_DEBUG("Timeout = %d", _timeout);
-
-  // Initialize the ares library.  This might have already been done by curl
-  // but it's safe to do it twice.
-  ares_library_init(ARES_LIB_INIT_ALL);
-
-  // We store a DNSResolver in thread-local data, so create the thread-local
-  // store.
-  pthread_key_create(&_thread_local, (void(*)(void*))&destroy_dns_channel);
-
-  pthread_condattr_t cond_attr;
-  pthread_condattr_init(&cond_attr);
-  pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
-  pthread_cond_init(&_got_reply_cond, &cond_attr);
-  pthread_condattr_destroy(&cond_attr);
-}
-
-void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns_servers)
-{
-  std::vector<IP46Address> dns_server_ips;
-
-  TRC_STATUS("Creating Cached Resolver using servers:");
-  for (size_t i = 0; i < dns_servers.size(); i++)
-  {
-    if (dns_servers[i] == "0.0.0.0")
-    {
-      // Skip this DNS server
-      continue;
-    }
-
-    IP46Address addr;
-    TRC_STATUS("    %s", dns_servers[i].c_str());
-    // Parse the DNS server's IP address.
-    if (inet_pton(AF_INET, dns_servers[i].c_str(), &(addr.addr.ipv4)))
-    {
-      addr.af = AF_INET;
-    }
-    else if (inet_pton(AF_INET6, dns_servers[i].c_str(), &(addr.addr.ipv6)))
-    {
-      addr.af = AF_INET6;
-    }
-    else
-    {
-      TRC_ERROR("Failed to parse '%s' as IP address - defaulting to 127.0.0.1", dns_servers[i].c_str());
-      addr.af = AF_INET;
-      (void)inet_aton("127.0.0.1", &(addr.addr.ipv4));
-    }
-    dns_server_ips.push_back(addr);
-  }
-
-  init(dns_server_ips);
-}
-
-
-DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers,
-                                     int timeout,
-                                     const std::string& filename) :
-  _port(DEFAULT_PORT),
-  _timeout(timeout),
-  _cache(),
-  _static_cache(filename)
-{
-  init(dns_servers);
-}
-
-DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers,
-                                     int timeout,
-                                     const std::string& filename) :
-  _port(DEFAULT_PORT),
-  _timeout(timeout),
-  _cache(),
-  _static_cache(filename)
-{
-  init_from_server_ips(dns_servers);
-}
-
-DnsCachedResolver::DnsCachedResolver(const std::string& dns_server,
-                                     int port,
-                                     int timeout,
-                                     const std::string& filename) :
-  _port(port),
-  _timeout(timeout),
-  _cache(),
-  _static_cache(filename)
-{
-  init_from_server_ips({dns_server});
-}
-
-DnsCachedResolver::~DnsCachedResolver()
-{
-  DnsChannel* channel = (DnsChannel*)pthread_getspecific(_thread_local);
-  if (channel != NULL)
-  {
-    pthread_setspecific(_thread_local, NULL);
-    destroy_dns_channel(channel);
-  }
-  pthread_key_delete(_thread_local);
-
-  // Clear the cache.
-  clear();
-}
-
-void DnsCachedResolver::reload_static_records()
-{
-  pthread_mutex_lock(&_cache_lock);
-  _static_cache.reload_static_records();
-  pthread_mutex_unlock(&_cache_lock);
 }
 
 DnsResult DnsCachedResolver::dns_query(const std::string& domain,
@@ -511,9 +405,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                                   std::vector<DnsResult>& results,
                                   SAS::TrailId trail)
 {
-  // This will contain all of the domains we need to query the cache or perform
-  // a DNS lookup for.
-  std::vector<std::string> query_required;
+  std::vector<std::string> new_domains;
 
   pthread_mutex_lock(&_cache_lock);
 
@@ -522,27 +414,34 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // _dns_config_file)
   for (const std::string& domain : domains)
   {
-    // There may be some CNAME records in the static DNS cache that we should
-    // be using.
-    std::string canonical_domain = _static_cache.get_canonical_name(domain);
+    std::string new_domain = domain;
 
-    DnsResult static_result = _static_cache.get_static_dns_records(canonical_domain, dnstype);
-    if (!static_result.records().empty())
+    std::map<std::string, std::vector<DnsRRecord*>>::const_iterator map_iter =
+      _static_records.find(domain);
+
+    if (map_iter != _static_records.end())
     {
-      // There were some DNS records in the static cache - we use these in
-      // preference to a DNS lookup.
-      results.push_back(static_result);
+      for (DnsRRecord* record : map_iter->second)
+      {
+        // Only CNAME records are currently supported
+        if (record->rrtype() == ns_t_cname)
+        {
+          // For static CNAME records, just perform the DNS lookup on the target
+          // hostname instead.
+          DnsCNAMERecord* cname_record = (DnsCNAMERecord*)record;
+          TRC_VERBOSE("Static CNAME record found: %s -> %s",
+                      domain.c_str(),
+                      cname_record->target().c_str());
+          new_domain = cname_record->target();
+          break;
+        }
+      }
     }
-    else
-    {
-      // The static cache didn't have any records that matched, so we'll need
-      // to do a DNS lookup.
-      query_required.push_back(canonical_domain);
-    }
+
+    new_domains.push_back(new_domain);
   }
-
   // Now do the actual lookup
-  inner_dns_query(query_required, dnstype, results, trail);
+  inner_dns_query(new_domains, dnstype, results, trail);
 
   pthread_mutex_unlock(&_cache_lock);
 }
