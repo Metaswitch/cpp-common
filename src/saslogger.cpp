@@ -35,31 +35,31 @@ void sas_write(SAS::sas_log_level_t sas_level,
   // to print the log.
   // Covert the sasclient_log_level_t to a string so we can easily write it to the logline array.
   switch (sas_level) {
-    case SASCLIENT_LOG_CRITICAL:
+    case SAS::SASCLIENT_LOG_CRITICAL:
       level = Log::ERROR_LEVEL;
       sas_level_str = "Critical";
       break;
-    case SASCLIENT_LOG_ERROR:
+    case SAS::SASCLIENT_LOG_ERROR:
       level = Log::ERROR_LEVEL;
       sas_level_str = "Error";
       break;
-    case SASCLIENT_LOG_WARNING:
+    case SAS::SASCLIENT_LOG_WARNING:
       level = Log::WARNING_LEVEL;
       sas_level_str = "Warning";
       break;
-    case SASCLIENT_LOG_INFO:
+    case SAS::SASCLIENT_LOG_INFO:
       level = Log::STATUS_LEVEL;
       sas_level_str = "Info";
       break;
-    case SASCLIENT_LOG_DEBUG:
+    case SAS::SASCLIENT_LOG_DEBUG:
       level = Log::DEBUG_LEVEL;
       sas_level_str = "Debug";
       break;
-    case SASCLIENT_LOG_TRACE:
+    case SAS::SASCLIENT_LOG_TRACE:
       level = Log::DEBUG_LEVEL;
       sas_level_str = "Trace";
       break;
-    case SASCLIENT_LOG_STATS:
+    case SAS::SASCLIENT_LOG_STATS:
       level = Log::INFO_LEVEL;
       sas_level_str = "Info";
       break;
