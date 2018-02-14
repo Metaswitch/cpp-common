@@ -78,9 +78,9 @@ void sas_write(SAS::sas_log_level_t sas_level,
   // Array comfortably larger than any expected log. Log::_write outputs a warning
   // if the resulting log to be logged is truncated due to being too long.
   int array_size = 10000;
-  char logline[array_size]
+  char logline[array_size];
 
- snsprintf(logline, array_size, "%s, ", sas_level_str);
+  snprintf(logline, array_size, "%s, ", sas_level_str);
 
   if (log_id != NULL)
   {
