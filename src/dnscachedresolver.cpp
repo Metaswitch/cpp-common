@@ -912,10 +912,12 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
   // found.
   DnsChannel* channel = (DnsChannel*)pthread_getspecific(_thread_local);
   size_t server_count = _dns_servers.size();
-  if (server_count > 3)
+  if (server_count > MAX_DNS_SERVER_POLL)
   {
-    TRC_WARNING("%d DNS servers provided, only using the first 3", _dns_servers.size());
-    server_count = 3;
+    TRC_WARNING("%d DNS servers provided, only using the first %d",
+                _dns_servers.size(),
+                MAX_DNS_SERVER_POLL);
+    server_count = MAX_DNS_SERVER_POLL;
   }
 
   if ((channel == NULL) &&
@@ -930,7 +932,9 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     // anything obviously helpful for UDP connections to the DNS server,
     // but it's what we've always tested with so not worth the risk of removing.
     options.flags = ARES_FLAG_STAYOPEN;
-    options.timeout = _timeout;
+    // At start of day large deployments make a large number of DNS requests, allow a low
+    // number of DNS servers more time to complete.
+    options.timeout = _timeout / server_count;
     options.tries = 1;
     options.ndots = 0;
     options.udp_port = _port;

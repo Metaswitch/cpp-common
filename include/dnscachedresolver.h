@@ -64,11 +64,14 @@ public:
   // _dns_config_file.
   void reload_static_records();
 
-  // Default timeout for DNS requests over the wire (in milliseconds)
-  static const int DEFAULT_TIMEOUT = 200;
+  // The total timeout across all DNS requests over the wire (in milliseconds)
+  static const int DEFAULT_TIMEOUT = 600;
 
   // Default port number for DNS requests
   static const int DEFAULT_PORT = 53;
+
+  // Maximum number of DNS servers to poll for a single query
+  static const int MAX_DNS_SERVER_POLL = 3;
 
 private:
   void init(const std::vector<IP46Address>& dns_server);
