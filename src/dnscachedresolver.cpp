@@ -232,6 +232,9 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // a DNS lookup for.
   std::vector<std::string> query_required;
 
+  // This map lets us keep track of which results are for which domains.
+  std::map<std::string, DnsResult> result_map;
+
   pthread_mutex_lock(&_cache_lock);
 
   // First, check the _static_records map to see if there are any static records
@@ -248,7 +251,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     {
       // There were some DNS records in the static cache - we use these in
       // preference to a DNS lookup.
-      results.push_back(static_result);
+      result_map.insert(std:pair<std:string, DnsResult>(domain, static_result));
     }
     else
     {
@@ -259,14 +262,20 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   }
 
   // Now do the actual lookup
-  inner_dns_query(query_required, dnstype, results, trail);
+  inner_dns_query(query_required, dnstype, result_map, trail);
+
+  // The vector of results must match the order of domains passed in.
+  for (const std::string& domain : domains)
+  {
+    results.push_back(results_map[domain]);
+  }
 
   pthread_mutex_unlock(&_cache_lock);
 }
 
 void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
                                         int dnstype,
-                                        std::vector<DnsResult>& results,
+                                        std::map<std::string, DnsResult>& results,
                                         SAS::TrailId trail)
 {
   DnsChannel* channel = NULL;
@@ -403,16 +412,16 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
         expiry = 0;
       }
 
-      results.push_back(DnsResult(ce->domain,
-                                  ce->dnstype,
-                                  ce->records,
-                                  expiry));
+      results.insert(std::pair<std::string, DnsResult>(*i, DnsResult(ce->domain,
+                                                                     ce->dnstype,
+                                                                     ce->records,
+                                                                     expiry)));
     }
     else
     {
       // This shouldn't happen, but if it does, return an empty result set.
       TRC_DEBUG("Return empty result set");
-      results.push_back(DnsResult(*i, dnstype, 0));
+      results.insert(std::pair<std::string, DnsResult>(*i, DnsResult(*i, dnstype, 0)));
     }
   }
 }
