@@ -80,7 +80,7 @@ void sas_write(SAS::sas_log_level_t sas_level,
   int array_size = 10000;
   char logline[array_size];
 
-  snprintf(logline, array_size, "%s, ", sas_level_str);
+  snprintf(logline, array_size, "%s, ", (char*)sas_level_str.c_str());
 
   if (log_id != NULL)
   {
@@ -102,7 +102,7 @@ void sas_write(SAS::sas_log_level_t sas_level,
               NULL,
               0,
               logline,
-              empty_va_list)
+              empty_va_list);
 }
 
 // LCOV_EXCL_STOP
