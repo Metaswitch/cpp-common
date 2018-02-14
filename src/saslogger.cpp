@@ -18,7 +18,7 @@
 
 // LCOV_EXCL_START
 
-void sas_write(sas_log_level_t sas_level,
+void sas_write(SAS::sas_log_level_t sas_level,
                int32_t log_id_len,
                unsigned char* log_id,
                int32_t sas_ip_len,
