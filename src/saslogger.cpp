@@ -18,7 +18,7 @@
 
 // LCOV_EXCL_START
 
-void sas_write(sasclient_log_level_t sas_level,
+void sas_write(sas_log_level_t sas_level,
                int32_t log_id_len,
                unsigned char* log_id,
                int32_t sas_ip_len,
@@ -29,10 +29,11 @@ void sas_write(sasclient_log_level_t sas_level,
   int level;
   std::string sas_level_str;
 
+  // Write all of the args to msg, then pass to
+
   // Convert the sasclient_log_level_t to the common log level to determine if we need
   // to print the log.
-  // Covert the sasclient_log_level_t to a char* to pass to write_sas_log() as the Log namespace
-  // has no knowledge of SAS-Client specific types.
+  // Covert the sasclient_log_level_t to a string so we can easily write it to the logline array.
   switch (sas_level) {
     case SASCLIENT_LOG_CRITICAL:
       level = Log::ERROR_LEVEL;
@@ -68,18 +69,40 @@ void sas_write(sasclient_log_level_t sas_level,
       sas_level_str = "Error";
     }
 
+  // Check if we actually need to print the recieved log.
   if (level > Log::loggingLevel)
   {
     return;
   }
 
-  Log::write_sas_log(sas_level_str.c_str(),
-                     log_id_len,
-                     log_id,
-                     sas_ip_len,
-                     sas_ip,
-                     msg_len,
-                     msg);
+  // Array comfortably larger than any expected log. Log::_write outputs a warning
+  // if the resulting log to be logged is truncated due to being too long.
+  int array_size = 10000;
+  char logline[array_size]
+
+ snsprintf(logline, array_size, "%s, ", sas_level_str);
+
+  if (log_id != NULL)
+  {
+   snprintf(logline + strlen(logline), array_size, "%.*s,", log_id_len, log_id);
+  }
+
+  if (sas_ip != NULL)
+  {
+   snprintf(logline + strlen(logline), array_size, "%.*s,", sas_ip_len, sas_ip);
+  }
+
+ snprintf(logline + strlen(logline), array_size, "%.*s", msg_len, msg);
+
+  // Set level to 0, so that the log level check in Log::write passes. Pass in an empty va_list
+  // to Log::_write, as we don't need to format our msg any further.
+  level = 0;
+  va_list empty_va_list;
+  Log::_write(level,
+              NULL,
+              0,
+              logline,
+              empty_va_list)
 }
 
 // LCOV_EXCL_STOP
