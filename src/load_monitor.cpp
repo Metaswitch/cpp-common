@@ -241,7 +241,7 @@ void LoadMonitor::request_complete(uint64_t latency_us,
         SAS::report_event(decrease);
       }
 
-      TRC_WARNING("Maximum incoming request rate/second decreased to %f from %f "
+      TRC_INFO("Maximum incoming request rate/second decreased to %f from %f "
                "(based on a smoothed mean latency of %dus, a target latency of "
                "%dus and %d overload responses).",
                _bucket.rate(),

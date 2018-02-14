@@ -518,7 +518,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
 {
   pthread_mutex_lock(&_cache_lock);
 
-  TRC_STATUS("Received DNS response for %s type %s - status is %d (%s)",
+  TRC_DEBUG("Received DNS response for %s type %s - status is %d (%s)",
              domain.c_str(),
              DnsRRecord::rrtype_to_string(dnstype).c_str(),
              status,
@@ -553,7 +553,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
       // Parsing was successful, so clear out any old records, then process
       // the answers and additional data.
       clear_cache_entry(ce);
-      TRC_STATUS("DNS response for %s - response contains %d answers",
+      TRC_DEBUG("DNS response for %s - response contains %d answers",
                  domain.c_str(),
                  parser.answers().size());
 
@@ -854,7 +854,7 @@ void DnsCachedResolver::add_record_to_cache(DnsCacheEntryPtr ce,
                                             DnsRRecord* rr,
                                             SAS::TrailId trail)
 {
-  TRC_STATUS("Adding record to cache entry, TTL=%d, expiry=%ld", rr->ttl(), rr->expires());
+  TRC_DEBUG("Adding record to cache entry, TTL=%d, expiry=%ld", rr->ttl(), rr->expires());
   ce->original_trail = trail;
   ce->update_timestamp();
 
@@ -1041,7 +1041,7 @@ void DnsCachedResolver::DnsTsx::execute()
     SAS::report_event(event);
   }
 
-  TRC_STATUS("Executing DNS lookup for %s (type %s)",
+  TRC_DEBUG("Executing DNS lookup for %s (type %s)",
              _domain.c_str(),
              DnsRRecord::rrtype_to_string(_dnstype).c_str());
 

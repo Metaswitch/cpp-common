@@ -666,7 +666,7 @@ HTTPCode HttpClient::send_request(RequestType request_type,
       TRC_DEBUG("Received HTTP response: status=%d, doc=%s", http_rc, doc.c_str());
       if (http_rc >= 400)
       {
-        TRC_WARNING("Received HTTP response %d from server %s for URL %s",
+        TRC_VERBOSE("Received HTTP response %d from server %s for URL %s",
                   http_rc,
                   remote_ip,
                   url.c_str());
