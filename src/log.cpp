@@ -60,7 +60,7 @@ Logger* Log::setLogger(Logger *log)
   return old;
 }
 
-void Log::write(int level, const char *module, int line_number, const char *fmt, ...)
+void Log::_write_var(int level, const char *module, int line_number, const char *fmt, ...)
 {
   va_list args;
   va_start(args, fmt);
@@ -286,7 +286,11 @@ void RamRecorder::_record(int level, const char* module, int lineno, const char*
   }
 }
 
-void RamRecorder::record(int level, const char* module, int lineno, const char* format, ...)
+void RamRecorder::record_pod(int level,
+                             const char* module,
+                             int lineno,
+                             const char* format,
+                             ...)
 {
   va_list args;
   va_start(args, format);
@@ -294,7 +298,12 @@ void RamRecorder::record(int level, const char* module, int lineno, const char* 
   va_end(args);
 }
 
-void RamRecorder::record_with_context(int level, const char* module, int lineno, const char* context, const char* format, ...)
+void RamRecorder::record_with_context_pod(int level,
+                                          const char* module,
+                                          int lineno,
+                                          const char* context,
+                                          const char* format,
+                                          ...)
 {
   va_list args;
   va_start(args, format);
