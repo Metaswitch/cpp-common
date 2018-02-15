@@ -57,10 +57,10 @@ void sas_write(SAS::sas_log_level_t sas_level,
     }
 
   Log::write(level,
-              NULL,
-              0,
-              "%.*s %.*s %.*s",
-              log_id_len, log_id, sas_ip_len, sas_ip, msg_len, msg);
+             NULL,
+             0,
+             "%.*s %.*s %.*s",
+             log_id_len, log_id, sas_ip_len, sas_ip, msg_len, msg);
 }
 
 // LCOV_EXCL_STOP
