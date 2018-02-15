@@ -56,7 +56,7 @@ void sas_write(SAS::sas_log_level_t sas_level,
       level = Log::ERROR_LEVEL;
     }
 
-  Log::_write(level,
+  Log::write(level,
               NULL,
               0,
               "%.*s %.*s %.*s",
