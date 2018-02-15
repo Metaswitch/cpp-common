@@ -267,7 +267,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // The vector of results must match the order of domains passed in.
   for (const std::string& domain : domains)
   {
-    results.push_back(result_map[domain]);
+    results.push_back(result_map.at(domain));
   }
 
   pthread_mutex_unlock(&_cache_lock);
