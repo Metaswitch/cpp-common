@@ -94,7 +94,7 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
 
   pthread_t thread = pthread_self();
 
-  written = snprintf(logline, MAX_LOGLINE -2, "[%lx] ", thread);
+  written = snprintf(logline, MAX_LOGLINE -2, "[%lx] %s ", thread, log_level[level]);
   int bytes_available = MAX_LOGLINE - written - 2;
 
   // If no module is supplied then all the information in the log is supplied in the fmt
@@ -106,11 +106,11 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
 
     if (line_number)
     {
-      written += snprintf(logline + written, bytes_available, "%s %s:%d: ", log_level[level], module, line_number);
+      written += snprintf(logline + written, bytes_available, "%s:%d: ", module, line_number);
     }
     else
     {
-      written += snprintf(logline + written, bytes_available, "%s %s: ", log_level[level], module);
+      written += snprintf(logline + written, bytes_available, "%s: ", module);
     }
   }
 
