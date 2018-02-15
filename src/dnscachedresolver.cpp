@@ -282,7 +282,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     {
       TRC_DEBUG("Found result for query %s (canonical domain: %s)",
                 domain.c_str(),
-                canonical_domain);
+                canonical_domain.c_str());
       results.push_back(result_map.at(canonical_domain));
     }
   }
