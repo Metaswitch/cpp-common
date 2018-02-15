@@ -92,96 +92,35 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   int written = 0;
   int truncated = 0;
 
-  const char* mod = strrchr(module, '/');
-  module = (mod != NULL) ? mod + 1 : module;
-
   pthread_t thread = pthread_self();
 
-  if (line_number)
-  {
-    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %s %s:%d: ", thread, log_level[level], module, line_number);
-  }
-  else
-  {
-    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %s %s: ", thread, log_level[level], module);
-  }
-
-  // snprintf and vsnprintf return the bytes that would have been
-  // written if their second argument was large enough, so we need to
-  // reduce the size of written to compensate if it is too large.
-  written = std::min(written, MAX_LOGLINE - 2);
-
+  written = snprintf(logline, MAX_LOGLINE -2, "[%lx] ", thread);
   int bytes_available = MAX_LOGLINE - written - 2;
-  written += vsnprintf(logline + written, bytes_available, fmt, args);
 
-  if (written > (MAX_LOGLINE - 2))
+  // If no module is supplied then all the information in the log is supplied in the fmt
+  // parameter, so we skip to writing fmt.
+  if (module != NULL)
   {
-    truncated = written - (MAX_LOGLINE - 2);
-    written = MAX_LOGLINE - 2;
+    const char* mod = strrchr(module, '/');
+    module = (mod != NULL) ? mod + 1 : module;
+
+    if (line_number)
+    {
+      written += snprintf(logline + written, bytes_available, "%s %s:%d: ", log_level[level], module, line_number);
+    }
+    else
+    {
+      written += snprintf(logline + written, bytes_available, "%s %s: ", log_level[level], module);
+    }
   }
-
-  // Add a new line and null termination.
-  logline[written] = '\n';
-  logline[written+1] = '\0';
-
-  Log::logger->write(logline);
-  if (truncated > 0)
-  {
-    char buf[128];
-    snprintf(buf, 128, "Previous log was truncated by %d characters\n", truncated);
-    Log::logger->write(buf);
-  }
-  pthread_cleanup_pop(0);
-  pthread_mutex_unlock(&Log::serialization_lock);
-
-}
-
-void Log::write_sas_log(const char* sas_level_str,
-                        int32_t log_id_len,
-                        unsigned char* log_id,
-                        int32_t sas_ip_len,
-                        unsigned char* sas_ip,
-                        int32_t msg_len,
-                        unsigned char* msg)
-{
-  pthread_mutex_lock(&Log::serialization_lock);
-  if (!Log::logger)
-  {
-    // LCOV_EXCL_START
-    pthread_mutex_unlock(&Log::serialization_lock);
-    return;
-    // LCOV_EXCL_STOP
-  }
-
-  pthread_cleanup_push(release_lock, 0);
-
-  char logline[MAX_LOGLINE];
-
-  int written = 0;
-  int truncated = 0;
-
-  pthread_t thread = pthread_self();
-
-  written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] ", thread);
-
-  if (log_id != NULL)
-  {
-    written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%s, ", sas_level_str);
-    written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", log_id_len, log_id);
-  }
-
-  if (sas_ip != NULL)
-  {
-    written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s,", sas_ip_len, sas_ip);
-  }
-
-  written += snprintf(logline + strlen(logline), MAX_LOGLINE - 2, "%.*s", msg_len, msg);
-
 
   // snprintf and vsnprintf return the bytes that would have been
   // written if their second argument was large enough, so we need to
   // reduce the size of written to compensate if it is too large.
   written = std::min(written, MAX_LOGLINE - 2);
+
+  bytes_available = MAX_LOGLINE - written - 2;
+  written += vsnprintf(logline + written, bytes_available, fmt, args);
 
   if (written > (MAX_LOGLINE - 2))
   {

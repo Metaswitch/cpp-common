@@ -18,7 +18,7 @@
 
 // LCOV_EXCL_START
 
-void sas_write(sasclient_log_level_t sas_level,
+void sas_write(SAS::sas_log_level_t sas_level,
                int32_t log_id_len,
                unsigned char* log_id,
                int32_t sas_ip_len,
@@ -29,36 +29,37 @@ void sas_write(sasclient_log_level_t sas_level,
   int level;
   std::string sas_level_str;
 
+  // Write all of the args to msg, then pass to
+
   // Convert the sasclient_log_level_t to the common log level to determine if we need
   // to print the log.
-  // Covert the sasclient_log_level_t to a char* to pass to write_sas_log() as the Log namespace
-  // has no knowledge of SAS-Client specific types.
+  // Covert the sasclient_log_level_t to a string so we can easily write it to the logline array.
   switch (sas_level) {
-    case SASCLIENT_LOG_CRITICAL:
+    case SAS::SASCLIENT_LOG_CRITICAL:
       level = Log::ERROR_LEVEL;
       sas_level_str = "Critical";
       break;
-    case SASCLIENT_LOG_ERROR:
+    case SAS::SASCLIENT_LOG_ERROR:
       level = Log::ERROR_LEVEL;
       sas_level_str = "Error";
       break;
-    case SASCLIENT_LOG_WARNING:
+    case SAS::SASCLIENT_LOG_WARNING:
       level = Log::WARNING_LEVEL;
       sas_level_str = "Warning";
       break;
-    case SASCLIENT_LOG_INFO:
+    case SAS::SASCLIENT_LOG_INFO:
       level = Log::STATUS_LEVEL;
       sas_level_str = "Info";
       break;
-    case SASCLIENT_LOG_DEBUG:
+    case SAS::SASCLIENT_LOG_DEBUG:
       level = Log::DEBUG_LEVEL;
       sas_level_str = "Debug";
       break;
-    case SASCLIENT_LOG_TRACE:
+    case SAS::SASCLIENT_LOG_TRACE:
       level = Log::DEBUG_LEVEL;
       sas_level_str = "Trace";
       break;
-    case SASCLIENT_LOG_STATS:
+    case SAS::SASCLIENT_LOG_STATS:
       level = Log::INFO_LEVEL;
       sas_level_str = "Info";
       break;
@@ -68,18 +69,40 @@ void sas_write(sasclient_log_level_t sas_level,
       sas_level_str = "Error";
     }
 
+  // Check if we actually need to print the recieved log.
   if (level > Log::loggingLevel)
   {
     return;
   }
 
-  Log::write_sas_log(sas_level_str.c_str(),
-                     log_id_len,
-                     log_id,
-                     sas_ip_len,
-                     sas_ip,
-                     msg_len,
-                     msg);
+  // Array comfortably larger than any expected log. Log::_write outputs a warning
+  // if the resulting log to be logged is truncated due to being too long.
+  int array_size = 10000;
+  char logline[array_size];
+
+  snprintf(logline, array_size, "%s, ", (char*)sas_level_str.c_str());
+
+  if (log_id != NULL)
+  {
+   snprintf(logline + strlen(logline), array_size, "%.*s,", log_id_len, log_id);
+  }
+
+  if (sas_ip != NULL)
+  {
+   snprintf(logline + strlen(logline), array_size, "%.*s,", sas_ip_len, sas_ip);
+  }
+
+ snprintf(logline + strlen(logline), array_size, "%.*s", msg_len, msg);
+
+  // Set level to 0, so that the log level check in Log::write passes. Pass in an empty va_list
+  // to Log::_write, as we don't need to format our msg any further.
+  level = 0;
+  va_list empty_va_list;
+  Log::_write(level,
+              NULL,
+              0,
+              logline,
+              empty_va_list);
 }
 
 // LCOV_EXCL_STOP

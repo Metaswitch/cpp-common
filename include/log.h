@@ -50,13 +50,6 @@ namespace Log
   Logger* setLogger(Logger *log);
   void write(int level, const char *module, int line_number, const char *fmt, ...);
   void _write(int level, const char *module, int line_number, const char *fmt, va_list args);
-  void write_sas_log(const char* sas_level_str,
-                     int32_t log_id_len,
-                     unsigned char* log_id,
-                     int32_t sas_ip_len,
-                     unsigned char* sas_ip,
-                     int32_t msg_len,
-                     unsigned char* msg);
   void backtrace(const char* fmt, ...);
   void backtrace_adv();
   void commit();
