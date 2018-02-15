@@ -140,7 +140,7 @@ private:
   /// Performs the actual DNS query.
   void inner_dns_query(const std::vector<std::string>& domains,
                        int dnstype,
-                       std::vector<DnsResult>& results,
+                       std::map<std::string, DnsResult>& results,
                        SAS::TrailId trail);
 
   void dns_response(const std::string& domain,

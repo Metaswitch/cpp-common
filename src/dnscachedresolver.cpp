@@ -251,7 +251,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     {
       // There were some DNS records in the static cache - we use these in
       // preference to a DNS lookup.
-      result_map.insert(std:pair<std:string, DnsResult>(domain, static_result));
+      result_map.insert(std::pair<std::string, DnsResult>(domain, static_result));
     }
     else
     {
