@@ -232,11 +232,10 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // a DNS lookup for.
   std::vector<std::string> query_required;
 
-  // This map lets us keep track of which canonical domains map to which
-  // queried domains.
+  // Maps domain passed in -> canonical domain
   std::map<std::string, std::string> canonical_map;
 
-  // This map lets us keep track of which results are for which domains.
+  // Maps canonical domain -> result of DNS query
   std::map<std::string, DnsResult> result_map;
 
   pthread_mutex_lock(&_cache_lock);
