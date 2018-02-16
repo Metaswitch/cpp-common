@@ -63,11 +63,15 @@ StaticDnsCache::~StaticDnsCache()
 //   ]
 // }
 //
-// Currently, the only supported record object is CNAME:
+// Currently, the only supported record objects are CNAME and A:
 //
 // {
 //   "rrtype": "CNAME",
 //   "target": <target>
+// }
+// {
+//   "rrtype": "A",
+//   "targets": [<target1>, <target2>, ...]
 // }
 void StaticDnsCache::reload_static_records()
 {
@@ -297,7 +301,6 @@ DnsResult StaticDnsCache::get_static_dns_records(std::string domain,
   {
     TRC_DEBUG("No static records found matching %s", domain.c_str());
   }
-
 
   // In the case where we didn't find anything that matches, found_records will
   // be empty.
