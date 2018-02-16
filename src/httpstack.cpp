@@ -505,7 +505,7 @@ void HttpStack::SasLogger::log_correlators(SAS::TrailId trail,
                  req,
                  instance_id,
                  SASEvent::HTTP_SPAN_ID,
-                 MARKED_ID_GENERIC_CORRELATOR);
+                 MARKER_ID_GENERIC_CORRELATOR);
 }
 
 void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
@@ -526,7 +526,7 @@ void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
     corr_marker.add_var_param(correlator);
 
     // Generic correlators have a uniqueness scope. Use UUIDs for HTTP requests
-    if (marker_type == MARKED_ID_GENERIC_CORRELATOR) {
+    if (marker_type == MARKER_ID_GENERIC_CORRELATOR) {
       corr_marker.add_static_param(
         static_cast<uint32_t>(UniquenessScopes::UUID_RFC4122));
     }
