@@ -11,7 +11,6 @@
  */
 
 #include <cstdarg>
-#include <string>
 
 #include "log.h"
 #include "saslogger.h"
