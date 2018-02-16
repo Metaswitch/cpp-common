@@ -1,7 +1,7 @@
 /**
  * @file static_dns_cache.h Definitions for the static DNS cache.
  *
- * Copyright (C) Metaswitch Networks 2017
+ * Copyright (C) Metaswitch Networks 2018
  * If license terms are provided to you in a COPYING file in the root directory
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
@@ -12,8 +12,7 @@
 #ifndef STATICDNSCACHE_H__
 #define STATICDNSCACHE_H__
 
-#include <string.h>
-
+#include <string>
 #include <map>
 #include <vector>
 
@@ -28,7 +27,7 @@ public:
   // Parse the _dns_config_file.
   void reload_static_records();
 
-  // Returns the number of records in the cache.
+  // Returns the number of records in the static cache.
   int size() {return _static_records.size();};
 
   // Returns all DNS records from _static_records that match the given

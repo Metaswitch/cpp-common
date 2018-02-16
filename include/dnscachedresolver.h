@@ -180,7 +180,7 @@ private:
   pthread_cond_t _got_reply_cond;
   DnsCache _cache;
 
-  // The static cache contains hard coded DNS records loaded from file.
+  // The static cache contains hardcoded DNS records loaded from file.
   StaticDnsCache _static_cache;
 
   // Expiry is done efficiently by storing pointers to cache entries in a

@@ -230,7 +230,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
 {
   // This will contain all of the domains we need to query the cache or perform
   // a DNS lookup for.
-  std::vector<std::string> query_required;
+  std::vector<std::string> domains_to_query;
 
   // Maps domain passed in -> canonical domain
   std::map<std::string, std::string> canonical_map;
@@ -265,12 +265,12 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
       // The static cache didn't have any records that matched, so we'll need
       // to do a DNS lookup.
       TRC_DEBUG("%s not found in the static cache", canonical_domain.c_str());
-      query_required.push_back(canonical_domain);
+      domains_to_query.push_back(canonical_domain);
     }
   }
 
   // Now perform any DNS lookups we still need to do.
-  inner_dns_query(query_required, dnstype, result_map, trail);
+  inner_dns_query(domains_to_query, dnstype, result_map, trail);
 
   // The vector of results must match the order of domains passed in.
   for (const std::string& domain : domains)
