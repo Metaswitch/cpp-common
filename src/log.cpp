@@ -92,18 +92,26 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   int written = 0;
   int truncated = 0;
 
-  const char* mod = strrchr(module, '/');
-  module = (mod != NULL) ? mod + 1 : module;
-
   pthread_t thread = pthread_self();
 
-  if (line_number)
+  written = snprintf(logline, MAX_LOGLINE -2, "[%lx] %s ", thread, log_level[level]);
+  int bytes_available = MAX_LOGLINE - written - 2;
+
+  // If no module is supplied then all the information in the log is supplied in the fmt
+  // parameter, so we skip to writing fmt.
+  if (module != NULL)
   {
-    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %s %s:%d: ", thread, log_level[level], module, line_number);
-  }
-  else
-  {
-    written = snprintf(logline, MAX_LOGLINE - 2, "[%lx] %s %s: ", thread, log_level[level], module);
+    const char* mod = strrchr(module, '/');
+    module = (mod != NULL) ? mod + 1 : module;
+
+    if (line_number)
+    {
+      written += snprintf(logline + written, bytes_available, "%s:%d: ", module, line_number);
+    }
+    else
+    {
+      written += snprintf(logline + written, bytes_available, "%s: ", module);
+    }
   }
 
   // snprintf and vsnprintf return the bytes that would have been
@@ -111,7 +119,7 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   // reduce the size of written to compensate if it is too large.
   written = std::min(written, MAX_LOGLINE - 2);
 
-  int bytes_available = MAX_LOGLINE - written - 2;
+  bytes_available = MAX_LOGLINE - written - 2;
   written += vsnprintf(logline + written, bytes_available, fmt, args);
 
   if (written > (MAX_LOGLINE - 2))

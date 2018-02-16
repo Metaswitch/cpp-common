@@ -17,38 +17,49 @@
 
 // LCOV_EXCL_START
 
-void sas_write(SAS::log_level_t sas_level, const char *module, int line_number, const char *fmt, ...)
+void sas_write(SAS::sas_log_level_t sas_level,
+               int32_t log_id_len,
+               unsigned char* log_id,
+               int32_t sas_ip_len,
+               unsigned char* sas_ip,
+               int32_t msg_len,
+               unsigned char* msg)
 {
   int level;
-  va_list args;
 
+  // Convert the sasclient_log_level_t to the common log level.
   switch (sas_level) {
-    case SAS::LOG_LEVEL_DEBUG:
-      level = Log::DEBUG_LEVEL;
+    case SAS::SASCLIENT_LOG_CRITICAL:
+      level = Log::ERROR_LEVEL;
       break;
-    case SAS::LOG_LEVEL_VERBOSE:
-      level = Log::VERBOSE_LEVEL;
+    case SAS::SASCLIENT_LOG_ERROR:
+      level = Log::ERROR_LEVEL;
       break;
-    case SAS::LOG_LEVEL_INFO:
-      level = Log::INFO_LEVEL;
-      break;
-    case SAS::LOG_LEVEL_STATUS:
-      level = Log::STATUS_LEVEL;
-      break;
-    case SAS::LOG_LEVEL_WARNING:
+    case SAS::SASCLIENT_LOG_WARNING:
       level = Log::WARNING_LEVEL;
       break;
-    case SAS::LOG_LEVEL_ERROR:
-      level = Log::ERROR_LEVEL;
+    case SAS::SASCLIENT_LOG_INFO:
+      level = Log::STATUS_LEVEL;
+      break;
+    case SAS::SASCLIENT_LOG_DEBUG:
+      level = Log::DEBUG_LEVEL;
+      break;
+    case SAS::SASCLIENT_LOG_TRACE:
+      level = Log::DEBUG_LEVEL;
+      break;
+    case SAS::SASCLIENT_LOG_STATS:
+      level = Log::INFO_LEVEL;
       break;
     default:
       TRC_ERROR("Unknown SAS log level %d, treating as error level", sas_level);
       level = Log::ERROR_LEVEL;
     }
 
-  va_start(args, fmt);
-  Log::_write(level, module, line_number, fmt, args);
-  va_end(args);
+  Log::write(level,
+             NULL,
+             0,
+             "%.*s %.*s %.*s",
+             log_id_len, log_id, sas_ip_len, sas_ip, msg_len, msg);
 }
 
 // LCOV_EXCL_STOP
