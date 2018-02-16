@@ -232,6 +232,12 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // a DNS lookup for.
   std::vector<std::string> query_required;
 
+  // Maps domain passed in -> canonical domain
+  std::map<std::string, std::string> canonical_map;
+
+  // Maps canonical domain -> result of DNS query
+  std::map<std::string, DnsResult> result_map;
+
   pthread_mutex_lock(&_cache_lock);
 
   // First, check the _static_records map to see if there are any static records
@@ -239,34 +245,54 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
   // _dns_config_file)
   for (const std::string& domain : domains)
   {
+    TRC_DEBUG("Searching for DNS record matching %s in the static cache", domain.c_str());
+
     // There may be some CNAME records in the static DNS cache that we should
     // be using.
     std::string canonical_domain = _static_cache.get_canonical_name(domain);
+    canonical_map.insert(std::pair<std::string,std::string>(domain, canonical_domain));
 
     DnsResult static_result = _static_cache.get_static_dns_records(canonical_domain, dnstype);
     if (!static_result.records().empty())
     {
       // There were some DNS records in the static cache - we use these in
       // preference to a DNS lookup.
-      results.push_back(static_result);
+      TRC_DEBUG("%s found in the static cache", canonical_domain.c_str());
+      result_map.insert(std::pair<std::string, DnsResult>(canonical_domain, static_result));
     }
     else
     {
       // The static cache didn't have any records that matched, so we'll need
       // to do a DNS lookup.
+      TRC_DEBUG("%s not found in the static cache", canonical_domain.c_str());
       query_required.push_back(canonical_domain);
     }
   }
 
-  // Now do the actual lookup
-  inner_dns_query(query_required, dnstype, results, trail);
+  // Now perform any DNS lookups we still need to do.
+  inner_dns_query(query_required, dnstype, result_map, trail);
+
+  // The vector of results must match the order of domains passed in.
+  for (const std::string& domain : domains)
+  {
+    // The results map is indexed by canonical domain rather than the domain
+    // from the initial query.
+    std::string canonical_domain = canonical_map.at(domain);
+    if (result_map.count(canonical_domain) > 0)
+    {
+      TRC_DEBUG("Found result for query %s (canonical domain: %s)",
+                domain.c_str(),
+                canonical_domain.c_str());
+      results.push_back(result_map.at(canonical_domain));
+    }
+  }
 
   pthread_mutex_unlock(&_cache_lock);
 }
 
 void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
                                         int dnstype,
-                                        std::vector<DnsResult>& results,
+                                        std::map<std::string, DnsResult>& results,
                                         SAS::TrailId trail)
 {
   DnsChannel* channel = NULL;
@@ -403,16 +429,16 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
         expiry = 0;
       }
 
-      results.push_back(DnsResult(ce->domain,
-                                  ce->dnstype,
-                                  ce->records,
-                                  expiry));
+      results.insert(std::pair<std::string, DnsResult>(*i, DnsResult(ce->domain,
+                                                                     ce->dnstype,
+                                                                     ce->records,
+                                                                     expiry)));
     }
     else
     {
       // This shouldn't happen, but if it does, return an empty result set.
       TRC_DEBUG("Return empty result set");
-      results.push_back(DnsResult(*i, dnstype, 0));
+      results.insert(std::pair<std::string, DnsResult>(*i, DnsResult(*i, dnstype, 0)));
     }
   }
 }
