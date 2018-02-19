@@ -26,13 +26,23 @@ const std::map<std::string, uint32_t> ChronosConnection::EMPTY_TAGS = std::map<s
 ChronosConnection::ChronosConnection(const std::string& server,
                                      std::string callback_host,
                                      HttpResolver* resolver,
-                                     BaseCommunicationMonitor* comm_monitor) :
+                                     BaseCommunicationMonitor* comm_monitor,
+                                     const std::string& source_address) :
   _callback_host(callback_host),
   _http(new HttpConnection(server,
                            false,
                            resolver,
+                           nullptr,
+                           nullptr,
                            SASEvent::HttpLogLevel::DETAIL,
-                           comm_monitor))
+                           comm_monitor,
+                           "http",
+                           false,
+                           false,
+                           -1,
+                           false,
+                           "",
+                           source_address))
 {
 }
 
