@@ -18,19 +18,6 @@
 /// @param scheme Scheme of the request being sent
 /// @param client HttpClient object to use in sending the requst
 /// @param path   Path the request should be sent to, starting with '/'
-HttpRequest::HttpRequest(const std::string& server,
-                         const std::string& scheme,
-                         HttpClient* client,
-                         HttpClient::RequestType method,
-                         std::string& path) :
-  _server(server),
-  _scheme(scheme),
-  _client(client),
-  _method(method),
-  _path(path)
-{
-}
-
 HttpRequest::~HttpRequest() {}
 
 ///

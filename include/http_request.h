@@ -37,11 +37,20 @@ private:
 class HttpRequest
 {
 public:
-  HttpRequest(const std::string& server,
-              const std::string& scheme,
-              HttpClient* client,
-              HttpClient::RequestType method,
-              std::string& path);
+template<typename T,typename U,typename V>
+HttpRequest(const T& server,
+                         const U& scheme,
+                         HttpClient* client,
+                         HttpClient::RequestType method,
+                         const V& path) :
+  _server(server),
+  _scheme(scheme),
+  _client(client),
+  _method(method),
+  _path(path)
+{
+}
+
 
   virtual ~HttpRequest();
 
