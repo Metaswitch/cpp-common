@@ -28,7 +28,7 @@ public:
   // mock method (create_request_proxy) is set to return.
   virtual std::unique_ptr<HttpRequest> create_request(
                                             HttpClient::RequestType method,
-                                            std::string& path) override
+                                            const std::string& path) override
   {
     std::unique_ptr<HttpRequest> req(create_request_proxy(method, path));
     return req;
@@ -36,7 +36,7 @@ public:
 
   MOCK_METHOD2(create_request_proxy, HttpRequest*(
                                             HttpClient::RequestType method,
-                                            std::string& path));
+                                            const std::string& path));
 };
 
 #endif
