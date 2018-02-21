@@ -22,7 +22,7 @@ HttpRequest::HttpRequest(const std::string& server,
                          const std::string& scheme,
                          HttpClient* client,
                          HttpClient::RequestType method,
-                         std::string path) :
+                         std::string& path) :
   _server(server),
   _scheme(scheme),
   _client(client),
@@ -36,7 +36,7 @@ HttpRequest::~HttpRequest() {}
 ///
 // SET methods
 ///
-void HttpRequest::set_req_body(std::string body)
+void HttpRequest::set_req_body(const std::string& body)
 {
   _req_body = body;
 }
@@ -51,7 +51,7 @@ void HttpRequest::set_allowed_host_state(int allowed_host_state)
   _allowed_host_state = allowed_host_state;
 }
 
-void HttpRequest::set_username(std::string username)
+void HttpRequest::set_username(const std::string& username)
 {
   _username = username;
 }
@@ -59,7 +59,7 @@ void HttpRequest::set_username(std::string username)
 ///
 // ADD methods
 ///
-void HttpRequest::add_req_header(std::string req_header)
+void HttpRequest::add_req_header(const std::string& req_header)
 {
   _req_headers.push_back(req_header);
 }

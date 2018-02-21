@@ -19,20 +19,24 @@ class MockHttpConnection : public HttpConnection
 {
 public:
   MockHttpConnection();
-  ~MockHttpConnection();
+  virtual ~MockHttpConnection();
 
   // GMock requires return values of mocked methods to be copyable, which
   // std::unique_ptr is not.
   // The workaround is to proxy the mocked method, and have the create_request
   // method be a real method that returns the std::unique_ptr to whatever the
   // mock method (create_request_proxy) is set to return.
-  virtual std::unique_ptr<HttpRequest> create_request(HttpClient::RequestType method, std::string path) override
+  virtual std::unique_ptr<HttpRequest> create_request(
+                                            HttpClient::RequestType method,
+                                            std::string& path) override
   {
     std::unique_ptr<HttpRequest> req(create_request_proxy(method, path));
     return req;
   };
 
-  MOCK_METHOD2(create_request_proxy, HttpRequest*(HttpClient::RequestType method, std::string path));
+  MOCK_METHOD2(create_request_proxy, HttpRequest*(
+                                            HttpClient::RequestType method,
+                                            std::string& path));
 };
 
 #endif

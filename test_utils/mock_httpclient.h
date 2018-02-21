@@ -19,7 +19,7 @@ class MockHttpClient : public HttpClient
 {
 public:
   MockHttpClient();
-  ~MockHttpClient();
+  virtual ~MockHttpClient();
   MOCK_METHOD9(send_request, long(RequestType request_type,
                                   const std::string& url,
                                   std::string body,

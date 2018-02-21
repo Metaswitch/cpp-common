@@ -41,18 +41,18 @@ public:
               const std::string& scheme,
               HttpClient* client,
               HttpClient::RequestType method,
-              std::string path);
+              std::string& path);
 
   virtual ~HttpRequest();
 
   // SET methods will overwrite any previous settings
-  virtual void set_req_body(std::string body);
+  virtual void set_req_body(const std::string& body);
   virtual void set_sas_trail(SAS::TrailId trail);
   virtual void set_allowed_host_state(int allowed_host_state);
-  virtual void set_username(std::string username); //Unclear if we ever actually use this atm, may be unnecessary
+  virtual void set_username(const std::string& username);
 
   // ADD methods
-  virtual void add_req_header(std::string req_header);
+  virtual void add_req_header(const std::string& req_header);
 
   // Sends the request and populates ret code, recv headers, and recv body
   virtual HttpResponse send();
