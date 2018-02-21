@@ -989,7 +989,7 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
     {
       TRC_DEBUG("Raising correlating marker with diameter session ID = %.*s",
                 session_id_len, session_id);
-      SAS::Marker corr(trail, MARKED_ID_GENERIC_CORRELATOR, 0);
+      SAS::Marker corr(trail, MARKER_ID_GENERIC_CORRELATOR, 0);
       corr.add_static_param((uint32_t)UniquenessScopes::DIAMETER_SID_RFC6733);
       corr.add_var_param(session_id_len, session_id);
 

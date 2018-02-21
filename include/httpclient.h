@@ -72,7 +72,8 @@ public:
              bool remote_connection = false,
              long timeout_ms = -1,
              bool log_display_address = false,
-             std::string server_display_address = "");
+             std::string server_display_address = "",
+             const std::string& source_address = "");
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,

@@ -52,10 +52,18 @@ private:
 class DnsCachedResolver
 {
 public:
-  DnsCachedResolver(const std::vector<IP46Address>& dns_servers, int timeout = DEFAULT_TIMEOUT, const std::string& filename = "");
-  DnsCachedResolver(const std::vector<std::string>& dns_servers, int timeout = DEFAULT_TIMEOUT, const std::string& filename = "");
-  DnsCachedResolver(const std::string& dns_server, int port, int timeout = DEFAULT_TIMEOUT, const std::string& filename = "");
-  DnsCachedResolver(const std::string& dns_server) : DnsCachedResolver(dns_server, DEFAULT_PORT) {};
+  DnsCachedResolver(const std::vector<IP46Address>& dns_servers,
+                    int timeout = DEFAULT_TIMEOUT,
+                    const std::string& filename = NO_DNS_FILE,
+                    int port = DEFAULT_PORT);
+  DnsCachedResolver(const std::vector<std::string>& dns_servers,
+                    int timeout = DEFAULT_TIMEOUT,
+                    const std::string& filename = NO_DNS_FILE,
+                    int port = DEFAULT_PORT);
+  DnsCachedResolver(const std::string& dns_server,
+                    int timeout = DEFAULT_TIMEOUT,
+                    const std::string& filename = NO_DNS_FILE,
+                    int port = DEFAULT_PORT);
   ~DnsCachedResolver();
 
   /// Queries a single DNS record.
@@ -83,11 +91,18 @@ public:
   // Reads DNS records from _dns_config_file and stores them in _static_records
   void reload_static_records();
 
-  // Default timeout for DNS requests over the wire (in milliseconds)
-  static const int DEFAULT_TIMEOUT = 200;
+  // The total timeout across all DNS requests over the wire (in milliseconds)
+  static const int DEFAULT_TIMEOUT = 600;
 
   // Default port number for DNS requests
   static const int DEFAULT_PORT = 53;
+
+  // Maximum number of DNS servers to poll for a single query
+  static const int MAX_DNS_SERVER_POLL = 3;
+
+  // Constant that makes it clear what is going on when calling code wants to
+  // construct a resolver with no DNS file.
+  static constexpr const char* NO_DNS_FILE = "";
 
 private:
   void init(const std::vector<IP46Address>& dns_server);

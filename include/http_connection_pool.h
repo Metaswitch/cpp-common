@@ -52,7 +52,8 @@ public:
   HttpConnectionPool(LoadMonitor* load_monitor,
                      SNMP::IPCountTable* stat_table,
                      bool remote_connection = false,
-                     long timeout_ms = -1);
+                     long timeout_ms = -1,
+                     const std::string& source_address = "");
 
   ~HttpConnectionPool()
   {
@@ -84,5 +85,23 @@ protected:
   // Determines an appropriate absolute HTTP request timeout in ms given the
   // target latency for requests that the downstream components will be using
   long calc_req_timeout_from_latency(int latency_us);
+
+  // Callbacks that are uses when the user has specified that connections be
+  // made from a specific source address.
+  //
+  // cURL allows the user to specify a callback that is called when cURL needs a
+  // socket to connect with. If a source address is specified, we implement this
+  // callback , and provide a socket that is bound to the specified address.
+  //
+  // `open_socket_fn` is the static method that is passed to cURL. `open_socket`
+  // is a member method that actually does the work.
+  static curl_socket_t open_socket_fn(void *clientp,
+                                      curlsocktype purpose,
+                                      struct curl_sockaddr *address);
+
+  curl_socket_t open_socket(curlsocktype purpose,
+                            struct curl_sockaddr *address);
+
+  std::string _source_address;
 };
 #endif

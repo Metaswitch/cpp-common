@@ -818,7 +818,7 @@ public:
   {
     // Now the task is complete we should flush the trail to ensure it appears
     // promptly in SAS.
-    SAS::Marker flush_marker(_trail, MARKED_ID_FLUSH);
+    SAS::Marker flush_marker(_trail, MARKER_ID_FLUSH);
     SAS::report_marker(flush_marker);
   }
 
