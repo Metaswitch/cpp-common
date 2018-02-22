@@ -22,8 +22,8 @@ public:
   virtual ~MockHttpRequest();
 
   // SET methods
-  MOCK_METHOD1(set_req_body, void(const std::string& body));
-  MOCK_METHOD1(add_req_header, void(const std::string& req_header));
+  MOCK_METHOD1(set_body, void(const std::string& body));
+  MOCK_METHOD1(add_header, void(const std::string& req_header));
   MOCK_METHOD1(set_sas_trail, void(SAS::TrailId trail));
   MOCK_METHOD1(set_allowed_host_state, void(int allowed_host_state));
   MOCK_METHOD1(set_username, void(const std::string& username));
