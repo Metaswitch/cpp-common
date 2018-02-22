@@ -18,50 +18,47 @@ class HttpResponse
 {
 public:
   HttpResponse(HTTPCode return_code,
-               const std::string& resp_body,
-               const std::map<std::string, std::string>& resp_headers);
+               const std::string& body,
+               const std::map<std::string, std::string>& headers);
 
   virtual ~HttpResponse();
 
-  // GET methods return empty if not set yet
-  virtual HTTPCode get_return_code();
-  virtual std::string get_resp_body();
-  virtual std::map<std::string, std::string> get_resp_headers();
+  virtual HTTPCode get_rc();
+  virtual std::string get_body();
+  virtual std::map<std::string, std::string> get_headers();
 
 private:
-  HTTPCode _return_code;
-  std::string _resp_body;
-  std::map<std::string, std::string> _resp_headers;
+  HTTPCode _rc;
+  std::string _body;
+  std::map<std::string, std::string> _headers;
 };
 
 class HttpRequest
 {
 public:
-template<typename T,typename U,typename V>
-HttpRequest(const T& server,
-                         const U& scheme,
-                         HttpClient* client,
-                         HttpClient::RequestType method,
-                         const V& path) :
-  _server(server),
-  _scheme(scheme),
-  _client(client),
-  _method(method),
-  _path(path)
-{
-}
-
+  HttpRequest(const std::string server,
+              const std::string scheme,
+              HttpClient* client,
+              HttpClient::RequestType method,
+              const std::string path) :
+    _server(std::move(server)),
+    _scheme(std::move(scheme)),
+    _client(client),
+    _method(method),
+    _path(std::move(path))
+  {
+  }
 
   virtual ~HttpRequest();
 
   // SET methods will overwrite any previous settings
-  virtual void set_req_body(const std::string& body);
+  virtual void set_body(const std::string& body);
   virtual void set_sas_trail(SAS::TrailId trail);
   virtual void set_allowed_host_state(int allowed_host_state);
   virtual void set_username(const std::string& username);
 
   // ADD methods
-  virtual void add_req_header(const std::string& req_header);
+  virtual void add_header(const std::string& header);
 
   // Sends the request and populates ret code, recv headers, and recv body
   virtual HttpResponse send();
@@ -76,8 +73,8 @@ private:
   SAS::TrailId _trail = 0;
 
   std::string _username;
-  std::string _req_body;
-  std::vector<std::string> _req_headers;
+  std::string _body;
+  std::vector<std::string> _headers;
   int _allowed_host_state = BaseResolver::ALL_LISTS;
 };
 

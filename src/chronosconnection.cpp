@@ -53,7 +53,7 @@ HTTPCode ChronosConnection::send_delete(const std::string& delete_identity,
   std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::DELETE, path);
   req->set_sas_trail(trail);
   HttpResponse resp = req->send();
-  return resp.get_return_code();
+  return resp.get_rc();
 }
 
 HTTPCode ChronosConnection::send_put(std::string& put_identity,
@@ -69,16 +69,16 @@ HTTPCode ChronosConnection::send_put(std::string& put_identity,
   std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data, tags);
 
   std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::PUT, path);
-  req->set_req_body(body);
+  req->set_body(body);
   req->set_sas_trail(trail);
 
   HttpResponse resp = req->send();
-  HTTPCode rc = resp.get_return_code();
+  HTTPCode rc = resp.get_rc();
 
   if (rc == HTTP_OK)
   {
     // Try and get the location header from the response
-    std::map<std::string, std::string> headers = resp.get_resp_headers();
+    std::map<std::string, std::string> headers = resp.get_headers();
     std::string timer_url = get_location_header(headers);
 
     if (timer_url != "")
@@ -106,16 +106,16 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
   std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data, tags);
 
   std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::PUT, path);
-  req->set_req_body(body);
+  req->set_body(body);
   req->set_sas_trail(trail);
 
   HttpResponse resp = req->send();
-  HTTPCode rc = resp.get_return_code();
+  HTTPCode rc = resp.get_rc();
 
   if (rc == HTTP_OK)
   {
     // Try and get the location header from the response
-    std::map<std::string, std::string> headers = resp.get_resp_headers();
+    std::map<std::string, std::string> headers = resp.get_headers();
     std::string timer_url = get_location_header(headers);
 
     if (timer_url != "")

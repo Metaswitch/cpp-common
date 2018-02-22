@@ -23,9 +23,9 @@ HttpRequest::~HttpRequest() {}
 ///
 // SET methods
 ///
-void HttpRequest::set_req_body(const std::string& body)
+void HttpRequest::set_body(const std::string& body)
 {
-  _req_body = body;
+  _body = body;
 }
 
 void HttpRequest::set_sas_trail(SAS::TrailId trail)
@@ -46,9 +46,9 @@ void HttpRequest::set_username(const std::string& username)
 ///
 // ADD methods
 ///
-void HttpRequest::add_req_header(const std::string& req_header)
+void HttpRequest::add_header(const std::string& header)
 {
-  _req_headers.push_back(req_header);
+  _headers.push_back(header);
 }
 
 ///
@@ -58,22 +58,22 @@ HttpResponse HttpRequest::send()
 {
   std::string url = _scheme + "://" + _server + _path;
 
-  std::string resp_body;
-  std::map<std::string, std::string> resp_headers;
+  std::string body;
+  std::map<std::string, std::string> headers;
 
   HTTPCode rc = _client->send_request(_method,
                                       url,
-                                      _req_body,
-                                      resp_body,
+                                      _body,
+                                      body,
                                       _username,
                                       _trail,
-                                      _req_headers,
-                                      &resp_headers,
+                                      _headers,
+                                      &headers,
                                       _allowed_host_state);
 
   return HttpResponse(rc,
-                      resp_body,
-                      resp_headers);
+                      body,
+                      headers);
 }
 
 ///
@@ -81,11 +81,11 @@ HttpResponse HttpRequest::send()
 ///
 HttpResponse::HttpResponse(
                 HTTPCode return_code,
-                const std::string& resp_body,
-                const std::map<std::string, std::string>& resp_headers) :
-    _return_code(return_code),
-    _resp_body(resp_body),
-    _resp_headers(resp_headers)
+                const std::string& body,
+                const std::map<std::string, std::string>& headers) :
+    _rc(return_code),
+    _body(body),
+    _headers(headers)
     {}
 
 HttpResponse::~HttpResponse() {}
@@ -93,17 +93,17 @@ HttpResponse::~HttpResponse() {}
 ///
 // GET methods
 ///
-HTTPCode HttpResponse::get_return_code()
+HTTPCode HttpResponse::get_rc()
 {
-  return _return_code;
+  return _rc;
 }
 
-std::string HttpResponse::get_resp_body()
+std::string HttpResponse::get_body()
 {
-  return _resp_body;
+  return _body;
 }
 
-std::map<std::string, std::string> HttpResponse::get_resp_headers()
+std::map<std::string, std::string> HttpResponse::get_headers()
 {
-  return _resp_headers;
+  return _headers;
 }
