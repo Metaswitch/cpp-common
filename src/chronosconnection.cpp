@@ -105,7 +105,7 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
   std::string path = "/timers";
   std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data, tags);
 
-  std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::PUT, path);
+  std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::POST, path);
   req->set_body(body);
   req->set_sas_trail(trail);
 
