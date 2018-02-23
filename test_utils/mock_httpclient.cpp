@@ -10,6 +10,12 @@
  */
 
 #include "mock_httpclient.h"
+#include "http_request.h"
+
+bool http_method_matches(HttpRequest req, HttpClient::RequestType method)
+{
+  return (req._method == method);
+}
 
 MockHttpClient::MockHttpClient() :
     HttpClient(false,

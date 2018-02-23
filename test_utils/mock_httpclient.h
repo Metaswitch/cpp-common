@@ -13,7 +13,74 @@
 #define MOCK_HTTPCLIENT_H__
 
 #include "gmock/gmock.h"
-#include "httpclient.h"
+#include "http_request.h"
+
+
+// Various Matchers to help with matching an HttpRequest in the mock call to
+// send_request()
+bool http_method_matches(HttpRequest req, HttpClient::RequestType method);
+
+MATCHER(IsDelete, "")
+{
+  return http_method_matches(arg, HttpClient::RequestType::DELETE);
+}
+
+MATCHER(IsPut, "")
+{
+  return http_method_matches(arg, HttpClient::RequestType::PUT);
+}
+
+MATCHER(IsPost, "")
+{
+  return http_method_matches(arg, HttpClient::RequestType::POST);
+}
+
+MATCHER(IsGet, "")
+{
+  return http_method_matches(arg, HttpClient::RequestType::GET);
+}
+
+MATCHER_P(HasScheme, scheme, "")
+{
+  return (arg._scheme == scheme);
+}
+
+MATCHER_P(HasServer, server, "")
+{
+  return (arg._server == server);
+}
+
+MATCHER_P(HasPath, path, "")
+{
+  return (arg._path == path);
+}
+
+MATCHER_P(HasBody, body, "")
+{
+  return (arg._body == body);
+}
+
+MATCHER_P(HasUsername, username, "")
+{
+  return (arg._username == username);
+}
+
+MATCHER_P(HasTrail, trail, "")
+{
+  return (arg._trail == trail);
+}
+
+MATCHER_P(HasHostState, host_state, "")
+{
+  return (arg._allowed_host_state == host_state);
+}
+
+MATCHER_P(HasHeader, header_string, "")
+{
+  const std::vector<std::string>& v = arg._headers;
+  bool result = (std::find(v.begin(), v.end(), header_string) != v.end());
+  return result;
+}
 
 class MockHttpClient : public HttpClient
 {
