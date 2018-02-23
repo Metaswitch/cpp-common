@@ -1,6 +1,7 @@
 /**
  * @file static_dns_cache.cpp Implements that ability to read DNS records from a
- * locally configured static cache.
+ * locally configured static cache. Strictly speaking this is not a cache, and
+ * is the master database.
  *
  * Copyright (C) Metaswitch Networks 2018
  * If license terms are provided to you in a COPYING file in the root directory
