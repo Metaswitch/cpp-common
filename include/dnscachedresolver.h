@@ -118,7 +118,27 @@ private:
     std::string domain;
     int dnstype;
     int expires;
+    std::string original_time;
+    SAS::TrailId original_trail;
     std::vector<DnsRRecord*> records;
+
+    void update_timestamp() {
+      struct timespec timespec;
+      struct tm dt;
+      char timestamp[100];
+      clock_gettime(CLOCK_REALTIME, &timespec);
+      gmtime_r(&timespec.tv_sec, &dt);
+      snprintf(timestamp, 100,
+               "%2.2d:%2.2d:%2.2d.%3.3d UTC",
+               dt.tm_hour,
+               dt.tm_min,
+               dt.tm_sec,
+               (int)(timespec.tv_nsec / 1000000));
+
+      this->original_time = timestamp;
+
+
+    }
   };
 
   class DnsCacheKeyCompare
@@ -165,10 +185,10 @@ private:
   bool caching_enabled(int rrtype);
 
   DnsCacheEntryPtr get_cache_entry(const std::string& domain, int dnstype);
-  DnsCacheEntryPtr create_cache_entry(const std::string& domain, int dnstype);
+  DnsCacheEntryPtr create_cache_entry(const std::string& domain, int dnstype, SAS::TrailId trail);
   void add_to_expiry_list(DnsCacheEntryPtr ce);
   void expire_cache();
-  void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr);
+  void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr, SAS::TrailId trail);
   void clear_cache_entry(DnsCacheEntryPtr ce);
 
 

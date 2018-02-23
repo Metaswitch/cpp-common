@@ -321,7 +321,7 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
 
       // Create an empty record for this cache entry.
       TRC_DEBUG("Create cache entry pending query");
-      ce = create_cache_entry(*domain, dnstype);
+      ce = create_cache_entry(*domain, dnstype, trail);
       do_query = true;
       wait_for_query_result = true;
     }
@@ -423,6 +423,12 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
                 ce->domain.c_str(),
                 DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
 
+      SAS::Event event(trail, SASEvent::DNS_CACHE_USED, 0);
+      event.add_static_param(ce->records.size());
+      event.add_static_param(ce->original_trail);
+      event.add_var_param(ce->domain);
+      event.add_var_param(ce->original_time);
+      SAS::report_event(event);
       int expiry = ce->expires - time(NULL);
       if (expiry < 0)
       {
@@ -445,12 +451,16 @@ void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
   }
 }
 
-/// Adds or updates an entry in the cache.
+/// Adds or updates an entry in the cache. This function is only used in unit
+/// tests, to insert entries into the cache so we aren't using a real DNS
+/// lookup.
 void DnsCachedResolver::add_to_cache(const std::string& domain,
                                      int dnstype,
                                      std::vector<DnsRRecord*>& records)
 {
   pthread_mutex_lock(&_cache_lock);
+  // We don't have a trail ID available as this is test code - use trail ID 0.
+  SAS::TrailId no_trail = 0;
 
   TRC_DEBUG("Adding cache entry %s %s",
             domain.c_str(), DnsRRecord::rrtype_to_string(dnstype).c_str());
@@ -461,7 +471,7 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   {
     // Create a new cache entry.
     TRC_DEBUG("Create cache entry");
-    ce = create_cache_entry(domain, dnstype);
+    ce = create_cache_entry(domain, dnstype, no_trail);
   }
   else
   {
@@ -472,7 +482,7 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   // Copy all the records across to the cache entry.
   for (size_t ii = 0; ii < records.size(); ++ii)
   {
-    add_record_to_cache(ce, records[ii]);
+    add_record_to_cache(ce, records[ii], no_trail);
   }
 
   records.clear();
@@ -536,8 +546,11 @@ void DnsCachedResolver::dns_response(const std::string& domain,
 {
   pthread_mutex_lock(&_cache_lock);
 
-  TRC_DEBUG("Received DNS response for %s type %s",
-            domain.c_str(), DnsRRecord::rrtype_to_string(dnstype).c_str());
+  TRC_DEBUG("Received DNS response for %s type %s - status is %d (%s)",
+             domain.c_str(),
+             DnsRRecord::rrtype_to_string(dnstype).c_str(),
+             status,
+             ares_strerror(status));
 
   // Stores the domain pointed to by a CNAME record
   std::string canonical_domain;
@@ -568,6 +581,9 @@ void DnsCachedResolver::dns_response(const std::string& domain,
       // Parsing was successful, so clear out any old records, then process
       // the answers and additional data.
       clear_cache_entry(ce);
+      TRC_DEBUG("DNS response for %s - response contains %d answers",
+                 domain.c_str(),
+                 parser.answers().size());
 
       while (!parser.answers().empty())
       {
@@ -582,7 +598,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
               (strcasecmp(rr->rrname().c_str(), canonical_domain.c_str()) == 0))
           {
             // RRNAME matches, so add this record to the cache entry.
-            add_record_to_cache(ce, rr);
+            add_record_to_cache(ce, rr, trail);
           }
           else
           {
@@ -595,7 +611,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
                  (rr->rrtype() == ns_t_naptr))
         {
           // SRV or NAPTR record, so add it to the cache entry.
-          add_record_to_cache(ce, rr);
+          add_record_to_cache(ce, rr, trail);
         }
         else if (rr->rrtype() == ns_t_cname)
         {
@@ -651,7 +667,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
         if (ace == NULL)
         {
           // No existing cache entry, so create one.
-          ace = create_cache_entry(i->first.second, i->first.first);
+          ace = create_cache_entry(i->first.second, i->first.first, trail);
         }
         else
         {
@@ -662,7 +678,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
              j != i->second.end();
              ++j)
         {
-          add_record_to_cache(ace, *j);
+          add_record_to_cache(ace, *j, trail);
         }
 
         // Finally make sure the record is in the expiry list.
@@ -780,13 +796,18 @@ DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::get_cache_entry(const std
 }
 
 /// Creates a new empty cache entry for the specified domain name and NS type.
-DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::create_cache_entry(const std::string& domain, int dnstype)
+DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::create_cache_entry(const std::string& domain,
+                                                                          int dnstype,
+                                                                          SAS::TrailId trail)
 {
   DnsCacheEntryPtr ce = DnsCacheEntryPtr(new DnsCacheEntry());
   ce->domain = domain;
   ce->dnstype = dnstype;
   ce->expires = 0;
   ce->pending_query = false;
+  ce->original_trail = trail;
+  ce->update_timestamp();
+
   _cache[std::make_pair(dnstype, domain)] = ce;
 
   return ce;
@@ -857,9 +878,14 @@ void DnsCachedResolver::clear_cache_entry(DnsCacheEntryPtr ce)
 }
 
 /// Adds a DNS RR to a cache entry.
-void DnsCachedResolver::add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr)
+void DnsCachedResolver::add_record_to_cache(DnsCacheEntryPtr ce,
+                                            DnsRRecord* rr,
+                                            SAS::TrailId trail)
 {
   TRC_DEBUG("Adding record to cache entry, TTL=%d, expiry=%ld", rr->ttl(), rr->expires());
+  ce->original_trail = trail;
+  ce->update_timestamp();
+
   if ((ce->expires == 0) ||
       (ce->expires > rr->expires()))
   {
@@ -956,10 +982,7 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     channel->resolver = this;
     struct ares_options options;
 
-    // ARES_FLAG_STAYOPEN implements TCP keepalive - it doesn't do
-    // anything obviously helpful for UDP connections to the DNS server,
-    // but it's what we've always tested with so not worth the risk of removing.
-    options.flags = ARES_FLAG_STAYOPEN;
+    options.flags = ARES_FLAG_USEVC;
     // At start of day large deployments make a large number of DNS requests, allow a low
     // number of DNS servers more time to complete.
     options.timeout = _timeout / server_count;
@@ -1046,6 +1069,10 @@ void DnsCachedResolver::DnsTsx::execute()
     SAS::report_event(event);
   }
 
+  TRC_DEBUG("Executing DNS lookup for %s (type %s)",
+             _domain.c_str(),
+             DnsRRecord::rrtype_to_string(_dnstype).c_str());
+
   ares_query(_channel->channel,
              _domain.c_str(),
              ns_c_in,
@@ -1068,6 +1095,7 @@ void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned
 {
   if (timeouts > 0)
   {
+    TRC_ERROR("Resolution of %s timed out", _domain.c_str());
     SAS::Event event(_trail, SASEvent::DNS_TIMEOUT, 0);
     event.add_static_param(_dnstype);
     event.add_static_param(timeouts);
