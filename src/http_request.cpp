@@ -23,32 +23,37 @@ HttpRequest::~HttpRequest() {}
 ///
 // SET methods
 ///
-void HttpRequest::set_body(const std::string& body)
+HttpRequest& HttpRequest::set_body(const std::string& body)
 {
   _body = body;
+  return *this;
 }
 
-void HttpRequest::set_sas_trail(SAS::TrailId trail)
+HttpRequest& HttpRequest::set_sas_trail(SAS::TrailId trail)
 {
   _trail = trail;
+  return *this;
 }
 
-void HttpRequest::set_allowed_host_state(int allowed_host_state)
+HttpRequest& HttpRequest::set_allowed_host_state(int allowed_host_state)
 {
   _allowed_host_state = allowed_host_state;
+  return *this;
 }
 
-void HttpRequest::set_username(const std::string& username)
+HttpRequest& HttpRequest::set_username(const std::string& username)
 {
   _username = username;
+  return *this;
 }
 
 ///
 // ADD methods
 ///
-void HttpRequest::add_header(const std::string& header)
+HttpRequest& HttpRequest::add_header(const std::string& header)
 {
   _headers.push_back(header);
+  return *this;
 }
 
 ///
