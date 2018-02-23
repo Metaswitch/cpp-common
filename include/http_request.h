@@ -36,6 +36,9 @@ private:
 class HttpRequest
 {
 public:
+  // HttpClient requires access to the HttpRequest's member variables
+  friend class HttpClient;
+
   HttpRequest(const std::string server,
               const std::string scheme,
               HttpClient* client,

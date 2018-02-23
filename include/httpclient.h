@@ -128,7 +128,16 @@ private:
   /// Converts RequestType to string for logging
   static std::string request_type_to_string(RequestType request_type);
 
-  /// Sends a HTTP request with the specified parameters
+  /// Sends the provided HTTP Request
+  ///
+  /// @param req  The HttpRequest to send
+  ///
+  /// @returns    The HttpResponse received.
+  virtual HttpResponse send_request(const HttpRequest& req);
+
+  /// Inner function to send an HTTP request.
+  /// This is only a helper function, and should not be used directly. Instead,
+  /// the send_request(const HttpRequest&) method should be used.
   ///
   /// @param request_type     The type of HTTP request to send
   /// @param url              Full URL to request - includes http(s)?://
@@ -151,13 +160,6 @@ private:
                             std::vector<std::string> headers_to_add,
                             std::map<std::string, std::string>* response_headers,
                             int allowed_host_state);
-
-  /// Sends the provided HTTP Request
-  ///
-  /// @param req  The HttpRequest to send
-  ///
-  /// @returns    The HttpResponse received.
-  virtual HttpResponse send_request(const HttpRequest& req);
 
   /// Helper function that builds the curl header in the set_curl_options
   /// method.
