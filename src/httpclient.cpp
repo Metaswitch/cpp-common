@@ -19,6 +19,7 @@
 #include "log.h"
 #include "sas.h"
 #include "httpclient.h"
+#include "http_request.h"
 #include "load_monitor.h"
 #include "random_uuid.h"
 
@@ -143,6 +144,29 @@ std::string HttpClient::request_type_to_string(RequestType request_type)
     return "UNKNOWN";
   // LCOV_EXCL_STOP
   }
+}
+
+/// Build and send a request; return the HTTPCode and store any returned data
+HttpResponse HttpClient::send_request(const HttpRequest& req)
+{
+  std::string url = req._scheme + "://" + req._server + req._path;
+
+  std::string body;
+  std::map<std::string, std::string> headers;
+
+  HTTPCode rc = send_request(req._method,
+                             url,
+                             req._body,
+                             body,
+                             req._username,
+                             req._trail,
+                             req._headers,
+                             &headers,
+                             req._allowed_host_state);
+
+  return HttpResponse(rc,
+                      body,
+                      headers);
 }
 
 /// Build and send a request; return the HTTPCode and store any returned data

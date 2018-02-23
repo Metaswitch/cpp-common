@@ -49,19 +49,26 @@ public:
   {
   }
 
-  virtual ~HttpRequest();
+  ~HttpRequest();
+
+  // Note: the SET and ADD methods follow the builder pattern, returning a ref
+  // to this HttpRequest.
+  // However, they do not guarantee that the ref is not dangling - the caller
+  // must ensure that the actual HttpRequest object does not go out of scope
+  // before all SET/ADD methods have been called if they wish to chain these
+  // calls together.
 
   // SET methods will overwrite any previous settings
-  virtual void set_body(const std::string& body);
-  virtual void set_sas_trail(SAS::TrailId trail);
-  virtual void set_allowed_host_state(int allowed_host_state);
-  virtual void set_username(const std::string& username);
+  HttpRequest& set_body(const std::string& body);
+  HttpRequest& set_sas_trail(SAS::TrailId trail);
+  HttpRequest& set_allowed_host_state(int allowed_host_state);
+  HttpRequest& set_username(const std::string& username);
 
   // ADD methods
-  virtual void add_header(const std::string& header);
+  HttpRequest& add_header(const std::string& header);
 
   // Sends the request and populates ret code, recv headers, and recv body
-  virtual HttpResponse send();
+  HttpResponse send();
 
 private:
   // member variables for storing the request information pre and post send

@@ -41,18 +41,11 @@ public:
   }
 
   /// Create an HttpRequest with our server and scheme arguments
-  /// We use a unique_ptr so that this can be mocked out in UTs without having
-  /// the caller worry about correctly deleting it
-  virtual std::unique_ptr<HttpRequest> create_request(
-                                              HttpClient::RequestType method,
-                                              const std::string& path)
+  HttpRequest create_request(HttpClient::RequestType method,
+                             const std::string& path)
   {
-    std::unique_ptr<HttpRequest> request(new HttpRequest(_server,
-                                                         _scheme,
-                                                         _client,
-                                                         method,
-                                                         path));
-    return request;
+    HttpRequest req(_server, _scheme, _client, method, path);
+    return req;
   }
 
 protected:
