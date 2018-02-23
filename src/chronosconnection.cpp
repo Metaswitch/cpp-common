@@ -50,9 +50,9 @@ HTTPCode ChronosConnection::send_delete(const std::string& delete_identity,
   std::string path = "/timers/" +
                      Utils::url_escape(delete_identity);
 
-  std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::DELETE, path);
-  req->set_sas_trail(trail);
-  HttpResponse resp = req->send();
+  HttpRequest req = _http->create_request(HttpClient::RequestType::DELETE, path);
+  req.set_sas_trail(trail);
+  HttpResponse resp = req.send();
   return resp.get_rc();
 }
 
@@ -68,11 +68,11 @@ HTTPCode ChronosConnection::send_put(std::string& put_identity,
                      Utils::url_escape(put_identity);
   std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data, tags);
 
-  std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::PUT, path);
-  req->set_body(body);
-  req->set_sas_trail(trail);
+  HttpRequest req = _http->create_request(HttpClient::RequestType::PUT, path);
+  req.set_body(body);
+  req.set_sas_trail(trail);
 
-  HttpResponse resp = req->send();
+  HttpResponse resp = req.send();
   HTTPCode rc = resp.get_rc();
 
   if (rc == HTTP_OK)
@@ -105,11 +105,11 @@ HTTPCode ChronosConnection::send_post(std::string& post_identity,
   std::string path = "/timers";
   std::string body = create_body(timer_interval, repeat_for, callback_uri, opaque_data, tags);
 
-  std::unique_ptr<HttpRequest> req = _http->create_request(HttpClient::RequestType::PUT, path);
-  req->set_body(body);
-  req->set_sas_trail(trail);
+  HttpRequest req = _http->create_request(HttpClient::RequestType::PUT, path);
+  req.set_body(body);
+  req.set_sas_trail(trail);
 
-  HttpResponse resp = req->send();
+  HttpResponse resp = req.send();
   HTTPCode rc = resp.get_rc();
 
   if (rc == HTTP_OK)
