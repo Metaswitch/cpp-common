@@ -52,6 +52,11 @@ static const long HTTP_GATEWAY_TIMEOUT = 504;
 static const std::string HEADERS_END = "\r\n\r\n";
 static const std::string BODY_OMITTED = "\r\n\r\n<Body present but not logged>";
 
+// We don't need to include http_request.h here, it can just be included in
+// the .cpp file.
+class HttpRequest;
+class HttpResponse;
+
 /// Issues HTTP requests, supporting round-robin DNS load balancing.
 ///
 class HttpClient
@@ -146,6 +151,13 @@ private:
                             std::vector<std::string> headers_to_add,
                             std::map<std::string, std::string>* response_headers,
                             int allowed_host_state);
+
+  /// Sends the provided HTTP Request
+  ///
+  /// @param req  The HttpRequest to send
+  ///
+  /// @returns    The HttpResponse received.
+  virtual HttpResponse send_request(const HttpRequest& req);
 
   /// Helper function that builds the curl header in the set_curl_options
   /// method.

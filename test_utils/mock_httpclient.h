@@ -29,6 +29,7 @@ public:
                                   std::vector<std::string> headers_to_add,
                                   std::map<std::string, std::string>* response_headers,
                                   int allowed_host_state));
+  MOCK_METHOD1(send_request, HttpResponse(const HttpRequest&));
 };
 
 #endif

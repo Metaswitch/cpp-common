@@ -61,24 +61,7 @@ HttpRequest& HttpRequest::add_header(const std::string& header)
 ///
 HttpResponse HttpRequest::send()
 {
-  std::string url = _scheme + "://" + _server + _path;
-
-  std::string body;
-  std::map<std::string, std::string> headers;
-
-  HTTPCode rc = _client->send_request(_method,
-                                      url,
-                                      _body,
-                                      body,
-                                      _username,
-                                      _trail,
-                                      _headers,
-                                      &headers,
-                                      _allowed_host_state);
-
-  return HttpResponse(rc,
-                      body,
-                      headers);
+  return _client->send_request(*this);
 }
 
 ///

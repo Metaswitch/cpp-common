@@ -51,6 +51,13 @@ public:
 
   ~HttpRequest();
 
+  // Note: the SET and ADD methods follow the builder pattern, returning a ref
+  // to this HttpRequest.
+  // However, they do not guarantee that the ref is not dangling - the caller
+  // must ensure that the actual HttpRequest object does not go out of scope
+  // before all SET/ADD methods have been called if they wish to chain these
+  // calls together.
+
   // SET methods will overwrite any previous settings
   HttpRequest& set_body(const std::string& body);
   HttpRequest& set_sas_trail(SAS::TrailId trail);
