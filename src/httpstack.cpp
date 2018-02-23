@@ -327,6 +327,10 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   }
   else
   {
+    TRC_ERROR("Rejecting request for URL %s, args %s with 503 due to overload",
+                req->uri->path->full,
+                req->uri->query_raw);
+
     request.sas_log_overload(trail,
                              503,
                              _load_monitor->get_target_latency_us(),

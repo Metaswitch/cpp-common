@@ -43,7 +43,8 @@ template <int SIGNUM>
 class SignalHandler : public SignalWaiter
 {
 public:
-  SignalHandler()
+  SignalHandler():
+    _thread_running(false)
   {
     // Create the mutex and condition.
     pthread_mutex_init(&_mutex, NULL);
@@ -62,9 +63,12 @@ public:
     // Unhook the signal.
     signal(SIGNUM, SIG_DFL);
 
-    // Cancel the dispatcher thread and wait for it to end.
-    pthread_cancel(_dispatcher_thread);
-    pthread_join(_dispatcher_thread, NULL);
+    if (_thread_running)
+    {
+      // Cancel the dispatcher thread and wait for it to end.
+      pthread_cancel(_dispatcher_thread);
+      pthread_join(_dispatcher_thread, NULL);
+    }
 
     // Destroy the semaphore.
     sem_destroy(&_sema);
@@ -78,6 +82,7 @@ public:
   {
     // Create the dispatcher thread.
     pthread_create(&_dispatcher_thread, 0, &SignalHandler::dispatcher, (void*)this);
+    _thread_running = true;
 
     // Hook the signal.
     sighandler_t old_handler = signal(SIGNUM, &SignalHandler::handler);
@@ -150,6 +155,7 @@ private:
 
   /// Identifier of dispatcher thread.
   pthread_t _dispatcher_thread;
+  bool _thread_running;
 
   /// Mutex used for signalling to waiting threads.
   static pthread_mutex_t _mutex;
