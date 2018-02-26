@@ -158,4 +158,29 @@ static const PDLog CL_DNS_FILE_BAD_ENTRY
   "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json"
 );
 
+static const PDLog3<const char*, const char*, const char*> CL_CM_CONNECTION_PARTIAL_ERROR_EXPLICIT
+(
+  PDLogBase::CL_CPP_COMMON_ID + 15,
+  LOG_INFO,
+  "Connections between %s and %s applications at %s have failed.",
+  "This process was unable to contact some instances of the application "
+  "it's trying to connect to, but did make some successful contact",
+  "This process was unable to contact some instances of the application "
+  "it's trying to connect to",
+  "(1). Check that the application this process is trying to connect to is running."
+  "(2). Check the configuration in /etc/clearwater is correct."
+  "(3). Check that this process has connectivity to the application it's trying to connect to."
+);
+
+static const PDLog3<const char*, const char*, const char*> CL_CM_CONNECTION_PARTIAL_CLEARED_EXPLICIT
+(
+  PDLogBase::CL_CPP_COMMON_ID + 16,
+  LOG_INFO,
+  "Connection between %s and %s applications%s has been restored.",
+  "This process can now contact at least one instance of the application it's "
+  "trying to connect to.",
+  "Normal.",
+  "None."
+);
+
 #endif

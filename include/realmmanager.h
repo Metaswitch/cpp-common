@@ -23,8 +23,11 @@ public:
   RealmManager(Diameter::Stack* stack,
                std::string realm,
                std::string host,
-               int max_peers,
-               DiameterResolver* resolver);
+               unsigned int max_peers,
+               DiameterResolver* resolver,
+               Alarm* alarm=NULL,
+               std::string sender="",
+               std::string receiver="");
   virtual ~RealmManager();
 
   void start();
@@ -44,6 +47,9 @@ private:
 
   void manage_connections(int& ttl);
 
+  // utility function that turns the std::map _failed_peers into a csv string
+  std::string create_failed_peers_string();
+
   // We use a read/write lock to read and update the _peers map (defined below).
   // However, we read this map on every single Diameter message, so we want to
   // minimise blocking. Therefore we only grab the write lock when we are ready
@@ -58,14 +64,22 @@ private:
   pthread_rwlock_t _peers_lock;
 
   Diameter::Stack* _stack;
+  Alarm* _peer_connection_alarm;
   std::string _realm;
   std::string _host;
-  int _max_peers;
+  unsigned int _max_peers;
+  unsigned int _num_targets;
+  unsigned int _num_attempts;
   pthread_t _thread;
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
   std::map<std::string, Diameter::Peer*> _peers;
+  std::map<AddrInfo, const unsigned long> _failed_peers;
+  std::string _sender;
+  std::string _receiver;
+  unsigned long _failed_peers_timeout_ms = 24*3600*1000;
   volatile bool _terminating;
+  bool _total_connection_error;
 };
 
 #endif
