@@ -231,7 +231,7 @@ void MemcachedStoreView::update(const MemcachedConfig& config)
 
   if (!(config.servers.empty() && config.new_servers.empty()))
   {
-    TRC_DEBUG("New view -\n%s", view_to_string().c_str());
+    TRC_ERROR("New view -\n%s", view_to_string().c_str());
   }
 }
 
