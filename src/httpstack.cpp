@@ -327,6 +327,10 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   }
   else
   {
+    TRC_ERROR("Rejecting request for URL %s, args %s with 503 due to overload",
+                req->uri->path->full,
+                req->uri->query_raw);
+
     request.sas_log_overload(trail,
                              503,
                              _load_monitor->get_target_latency_us(),
@@ -551,7 +555,7 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
 
   if (!omit_body)
   {
-    event.add_compressed_param(req.get_rx_message(), &SASEvent::PROFILE_HTTP);
+    event.add_var_param(req.get_rx_message());
   }
   else
   {
@@ -559,14 +563,13 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
     {
       // We are omitting the body but there wasn't one in the messaage. Just log
       // the headers.
-      event.add_compressed_param(req.get_rx_header(), &SASEvent::PROFILE_HTTP);
+      event.add_var_param(req.get_rx_header());
     }
     else
     {
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
-      event.add_compressed_param(req.get_rx_header() + BODY_OMITTED,
-                                 &SASEvent::PROFILE_HTTP);
+      event.add_var_param(req.get_rx_header() + BODY_OMITTED);
     }
   }
 
@@ -591,7 +594,7 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
 
   if (!omit_body)
   {
-    event.add_compressed_param(req.get_tx_message(rc), &SASEvent::PROFILE_HTTP);
+    event.add_var_param(req.get_tx_message(rc));
   }
   else
   {
@@ -599,14 +602,13 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
     {
       // We are omitting the body but there wasn't one in the messaage. Just log
       // the headers.
-      event.add_compressed_param(req.get_tx_header(rc), &SASEvent::PROFILE_HTTP);
+      event.add_var_param(req.get_tx_header(rc));
     }
     else
     {
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
-      event.add_compressed_param(req.get_tx_header(rc) + BODY_OMITTED,
-                                 &SASEvent::PROFILE_HTTP);
+      event.add_var_param(req.get_tx_header(rc) + BODY_OMITTED);
     }
   }
 

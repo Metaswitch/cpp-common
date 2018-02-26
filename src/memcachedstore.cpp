@@ -74,6 +74,16 @@ BaseMemcachedStore::~BaseMemcachedStore()
 {
 }
 
+static void log_targets(std::vector<AddrInfo> targets)
+{
+  TRC_VERBOSE("  Targets were:");
+  for (AddrInfo t: targets)
+  {
+    std::string s = t.address_and_port_to_string();
+    TRC_VERBOSE("  %s", s.c_str());
+  }
+}
+
 memcached_return_t BaseMemcachedStore::get_from_replica(memcached_st* replica,
                                                         const char* key_ptr,
                                                         const size_t key_len,
@@ -345,6 +355,7 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
 
   if (!get_targets(targets, trail))
   {
+    TRC_VERBOSE("Failed to get targets for GET from table %s for key %s", table.c_str(), key.c_str());
     return ERROR;
   }
 
@@ -447,7 +458,10 @@ Store::Status TopologyNeutralMemcachedStore::get_data(const std::string& table,
       SAS::report_event(err);
     }
 
-    TRC_DEBUG("Failed to read data with error %s", memcached_strerror(NULL, rc));
+    TRC_VERBOSE("Failed to read data from %s with error %s",
+                fqkey.c_str(),
+                memcached_strerror(NULL, rc));
+    log_targets(targets);
     status = Store::Status::ERROR;
 
     if (_comm_monitor)
@@ -489,7 +503,7 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& table,
       SAS::report_event(err);
     }
 
-    TRC_INFO("Attempting to write more than %lu bytes of data -- reject request",
+    TRC_DEBUG("Attempting to write more than %lu bytes of data -- reject request",
              Store::MAX_DATA_LENGTH);
     return Store::Status::ERROR;
   }
@@ -662,6 +676,7 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& fqkey,
 
   if (!get_targets(targets, trail))
   {
+    TRC_VERBOSE("Failed to get targets for SET key %s", fqkey.c_str());
     return ERROR;
   }
 
@@ -719,8 +734,9 @@ Store::Status TopologyNeutralMemcachedStore::set_data(const std::string& fqkey,
       _comm_monitor->inform_failure();
     }
 
-    TRC_DEBUG("Failed to write data for %s to store with error %s",
-              fqkey.c_str(), memcached_strerror(NULL, rc));
+    TRC_INFO("Failed to write data for %s to store with error %s",
+                fqkey.c_str(), memcached_strerror(NULL, rc));
+    log_targets(targets);
     status = Store::Status::ERROR;
   }
 
@@ -756,6 +772,7 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
 
   if (!get_targets(targets, trail))
   {
+    TRC_INFO("Failed to get targets for DELETE key %s", fqkey.c_str());
     return ERROR;
   }
 
@@ -809,7 +826,8 @@ Store::Status TopologyNeutralMemcachedStore::delete_data(const std::string& tabl
       SAS::report_event(event);
     }
 
-    TRC_DEBUG("Delete failed with error %s", memcached_strerror(NULL, rc));
+    TRC_INFO("Delete for %s failed with error %s", fqkey.c_str(), memcached_strerror(NULL, rc));
+    log_targets(targets);
   }
 
   return status;
@@ -835,7 +853,7 @@ bool TopologyNeutralMemcachedStore::get_targets(std::vector<AddrInfo>& targets,
 
   if (targets.empty())
   {
-    TRC_DEBUG("No targets in domain - give up");
+    TRC_VERBOSE("No targets in domain %s - give up", _target_domain.c_str());
     SAS::Event event(trail, SASEvent::MEMCACHED_NO_HOSTS, 0);
     event.add_var_param(_target_domain);
     SAS::report_event(event);

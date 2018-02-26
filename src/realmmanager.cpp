@@ -319,7 +319,7 @@ void RealmManager::manage_connections(int& ttl)
                   (*ii)->host()) == new_peers.end())
     {
       Diameter::Peer* peer = *ii;
-      TRC_DEBUG("Removing peer: %s", peer->host().c_str());
+      TRC_STATUS("Removing peer: %s", peer->host().c_str());
       ii = connected_peers.erase(ii);
       std::map<std::string, Diameter::Peer*>::iterator jj =
                                                 locked_peers.find(peer->host());
@@ -352,7 +352,7 @@ void RealmManager::manage_connections(int& ttl)
     if (jj == locked_peers.end())
     {
       Diameter::Peer* peer = new Diameter::Peer(*ii, hostname, _realm, 0);
-      TRC_DEBUG("Adding peer: %s", hostname.c_str());
+      TRC_STATUS("Adding peer: %s", hostname.c_str());
       ret = _stack->add(peer);
       if (ret)
       {
@@ -360,7 +360,7 @@ void RealmManager::manage_connections(int& ttl)
       }
       else
       {
-        TRC_DEBUG("Peer already exists: %s", hostname.c_str());
+        TRC_STATUS("Peer already exists: %s", hostname.c_str());
         delete peer;
 
         // If the add failed, it means that, while RealmManager and
