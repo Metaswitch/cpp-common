@@ -84,8 +84,11 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
   // when starting up a new socket.
   if (!_source_address.empty())
   {
+    // LCOV_EXCL_START - we don't test sending from a source address in UT. This
+    // is tested in clearwater-fv-test instead.
     curl_easy_setopt(conn, CURLOPT_OPENSOCKETFUNCTION, &HttpConnectionPool::open_socket_fn);
     curl_easy_setopt(conn, CURLOPT_OPENSOCKETDATA, this);
+    // LCOV_EXCL_STOP
   }
 
   increment_statistic(target, conn);
@@ -170,6 +173,8 @@ long HttpConnectionPool::calc_req_timeout_from_latency(int latency_us)
   return _connection_timeout_ms + std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
 }
 
+// LCOV_EXCL_START - we don't test sending from a source address in UT. This
+// is tested in clearwater-fv-test instead.
 curl_socket_t HttpConnectionPool::open_socket_fn(void *clientp,
                                                  curlsocktype purpose,
                                                  struct curl_sockaddr *address)
@@ -232,3 +237,4 @@ curl_socket_t HttpConnectionPool::open_socket(curlsocktype purpose,
 
   return fd;
 }
+// LCOV_EXCL_STOP
