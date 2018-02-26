@@ -982,7 +982,7 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     channel->resolver = this;
     struct ares_options options;
 
-    options.flags = ARES_FLAG_USEVC;
+    options.flags = ARES_FLAG_STAYOPEN;
     // At start of day large deployments make a large number of DNS requests, allow a low
     // number of DNS servers more time to complete.
     options.timeout = _timeout / server_count;
