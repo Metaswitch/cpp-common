@@ -50,6 +50,32 @@ private:
   // utility function that turns the std::map _failed_peers into a csv string
   std::string create_failed_peers_string();
 
+  /// -------------------------- Alarm mechanics -------------------------- ///
+  // The _peer_connection_alarm is used to monitor the connection to diameter
+  // peers. The parameter controlling the mechanics of the alarm is _max_peers.
+  // We keep track of the peers we failed to connect to using the map
+  // _failed_peers. We add the failed peer together with a timestamp to this
+  // map, so that we can remove stale failed peers which no longer get returned
+  // by the DNS (see Step 8 in manage_connections).
+  // We raise the alarm if we fail to connect to a peer and the number of
+  // connected peers (num_connected_peers) is strictly less than _max_peers.
+  // We clear the alarm if, either we successfully connect to a peer and the
+  // number of connected peers is at least _max_peers, or there are no failed 
+  // peers. This ensures we clear the alarm if the total number of available
+  // peers isn less than _max_peers and we successfully connect to all of them.
+  // We also make ENT logs specifying the ip addresses of the failed peers,
+  // thus helping us diagnose which peers we failed to connect to. 
+  // There are three types of ENT logs:
+  // 1. partial connection error log (CL_CM_CONNECTION_PARTIAL_ERROR_EXPLICIT),
+	// 2. total connection error log (CL_CM_CONNECTION_ERRORED), and
+	// 3. connection restored log (CL_CM_CONNECTION_PARTIAL_CLEARED_EXPLICIT).
+  // These logs should be self explanatory.
+  /// --------------------------------------------------------------------- ///
+  void manage_alarm(const bool connected,
+                    Diameter::Peer* peer,
+                    const int change,
+                    const unsigned int num_connected_peers);
+
   // We use a read/write lock to read and update the _peers map (defined below).
   // However, we read this map on every single Diameter message, so we want to
   // minimise blocking. Therefore we only grab the write lock when we are ready
@@ -63,13 +89,11 @@ private:
   pthread_mutex_t _main_thread_lock;
   pthread_rwlock_t _peers_lock;
 
-  Diameter::Stack* _stack;
   Alarm* _peer_connection_alarm;
+  Diameter::Stack* _stack;
   std::string _realm;
   std::string _host;
   unsigned int _max_peers;
-  unsigned int _num_targets;
-  unsigned int _num_attempts;
   pthread_t _thread;
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
