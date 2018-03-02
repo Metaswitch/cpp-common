@@ -327,7 +327,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   }
   else
   {
-    TRC_ERROR("Rejecting request for URL %s, args %s with 503 due to overload",
+    TRC_DEBUG("Rejecting request for URL %s, args %s with 503 due to overload",
                 req->uri->path->full,
                 req->uri->query_raw);
 
