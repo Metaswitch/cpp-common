@@ -18,7 +18,7 @@
 RealmManager::RealmManager(Diameter::Stack* stack,
                            std::string realm,
                            std::string host,
-                           unsigned int max_peers,
+                           int max_peers,
                            DiameterResolver* resolver,
                            Alarm* alarm,
                            std::string sender,
@@ -31,8 +31,7 @@ RealmManager::RealmManager(Diameter::Stack* stack,
                            _resolver(resolver),
                            _sender(sender),
                            _receiver(receiver),
-                           _terminating(false),
-                           _total_connection_error(false)
+                           _terminating(false)
 {
   pthread_mutex_init(&_main_thread_lock, NULL);
   pthread_condattr_t cond_attr;
@@ -94,84 +93,52 @@ std::string RealmManager::create_failed_peers_string()
   return failed_peers_string;
 }
 
-void RealmManager::manage_alarm(const bool connected,
-                                Diameter::Peer* peer,
-                                const int change,
-                                const unsigned int num_connected_peers)
+void RealmManager::manage_alarm(const int failed_peers_changed)
 {
-  if (connected)
+  if (_peer_connection_alarm)
   {
-    if (_peer_connection_alarm->get_alarm_state() == 2)
+    // First find the number of connected peers.
+    int num_connected_peers = 0;
+    for (std::map<std::string, Diameter::Peer*>::iterator ii = _peers.begin();
+          ii != _peers.end();
+          ii++)
     {
-      // The alarm is raised so consider clearing it
-      if (num_connected_peers >= _max_peers || _failed_peers.empty())
+      if ((ii->second)->connected())
+      {
+        num_connected_peers++;
+      }
+    }
+
+    const bool clear_alarm = (num_connected_peers >= _max_peers) ||
+                            _failed_peers.empty();
+
+    if (_peer_connection_alarm->get_alarm_state() == AlarmState::ALARMED)
+    {
+      // Alarm is raised so consider clearing it
+      if (clear_alarm)
       {
         _peer_connection_alarm->clear();
+        CL_RM_CONNECTION_CLEARED.log(_sender.c_str(), _receiver.c_str());
       }
-
-      if (change)
+      else if (failed_peers_changed)
       {
-        // We have successfully connected to a previously failed peer
-        CL_CM_CONNECTION_PARTIAL_CLEARED_EXPLICIT.log(
-          _sender.c_str(),
-          _receiver.c_str(),
-          (" at " + Utils::ip_addr_to_arpa(peer->addr_info().address)).c_str());
-      }
-      else if (_total_connection_error)
-      {
-        // We have recovered from a total connection failure by connecting to a
-        // new peer (one that wasn't in _failed_peers before). This can happen
-        // either during startup or when the DNS returns a different set of
-        // targets. Make an ENT log to inform of this.
-        CL_CM_CONNECTION_PARTIAL_CLEARED_EXPLICIT.log(_sender.c_str(),
-                                                      _receiver.c_str(),
-                                                      "");
-      }
-      _total_connection_error = false;
-    }
-  }
-  else
-  {
-    if (_peer_connection_alarm->get_alarm_state() != 2)
-    {
-      // Alarm is not raised so consider raising it
-      if (num_connected_peers == 0)
-      {
-        _peer_connection_alarm->set();
-        CL_CM_CONNECTION_ERRORED.log(_sender.c_str(), _receiver.c_str());
-        _total_connection_error = true;
-      }
-      else if (num_connected_peers < _max_peers)
-      {
-        _peer_connection_alarm->set();
-        CL_CM_CONNECTION_PARTIAL_ERROR_EXPLICIT.log(
-          _sender.c_str(),
-          _receiver.c_str(),
-          create_failed_peers_string().c_str());
+        // We either failed to connect to a new peer or we successfully connected
+        // to a previously uncontactable peer. Make an ENT log updating the ip
+        // addresses of the uncontactable peers.
+        CL_RM_CONNECTION_ERROR.log(_sender.c_str(),
+                                  _receiver.c_str(),
+                                  create_failed_peers_string().c_str());
       }
     }
     else
     {
-      // Alarm is raised. We update the ENT logs if we fail to connect to a
-      // previously connected peer and either:
-      // 1. this results in total connection error, thus printing the total
-      // connection error log, or
-      // 2. this does not result in total connection error, in which case we
-      // print the partial connection error log including the peer's ip address
-      if (num_connected_peers == 0)
+      // Alarm is not raised so consider raising it
+      if (!clear_alarm)
       {
-        if (!_total_connection_error)
-        {
-          CL_CM_CONNECTION_ERRORED.log(_sender.c_str(), _receiver.c_str());
-          _total_connection_error = true;
-        }
-      }
-      else if (change)
-      {
-        CL_CM_CONNECTION_PARTIAL_ERROR_EXPLICIT.log(
-          _sender.c_str(),
-          _receiver.c_str(),
-          create_failed_peers_string().c_str());
+        _peer_connection_alarm->set();
+        CL_RM_CONNECTION_ERROR.log(_sender.c_str(),
+                                  _receiver.c_str(),
+                                  create_failed_peers_string().c_str());
       }
     }
   }
@@ -188,7 +155,6 @@ void RealmManager::peer_connection_cb(bool connection_success,
   if (ii != _peers.end())
   {
     Diameter::Peer* peer = ii->second;
-    unsigned int num_connected_peers = 0;
     if (connection_success)
     {
       if (peer->realm().empty() || (peer->realm().compare(realm) == 0))
@@ -196,28 +162,12 @@ void RealmManager::peer_connection_cb(bool connection_success,
         TRC_INFO("Successfully connected to %s in realm %s",
                  host.c_str(),
                  realm.c_str());
-
-        // Find the number of peers we are currently connected to
-        for (std::map<std::string, Diameter::Peer*>::iterator jj = _peers.begin();
-             jj != _peers.end();
-             jj++)
-        {
-          if ((jj->second)->connected() ||
-              (jj->second)->addr_info() == peer->addr_info()) // we haven't set the peer we just connected to to connected yet
-          {
-            num_connected_peers++;
-          }
-        }
-
         pthread_rwlock_unlock(&_peers_lock);
         pthread_rwlock_wrlock(&_peers_lock);
-        const int change = _failed_peers.erase(peer->addr_info());
+        const int was_failed = _failed_peers.erase(peer->addr_info());
         peer->set_connected();
 
-        if (_peer_connection_alarm)
-        {
-          manage_alarm(true, peer, change, num_connected_peers);
-        }
+        manage_alarm(was_failed);
       }
       else
       {
@@ -226,32 +176,17 @@ void RealmManager::peer_connection_cb(bool connection_success,
                   peer->realm().c_str(),
                   realm.c_str());
 
-        // Find the number of peers we are currently connected to
-        for (std::map<std::string, Diameter::Peer*>::iterator jj = _peers.begin();
-                  jj != _peers.end();
-                  jj++)
-        {
-          if ((jj->second)->connected() &&
-              (jj->second)->addr_info() != peer->addr_info()) // we haven't removed the peer we just failed to connected to from _peers yet
-          {
-            num_connected_peers++;
-          }
-        }
-
         _stack->remove(peer);
         _resolver->blacklist(peer->addr_info());
         pthread_rwlock_unlock(&_peers_lock);
         pthread_rwlock_wrlock(&_peers_lock);
-        const bool change = _failed_peers.insert(std::pair<AddrInfo, const unsigned long>
-                              (peer->addr_info(), Utils::current_time_ms())).second;
-        
-        if (_peer_connection_alarm)
-        {
-          manage_alarm(false, peer, (int)change, num_connected_peers);
-        }
-
+        const bool wasnt_failed = _failed_peers.insert(std::pair<AddrInfo, const unsigned long>
+                                  (peer->addr_info(), Utils::current_time_ms())).second;        
         delete peer;
         _peers.erase(ii);
+
+        manage_alarm((int)wasnt_failed);
+
         pthread_cond_signal(&_cond);
       }
     }
@@ -260,30 +195,16 @@ void RealmManager::peer_connection_cb(bool connection_success,
       TRC_ERROR("Failed to connect to %s", host.c_str());
       _resolver->blacklist(peer->addr_info());
 
-      // Find the number of peers we are currently connected to
-      for (std::map<std::string, Diameter::Peer*>::iterator jj = _peers.begin();
-                jj != _peers.end();
-                jj++)
-      {
-        if ((jj->second)->connected() &&
-            (jj->second)->addr_info() != peer->addr_info()) // we haven't removed the peer we just failed to connected to from _peers yet
-        {
-          num_connected_peers++;
-        }
-      }
-
       pthread_rwlock_unlock(&_peers_lock);
       pthread_rwlock_wrlock(&_peers_lock);
-      const bool change = _failed_peers.insert(std::pair<AddrInfo, const unsigned long>
-                                    (peer->addr_info(), Utils::current_time_ms())).second;
+      const bool wasnt_failed = _failed_peers.insert(std::pair<AddrInfo, const unsigned long>
+                                (peer->addr_info(), Utils::current_time_ms())).second;
 
-      if (_peer_connection_alarm)
-      {
-        manage_alarm(false, peer, (int)change, num_connected_peers);
-      }
-      
       delete peer;
       _peers.erase(ii);
+
+      manage_alarm((int)wasnt_failed);
+
       pthread_cond_signal(&_cond);
     }
   }
@@ -449,7 +370,7 @@ void RealmManager::manage_connections(int& ttl)
   pthread_rwlock_unlock(&_peers_lock);
 
   // 1.
-  _resolver->resolve(_realm, _host, (int)_max_peers, targets, ttl);
+  _resolver->resolve(_realm, _host, _max_peers, targets, ttl);
 
   // We impose sensible max and min values for the TTL.
   ttl = std::max(5, ttl);
@@ -477,8 +398,8 @@ void RealmManager::manage_connections(int& ttl)
   // 4.
   for (std::vector<Diameter::Peer*>::iterator ii = connected_peers.begin();
        (ii != connected_peers.end()) &&
-       ((connected_peers.size() > _max_peers) ||
-        (new_peers.size() < _max_peers));
+       (((int)connected_peers.size() > _max_peers) ||
+        ((int)new_peers.size() < _max_peers));
       )
   {
     if (std::find(new_peers.begin(),
