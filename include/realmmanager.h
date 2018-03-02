@@ -23,7 +23,7 @@ public:
   RealmManager(Diameter::Stack* stack,
                std::string realm,
                std::string host,
-               unsigned int max_peers,
+               int max_peers,
                DiameterResolver* resolver,
                Alarm* alarm=NULL,
                std::string sender="",
@@ -57,24 +57,16 @@ private:
   // _failed_peers. We add the failed peer together with a timestamp to this
   // map, so that we can remove stale failed peers which no longer get returned
   // by the DNS (see Step 8 in manage_connections).
-  // We raise the alarm if we fail to connect to a peer and the number of
-  // connected peers (num_connected_peers) is strictly less than _max_peers.
-  // We clear the alarm if, either we successfully connect to a peer and the
-  // number of connected peers is at least _max_peers, or there are no failed 
-  // peers. This ensures we clear the alarm if the total number of available
-  // peers isn less than _max_peers and we successfully connect to all of them.
+  // We raise the alarm whenever we get a callback and the number of connected
+  // peers (num_connected_peers) is strictly less than _max_peers.
+  // We clear the alarm whenever we get a callback and, either the number of
+  // connected peers is at least _max_peers, or there are no failed peers.
+  // This ensures we clear the alarm if the total number of available peers is
+  // less than _max_peers and we successfully connect to all of them.
   // We also make ENT logs specifying the ip addresses of the failed peers,
-  // thus helping us diagnose which peers we failed to connect to. 
-  // There are three types of ENT logs:
-  // 1. partial connection error log (CL_CM_CONNECTION_PARTIAL_ERROR_EXPLICIT),
-	// 2. total connection error log (CL_CM_CONNECTION_ERRORED), and
-	// 3. connection restored log (CL_CM_CONNECTION_PARTIAL_CLEARED_EXPLICIT).
-  // These logs should be self explanatory.
+  // thus helping us diagnose which peers we failed to connect to.
   /// --------------------------------------------------------------------- ///
-  void manage_alarm(const bool connected,
-                    Diameter::Peer* peer,
-                    const int change,
-                    const unsigned int num_connected_peers);
+  void manage_alarm(const int failed_peers_changed);
 
   // We use a read/write lock to read and update the _peers map (defined below).
   // However, we read this map on every single Diameter message, so we want to
@@ -93,7 +85,7 @@ private:
   Diameter::Stack* _stack;
   std::string _realm;
   std::string _host;
-  unsigned int _max_peers;
+  int _max_peers;
   pthread_t _thread;
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
@@ -103,7 +95,6 @@ private:
   std::string _receiver;
   unsigned long _failed_peers_timeout_ms = 24*3600*1000;
   volatile bool _terminating;
-  bool _total_connection_error;
 };
 
 #endif
