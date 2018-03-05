@@ -1,37 +1,12 @@
 /**
  * @file eventq.h Template definition for event queue
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2015
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef EVENTQ__
@@ -49,18 +24,92 @@ template<class T>
 class eventq
 {
 public:
+
+  // Abstract base class adapter for queue-type containers that can be used to
+  // back an eventq. The meaning of the 'front' of the container may vary by
+  // implementation, but is intended to be the next element to be removed from
+  // the container.
+  class Backend
+  {
+  public:
+    Backend() {}
+    virtual ~Backend() {}
+
+    // Returns a reference to the element at the 'front' of the container.
+    virtual const T& front() = 0;
+
+    // Returns true if the container is empty, and false otherwise.
+    virtual bool empty() = 0;
+
+    // Returns the number of elements in the container.
+    virtual int size() = 0;
+
+    // Adds an element to the container.
+    virtual void push(const T& value) = 0;
+
+    // Removes an element from the 'front' of the container.
+    virtual void pop() = 0;
+  };
+
+  // Implements Backend as a standard std::queue.
+  class QueueBackend : public Backend
+  {
+  public:
+
+    QueueBackend() : _queue() {}
+    virtual ~QueueBackend() {}
+
+    virtual const T& front()
+    {
+      return _queue.front();
+    }
+
+    virtual bool empty()
+    {
+      return _queue.empty();
+    }
+
+    virtual int size()
+    {
+      return _queue.size();
+    }
+
+    virtual void push(const T& value)
+    {
+      _queue.push(value);
+    }
+
+    virtual void pop()
+    {
+      _queue.pop();
+    }
+
+  private:
+
+    std::queue<T> _queue;
+  };
+
   /// Create an event queue.
   ///
   /// @param max_queue maximum size of event queue, zero is unlimited.
-  eventq(unsigned int max_queue=0, bool open=true) :
+  eventq(unsigned int max_queue=0, bool open=true, eventq<T>::Backend* q = nullptr) :
     _open(open),
     _max_queue(max_queue),
-    _q(),
     _writers(0),
     _readers(0),
     _terminated(false),
     _deadlock_threshold(0)
   {
+
+    if (q)
+    {
+      _q = q;
+    }
+    else
+    {
+      _q = new eventq<T>::QueueBackend();
+    }
+
     pthread_mutex_init(&_m, NULL);
     pthread_condattr_t cond_attr;
     pthread_condattr_init(&cond_attr);
@@ -72,6 +121,8 @@ public:
 
   ~eventq()
   {
+    delete _q;
+    _q = nullptr;
   }
 
   /// Open the queue for new inputs.
@@ -89,6 +140,12 @@ public:
   /// Send a termination signal via the queue.
   void terminate()
   {
+    std::vector<T> remaining_elts;
+    terminate(remaining_elts);
+  }
+
+  void terminate(std::vector<T>& remaining_elts)
+  {
     pthread_mutex_lock(&_m);
 
     _terminated = true;
@@ -100,6 +157,12 @@ public:
       // as we're relying on wait-morphing being supported by the OS (so
       // there will be no spurious context switches).
       pthread_cond_broadcast(&_r_cond);
+    }
+
+    while (!_q->empty())
+    {
+       remaining_elts.push_back(_q->front());
+       _q->pop();
     }
 
     pthread_mutex_unlock(&_m);
@@ -138,7 +201,7 @@ public:
     pthread_mutex_lock(&_m);
 
     if ((_deadlock_threshold > 0) &&
-        (!_q.empty()))
+        (!_q->empty()))
     {
       // Deadlock detection is enabled, and the queue is not empty, so check
       // how long it has been since the queue was last serviced.
@@ -173,9 +236,9 @@ public:
   void purge()
   {
     pthread_mutex_lock(&_m);
-    while (!_q.empty())
+    while (!_q->empty())
     {
-      _q.pop();
+      _q->pop();
     }
     pthread_mutex_unlock(&_m);
   }
@@ -193,7 +256,7 @@ public:
     {
       if (_max_queue != 0)
       {
-        while (_q.size() >= _max_queue)
+        while (_q->size() >= _max_queue)
         {
           // Queue is full, so writer must block.
           ++_writers;
@@ -203,7 +266,7 @@ public:
       }
 
       if ((_deadlock_threshold > 0) &&
-          (_q.empty()))
+          (_q->empty()))
       {
         // Deadlock detection is enabled, and we're about to push an item on
         // to an empty queue, so update the service time to the current time.
@@ -213,7 +276,7 @@ public:
       }
 
       // Must be space on the queue now.
-      _q.push(item);
+      _q->push(item);
 
       // Are there any readers waiting?
       if (_readers > 0)
@@ -238,10 +301,10 @@ public:
 
     pthread_mutex_lock(&_m);
 
-    if ((_open) && ((_max_queue == 0) || (_q.size() < _max_queue)))
+    if ((_open) && ((_max_queue == 0) || (_q->size() < _max_queue)))
     {
       if ((_deadlock_threshold > 0) &&
-          (_q.empty()))
+          (_q->empty()))
       {
         // Deadlock detection is enabled, and we're about to push an item on
         // to an empty queue, so update the service time to the current time.
@@ -251,7 +314,7 @@ public:
       }
 
       // There is space on the queue.
-      _q.push(item);
+      _q->push(item);
 
       // Are there any readers waiting?
       if (_readers > 0)
@@ -272,7 +335,7 @@ public:
   {
     pthread_mutex_lock(&_m);
 
-    while ((_q.empty()) && (!_terminated))
+    while ((_q->empty()) && (!_terminated))
     {
       // The queue is empty, so wait for something to arrive.
       ++_readers;
@@ -280,15 +343,15 @@ public:
       --_readers;
     }
 
-    if (!_q.empty())
+    if (!_q->empty())
     {
       // Something on the queue to receive.
-      item = _q.front();
-      _q.pop();
+      item = _q->front();
+      _q->pop();
 
       // Are there blocked writers?
       if ((_max_queue != 0) &&
-          (_q.size() < _max_queue) &&
+          (_q->size() < _max_queue) &&
           (_writers > 0))
       {
         pthread_cond_signal(&_w_cond);
@@ -315,7 +378,7 @@ public:
   {
     pthread_mutex_lock(&_m);
 
-    if ((_q.empty()) && (timeout != 0))
+    if ((_q->empty()) && (timeout != 0))
     {
       // The queue is empty and the timeout is non-zero, so wait for
       // something to arrive.
@@ -334,7 +397,7 @@ public:
 
       ++_readers;
 
-      while ((_q.empty()) && (!_terminated))
+      while ((_q->empty()) && (!_terminated))
       {
         // The queue is empty, so wait for something to arrive.
         if (timeout != -1)
@@ -354,13 +417,13 @@ public:
       --_readers;
     }
 
-    if (!_q.empty())
+    if (!_q->empty())
     {
-      item = _q.front();
-      _q.pop();
+      item = _q->front();
+      _q->pop();
 
       if ((_max_queue != 0) &&
-          (_q.size() < _max_queue) &&
+          (_q->size() < _max_queue) &&
           (_writers > 0))
       {
         pthread_cond_signal(&_w_cond);
@@ -384,9 +447,9 @@ public:
   {
     T item;
     pthread_mutex_lock(&_m);
-    if (!_q.empty())
+    if (!_q->empty())
     {
-      item = _q.front();
+      item = _q->front();
     }
     pthread_mutex_unlock(&_m);
     return item;
@@ -394,14 +457,14 @@ public:
 
   int size() const
   {
-    return _q.size();
+    return _q->size();
   }
 
 private:
 
   bool _open;
   unsigned int _max_queue;
-  std::queue<T> _q;
+  eventq<T>::Backend* _q;
   int _writers;
   int _readers;
   bool _terminated;

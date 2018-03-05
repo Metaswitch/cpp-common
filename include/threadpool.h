@@ -1,42 +1,20 @@
 /**
  * @file threadpool.h implementation of a simple thread pool.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
+
+#include <functional>
 
 #include <eventq.h>
 #include "exception_handler.h"
 #include <log.h>
+#include "snmp_event_accumulator_by_scope_table.h"
 
 #ifndef THREADPOOL_H__
 #define THREADPOOL_H__
@@ -64,16 +42,20 @@ public:
   //
   // @param num_threads the number of threads in the pool.
   // @param max_queue the number of work items that can be queued waiting for a
-  //   free thread (0 => no limit).
+  //                  free thread (0 => no limit).
+  // @param queue_size_table an optional pointer to an SNMP table to track the
+  //                         size of the queue.
   ThreadPool(unsigned int num_threads,
              ExceptionHandler* exception_handler,
              void (*callback)(T),
-             unsigned int max_queue = 0) :
+             unsigned int max_queue = 0,
+             SNMP::EventAccumulatorByScopeTable* queue_size_table = nullptr) :
     _num_threads(num_threads),
     _exception_handler(exception_handler),
     _threads(0),
     _queue(max_queue),
-    _callback(callback)
+    _callback(callback),
+    _queue_size_table(queue_size_table)
   {}
 
   // Destroy the thread pool.
@@ -139,6 +121,24 @@ public:
   void add_work(T& work)
   {
     _queue.push(work);
+
+    if (_queue_size_table)
+    {
+      _queue_size_table->accumulate(_queue.size());
+    }
+  }
+
+  // Add a work item to the thread pool by moving it into the pool.
+  //
+  // @param work the work item to add.
+  void add_work(T&& work)
+  {
+    _queue.push(work);
+
+    if (_queue_size_table)
+    {
+      _queue_size_table->accumulate(_queue.size());
+    }
   }
 
 private:
@@ -149,6 +149,9 @@ private:
 
   // Recovery function provided by the callers
   void (*_callback)(T);
+
+  // SNMP table to track the queue size
+  SNMP::EventAccumulatorByScopeTable* _queue_size_table;
 
   // Static worker thread function that is passed into pthread_create.
   //
@@ -163,32 +166,44 @@ private:
     return NULL;
   }
 
+  // Take on work item off the queue an process it. This is called repeatedly by
+  // the worker threads until it returns false (meaning the work queue has been
+  // closed).
+  //
+  // This can also be used in UTs to control execution of the thread pool.
+  bool run_once()
+  {
+    T work;
+    bool got_work = _queue.pop(work);
+
+    if (got_work)
+    {
+      CW_TRY
+      {
+        process_work(work);
+      }
+      CW_EXCEPT(_exception_handler)
+      {
+        _callback(work);
+      }
+      CW_END
+    }
+
+    return got_work;
+  }
+
   // Function executed by a single worker thread. This loops pulling work off
   // the queue and processing it.
   void worker_thread_func()
   {
     bool got_work;
-    T work;
 
     // Startup hook.
     on_thread_startup();
 
     do
     {
-      got_work = _queue.pop(work);
-
-      if (got_work)
-      {
-        CW_TRY
-        {
-          process_work(work);
-        }
-        CW_EXCEPT(_exception_handler)
-        {
-          _callback(work);
-        }
-        CW_END
-      }
+      got_work = run_once();
 
       // If we haven't got any work then the queue must have been terminated,
       // which in turn means the threadpool has been shut down.  Exit the loop.
@@ -212,6 +227,24 @@ private:
 
   // Process a work item. This method must be overridden by the subclass.
   virtual void process_work(T& work) = 0;
+};
+
+
+/// An alternative thread pool where the work items are callable objects. When a
+/// thread processes a work item it just calls the object. This allows thread
+/// pools to be used ergonomically with lambdas and std::binds.
+class FunctorThreadPool : public ThreadPool<std::function<void()>>
+{
+public:
+  /// Just use the `ThreadPool` constructor.
+  using ThreadPool<std::function<void()>>::ThreadPool;
+
+  virtual ~FunctorThreadPool() {};
+
+  void process_work(std::function<void()>& callable)
+  {
+    callable();
+  }
 };
 
 #endif

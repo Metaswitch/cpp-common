@@ -1,37 +1,12 @@
 /**
  * @file timer_counter.cpp
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include "current_and_previous.h"
@@ -105,6 +80,11 @@ void TimerCounter::get_statistics(int index, timespec now, SNMP::SimpleStatistic
 
 void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec now, uint32_t interval_ms)
 {
+  if (data == NULL)
+  {
+    return;
+  }
+
   // Compute the updated sum and sqsum based on the previous values, dependent on
   // how long since an update happened. Additionally update the sum of squares as a
   // rolling total, and update the time of the last update. Also maintain a
@@ -117,32 +97,40 @@ void TimerCounter::refresh_statistics(SNMP::ContinuousStatistics* data, timespec
   uint64_t time_since_last_update = time_comes_first_ms - data->time_last_update_ms.load();
 
   uint64_t current_value = data->current_value.load();
-  uint64_t sum = data->sum.load();
-  uint64_t sqsum = data->sqsum.load();
 
-  sum += current_value * time_since_last_update;
-  sqsum += current_value * current_value * time_since_last_update;
-
-  data->sum.store(sum);
-  data->sqsum.store(sqsum);
+  data->sum += current_value * time_since_last_update;
+  data->sqsum += current_value * current_value * time_since_last_update;
   data->time_last_update_ms.store(time_comes_first_ms);
 }
 
 void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_delta)
 {
-  // Pull the current value from the underlying data.
-  uint64_t current_value = data->current_value.load();
-
-  // Initialise a new value to be used. The new value defaults to 0, until we
-  // determine that the calculation will not lead to overflow.
-  uint64_t new_value = 0;
-
-  // Ensure value_delta is less than the current value if negative.
-  // If value_delta would cause new_value to underflow, leave new_value as 0.
-  if ((value_delta > 0) || ((uint64_t)abs(value_delta) < current_value))
+  if (data == NULL)
   {
-    new_value = current_value + value_delta;
+    return;
   }
+
+  // Initialise a new value to be used, and pull
+  // the current value from the underlying data.
+  uint64_t current_value = data->current_value.load();
+  uint64_t new_value;
+
+  // Attempt to calculate the new value, and set it to the atomic beneath.
+  // If the atomic value has changed in the mean time, repeat the calculations
+  // using the new current value.
+  do
+  {
+    // Ensure value_delta is less than or equal to the current value if negative.
+    // If value_delta would cause new_value to underflow, leave new_value as 0.
+    if ((value_delta > 0) || ((uint64_t)-value_delta <= current_value))
+    {
+      new_value = current_value + value_delta;
+    }
+    else
+    {
+      new_value = 0;
+    }
+  } while (!data->current_value.compare_exchange_weak(current_value, new_value));
 
   // Update the low- and high-water marks.  In each case, we get the current
   // value, decide whether a change is required and then atomically swap it
@@ -163,8 +151,6 @@ void TimerCounter::write_statistics(SNMP::ContinuousStatistics* data, int value_
   {
     // Do nothing.
   }
-
-  data->current_value.store(new_value);
 }
 
 void TimerCounter::read_statistics(SNMP::ContinuousStatistics* data,
@@ -172,6 +158,11 @@ void TimerCounter::read_statistics(SNMP::ContinuousStatistics* data,
                                    timespec now,
                                    uint32_t interval_ms)
 {
+  if (data == NULL)
+  {
+    return;
+  }
+
   uint64_t hwm = data->hwm.load();
   uint64_t lwm = data->lwm.load();
   uint64_t sum = data->sum.load();

@@ -2,37 +2,12 @@
  * @file memcachedconnectionpool.h  Declaration of derived class for memcached
  * connection pooling
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2016  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef MEMCACHED_CONNECTION_POOL_H__
@@ -47,13 +22,29 @@
 
 #include "connection_pool.h"
 
+/// The length of time to allow for a memcached connection before
+/// timing it out. This needs to be larger for remote sites.
+///
+/// Note that libmemcached can block for a relatively long time when trying to
+/// read / write to an instance of memcached that is unavailable.  The worst
+/// case scenario is if there is not an existing connection - in this case it
+/// will block for three times the connect latency (which is one of the following
+/// two values): once when trying to create the connection, and then twice
+/// trying to use it (because libmemcached doesn't pass back the error).
+static int LOCAL_SITE_MEMCACHED_CONNECTION_LATENCY_MS = 30;
+static int REMOTE_SITE_MEMCACHED_CONNECTION_LATENCY_MS = 250;
+
 class MemcachedConnectionPool : public ConnectionPool<memcached_st*>
 {
 public:
-  MemcachedConnectionPool(time_t max_idle_time_s, std::string options) :
+  MemcachedConnectionPool(time_t max_idle_time_s,
+                          std::string options,
+                          bool remote_store) :
     ConnectionPool<memcached_st*>(max_idle_time_s),
     _options(options),
-    _max_connect_latency_ms(50)
+    _max_connect_latency_ms(remote_store ?
+      REMOTE_SITE_MEMCACHED_CONNECTION_LATENCY_MS :
+      LOCAL_SITE_MEMCACHED_CONNECTION_LATENCY_MS)
   {
   }
 
@@ -68,6 +59,10 @@ protected:
   void destroy_connection(AddrInfo target, memcached_st* conn);
 
   std::string _options;
+
+  // The time to wait before timing out a connection to memcached.
+  // (This is only used during normal running - at start-of-day we use
+  // a fixed 10ms time, to start up as quickly as possible).
   unsigned int _max_connect_latency_ms;
 };
 

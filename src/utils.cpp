@@ -1,37 +1,12 @@
 /**
  * @file utils.cpp Utility functions.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 ///
@@ -51,16 +26,30 @@
 #include <sys/file.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <syslog.h>
+#include <boost/algorithm/string.hpp>
+#include <boost/regex.hpp>
 
 #include "utils.h"
 #include "log.h"
 
-bool Utils::parse_http_url(const std::string& url, std::string& server, std::string& path)
+bool Utils::parse_http_url(
+    const std::string& url,
+    std::string& scheme,
+    std::string& server,
+    std::string& path)
 {
   size_t colon_pos = url.find(':');
-  if ((colon_pos == std::string::npos) || (url.substr(0, colon_pos) != "http"))
+  if (colon_pos == std::string::npos)
   {
-    // Not HTTP.
+    // No colon - no good!
+    return false;
+  }
+
+  scheme = url.substr(0, colon_pos);
+  if ((scheme != "http") && (scheme != "https"))
+  {
+    // Not HTTP or HTTPS.
     return false;
   }
   size_t slash_slash_pos = url.find("//", colon_pos + 1);
@@ -138,6 +127,34 @@ std::string Utils::url_unescape(const std::string& s)
   return r;
 }
 
+// The following function quotes strings in SIP headers as described by RFC 3261 
+// Section 25.1
+std::string Utils::quote_string(const std::string& s)
+{
+  std::string r = "\"";
+  r.reserve((2*s.length()) + 2); // Reserve enough space to avoid continually reallocating.
+
+  for (size_t ii = 0; ii < s.length(); ++ii)
+  {
+    char unquot = s[ii];
+    switch (unquot)
+    {
+      case '"':
+      case '\\':
+        r.push_back('\\');
+        break;
+
+      default:
+        break;
+    }
+
+    r.push_back(unquot);
+  }
+
+  r.push_back('"');
+
+  return r;
+}
 
 std::string Utils::url_escape(const std::string& s)
 {
@@ -213,6 +230,54 @@ std::string Utils::xml_escape(const std::string& s)
   return r;
 }
 
+std::string Utils::strip_uri_scheme(const std::string& uri)
+{
+  std::string s(uri);
+  size_t colon = s.find(':');
+
+  if (colon != std::string::npos)
+  {
+    s.erase(0, colon + 1);
+  }
+
+  return s;
+}
+
+std::string Utils::remove_visual_separators(const std::string& number)
+{
+  static const boost::regex CHARS_TO_STRIP = boost::regex("[.)(-]");
+  return boost::regex_replace(number, CHARS_TO_STRIP, std::string(""));
+}
+
+bool Utils::is_user_numeric(const std::string& user)
+{
+  return is_user_numeric(user.c_str(), user.length());
+}
+
+bool Utils::is_user_numeric(const char* user, size_t user_len)
+{
+  for (size_t i = 0; i < user_len; i++)
+  {
+    if (((user[i] >= '0') &&
+         (user[i] <= '9')) ||
+        (user[i] == '+') ||
+        (user[i] == '-') ||
+        (user[i] == '.') ||
+        (user[i] == '(') ||
+        (user[i] == ')') ||
+        (user[i] == '[') ||
+        (user[i] == ']'))
+    {
+      continue;
+    }
+    else
+    {
+      return false;
+    }
+  }
+
+  return true;
+}
 
 // LCOV_EXCL_START - This function is tested in Homestead's realmmanager_test.cpp
 std::string Utils::ip_addr_to_arpa(IP46Address ip_addr)
@@ -267,6 +332,20 @@ void Utils::create_random_token(size_t length,       //< Number of characters.
   {
     token += _b64[rand() % 64];
   }
+}
+
+std::string Utils::hex(const uint8_t* data, size_t len)
+{
+  static const char* const hex_lookup = "0123456789abcdef";
+  std::string result;
+  result.reserve(2 * len);
+  for (size_t ii = 0; ii < len; ++ii)
+  {
+    const uint8_t b = data[ii];
+    result.push_back(hex_lookup[b >> 4]);
+    result.push_back(hex_lookup[b & 0x0f]);
+  }
+  return result;
 }
 
 // This function is from RFC 2617
@@ -357,6 +436,35 @@ bool Utils::split_host_port(const std::string& host_port,
   }
 
   return true;
+}
+
+/// Parses a target as if it was an IPv4 or IPv6 address and returns the
+/// status of the parse.
+bool Utils::parse_ip_target(const std::string& target, IP46Address& address)
+{
+  // Assume the parse fails.
+  TRC_DEBUG("Attempt to parse %s as IP address", target.c_str());
+  bool rc = false;
+
+  // Strip start and end white-space, and any brackets if this is an IPv6
+  // address
+  std::string ip_target = Utils::remove_brackets_from_ip(target);
+  Utils::trim(ip_target);
+
+  if (inet_pton(AF_INET6, ip_target.c_str(), &address.addr.ipv6) == 1)
+  {
+    // Parsed the address as a valid IPv6 address.
+    address.af = AF_INET6;
+    rc = true;
+  }
+  else if (inet_pton(AF_INET, ip_target.c_str(), &address.addr.ipv4) == 1)
+  {
+    // Parsed the address as a valid IPv4 address.
+    address.af = AF_INET;
+    rc = true;
+  }
+
+  return rc;
 }
 
 bool Utils::overflow_less_than(uint32_t a, uint32_t b)
@@ -476,6 +584,55 @@ bool Utils::split_site_store(const std::string& site_store,
   }
 }
 
+/// Parse a vector of strings of the form <site>=<store>. Use the name of the
+/// local GR site to produce the location of the local site's store, and a
+/// vector of the locations of the remote sites' stores. If only one store is
+/// provided, it may not be identified by a site - we just assume it's the
+/// local_site.
+///
+/// @param stores_arg        - the input vector.
+/// @param local_site_name   - the input local site name.
+/// @param store_name        - the name of the store (e.g. IMPI store) for
+///                            logging
+/// @local_store_location    - the output local store location.
+/// @remote_stores_locations - the output vector of remote store locations.
+/// @returns                 - true if the stores_arg vector contains a set of
+///                            valid values, false otherwise.
+bool Utils::parse_multi_site_stores_arg(const std::vector<std::string>& stores_arg,
+                                        const std::string& local_site_name,
+                                        const char* store_name,
+                                        std::string& store_location,
+                                        std::vector<std::string>& remote_stores_locations)
+{
+  if (!stores_arg.empty())
+  {
+    if (!Utils::parse_stores_arg(stores_arg,
+                                 local_site_name,
+                                 store_location,
+                                 remote_stores_locations))
+    {
+      TRC_ERROR("Invalid format of %s program argument", store_name);
+      return false;
+    }
+
+    if (store_location == "")
+    {
+      // If we've failed to find a local store then this is a misconfiguration.
+      TRC_ERROR("No local site %s specified", store_name);
+      return false;
+    }
+    else
+    {
+      TRC_INFO("Using %s", store_name);
+      TRC_INFO("  Primary store: %s", store_location.c_str());
+      std::string remote_stores_str = boost::algorithm::join(remote_stores_locations, ", ");
+      TRC_INFO("  Backup store(s): %s", remote_stores_str.c_str());
+    }
+  }
+
+  return true;
+}
+
 uint64_t Utils::get_time(clockid_t clock)
 {
   struct timespec ts;
@@ -558,6 +715,20 @@ void Utils::daemon_log_setup(int argc,
   {
     prog_name = slash_ptr + 1;
   }
+
+  // Copy the program name to a string so that we can be sure of its lifespan -
+  // the memory passed to openlog must be valid for the duration of the program.
+  //
+  // Note that we don't save syslog_identity here, and so we're technically leaking
+  // this object. However, its effectively part of static initialisation of
+  // the process - it'll be freed on process exit - so it's not leaked in practice.
+  std::string* syslog_identity = new std::string(prog_name);
+
+  // Open a connection to syslog. This is used for different purposes - e.g. ENT
+  // logs and analytics logs. We use the same facility for all purposes because
+  // calling openlog with a different facility each time we send a log to syslog
+  // is not trivial to make thread-safe.
+  openlog(syslog_identity->c_str(), LOG_PID, LOG_LOCAL7);
 
   if (daemon)
   {
@@ -671,3 +842,64 @@ Utils::IPAddressType Utils::parse_ip_address(std::string address)
                          IPAddressType::INVALID;
   }
 }
+
+void Utils::calculate_diameter_timeout(int target_latency_us,
+                                       int& diameter_timeout_ms)
+{
+  // Set the diameter timeout to twice the target latency (rounding up). Note
+  // that the former is expressed in milliseconds and the latter in
+  // microseconds, hence division by 500 (i.e. multiplication by 2/1000).
+  diameter_timeout_ms = std::ceil(target_latency_us/500);
+}
+
+// Check whether an element is in a vector
+bool Utils::in_vector(const std::string& element,
+               const std::vector<std::string>& vec)
+{
+  return std::find(vec.begin(), vec.end(), element) != vec.end();
+}
+
+//
+// IOHook methods.
+//
+
+Utils::IOHook::IOHook(IOStartedCallback start_cb,
+                      IOCompletedCallback complete_cb) :
+  _io_started_cb(start_cb),
+  _io_completed_cb(complete_cb)
+{
+  _hooks.push_back(this);
+  TRC_DEBUG("Added IOHook %p to stack. There are now %d hooks", this, _hooks.size());
+}
+
+Utils::IOHook::~IOHook()
+{
+  _hooks.erase(std::remove(_hooks.begin(), _hooks.end(), this));
+  TRC_DEBUG("Removed IOHook %p to stack. There are now %d hooks", this, _hooks.size());
+}
+
+void Utils::IOHook::io_starts(const std::string& reason)
+{
+  // Iterate through the hooks in reverse order so the one most recently
+  // registered gets invoked first.
+  for(std::vector<IOHook*>::reverse_iterator hook = _hooks.rbegin();
+      hook != _hooks.rend();
+      hook++)
+  {
+    (*hook)->_io_started_cb(reason);
+  }
+}
+
+void Utils::IOHook::io_completes(const std::string& reason)
+{
+  // Iterate through the hooks in reverse order so the one most recently
+  // registered gets invoked first.
+  for(std::vector<IOHook*>::reverse_iterator hook = _hooks.rbegin();
+      hook != _hooks.rend();
+      hook++)
+  {
+    (*hook)->_io_completed_cb(reason);
+  }
+}
+
+thread_local std::vector<Utils::IOHook*> Utils::IOHook::_hooks = {};

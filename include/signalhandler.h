@@ -1,37 +1,12 @@
 /**
  * @file signalhandler.h  Handler for UNIX signals.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef SIGNALHANDLER_H__
@@ -68,7 +43,8 @@ template <int SIGNUM>
 class SignalHandler : public SignalWaiter
 {
 public:
-  SignalHandler()
+  SignalHandler():
+    _thread_running(false)
   {
     // Create the mutex and condition.
     pthread_mutex_init(&_mutex, NULL);
@@ -87,9 +63,12 @@ public:
     // Unhook the signal.
     signal(SIGNUM, SIG_DFL);
 
-    // Cancel the dispatcher thread and wait for it to end.
-    pthread_cancel(_dispatcher_thread);
-    pthread_join(_dispatcher_thread, NULL);
+    if (_thread_running)
+    {
+      // Cancel the dispatcher thread and wait for it to end.
+      pthread_cancel(_dispatcher_thread);
+      pthread_join(_dispatcher_thread, NULL);
+    }
 
     // Destroy the semaphore.
     sem_destroy(&_sema);
@@ -103,6 +82,7 @@ public:
   {
     // Create the dispatcher thread.
     pthread_create(&_dispatcher_thread, 0, &SignalHandler::dispatcher, (void*)this);
+    _thread_running = true;
 
     // Hook the signal.
     sighandler_t old_handler = signal(SIGNUM, &SignalHandler::handler);
@@ -175,6 +155,7 @@ private:
 
   /// Identifier of dispatcher thread.
   pthread_t _dispatcher_thread;
+  bool _thread_running;
 
   /// Mutex used for signalling to waiting threads.
   static pthread_mutex_t _mutex;
@@ -193,6 +174,7 @@ template<int SIGNUM> sem_t SignalHandler<SIGNUM>::_sema;
 // Concrete instances of signal handers
 extern SignalHandler<SIGHUP> _sighup_handler;
 extern SignalHandler<SIGUSR1> _sigusr1_handler;
+extern SignalHandler<SIGUSR2> _sigusr2_handler;
 
 // This starts the signal handlers. This creates a new thread for each
 // handler, so this function must not be called before the process has
@@ -201,6 +183,7 @@ inline void start_signal_handlers()
 {
   _sighup_handler.start();
   _sigusr1_handler.start();
+  _sigusr2_handler.start();
 }
 
 #endif

@@ -1,37 +1,12 @@
 /**
  * @file utils.h Utility functions.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef UTILS_H_
@@ -167,18 +142,44 @@ struct AddrInfo
 
   std::string address_and_port_to_string() const
   {
-    std::stringstream os;
+    std::stringstream oss;
     char buf[100];
-    os << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
-    os << ":" << port;
-    return os.str();
+    if (address.af == AF_INET6)
+    {
+      oss << "[";
+    }
+    oss << inet_ntop(address.af, &address.addr, buf, sizeof(buf));
+    if (address.af == AF_INET6)
+    {
+      oss << "]";
+    }
+
+    oss << ":" << port;
+    return oss.str();
   }
 
   std::string to_string() const
   {
-    std::stringstream os;
-    os << address_and_port_to_string() << " transport " << transport;
-    return os.str();
+    std::stringstream oss;
+    oss << address_and_port_to_string() << ";transport=";
+    if (transport == IPPROTO_SCTP)
+    {
+      oss << "SCTP";
+    }
+    else if (transport == IPPROTO_TCP)
+    {
+      oss << "TCP";
+    }
+    else if (transport == IPPROTO_UDP)
+    {
+      oss << "UDP";
+    }
+    else
+    {
+      oss << "Unknown (" << transport << ")";
+    }
+
+    return oss.str();
   }
 };
 
@@ -205,15 +206,24 @@ namespace Utils
 
   void hashToHex(unsigned char *hash_char, unsigned char *hex_char);
 
-  /// Splits a URL of the form "http://<servername>[/<path>]" into
+  // Converts binary data to an ASCII hex-encoded form, e.g. "\x19\xaf"
+  // becomes"19af"
+  std::string hex(const uint8_t* data, size_t len);
+
+  /// Splits a URL of the form "http[s]://<servername>[/<path>]" into
   /// servername and path.
   ///
   /// Returns true iff the URL is in the corrects form, and sets the server
   /// and path arguments to the URL components.  If the path in the URL is
   /// missing, it defaults to "/".
-  bool parse_http_url(const std::string& url, std::string& server, std::string& path);
+  bool parse_http_url(
+      const std::string& url,
+      std::string& scheme,
+      std::string& server,
+      std::string& path);
 
   std::string url_unescape(const std::string& s);
+  std::string quote_string(const std::string& s);
   std::string url_escape(const std::string& s);
 
   std::string xml_escape(const std::string& s);
@@ -230,6 +240,11 @@ namespace Utils
       return s;
     }
   }
+
+  std::string strip_uri_scheme(const std::string& uri);
+  std::string remove_visual_separators(const std::string& number);
+  bool is_user_numeric(const std::string& user);
+  bool is_user_numeric(const char* user, size_t user_len);
 
   std::string ip_addr_to_arpa(IP46Address ip_addr);
 
@@ -378,6 +393,9 @@ namespace Utils
                        std::string& host,
                        int& port);
 
+  /// Utility function to parse a target name to see if it is a valid IPv4 or IPv6 address.
+  bool parse_ip_target(const std::string& target, IP46Address& address);
+
   /// Generates a random number which is exponentially distributed
   class ExponentialDistribution
   {
@@ -498,7 +516,8 @@ namespace Utils
         if (_ok)
         {
           result_us = (now.tv_nsec - _start.tv_nsec) / 1000L +
-                      (now.tv_sec - _start.tv_sec) * 1000000L;
+                      (now.tv_sec - _start.tv_sec) * 1000000L +
+                      _elapsed_us;
         }
         else
         {
@@ -512,6 +531,19 @@ namespace Utils
 
       return _ok;
     }
+
+    /// Adds the specified time in microseconds to the elapsed time
+    inline void add_time(unsigned long add_us)
+    {
+      _elapsed_us += add_us;
+    }
+
+    /// Subtracts the specified time in microseconds from the elapsed time
+    inline void subtract_time(unsigned long subtract_us)
+    {
+      _elapsed_us -= subtract_us;
+    }
+
 
   private:
     struct timespec _start;
@@ -545,6 +577,12 @@ namespace Utils
                         const std::string& local_site_name,
                         std::string& local_store_location,
                         std::vector<std::string>& remote_stores_locations);
+
+  bool parse_multi_site_stores_arg(const std::vector<std::string>& stores_arg,
+                                   const std::string& local_site_name,
+                                   const char* store_name,
+                                   std::string& store_location,
+                                   std::vector<std::string>& remote_stores_locations);
 
   bool split_site_store(const std::string& site_store,
                         std::string& site,
@@ -593,6 +631,88 @@ namespace Utils
 
   // Does the passed in address have brackets?
   bool is_bracketed_address(const std::string& address);
+
+  // Calculates a diameter timeout from the target latency.
+  void calculate_diameter_timeout(int target_latency_us,
+                                  int& diameter_timeout);
+
+  bool in_vector(const std::string& element,
+                 const std::vector<std::string>& elements);
+
+  /// This hook allows a thread to perform actions when Clearwater code does
+  /// blocking I/O.
+  ///
+  /// The caller passes two callbacks when constructing this class: one that is
+  /// called when some blocking I/O starts on this thread, and one that is
+  /// called when it completes.  Code can signal that I/O is starting/completing
+  /// using the helper macros below.
+  ///
+  /// When an instance of this class is constructed, it is added to the top of a
+  /// thread-local stack of IO hooks (implemented as a singly linked list). When
+  /// I/O starts or ends, each hook is invoked, starting at the top of the stack
+  /// and moving down.
+  ///
+  /// The destructor removes the hook from the stack. For this reason, it is
+  /// important that instances are destroyed in the opposite order they are
+  /// created in. This means that hooks should only be stored on the stack and
+  /// not on the heap.
+  class IOHook
+  {
+  public:
+    /// Type aliases for the callbacks. Each callback takes a string which
+    /// contains the reason that the I/O has been performed.
+    using IOStartedCallback = std::function<void(const std::string& reason)>;
+    using IOCompletedCallback = std::function<void(const std::string& reason)>;
+
+    /// Constructor.
+    ///
+    /// @param start_cb -    Callback called when the I/O operation starts.
+    /// @param complete_cb - Callback called when the I/O operation completes.
+    IOHook(IOStartedCallback start_cb,
+           IOCompletedCallback complete_cb);
+
+    /// Destructor.
+    virtual ~IOHook();
+
+    /// Called to signal the start of an I/O operation.
+    /// @param reason - The reason for the I/O operation.
+    static void io_starts(const std::string& reason);
+
+    /// Called to signal the completion of an I/O operation.
+    /// @param reason - The reason for the I/O operation.
+    static void io_completes(const std::string& reason);
+
+    /// No-op implementations of the two callbacks. This is useful for users of
+    /// this class that don't want to do anything on one or other of the
+    /// callbacks.
+    static void NOOP_ON_START(const std::string& reason) {};
+    static void NOOP_ON_COMPLETE(const std::string& reason) {};
+
+  private:
+    static thread_local std::vector<IOHook*> _hooks;
+
+    IOStartedCallback _io_started_cb;
+    IOCompletedCallback _io_completed_cb;
+  };
 } // namespace Utils
+
+/// Helper macros to make it easier to invoke an I/O hook, and that means the
+/// caller does not need to duplicate the reason string.
+///
+/// Example:
+///
+///     CW_IO_STARTS("HTTP request")
+///     {
+///       // Do some blocking I/O.
+///     }
+///     CW_IO_COMPLETES()
+#define CW_IO_STARTS(REASON)                                                   \
+  {                                                                            \
+    std::string description = REASON;                                          \
+    Utils::IOHook::io_starts(description);
+
+#define CW_IO_COMPLETES()                                                      \
+    Utils::IOHook::io_completes(description);                                  \
+  }
 
 #endif /* UTILS_H_ */

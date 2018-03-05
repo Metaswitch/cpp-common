@@ -1,37 +1,12 @@
 /**
  * @file alarmdefinition.h
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef ALARM_DEFINITION_H__
@@ -39,14 +14,14 @@
 
 #include <string>
 #include <vector>
-#include <boost/algorithm/string.hpp> 
+#include <boost/algorithm/string.hpp>
 
 // To add a new alarm:
 //
 //   - Add it to the JSON alarm file in the relevant repository.
-//   
-//   - If it's a new repo, then make sure that the alarm file gets 
-//     installed to /usr/share/clearwater/infrastructure/alarms. 
+//
+//   - If it's a new repo, then make sure that the alarm file gets
+//     installed to /usr/share/clearwater/infrastructure/alarms.
 namespace AlarmDef {
 
   // Sprout alarms: 1000->1499
@@ -57,6 +32,7 @@ namespace AlarmDef {
   // Cassandra alarms: 4000->4499
   // Memento alarms: 5000->5499
   // Astaire alarms: 5500->5999
+  // Clearwater Live Test alarms: 6000->6499
   // Etcd alarms: 6500->6999
   // Alarms 7000->7999 are reserved
   // Cluster-manager alarms: 8000->8499
@@ -64,7 +40,12 @@ namespace AlarmDef {
   // Queue-manager alarms: 9000->9499
   // Alarms 9500->9999 are reserved
   // Alarms 10000->10499 are reserved
-  // Alarms 10500-11000 are reserved
+  // Alarms 10500->10999 are reserved
+  // Alarms 11000->11499 are reserved
+  // Alarms 11500->11999 are reserved
+  // Alarms 12000->12499 are reserved
+  // Alarms 12500->12999 are reserved
+  // Rogers alarms: 13000->13499
 
   enum Severity {
     UNDEFINED_SEVERITY,

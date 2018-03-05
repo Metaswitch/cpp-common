@@ -1,37 +1,12 @@
 /**
  * @file load_monitor.h Definitions for LoadMonitor class.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef LOAD_MONITOR_H__
@@ -40,76 +15,159 @@
 #include <time.h>
 #include <pthread.h>
 #include "snmp_continuous_accumulator_table.h"
-#include "snmp_scalar.h"
+#include "snmp_abstract_scalar.h"
 #include "sas.h"
 
 class TokenBucket
 {
   public:
-    TokenBucket(int s, float r);
-    float rate;
-    int max_size;
+    TokenBucket(int max_size,
+                float initial_rate_s,
+                float minimum_rate_s,
+                float maximum_rate_s);
+
+    // Tests if there's at least one token in the bucket. If there is, decrement
+    // the token count.
+    // @returns      - Whether there was at least one token
     bool get_token();
-    void update_rate(float new_rate);
-    inline float token_count() { return tokens; }
+
+    // Updates the token replenishment rate
+    // @param new_rate - The new rate to use
+    void update_rate(float new_rate_s);
+
+    // Get functions for member variables (used for logging)
+    inline float token_count() { return _tokens; }
+    inline float rate() { return _rate_s; }
+    inline int max_size() { return _max_size; }
+
   private:
-    timespec replenish_time;
-    float tokens;
+    // Replenishes the tokens in the bucket.
     void replenish_bucket();
+
+    // The number of tokens in the bucket (doesn't need to be a whole number).
+    float _tokens;
+
+    // The maximum number of tokens that can be in the bucket.
+    int _max_size;
+
+    // The rate at which tokens are refilled into the bucket (in tokens/second).
+    float _rate_s;
+
+    // The minimum possible value for the token refill rate (in tokens/second).
+    float _min_rate_s;
+
+    // The maximum possible value for the token refill rate (in tokens/second).
+    // If this is 0, then no maximum rate is applied.
+    float _max_rate_s;
+
+    // When the bucket was last replenished (in microseconds since the epoch).
+    timespec _replenish_time_us;
 };
 
 class LoadMonitor
 {
   public:
-    LoadMonitor(int init_target_latency, int max_bucket_size,
-                float init_token_rate, float init_min_token_rate,
-                SNMP::ContinuousAccumulatorTable* token_rate_tbl = NULL,
-                SNMP::U32Scalar* smoothed_latency_scalar = NULL,
-                SNMP::U32Scalar* target_latency_scalar = NULL,
-                SNMP::U32Scalar* penalties_scalar = NULL,
-                SNMP::U32Scalar* token_rate_scalar = NULL);
+    LoadMonitor(uint64_t target_latency_us,
+                int max_bucket_size,
+                float initial_rate_s,
+                float minimum_rate_s,
+                float maximum_rate_s,
+                SNMP::AbstractContinuousAccumulatorTable* token_rate_tbl = NULL,
+                SNMP::AbstractScalar* smoothed_latency_scalar = NULL,
+                SNMP::AbstractScalar* target_latency_scalar = NULL,
+                SNMP::AbstractScalar* penalties_scalar = NULL,
+                SNMP::AbstractScalar* token_rate_scalar = NULL);
     virtual ~LoadMonitor();
-    virtual bool admit_request(SAS::TrailId trail);
-    virtual void incr_penalties();
-    virtual int get_target_latency_us();
-    virtual void request_complete(int latency);
-    virtual void update_statistics();
 
-    int get_target_latency() { return target_latency; }
-    int get_current_latency() { return smoothed_latency; }
-    float get_rate_limit() { return bucket.rate; }
+    // Tests whether a request can be admitted.
+    //
+    // @param trail        - The SAS trail associated with this request
+    // @param allow_anyway - Whether the request should be allowed even if
+    //                       there aren't enough tokens
+    // @returns            - Whether the request can be admitted.
+    virtual bool admit_request(SAS::TrailId trail, bool allow_anyway = false);
+
+    // This is called after a request that the load monitor is interested in
+    // completes successfully. It adds the latency of the request to the
+    // smoothed mean of all request latencies. If REQUESTS_BEFORE_ADJUSTMENT
+    // requests have completed then it recalculates the refill rate.
+    //
+    // @param latency_us - How long the request took in microseconds
+    // @param trail      - The SAS trail associated with this request
+    virtual void request_complete(uint64_t latency_us, SAS::TrailId trail);
+
+    // This is called after a request that the load monitor is interested in
+    // completes, but another node involved in the request has returned an
+    // overload response. We don't want to include this request's latency in
+    // our average as it will be artifically low. Instead we increment a
+    // penalty counter.
+    virtual void incr_penalties();
+
+    // Get functions for member variables (used for logging)
+    virtual int get_target_latency_us() { return _target_latency_us; }
+    int get_current_latency_us() { return _smoothed_latency_us; }
+    float get_rate_limit() { return _bucket.rate(); }
 
   private:
+    // Updates the load monitor statistics
+    virtual void update_statistics();
+
+    // The underlying Token Bucket.
+    TokenBucket _bucket;
+
+    // The smoothed mean of the request latencies (in microseconds)
+    uint64_t _smoothed_latency_us;
+
+    // The latency (in microseconds) we expect the average request to take.
+    // If the average latency is lower than this then we should accept more
+    // work; if it's higher then we should accept less work.
+    uint64_t _target_latency_us;
+
+    // The smoothed mean of the current rate we're completing requests (in
+    // requests/second).
+    float _smoothed_rate_s;
+
+    // Number of accepted requests (reset when the rate is recalculated).
+    int _accepted;
+
+    // Number of rejected requests (reset when the rate is recalculated).
+    int _rejected;
+
+    // Number of requests where a different node has returned an overload
+    // response (reset when the rate is recalculated).
+    int _penalties;
+
+    // Number of requests processed since the refill rate was last calculated
+    // (reset when the rate is recalculated).
+    int _adjust_count;
+
+    // Statistics tables for the load monitor statistics
+    SNMP::AbstractContinuousAccumulatorTable* _token_rate_table;
+    SNMP::AbstractScalar* _smoothed_latency_scalar;
+    SNMP::AbstractScalar* _target_latency_scalar;
+    SNMP::AbstractScalar* _penalties_scalar;
+    SNMP::AbstractScalar* _token_rate_scalar;
+
     // This must be held when accessing any of this object's member variables.
-     pthread_mutex_t _lock;
+    pthread_mutex_t _lock;
 
-     // Number of requests processed before each adjustment of token bucket rate
-     int REQUESTS_BEFORE_ADJUSTMENT;
-     // Number of seconds that must pass before each adjustment of token bucket rate
-     int SECONDS_BEFORE_ADJUSTMENT;
+    // Time in microseconds since the refill rate was last calculated (reset
+    // when the rate is recalculated).
+    uint64_t _last_adjustment_time_us;
 
-    // Adjustment parameters for token bucket
-    float DECREASE_THRESHOLD;
-    float DECREASE_FACTOR;
-    float INCREASE_THRESHOLD;
-    float INCREASE_FACTOR;
+    // Number of requests processed before each adjustment of token bucket rate
+    const int REQUESTS_BEFORE_ADJUSTMENT = 20;
 
-    int accepted;
-    int rejected;
-    int penalties;
-    int pending_count;
-    int max_pending_count;
-    int target_latency;
-    int smoothed_latency;
-    int adjust_count;
-    unsigned long last_adjustment_time_ms;
-    float min_token_rate;
-    TokenBucket bucket;
-    SNMP::ContinuousAccumulatorTable* _token_rate_table;
-    SNMP::U32Scalar* _smoothed_latency_scalar;
-    SNMP::U32Scalar* _target_latency_scalar;
-    SNMP::U32Scalar* _penalties_scalar;
-    SNMP::U32Scalar* _token_rate_scalar;
+    // Percentage of rate we must be processing before we'd increase the rate
+    const float PERCENTAGE_BEFORE_ADJUSTMENT = 0.5;
+
+    // Adjustment parameters to decide when to recalculate the rate
+    const float DECREASE_THRESHOLD = 0.0;
+    const float INCREASE_THRESHOLD = -0.005;
+
+    // Adjustment parameters to decide what rate change we should apply
+    const float DECREASE_FACTOR = 1.2;
+    const float INCREASE_FACTOR = 0.5;
 };
 
 #endif

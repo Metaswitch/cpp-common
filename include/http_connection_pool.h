@@ -2,37 +2,12 @@
  * @file http_connection_pool.h  Declaration of derived class for HTTP connection
  * pooling.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2016  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef HTTP_CONNECTION_POOL_H__
@@ -62,10 +37,10 @@ static const int DEFAULT_LATENCY_US = 100000;
 /// perform the DNS lookup and establish the connection, not to send
 /// the request or receive the response.
 ///
-/// We set this quite short to ensure we quickly move on to another
-/// server. A connection should be very fast to establish (a few
-/// milliseconds) in the success case.
-static const long SINGLE_CONNECT_TIMEOUT_MS = 50;
+/// We make this length of time longer for remote sites to account for
+/// inter-site latency.
+static const long LOCAL_CONNECTION_LATENCY_MS = 50;
+static const long REMOTE_CONNECTION_LATENCY_MS = 250;
 
 /// The length of time a connection can remain idle before it is removed from
 /// the pool
@@ -75,7 +50,10 @@ class HttpConnectionPool : public ConnectionPool<CURL*>
 {
 public:
   HttpConnectionPool(LoadMonitor* load_monitor,
-                     SNMP::IPCountTable* stat_table);
+                     SNMP::IPCountTable* stat_table,
+                     bool remote_connection = false,
+                     long timeout_ms = -1,
+                     const std::string& source_address = "");
 
   ~HttpConnectionPool()
   {
@@ -100,11 +78,30 @@ protected:
   void release_connection(ConnectionInfo<CURL*>* conn_info,
                           bool return_to_pool) override;
 
-  long _timeout_ms;
   SNMP::IPCountTable* _stat_table;
+  long _connection_timeout_ms;
+  long _timeout_ms;
 
   // Determines an appropriate absolute HTTP request timeout in ms given the
   // target latency for requests that the downstream components will be using
-  static long calc_req_timeout_from_latency(int latency_us);
+  long calc_req_timeout_from_latency(int latency_us);
+
+  // Callbacks that are uses when the user has specified that connections be
+  // made from a specific source address.
+  //
+  // cURL allows the user to specify a callback that is called when cURL needs a
+  // socket to connect with. If a source address is specified, we implement this
+  // callback , and provide a socket that is bound to the specified address.
+  //
+  // `open_socket_fn` is the static method that is passed to cURL. `open_socket`
+  // is a member method that actually does the work.
+  static curl_socket_t open_socket_fn(void *clientp,
+                                      curlsocktype purpose,
+                                      struct curl_sockaddr *address);
+
+  curl_socket_t open_socket(curlsocktype purpose,
+                            struct curl_sockaddr *address);
+
+  std::string _source_address;
 };
 #endif

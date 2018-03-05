@@ -1,55 +1,54 @@
 /**
  * @file httpstack.cpp class implementation wrapping libevhtp HTTP stack
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include "httpstack.h"
 #include <cstring>
+#include <sys/stat.h>
+#include <climits>
+#include <algorithm>
 #include "log.h"
 
-HttpStack* HttpStack::INSTANCE = &DEFAULT_INSTANCE;
-HttpStack HttpStack::DEFAULT_INSTANCE;
+const std::string BODY_OMITTED = "<Body present but not logged>";
+
 bool HttpStack::_ev_using_pthreads = false;
 HttpStack::DefaultSasLogger HttpStack::DEFAULT_SAS_LOGGER;
+HttpStack::PrivateSasLogger HttpStack::PRIVATE_SAS_LOGGER;
+HttpStack::ProxiedPrivateSasLogger HttpStack::PROXIED_PRIVATE_SAS_LOGGER;
 HttpStack::NullSasLogger HttpStack::NULL_SAS_LOGGER;
 
-HttpStack::HttpStack() :
-  _exception_handler(NULL),
-  _access_logger(NULL),
-  _stats(NULL),
-  _load_monitor(NULL)
-{}
+HttpStack::HttpStack(int num_threads,
+                     ExceptionHandler* exception_handler,
+                     AccessLogger* access_logger,
+                     LoadMonitor* load_monitor,
+                     StatsInterface* stats) :
+  _num_threads(num_threads),
+  _exception_handler(exception_handler),
+  _access_logger(access_logger),
+  _load_monitor(load_monitor),
+  _stats(stats),
+  _evbase(nullptr),
+  _evhtp(nullptr)
+{
+  TRC_STATUS("Constructing HTTP stack with %d threads", _num_threads);
+}
+
+HttpStack::~HttpStack()
+{
+  for(std::set<HandlerRegistration*>::iterator reg = _handler_registrations.begin();
+      reg != _handler_registrations.end();
+      ++reg)
+  {
+    delete *reg;
+  }
+}
 
 void HttpStack::Request::send_reply(int rc, SAS::TrailId trail)
 {
@@ -76,8 +75,8 @@ void HttpStack::send_reply_internal(Request& req, int rc, SAS::TrailId trail)
 }
 
 
-void HttpStack::send_reply(Request& req, 
-                           int rc, 
+void HttpStack::send_reply(Request& req,
+                           int rc,
                            SAS::TrailId trail)
 {
   send_reply_internal(req, rc, trail);
@@ -92,7 +91,7 @@ void HttpStack::send_reply(Request& req,
   {
     if (_load_monitor != NULL)
     {
-      _load_monitor->request_complete(latency_us);
+      _load_monitor->request_complete(latency_us, trail);
     }
 
     if (_stats != NULL)
@@ -122,52 +121,46 @@ void HttpStack::initialize()
   if (!_evhtp)
   {
     _evhtp = evhtp_new(_evbase, NULL);
-  }
-}
 
-void HttpStack::configure(const std::string& bind_address,
-                          unsigned short bind_port,
-                          int num_threads,
-                          ExceptionHandler* exception_handler,
-                          AccessLogger* access_logger,
-                          LoadMonitor* load_monitor,
-                          HttpStack::StatsInterface* stats)
-{
-  TRC_STATUS("Configuring HTTP stack");
-  TRC_STATUS("  Bind address: %s", bind_address.c_str());
-  TRC_STATUS("  Bind port:    %u", bind_port);
-  TRC_STATUS("  Num threads:  %d", num_threads);
-  _bind_address = bind_address;
-  _bind_port = bind_port;
-  _num_threads = num_threads;
-  _exception_handler = exception_handler;
-  _access_logger = access_logger;
-  _load_monitor = load_monitor;
-  _stats = stats;
+    // Set a buffer read timeout of 20s to mitigate the Slowloris
+    // vulnerability. This is short enough that single attackers should be
+    // unable to block the server. We don't want to set it too short to ensure
+    // multiple sites can still talk to each other with latency involved.
+    struct timeval recv_timeo = { .tv_sec = 20, .tv_usec = 0 };
+    evhtp_set_timeouts(_evhtp, &recv_timeo, NULL);
+  }
 }
 
 void HttpStack::register_handler(const char* path,
                                  HttpStack::HandlerInterface* handler)
 {
+  HandlerRegistration* reg = new HandlerRegistration(this, handler);
+  _handler_registrations.insert(reg);
+
   evhtp_callback_t* cb = evhtp_set_regex_cb(_evhtp,
                                             path,
                                             handler_callback_fn,
-                                            (void*)handler);
+                                            (void*)reg);
   if (cb == NULL)
   {
     throw Exception("evhtp_set_cb", 0); // LCOV_EXCL_LINE
   }
 }
 
-void HttpStack::start(evhtp_thread_init_cb init_cb)
+void HttpStack::register_default_handler(HttpStack::HandlerInterface* handler)
 {
-  initialize();
+  HandlerRegistration* reg = new HandlerRegistration(this, handler);
+  _handler_registrations.insert(reg);
 
-  int rc = evhtp_use_threads(_evhtp, init_cb, _num_threads, this);
-  if (rc != 0)
-  {
-    throw Exception("evhtp_use_threads", rc); // LCOV_EXCL_LINE
-  }
+  evhtp_set_gencb(_evhtp,
+                  handler_callback_fn,
+                  (void*)reg);
+}
+
+void HttpStack::bind_tcp_socket(const std::string& bind_address,
+                                unsigned short port)
+{
+  TRC_STATUS("Binding HTTP TCP socket: address=%s, port=%d", bind_address.c_str(), port);
 
   // If the bind address is IPv6 evhtp needs to be told by prepending ipv6 to
   // the  parameter.  Use getaddrinfo() to analyse the bind_address.
@@ -177,9 +170,8 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
   hints.ai_socktype = SOCK_STREAM;
   addrinfo* servinfo = NULL;
 
-  std::string full_bind_address = _bind_address;
-  std::string local_bind_address = "127.0.0.1";
-  const int error_num = getaddrinfo(_bind_address.c_str(), NULL, &hints, &servinfo);
+  std::string full_bind_address = bind_address;
+  const int error_num = getaddrinfo(bind_address.c_str(), NULL, &hints, &servinfo);
 
   if ((error_num == 0) &&
       (servinfo->ai_family == AF_INET))
@@ -201,34 +193,55 @@ void HttpStack::start(evhtp_thread_init_cb init_cb)
               INET6_ADDRSTRLEN);
     full_bind_address = dest_str;
     full_bind_address = "ipv6:" + full_bind_address;
-    local_bind_address = "ipv6:::1";
   }
 
   freeaddrinfo(servinfo);
 
-  rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), _bind_port, 1024);
+  int rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), port, 1024);
   if (rc != 0)
   {
     // LCOV_EXCL_START
-    TRC_ERROR("evhtp_bind_socket failed with address %s and port %d", full_bind_address.c_str(), _bind_port);
-    throw Exception("evhtp_bind_socket", rc);
+    TRC_ERROR("evhtp_bind_socket failed with address %s and port %d",
+              full_bind_address.c_str(),
+              port);
+    throw Exception("evhtp_bind_socket (tcp)", rc);
     // LCOV_EXCL_STOP
   }
 
-  if ((local_bind_address != full_bind_address) &&
-      (full_bind_address != "0.0.0.0")          &&
-      (full_bind_address != "ipv6:::"))
+}
+
+void HttpStack::bind_unix_socket(const std::string& bind_path)
+{
+  TRC_STATUS("Binding HTTP unix socket: path=%s", bind_path.c_str());
+
+  // libevhtp does not correctly remove any old socket before creating a new
+  // one, so we have to do this ourselves.
+  ::remove(bind_path.c_str());
+
+  std::string full_bind_address = "unix:" + bind_path;
+
+  int rc = evhtp_bind_socket(_evhtp, full_bind_address.c_str(), 0, 1024);
+  if (rc != 0)
   {
-    // Listen on the local address as well as the main address (so long as the
-    // main address isn't all)
-    rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), _bind_port, 1024);
-    if (rc != 0)
-    {
-      // LCOV_EXCL_START
-      TRC_ERROR("evhtp_bind_socket failed with address %s and port %d", local_bind_address.c_str(), _bind_port);
-      throw Exception("evhtp_bind_socket - localhost", rc);
-      // LCOV_EXCL_STOP
-    }
+    // LCOV_EXCL_START
+    TRC_ERROR("evhtp_bind_socket failed with path %s",
+              full_bind_address.c_str());
+    throw Exception("evhtp_bind_socket (unix)", rc);
+    // LCOV_EXCL_STOP
+  }
+
+  // Socket needs to be world-writeable for nginx to use it
+  chmod(bind_path.c_str(), 0777);
+}
+
+// start() should only be called *after* the appropriate bind_*_socket() function
+// has been called
+void HttpStack::start(evhtp_thread_init_cb init_cb)
+{
+  int rc = evhtp_use_threads(_evhtp, init_cb, _num_threads, this);
+  if (rc != 0)
+  {
+    throw Exception("evhtp_use_threads", rc); // LCOV_EXCL_LINE
   }
 
   rc = pthread_create(&_event_base_thread, NULL, event_base_thread_fn, this);
@@ -258,9 +271,11 @@ void HttpStack::wait_stopped()
   _evbase = NULL;
 }
 
-void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler)
+void HttpStack::handler_callback_fn(evhtp_request_t* req, void* handler_reg_param)
 {
-  INSTANCE->handler_callback(req, (HttpStack::HandlerInterface*)handler);
+  HandlerRegistration* handler_reg =
+    static_cast<HandlerRegistration*>(handler_reg_param);
+  handler_reg->stack->handler_callback(req, handler_reg->handler);
 }
 
 void HttpStack::handler_callback(evhtp_request_t* req,
@@ -299,7 +314,7 @@ void HttpStack::handler_callback(evhtp_request_t* req,
     // LCOV_EXCL_START
     CW_EXCEPT(_exception_handler)
     {
-      send_reply_internal(request, 500, trail); 
+      send_reply_internal(request, 500, trail);
 
       if (_num_threads == 1)
       {
@@ -312,10 +327,14 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   }
   else
   {
+    TRC_DEBUG("Rejecting request for URL %s, args %s with 503 due to overload",
+                req->uri->path->full,
+                req->uri->query_raw);
+
     request.sas_log_overload(trail,
                              503,
-                             _load_monitor->get_target_latency(),
-                             _load_monitor->get_current_latency(),
+                             _load_monitor->get_target_latency_us(),
+                             _load_monitor->get_current_latency_us(),
                              _load_monitor->get_rate_limit(),
                              0);
     send_reply_internal(request, 503, trail);
@@ -420,6 +439,41 @@ bool HttpStack::Request::get_remote_ip_port(std::string& ip, unsigned short& por
   return rc;
 }
 
+bool HttpStack::Request::get_x_real_ip_port(std::string& ip, unsigned short& port)
+{
+  bool rc = false;
+  std::string real_ip = header("X-Real-Ip");
+  TRC_DEBUG("Real IP: %s", real_ip.c_str());
+
+  if (real_ip != "")
+  {
+    rc = true;
+    ip = real_ip;
+    std::string port_s = header("X-Real-Port");
+    int port_i;
+    // We have a real IP, if we cannot get a real port we fail softly
+    port = 0;
+
+    if (port_s != "" && (std::all_of(port_s.begin(), port_s.end(), ::isdigit)))
+    {
+      try
+      {
+        port_i = std::stoi(port_s);
+        if (port_i >= 0 && port_i <= USHRT_MAX)
+        {
+          port = (short)port_i;
+        }
+      }
+      catch (...)
+      {
+        // port is already set to 0, so do nothing here.
+      }
+    }
+  }
+
+  return rc;
+}
+
 bool HttpStack::Request::get_local_ip_port(std::string& ip, unsigned short& port)
 {
   bool rc = false;
@@ -440,20 +494,47 @@ bool HttpStack::Request::get_local_ip_port(std::string& ip, unsigned short& port
 // SasLogger methods.
 //
 
-void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
+void HttpStack::SasLogger::log_correlators(SAS::TrailId trail,
                                           Request& req,
                                           uint32_t instance_id)
 {
-  std::string correlator = req.header(SASEvent::HTTP_BRANCH_HEADER_NAME);
-  if (correlator != "")
-  {
-    SAS::Marker corr_marker(trail, MARKER_ID_VIA_BRANCH_PARAM, instance_id);
+
+  log_correlator(trail,
+                 req,
+                 instance_id,
+                 SASEvent::HTTP_BRANCH_HEADER_NAME,
+                 MARKER_ID_VIA_BRANCH_PARAM);
+
+  log_correlator(trail,
+                 req,
+                 instance_id,
+                 SASEvent::HTTP_SPAN_ID,
+                 MARKER_ID_GENERIC_CORRELATOR);
+}
+
+void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
+                                          Request& req,
+                                          uint32_t instance_id,
+                                          std::string header_name,
+                                          int marker_type) {
+
+  // Report a correlating marker to SAS.  Set the option that means any
+  // associations will not reactivate the trail group.  Otherwise
+  // interactions with this server that happen after the call ends will cause
+  // long delays in the call appearing in SAS.
+
+  std::string correlator = req.header(header_name);
+
+  if (correlator != "") {
+    SAS::Marker corr_marker(trail, marker_type, instance_id);
     corr_marker.add_var_param(correlator);
 
-    // Report a correlating marker to SAS.  Set the option that means any
-    // associations will not reactivate the trail group.  Otherwise
-    // interactions with this server that happen after the call ends will cause
-    // long delays in the call appearing in SAS.
+    // Generic correlators have a uniqueness scope. Use UUIDs for HTTP requests
+    if (marker_type == MARKER_ID_GENERIC_CORRELATOR) {
+      corr_marker.add_static_param(
+        static_cast<uint32_t>(UniquenessScopes::UUID_RFC4122));
+    }
+
     SAS::report_marker(corr_marker, SAS::Marker::Scope::Trace, false);
   }
 }
@@ -461,7 +542,8 @@ void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
 void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
                                          Request& req,
                                          uint32_t instance_id,
-                                         SASEvent::HttpLogLevel level)
+                                         SASEvent::HttpLogLevel level,
+                                         bool omit_body)
 {
   int event_id = ((level == SASEvent::HttpLogLevel::PROTOCOL) ?
                   SASEvent::RX_HTTP_REQ : SASEvent::RX_HTTP_REQ_DETAIL);
@@ -470,7 +552,26 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
   add_ip_addrs_and_ports(event, req);
   event.add_static_param(req.method());
   event.add_var_param(req.full_path());
-  event.add_compressed_param(req.get_rx_message(), &SASEvent::PROFILE_HTTP);
+
+  if (!omit_body)
+  {
+    event.add_var_param(req.get_rx_message());
+  }
+  else
+  {
+    if (req.get_rx_body().empty())
+    {
+      // We are omitting the body but there wasn't one in the messaage. Just log
+      // the headers.
+      event.add_var_param(req.get_rx_header());
+    }
+    else
+    {
+      // There was a body that we need to omit. Add a fake body to the header
+      // explaining that the body was intentionally not logged.
+      event.add_var_param(req.get_rx_header() + BODY_OMITTED);
+    }
+  }
 
   SAS::report_event(event);
 }
@@ -493,25 +594,22 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
 
   if (!omit_body)
   {
-    event.add_compressed_param(req.get_tx_message(rc), &SASEvent::PROFILE_HTTP);
+    event.add_var_param(req.get_tx_message(rc));
   }
   else
   {
-    // LCOV_EXCL_START
     if (req.get_tx_body().empty())
     {
       // We are omitting the body but there wasn't one in the messaage. Just log
-      // the header.
-      event.add_compressed_param(req.get_tx_header(rc), &SASEvent::PROFILE_HTTP);
+      // the headers.
+      event.add_var_param(req.get_tx_header(rc));
     }
     else
     {
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
-      event.add_compressed_param(req.get_tx_header(rc) + "<Body present but not logged>",
-                                 &SASEvent::PROFILE_HTTP);
+      event.add_var_param(req.get_tx_header(rc) + BODY_OMITTED);
     }
-    // LCOV_EXCL_STOP
   }
 
   SAS::report_event(event);
@@ -579,7 +677,7 @@ void HttpStack::DefaultSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
                                                       HttpStack::Request& req,
                                                       uint32_t instance_id)
 {
-  log_correlator(trail, req, instance_id);
+  log_correlators(trail, req, instance_id);
   log_req_event(trail, req, instance_id);
 }
 
@@ -603,3 +701,61 @@ void HttpStack::DefaultSasLogger::sas_log_overload(SAS::TrailId trail,
   log_overload_event(trail, req, rc, target_latency, current_latency, rate_limit, instance_id);
 }
 
+void HttpStack::PrivateSasLogger::sas_log_rx_http_req(SAS::TrailId trail,
+                                                      HttpStack::Request& req,
+                                                      uint32_t instance_id)
+{
+  log_correlators(trail, req, instance_id);
+  log_req_event(trail, req, instance_id, SASEvent::HttpLogLevel::PROTOCOL, true);
+}
+
+void HttpStack::PrivateSasLogger::sas_log_tx_http_rsp(SAS::TrailId trail,
+                                                      HttpStack::Request& req,
+                                                      int rc,
+                                                      uint32_t instance_id)
+{
+  log_rsp_event(trail, req, rc, instance_id, SASEvent::HttpLogLevel::PROTOCOL, true);
+}
+
+//
+// ProxiedPrivateSasLogger methods.
+//
+
+void HttpStack::ProxiedPrivateSasLogger::add_ip_addrs_and_ports(SAS::Event& event, Request& req)
+{
+  std::string ip;
+  unsigned short port;
+
+  // If nginx is acting as a reverse proxy and one endpoint isn't logging to SAS,
+  // use the X-Real-IP header to get the correct IP.
+  if (req.get_x_real_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else if (req.get_remote_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    // LCOV_EXCL_START
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+    // LCOV_EXCL_STOP
+  }
+
+  if (req.get_local_ip_port(ip, port))
+  {
+    event.add_var_param(ip);
+    event.add_static_param(port);
+  }
+  else
+  {
+    // LCOV_EXCL_START
+    event.add_var_param("unknown");
+    event.add_static_param(0);
+    // LCOV_EXCL_STOP
+  }
+}

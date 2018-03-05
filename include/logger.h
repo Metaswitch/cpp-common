@@ -1,37 +1,12 @@
 /**
  * @file logger.h Definitions for Sprout logger class.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 ///
@@ -42,6 +17,7 @@
 
 #include <string>
 #include <pthread.h>
+#include <atomic>
 
 class Logger
 {
@@ -59,10 +35,23 @@ public:
   virtual void flush();
   virtual void commit();
 
-  // Dumps a backtrace.  Note that this is not thread-safe and should only be
-  // called when no other threads are running - generally from a signal
-  // handler.
-  virtual void backtrace(const char* data);
+  // Dump a simple backtrace (using functionality available from within the
+  // process). This is fast but not very good - in particular it doesn't print out
+  // function names or arguments.
+  //
+  // This function is called from a signal handler and so can
+  // only use functions that are safe to be called from one.  In particular,
+  // locking functions are _not_ safe to call from signal handlers, so this
+  // function is not thread-safe.
+  virtual void backtrace_simple(const char* data);
+
+  // Dump an advanced backtrace using GDB. This captures function names and
+  // arguments but stops the process temporarily. Because of this it should only
+  // be used when the process is about to exit.
+  //
+  // Note that this is not thread-safe and should only be called when no other
+  // threads are running - generally from a signal handler.
+  virtual void backtrace_advanced();
 
 protected:
   virtual void gettime_monotonic(struct timespec* ts);
@@ -84,6 +73,7 @@ private:
 
   void get_timestamp(timestamp_t& ts);
   void write_log_file(const char* data, const timestamp_t& ts);
+  void format_timestamp(const timestamp_t& ts, char* buf, size_t len);
   void cycle_log_file(const timestamp_t& ts);
 
   // Two methods to use with pthread_cleanup_push to release the lock if the logging thread is

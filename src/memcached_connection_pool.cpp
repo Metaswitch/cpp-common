@@ -2,37 +2,12 @@
  * @file memcachedconnectionpool.cpp  Implementation of derived class for
  * memcached connection pooling
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2016  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include "memcached_connection_pool.h"
@@ -45,7 +20,35 @@ memcached_st* MemcachedConnectionPool::create_connection(AddrInfo target)
   memcached_behavior_set(conn,
                          MEMCACHED_BEHAVIOR_CONNECT_TIMEOUT,
                          _max_connect_latency_ms);
-  memcached_server_add(conn, target.address.to_string().c_str(), target.port);
+
+  // Disable Nagle's algorithm
+  // (https://en.wikipedia.org/wiki/Nagle%27s_algorithm). If we leave it on
+  // there can be up to 500ms delay between this code sending an
+  // asynchronous SET and it actually being sent on the wire, e.g.
+  //
+  // * Ask libmemcached to do async SET.
+  // * Async SET sent on the wire.
+  // * Ask libmemcached to do a 2nd async SET.
+  // * Up to 500ms passes.
+  // * TCP stack receives ACK to 1st SET (may be delayed because the server
+  //   does not send a protocol level response to the async SET).
+  // * 2nd async SET sent on the wire (up to 500ms late).
+  //
+  // This delay can open up window conditions in failure scenarios. In
+  // addition there is not much point in using Nagle. libmemcached's buffers
+  // are large enough that it will never send small message fragments, and we
+  // very rarely pipeline requests.
+  memcached_behavior_set(conn,
+                         MEMCACHED_BEHAVIOR_TCP_NODELAY,
+                         true);
+
+  std::string address = target.address.to_string();
+
+  CW_IO_STARTS("Memcached Server Add for " + address)
+  {
+    memcached_server_add(conn, address.c_str(), target.port);
+  }
+  CW_IO_COMPLETES()
 
   return conn;
 }

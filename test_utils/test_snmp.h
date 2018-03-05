@@ -1,43 +1,20 @@
 /**
- * * Project Clearwater - IMS in the Cloud
- * * Copyright (C) 2016 Metaswitch Networks Ltd
- * *
- * * This program is free software: you can redistribute it and/or modify it
- * * under the terms of the GNU General Public License as published by the
- * * Free Software Foundation, either version 3 of the License, or (at your
- * * option) any later version, along with the "Special Exception" for use of
- * * the program along with SSL, set forth below. This program is distributed
- * * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * * A PARTICULAR PURPOSE. See the GNU General Public License for more
- * * details. You should have received a copy of the GNU General Public
- * * License along with this program. If not, see
- * * <http://www.gnu.org/licenses/>.
- * *
- * * The author can be reached by email at clearwater@metaswitch.com or by
- * * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- * *
- * * Special Exception
- * * Metaswitch Networks Ltd grants you permission to copy, modify,
- * * propagate, and distribute a work formed by combining OpenSSL with The
- * * Software, or a work derivative of such a combination, even if such
- * * copying, modification, propagation, or distribution would otherwise
- * * violate the terms of the GPL. You must comply with the GPL in all
- * * respects for all of the code used other than OpenSSL.
- * * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * * Project and licensed under the OpenSSL Licenses, or a work based on such
- * * software and licensed under the OpenSSL Licenses.
- * * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * * as those licenses appear in the file LICENSE-OPENSSL.
- * */
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
+ */
 
 
 #include "gtest/gtest.h"
 #include "gmock/gmock.h"
 #include "utils.h"
 
+#include "snmp_agent.h"
 #include "snmp_event_accumulator_table.h"
+#include "snmp_event_accumulator_by_scope_table.h"
 #include "snmp_continuous_accumulator_table.h"
 #include "snmp_counter_table.h"
 #include "snmp_success_fail_count_table.h"
@@ -46,6 +23,7 @@
 #include "test_interposer.hpp"
 #include "snmp_single_count_by_node_type_table.h"
 #include "snmp_success_fail_count_by_request_type_table.h"
+#include "snmp_time_and_string_based_event_table.h"
 #include "snmp_cx_counter_table.h"
 #include "snmp_ip_time_based_counter_table.h"
 
@@ -59,7 +37,6 @@ public:
   SNMPTest() : alarm_address("16161") { }
   SNMPTest(std::string address) : alarm_address(address) { }
 
-  static void* snmp_thread(void*);
   unsigned int snmp_get(std::string);
   char* snmp_get_raw(std::string, char*, int);
   std::vector<std::string> snmp_walk(std::string);
@@ -69,21 +46,16 @@ public:
 
   static void SetUpTestCase();
   static void TearDownTestCase();
+
+  std::string time_string_event_oid(std::string base, int stat, int time, std::string string_index);
+  void snmp_walk_debug(std::string base);
+
 private:
   std::string alarm_address;
 
 };
 
 pthread_t SNMPTest::thr;
-
-void* SNMPTest::snmp_thread(void* data)
-{
-  while (1)
-  {
-    agent_check_and_process(1);
-  }
-  return NULL;
-}
 
 unsigned int SNMPTest::snmp_get(std::string oid)
 {
@@ -141,22 +113,41 @@ void SNMPTest::SetUpTestCase()
   netsnmp_ds_set_string(NETSNMP_DS_LIBRARY_ID,
                         NETSNMP_DS_LIB_CONFIGURATION_DIR,
                         cwd);
-  // Log SNMPd output to a file
+
+  snmp_setup("fvtest");
+
+  // Override SNMPd logging to send output to a file
+  snmp_disable_calllog();
   snmp_enable_filelog("fvtest-snmpd.out", 0);
 
-  init_agent("fvtest");
+  // Start as a master agent, not a subagent.
+  netsnmp_ds_set_boolean(NETSNMP_DS_APPLICATION_ID, NETSNMP_DS_AGENT_ROLE, 0);
   init_snmp("fvtest");
   init_master_agent();
 
-
-  // Run a thread to handle SNMP requests
-  pthread_create(&thr, NULL, snmp_thread, NULL);
+  init_snmp_handler_threads("fvtest");
 }
 
 void SNMPTest::TearDownTestCase()
 {
-  pthread_cancel(thr);
-  pthread_join(thr, NULL);
-  snmp_shutdown("fvtest");
+  snmp_terminate("fvtest");
+
+  // Not 100% thread-safe, but we need to do it to avoid memory leaks.
+  SNMP::Agent::deinstantiate();
+}
+
+std::string SNMPTest::time_string_event_oid(std::string base, int stat, int time, std::string string_index)
+{
+  std::string oid = base + ".1." + std::to_string(stat+2) + "." + std::to_string(time) + "." + string_index;
+  return oid;
+}
+
+void SNMPTest::snmp_walk_debug(std::string base)
+{
+  std::vector<std::string> entries = snmp_walk(base);
+  for (auto entry: entries)
+  {
+    printf("%s\n", entry.c_str());
+  }
 }
 

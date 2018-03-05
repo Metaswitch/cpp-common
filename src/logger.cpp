@@ -1,37 +1,12 @@
 /**
  * @file logger.cpp
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include <time.h>
@@ -210,6 +185,13 @@ void Logger::get_timestamp(timestamp_t& ts)
   ts.yday = dt.tm_yday;
 }
 
+void Logger::format_timestamp(const timestamp_t& ts, char* buf, size_t len)
+{
+  snprintf(buf, len,
+           "%2.2d-%2.2d-%4.4d %2.2d:%2.2d:%2.2d.%3.3d UTC",
+           ts.mday, (ts.mon+1), (ts.year + 1900),
+           ts.hour, ts.min, ts.sec, ts.msec);
+}
 
 /// Writes a log to the file with timestamp if configured.
 void Logger::write_log_file(const char *data, const timestamp_t& ts)
@@ -217,10 +199,8 @@ void Logger::write_log_file(const char *data, const timestamp_t& ts)
   if (_flags & ADD_TIMESTAMPS)
   {
     char timestamp[100];
-    sprintf(timestamp, "%2.2d-%2.2d-%4.4d %2.2d:%2.2d:%2.2d.%3.3d UTC ",
-            ts.mday, (ts.mon+1), (ts.year + 1900),
-            ts.hour, ts.min, ts.sec, ts.msec);
-    fputs(timestamp, _fd);
+    format_timestamp(ts, timestamp, sizeof(timestamp));
+    fprintf(_fd, "%s ", timestamp);
   }
 
   // Write the log to the current file.
@@ -284,47 +264,93 @@ void Logger::cycle_log_file(const timestamp_t& ts)
 // Maximum number of stack entries to trace out.
 #define MAX_BACKTRACE_STACK_ENTRIES 32
 
-// Dump a backtrace.  This function is called from a signal handler and so can
+// Dump a simple backtrace (using functionality available from within the
+// process). This is fast but not very good - in particular it doesn't print out
+// function names or arguments.
+//
+// This function is called from a signal handler and so can
 // only use functions that are safe to be called from one.  In particular,
 // locking functions are _not_ safe to call from signal handlers, so this
 // function is not thread-safe.
-void Logger::backtrace(const char *data)
+void Logger::backtrace_simple(const char* data)
 {
   // If the file exists, dump a header and then the backtrace.
   if (_fd != NULL)
   {
     fprintf(_fd, "\n%s", data);
-
-    // First dump the backtrace ourselves.  This is robust but not very good.
-    // In particular, it doesn't include good function names or other threads.
     fprintf(_fd, "\nBasic stack dump:\n");
     fflush(_fd);
     void *stack[MAX_BACKTRACE_STACK_ENTRIES];
     size_t num_entries = ::backtrace(stack, MAX_BACKTRACE_STACK_ENTRIES);
     backtrace_symbols_fd(stack, num_entries, fileno(_fd));
-
-    // Now try dumping with gdb.  This might not work (e.g. because gdb isn't
-    // installed), but it gives much better output.  We need to swap some file
-    // descriptors around before and after invoking gdb to make sure that
-    // stdout and stderr from gdb go to the log file.
-    fprintf(_fd, "\nAdvanced stack dump (requires gdb):\n");
-    fflush(_fd);
-    int fd1 = dup(1);
-    dup2(fileno(_fd), 1);
-    int fd2 = dup(2);
-    dup2(fileno(_fd), 2);
-    char gdb_cmd[256];
-    sprintf(gdb_cmd, "/usr/bin/gdb -nx --batch /proc/%d/exe %d -ex 'thread apply all bt'", getpid(), getpid());
-    int rc = system(gdb_cmd);
-    dup2(fd1, 1);
-    close(fd1);
-    dup2(fd2, 2);
-    close(fd2);
     fprintf(_fd, "\n");
+
+    fflush(_fd);
+
+    if (ferror(_fd))
+    {
+      fclose(_fd);
+      _fd = NULL;
+    }
+  }
+}
+
+// Dump an advanced backtrace using GDB. This captures function names and
+// arguments but stops the process temporarily. Because of this it should only
+// be used when the process is about to exit.
+//
+// This function is called from a signal handler and so can only use functions
+// that are safe to be called from one.  In particular, locking functions are
+// _not_ safe to call from signal handlers, so this function is not thread-safe.
+void Logger::backtrace_advanced()
+{
+  // If the file exists, dump a header and then the backtrace.
+  if (_fd != NULL)
+  {
+    // Dumping might not work (e.g. because gdb isn't installed), but it gives
+    // much better output.  We need to swap some file descriptors around before
+    // and after invoking gdb to make sure that stdout and stderr from gdb go to
+    // stderr.
+    int fd1 = dup(1);
+    dup2(2, 1);
+
+   // Get a timestamp so we can put that into stderr to correlate with the other
+   // logs in the logfile.
+    timestamp_t ts;
+    char timestamp[100];
+    get_timestamp(ts);
+    format_timestamp(ts, timestamp, sizeof(timestamp));
+
+    // Dump the stack trace to stderr. Given we are writing to a file from two
+    // processes, we flush our buffers after writing to stderr to minimize the
+    // chance of any re-ordering.
+    fprintf(stderr, "\n%s Advanced stack dump (requires gdb):\n", timestamp); fflush(stderr);
+
+    char gdb_cmd[256];
+    sprintf(gdb_cmd,
+            "/usr/bin/gdb -nx --batch /proc/%d/exe %d -ex 'thread apply all bt'",
+            getpid(),
+            getpid());
+    int rc = system(gdb_cmd);
 
     if (rc != 0)
     {
-      fprintf(_fd, "gdb failed with return code %d\n", rc);
+      fprintf(stderr, "gdb failed with return code %d\n", rc); fflush(stderr);
+    }
+
+    // Put the file descriptors back the way they were.
+    dup2(fd1, 1);
+    close(fd1);
+
+    // Also print a message to the logfile saying what just happened.
+    if (rc != 0)
+    {
+      fprintf(_fd, "\nAdvanced stack dump failed: gdb returned %d\n\n", rc);
+    }
+    else
+    {
+      fprintf(_fd, "\nAdvanced stack dump written to stderr (with timestamp %s)\n\n",
+              timestamp);
     }
 
     fflush(_fd);

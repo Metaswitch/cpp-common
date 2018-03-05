@@ -1,37 +1,12 @@
 /**
  * @file curl_interposer.hpp
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2016 Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include "curl_interposer.hpp"
@@ -254,6 +229,11 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
     curl->_url = va_arg(args, char*);
   }
   break;
+  case CURLOPT_TIMEOUT_MS:
+  {
+    curl->_timeout_ms = va_arg(args, long);
+  }
+  break;
   case CURLOPT_WRITEFUNCTION:
   {
     curl->_writefn = va_arg(args, datafn_ty);
@@ -358,9 +338,49 @@ CURLcode curl_easy_setopt(CURL* handle, CURLoption option, ...)
     curl->_verbose = (verbose_flag != 0);
   }
   break;
+  case CURLOPT_RESOLVE:
+  {
+    struct curl_slist* hosts = va_arg(args, struct curl_slist*);
+    std::list<std::string>* truelist = (std::list<std::string>*)hosts;
+    for (std::list<std::string>::iterator it = truelist->begin(); it != truelist->end(); ++it)
+    {
+      std::string mapping = *it;
+      if (mapping.at(0) == '-')
+      {
+        mapping.erase(0, 1);
+        curl->_resolves.erase(mapping);
+      }
+      else
+      {
+        size_t first_colon = mapping.find(':');
+        size_t second_colon = mapping.find(':', first_colon + 1);
+        std::string host = mapping.substr(0, first_colon);
+        std::string colon_and_port = mapping.substr(first_colon, second_colon - first_colon);
+        std::string ip = mapping.substr(second_colon + 1);
+        curl->_resolves[host + colon_and_port] = ip + colon_and_port;
+      }
+    }
+  }
+  break;
+  case CURLOPT_OPENSOCKETFUNCTION:
+  {
+    curl->_socket_callback = va_arg(args, socket_callback_t*);
+  }
+  break;
+  case CURLOPT_OPENSOCKETDATA:
+  {
+    curl->_socket_data = va_arg(args, void*);
+  }
+  break;
+  case CURLOPT_SOCKOPTFUNCTION:
+  {
+    curl->_sockopt_callback = va_arg(args, sockopt_callback_t*);
+  }
+  break;
+
   case CURLOPT_MAXCONNECTS:
-  case CURLOPT_TIMEOUT_MS:
   case CURLOPT_CONNECTTIMEOUT_MS:
+  case CURLOPT_ERRORBUFFER:
   case CURLOPT_DNS_CACHE_TIMEOUT:
   case CURLOPT_TCP_NODELAY:
   case CURLOPT_NOSIGNAL:

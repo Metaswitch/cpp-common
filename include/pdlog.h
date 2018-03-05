@@ -1,37 +1,12 @@
 /**
  * @file pdlog.h Enhanced Node Troubleshooting PDLog classes
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 
@@ -43,27 +18,14 @@
 //
 
 #include <string>
-
-extern "C" {
-  // syslog_facade prevents name collisions between the existing
-  // Clearwater logging (LOG_) and the definitions in syslog.h
-#include "syslog_facade.h"
-}
-
-// Namespace for common static ENT logging functions
-namespace PDLogStatic
-{
-  void init(char *pname);
-}
+#include <syslog.h>
 
 // Defines common definitions for PDLog (Problem Definition Log) classes
 
 // A PDLogBase defines the base class containing:
 //   Identity - Identifies the log id to be used in the syslog id field.
 //   Severity - One of Emergency, Alert, Critical, Error, Warning, Notice,
-//              and Info.  Directly corresponds to the syslog severity types.
-//              Only Error and Notice are used.  See syslog_facade.h for
-//              definitions.
+//              and Info.  Only Error and Notice are used.
 //   Message - Formatted description of the condition.
 //   Cause - The cause of the condition.
 //   Effect - The effect the condition.
@@ -104,9 +66,15 @@ public:
     // The range 10000-11999 is reserved
     CL_PYTHON_COMMON_ID = 12000,
     CL_CREST_ID = 13000,
-    CL_QUEUE_MGR_ID = 14000
+    CL_QUEUE_MGR_ID = 14000,
     // The range 15000-15999 is reserved
     // The range 16000-16999 is reserved
+    // The range 17000-17999 is reserved
+    // The range 18000-18999 is reserved
+    // The range 19000-19999 is reserved
+    // The range 20000-20999 is reserved
+    // The range 21000-21999 is reserved
+    CL_ROGERS_ID = 22000,
   };
 
   PDLogBase(int log_id,
@@ -129,7 +97,7 @@ protected:
   // Unique identity for a PDLog, e.g. CL_CPP_COMMON + 1
   int         _log_id;
 
-  // Log severity, usually PDLOG_ERR or PDLOG_NOTICE
+  // Log severity, usually LOG_ERR or LOG_NOTICE
   int         _severity;
 
   std::string _msg;

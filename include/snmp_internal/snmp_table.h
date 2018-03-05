@@ -1,43 +1,19 @@
 /**
  * @file snmp_table.h
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2015 Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include <vector>
 #include <map>
 #include <string>
 
+#include "snmp_agent.h"
 #include "snmp_row.h"
 #include "snmp_includes.h"
 #include "log.h"
@@ -111,13 +87,17 @@ public:
   // Add a Row into the underlying table.
   void add(T* row)
   {
-    netsnmp_tdata_add_row(_table, row->get_netsnmp_row());
+    // We're not necessarily on the Net-SNMP thread, so we can't call into
+    // Net-SNMP here.  Call into SNMP Agent to add the row to the table.
+    SNMP::Agent::instance()->add_row_to_table(_table, row->get_netsnmp_row());
   };
 
   // Remove a Row from the underlying table.
   void remove(T* row)
   {
-    netsnmp_tdata_remove_row(_table, row->get_netsnmp_row());
+    // We're not necessarily on the Net-SNMP thread, so we can't call into
+    // Net-SNMP here.  Call into SNMP Agent to remove the row to the table.
+    SNMP::Agent::instance()->remove_row_from_table(_table, row->get_netsnmp_row());
   };
 
 protected:
@@ -138,14 +118,13 @@ private:
     std::map<netsnmp_tdata_row*, SNMP::ColumnData> cache;
     char buf[64];
 
-    TRC_INFO("Starting handling batch of SNMP requests");
+    TRC_DEBUG("Starting handling batch of SNMP requests");
 
     for (; requests != NULL; requests = requests->next)
     {
       snprint_objid(buf, sizeof(buf),
                     requests->requestvb->name, requests->requestvb->name_length);
-      TRC_DEBUG("Handling SNMP request for OID %s", buf);
-
+      
       if (requests->processed)
       {
         continue;
@@ -171,8 +150,7 @@ private:
         SNMP::ColumnData cd = data->get_columns();
         cache[row] = cd;
       }
-      TRC_DEBUG("Got %d columns for row %p\n", cache[row].size(), row);
-
+      
       if (cache[row][table_info->colnum].size != 0)
       {
         snmp_set_var_typed_value(requests->requestvb,
@@ -187,7 +165,7 @@ private:
       }
     }
 
-    TRC_INFO("Finished handling batch of SNMP requests");
+    TRC_DEBUG("Finished handling batch of SNMP requests");
     return SNMP_ERR_NOERROR;
   }
 };

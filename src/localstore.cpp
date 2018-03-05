@@ -1,37 +1,12 @@
 /**
  * @file localstore.cpp Local memory implementation of the Sprout data store.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 // Common STL includes.
@@ -51,7 +26,9 @@ LocalStore::LocalStore() :
   _data_contention_flag(false),
   _db_lock(PTHREAD_MUTEX_INITIALIZER),
   _db(),
-  _force_error_flag(false),
+  _force_error_on_set_flag(false),
+  _force_error_on_get_flag(false),
+  _force_error_on_delete_flag(false),
   _old_db()
 {
   TRC_DEBUG("Created local store");
@@ -70,6 +47,7 @@ void LocalStore::flush_all()
   pthread_mutex_lock(&_db_lock);
   TRC_DEBUG("Flushing local store");
   _db.clear();
+  _old_db.clear();
   pthread_mutex_unlock(&_db_lock);
 }
 
@@ -79,6 +57,7 @@ void LocalStore::flush_all()
 // if the flag is true.
 void LocalStore::force_contention()
 {
+  TRC_DEBUG("Setting _data_contention_flag");
   _data_contention_flag = true;
 }
 
@@ -86,17 +65,43 @@ void LocalStore::force_contention()
 // error on the SET.  We achieve this by just returning an error on the SET.
 void LocalStore::force_error()
 {
-  _force_error_flag = true;
+  _force_error_on_set_flag = true;
+}
+
+// This function sets a flag to true that tells the program to simulate an
+// error on the DELETE.  We achieve this by just returning an error on the
+// DELETE.
+void LocalStore::force_delete_error()
+{
+  _force_error_on_delete_flag = true;
+}
+
+// This function sets a flag to true that tells the program to simulate an
+// error on the GET.  We achieve this by just returning an error on the GET.
+void LocalStore::force_get_error()
+{
+  _force_error_on_get_flag = true;
 }
 
 Store::Status LocalStore::get_data(const std::string& table,
                                    const std::string& key,
                                    std::string& data,
                                    uint64_t& cas,
-                                   SAS::TrailId trail)
+                                   SAS::TrailId trail,
+                                   bool log_body,
+                                   Format data_format)
 {
   TRC_DEBUG("get_data table=%s key=%s", table.c_str(), key.c_str());
   Store::Status status = Store::Status::NOT_FOUND;
+
+  // This is for the purpose of testing data GETs failing.  If the flag is set
+  // to true, then we'll just return an error.
+  if (_force_error_on_get_flag)
+  {
+    TRC_DEBUG("Force an error on the GET");
+    _force_error_on_get_flag = false;
+    return Store::Status::ERROR;
+  }
 
   // Calculate the fully qualified key.
   std::string fqkey = table + "\\\\" + key;
@@ -107,7 +112,7 @@ Store::Status LocalStore::get_data(const std::string& table,
   // true _db_in_use will become a reference to _old_db the out-of-date
   // database we constructed in set_data().
   std::map<std::string, Record>& _db_in_use = _data_contention_flag ? _old_db : _db;
-  if (_data_contention_flag == true)
+  if (_data_contention_flag)
   {
     _data_contention_flag = false;
   }
@@ -147,24 +152,58 @@ Store::Status LocalStore::get_data(const std::string& table,
 }
 
 
+Store::Status LocalStore::set_data_without_cas(const std::string& table,
+                                               const std::string& key,
+                                               const std::string& data,
+                                               int expiry,
+                                               SAS::TrailId trail,
+                                               bool log_body,
+                                               Store::Format data_format)
+{
+  TRC_DEBUG("set_data_without_cas table=%s key=%s expiry=%d",
+            table.c_str(), key.c_str(), expiry);
+
+  return set_data_inner(table, key, data, 0, false, expiry, trail);
+}
+
 Store::Status LocalStore::set_data(const std::string& table,
                                    const std::string& key,
                                    const std::string& data,
                                    uint64_t cas,
                                    int expiry,
-                                   SAS::TrailId trail)
+                                   SAS::TrailId trail,
+                                   bool log_body,
+                                   Store::Format data_format)
 {
   TRC_DEBUG("set_data table=%s key=%s CAS=%ld expiry=%d",
             table.c_str(), key.c_str(), cas, expiry);
 
+  return set_data_inner(table, key, data, cas, true, expiry, trail);
+}
+
+Store::Status LocalStore::set_data_inner(const std::string& table,
+                                         const std::string& key,
+                                         const std::string& data,
+                                         uint64_t cas,
+                                         bool check_cas,
+                                         int expiry,
+                                         SAS::TrailId trail)
+{
   Store::Status status = Store::Status::DATA_CONTENTION;
+
+  if (data.length() > Store::MAX_DATA_LENGTH)
+  {
+    TRC_WARNING("Attempting to write more than %lu bytes of data -- reject request",
+                Store::MAX_DATA_LENGTH);
+    return Store::Status::ERROR;
+  }
 
   // This is for the purpose of testing data SETs failing.  If the flag is set
   // to true, then we'll just return an error.
-  if (_force_error_flag == true)
+  if (_force_error_on_set_flag)
   {
     TRC_DEBUG("Force an error on the SET");
-    _force_error_flag = false;
+    _force_error_on_set_flag = false;
 
     return Store::Status::ERROR;
   }
@@ -184,25 +223,26 @@ Store::Status LocalStore::set_data(const std::string& table,
   {
     // Found an existing record, so check the expiry and CAS value.
     Record& r = i->second;
-    TRC_DEBUG("Found existing record, CAS = %ld, expiry = %ld (now = %ld)",
+    TRC_DEBUG("Found existing record, CAS = %lu, expiry = %u (now = %u)",
               r.cas, r.expiry, now);
 
-    if (((r.expiry >= now) && (cas == r.cas)) ||
-        ((r.expiry < now) && (cas == 0)))
+    if ((!check_cas) ||
+        (((r.expiry >= now) && (cas == r.cas)) ||
+         ((r.expiry < now) && (cas == 0))))
     {
       // Supplied CAS is consistent (either because record hasn't expired and
-      // CAS matches, or record has expired and CAS is zero) so update the
-      // record.
+      // CAS matches, or record has expired and CAS is zero), or we aren't
+      // checking CAS values so update the record.
 
       // This writes data this is one update out-of-date to _old_db. This is for
       // the purposes of simulating data contention in Unit Testing.
       _old_db[fqkey] = r;
 
       r.data = data;
-      r.cas = ++cas;
+      r.cas = check_cas ? ++cas : (r.cas + 1);
       r.expiry = (expiry == 0) ? 0 : (uint32_t)expiry + now;
       status = Store::Status::OK;
-      TRC_DEBUG("CAS is consistent, updated record, CAS = %ld, expiry = %ld (now = %ld)",
+      TRC_DEBUG("CAS is consistent, updated record, CAS = %lu, expiry = %u (now = %u)",
                 r.cas, r.expiry, now);
     }
   }
@@ -214,7 +254,7 @@ Store::Status LocalStore::set_data(const std::string& table,
     r.cas = 1;
     r.expiry = (expiry == 0) ? 0 : (uint32_t)expiry + now;
     status = Store::Status::OK;
-    TRC_DEBUG("No existing record so inserted new record, CAS = %ld, expiry = %ld (now = %ld)",
+    TRC_DEBUG("No existing record so inserted new record, CAS = %lu, expiry = %u (now = %u)",
               r.cas, r.expiry, now);
   }
 
@@ -229,6 +269,16 @@ Store::Status LocalStore::delete_data(const std::string& table,
   TRC_DEBUG("delete_data table=%s key=%s",
             table.c_str(), key.c_str());
 
+  // This is for the purpose of testing data DELETEs failing.  If the flag is set
+  // to true, then we'll just return an error.
+  if (_force_error_on_delete_flag)
+  {
+    TRC_DEBUG("Force an error on the DELETE");
+    _force_error_on_delete_flag = false;
+
+    return Store::Status::ERROR;
+  }
+
   Store::Status status = Store::Status::OK;
 
   // Calculate the fully qualified key.
@@ -241,5 +291,20 @@ Store::Status LocalStore::delete_data(const std::string& table,
   pthread_mutex_unlock(&_db_lock);
 
   return status;
+}
+
+void LocalStore::swap_dbs(LocalStore* rhs)
+{
+  // Grab both DB locks. Technically this could cause a deadlock (if another
+  // thread calls swap_dbs on the rhs) but we only use this in test code
+  // anyway.
+  pthread_mutex_lock(&_db_lock);
+  pthread_mutex_lock(&rhs->_db_lock);
+
+  std::swap(_db, rhs->_db);
+  std::swap(_old_db, rhs->_old_db);
+
+  pthread_mutex_unlock(&rhs->_db_lock);
+  pthread_mutex_unlock(&_db_lock);
 }
 

@@ -1,37 +1,12 @@
 /**
  * @file cassandra_store.h Base classes for a cassandra-backed store.
  *
- * Project Clearwater - IMS in the cloud.
- * Copyright (C) 2014  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef CASSANDRA_STORE_H_
@@ -72,6 +47,8 @@
 #include "utils.h"
 #include "sas.h"
 #include "communicationmonitor.h"
+#include "a_record_resolver.h"
+#include "cassandra_connection_pool.h"
 
 // Shortcut for the apache cassandra namespace.
 namespace cass = org::apache::cassandra;
@@ -149,6 +126,8 @@ class Client
 {
 public:
   virtual ~Client() {}
+  virtual bool is_connected() = 0;
+  virtual void connect() = 0;
   virtual void set_keyspace(const std::string& keyspace) = 0;
   virtual void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
                             const cass::ConsistencyLevel::type consistency_level) = 0;
@@ -166,96 +145,12 @@ public:
                       const cass::ColumnPath& column_path,
                       const int64_t timestamp,
                       const cass::ConsistencyLevel::type consistency_level) = 0;
+  virtual void get_range_slices(std::vector<cass::KeySlice> & _return,
+                                const cass::ColumnParent& column_parent,
+                                const cass::SlicePredicate& predicate,
+                                const cass::KeyRange& range,
+                                const cass::ConsistencyLevel::type consistency_level) = 0;
 
-  //
-  // Utility methods for interacting with cassandra. These abstract away the
-  // thrift interface and make it easier to deal with.
-  //
-  // High-availability Gets
-  // ----------------------
-  //
-  // After growing a cluster, Cassandra does not pro-actively populate the
-  // new nodes with their data (the nodes are expected to use `nodetool
-  // repair` if they need to get their data).  Combining this with
-  // the fact that we generally use consistency ONE when reading data, the
-  // behaviour on new nodes is to return NotFoundException or empty result
-  // sets to queries, even though the other nodes have a copy of the data.
-  //
-  // To resolve this issue, we define ha_ versions of various get methods.
-  // These attempt a QUORUM read in the event that a ONE read returns
-  // no data.  If the QUORUM read fails due to unreachable nodes, the
-  // original result will be used.
-  //
-  // To implement this, the non-HA versions must take the consistency level as
-  // their last parameter.
-  //
-
-  /// HA get an entire row.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key.
-  /// @param columns        - (out) Columns in the row.
-  void ha_get_row(const std::string& column_family,
-                  const std::string& key,
-                  std::vector<cass::ColumnOrSuperColumn>& columns,
-                  SAS::TrailId trail);
-
-  /// HA get specific columns in a row.
-  ///
-  /// Note that if a requested row does not exist in cassandra, this method
-  /// will return only the rows that do exist. It will not throw an exception
-  /// in this case.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key
-  /// @param names          - The names of the columns to retrieve
-  /// @param columns        - (out) The retrieved columns
-  void ha_get_columns(const std::string& column_family,
-                      const std::string& key,
-                      const std::vector<std::string>& names,
-                      std::vector<cass::ColumnOrSuperColumn>& columns,
-                      SAS::TrailId trail);
-
-  /// HA get all columns in a row
-  /// This is useful when working with dynamic columns.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key
-  /// @param columns        - (out) The retrieved columns.
-  void ha_get_all_columns(const std::string& column_family,
-                          const std::string& key,
-                          std::vector<cass::ColumnOrSuperColumn>& columns,
-                          SAS::TrailId trail);
-
-  /// HA get all columns in a row that have a particular prefix to their name.
-  /// This is useful when working with dynamic columns.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key
-  /// @param prefix         - The prefix
-  /// @param columns        - (out) the retrieved columns. NOTE: the column
-  ///                         names have their prefix removed.
-  void ha_get_columns_with_prefix(const std::string& column_family,
-                                  const std::string& key,
-                                  const std::string& prefix,
-                                  std::vector<cass::ColumnOrSuperColumn>& columns,
-                                  SAS::TrailId trail);
-
-  /// HA get all columns in multiple rows that have a particular prefix to their
-  /// name.  This is useful when working with dynamic columns.
-  ///
-  /// @param column_family  - The column family to operate on.
-  /// @param key            - Row key
-  /// @param prefix         - The prefix
-  /// @param columns        - (out) the retrieved columns.  Returned as a map
-  ///                         where the keys are the requested row keys and
-  ///                         each value is a vector of columns. NOTE: the
-  ///                         column names have their prefix removed.
-  void ha_multiget_columns_with_prefix(const std::string& column_family,
-                                       const std::vector<std::string>& keys,
-                                       const std::string& prefix,
-                                       std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns,
-                                       SAS::TrailId trail);
 
   /// Get an entire row (non-HA).
   /// @param consistency_level cassandra consistency level.
@@ -389,8 +284,12 @@ public:
          boost::shared_ptr<apache::thrift::transport::TFramedTransport> transport);
   ~RealThriftClient();
 
+  bool is_connected();
+  void connect();
   void set_keyspace(const std::string& keyspace);
-  void batch_mutate(const std::map<std::string, std::map<std::string, std::vector<cass::Mutation> > >& mutation_map,
+  void batch_mutate(const std::map<std::string,
+                    std::map<std::string,
+                    std::vector<cass::Mutation> > >& mutation_map,
                     const cass::ConsistencyLevel::type consistency_level);
   void get_slice(std::vector<cass::ColumnOrSuperColumn>& _return,
                  const std::string& key,
@@ -406,10 +305,16 @@ public:
               const cass::ColumnPath& column_path,
               const int64_t timestamp,
               const cass::ConsistencyLevel::type consistency_level);
+  void get_range_slices(std::vector<cass::KeySlice> & _return,
+                        const cass::ColumnParent& column_parent,
+                        const cass::SlicePredicate& predicate,
+                        const cass::KeyRange& range,
+                        const cass::ConsistencyLevel::type consistency_level);
 
 private:
   cass::CassandraClient _cass_client;
   boost::shared_ptr<apache::thrift::transport::TFramedTransport> _transport;
+  bool _connected;
 };
 
 /// The possible outcomes of a cassandra interaction.
@@ -425,7 +330,8 @@ enum ResultCode
   CONNECTION_ERROR = 3,
   RESOURCE_ERROR = 4,
   UNKNOWN_ERROR = 5,
-  UNAVAILABLE = 6
+  UNAVAILABLE = 6,
+  TIMEOUT = 7
 };
 
 /// The byte sequences that represent True and False in cassandra.
@@ -457,9 +363,11 @@ public:
   /// @param comm_monitor      - A monitor to track communication with the local
   ///                            Cassandra instance, and set/clear alarms based
   ///                            on recent activity.
+  /// @param resolver          - The DNS resolver to use.
   virtual void configure_connection(std::string cass_hostname,
                                     uint16_t cass_port,
-                                    BaseCommunicationMonitor* comm_monitor = NULL);
+                                    BaseCommunicationMonitor* comm_monitor = NULL,
+                                    CassandraResolver* resolver = NULL);
 
   /// Tests the store.
   ///
@@ -473,8 +381,8 @@ public:
   /// until the operation is complete.  The result of the operation is stored
   /// on the operation object.
   ///
-  /// This method runs the perform() method on the underlying operation. It
-  /// also provides two additional features:
+  /// This method calls into perform_op(), which in turn runs perform() on the
+  /// underlying operation. It also provides two additional features:
   ///
   /// -  If the store cannot connect to cassandra, it will try to
   ///    re-establish it's connection and retry the operation (by calling
@@ -569,6 +477,15 @@ private:
     }
   };
 
+  // Private method that is used by do_sync() and connection_test()
+  bool perform_op(Operation* op,
+                  SAS::TrailId trail,
+                  ResultCode& cass_result,
+                  std::string& cass_error_text);
+
+  // DNS resolver
+  CassandraResolver* _resolver;
+
   // The keyspace that the store connects to.
   const std::string _keyspace;
 
@@ -593,19 +510,10 @@ private:
 
   // Cassandra connection management.
   //
-  // Each thread has it's own cassandra client. This is created only when
-  // required, and deleted when the thread exits.
-  //
-  // - _thread_local stores the client as a thread-local variable.
-  // - get_client() creates and stores a new client.
-  // - delete_client() deletes a client (and is automatically called when the
-  //   thread exits).
-  // - release_client() removes the client from thread-local storage and deletes
-  //   it. It allows a thread to pro-actively delete it's client.
-  pthread_key_t _thread_local;
-  virtual Client* get_client();
-  virtual void release_client();
-  static void delete_client(void* client);
+  // The CassandraConnectionPool manages the actual connections. Each thread
+  // requests a connection from the pool when it is needed, and returns it
+  // when it is finished.
+  CassandraConnectionPool* _conn_pool;
 };
 
 /// Base class for transactions used to perform asynchronous operations.
@@ -720,6 +628,99 @@ protected:
   /// If the operation hit an exception doing a cassandra operation, the error
   /// text describing the exception.
   std::string _cass_error_text;
+};
+
+/// This is an abstract class that allows for HA get requests to be made.
+/// These requests make a consistency level TWO request the first time the
+/// operation is perfomed, and a consistency level ONE request for any
+/// subsequent time.
+/// This allows us to attempt a level TWO request, but fall back to level ONE if
+/// that fails.
+class HAOperation : public Operation
+{
+public:
+  HAOperation();
+
+  /// HA get an entire row.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key.
+  /// @param columns        - (out) Columns in the row.
+  void ha_get_row(Client* client,
+                  const std::string& column_family,
+                  const std::string& key,
+                  std::vector<cass::ColumnOrSuperColumn>& columns,
+                  SAS::TrailId trail);
+
+  /// HA get specific columns in a row.
+  ///
+  /// Note that if a requested row does not exist in cassandra, this method
+  /// will return only the rows that do exist. It will not throw an exception
+  /// in this case.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param names          - The names of the columns to retrieve
+  /// @param columns        - (out) The retrieved columns
+  void ha_get_columns(Client* client,
+                      const std::string& column_family,
+                      const std::string& key,
+                      const std::vector<std::string>& names,
+                      std::vector<cass::ColumnOrSuperColumn>& columns,
+                      SAS::TrailId trail);
+
+  /// HA get all columns in a row
+  /// This is useful when working with dynamic columns.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param columns        - (out) The retrieved columns.
+  void ha_get_all_columns(Client* client,
+                          const std::string& column_family,
+                          const std::string& key,
+                          std::vector<cass::ColumnOrSuperColumn>& columns,
+                          SAS::TrailId trail);
+
+  /// HA get all columns in a row that have a particular prefix to their name.
+  /// This is useful when working with dynamic columns.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param prefix         - The prefix
+  /// @param columns        - (out) the retrieved columns. NOTE: the column
+  ///                         names have their prefix removed.
+  void ha_get_columns_with_prefix(Client* client,
+                                  const std::string& column_family,
+                                  const std::string& key,
+                                  const std::string& prefix,
+                                  std::vector<cass::ColumnOrSuperColumn>& columns,
+                                  SAS::TrailId trail);
+
+  /// HA get all columns in multiple rows that have a particular prefix to their
+  /// name.  This is useful when working with dynamic columns.
+  ///
+  /// @param client         - The Client with which to perform the get.
+  /// @param column_family  - The column family to operate on.
+  /// @param key            - Row key
+  /// @param prefix         - The prefix
+  /// @param columns        - (out) the retrieved columns.  Returned as a map
+  ///                         where the keys are the requested row keys and
+  ///                         each value is a vector of columns. NOTE: the
+  ///                         column names have their prefix removed.
+  void ha_multiget_columns_with_prefix(Client* client,
+                                       const std::string& column_family,
+                                       const std::vector<std::string>& keys,
+                                       const std::string& prefix,
+                                       std::map<std::string, std::vector<cass::ColumnOrSuperColumn> >& columns,
+                                       SAS::TrailId trail);
+private:
+  // This tracks whether we have alrady made a consistency level TWO request,
+  // and hence whether our next request should be ONE.
+  bool _consistency_two_tried;
 };
 
 }; // namespace CassandraStore

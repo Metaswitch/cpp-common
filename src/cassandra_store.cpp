@@ -2,37 +2,12 @@
  * @file cassandra_store.cpp Implementation of a generic cassandra backed
  * store.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include <boost/format.hpp>
@@ -54,6 +29,126 @@ namespace CassandraStore
 // set the limit very high instead.
 const int32_t GET_SLICE_MAX_COLUMNS = 1000000;
 
+// No-op operation class
+class NoOperation : public Operation
+{
+public:
+  bool perform(Client* client, SAS::TrailId trail)
+  {
+    return true;
+  }
+};
+
+//
+// HAOperation methods
+//
+
+HAOperation::HAOperation() :
+  _consistency_two_tried(false)
+{
+}
+
+// Macro to turn an underlying (non-HA) get method into an HA one.
+//
+// This macro takes the following arguments:
+// -  A pointer to the Cassandra Client to use to make the get request.
+// -  The name of the underlying get method to call.
+// -  The arguments for the underlying get method.
+//
+// It works as follows:
+// -  If this Operation has not yet been called, it calls the method with a
+//    consistency level of TWO
+//    If successful, this indicates that we've managed to find multiple nodes
+//    with the same data, and so we can trust the response (if we're wrong, it
+//    will be because at least two local nodes failed or were down simultaneously
+//    which we can consider a non-mainline failure case for which some level of
+//    service impact is acceptable).
+//
+// -  If this fails with an UnavailableException or TimedOutException, or if
+//    this Operation has already been called at consistency level TWO, perform a
+//    ONE read.  In this case at most one of the replicas for the data is still
+//    up, so we can't do any better.
+//
+// The Operation will have already been run if we have made a TWO request to a
+// different Cassandra process already. In that case, we want to skip straight
+// to the consistency level ONE attempt, as we've already spent a chunk of our
+// latency budget on the previous attempt, and we want to make sure we can
+// return a result in a timely fashion.
+#define HA(CLIENT, METHOD, TRAIL_ID, ...)                                      \
+        bool success = false;                                                  \
+        if (!_consistency_two_tried)                                           \
+        {                                                                      \
+          _consistency_two_tried = true;                                       \
+          try                                                                  \
+          {                                                                    \
+            CLIENT->METHOD(__VA_ARGS__, ConsistencyLevel::TWO);                \
+            success = true;                                                    \
+          }                                                                    \
+          catch(UnavailableException& ue)                                      \
+          {                                                                    \
+            TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
+            int event_id = SASEvent::CASS_REQUEST_TWO_FAIL;                    \
+            SAS::Event event(TRAIL_ID, event_id, 0);                           \
+            SAS::report_event(event);                                          \
+          }                                                                    \
+          catch(TimedOutException& te)                                         \
+          {                                                                    \
+            TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
+            int event_id = SASEvent::CASS_REQUEST_TWO_FAIL;                    \
+            SAS::Event event(TRAIL_ID, event_id, 1);                           \
+            SAS::report_event(event);                                          \
+          }                                                                    \
+        }                                                                      \
+        if (!success)                                                          \
+        {                                                                      \
+          CLIENT->METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                  \
+        }
+
+void HAOperation::
+ha_get_columns(Client* client,
+               const std::string& column_family,
+               const std::string& key,
+               const std::vector<std::string>& names,
+               std::vector<cass::ColumnOrSuperColumn>& columns,
+               SAS::TrailId trail)
+{
+  HA(client, get_columns, trail, column_family, key, names, columns);
+}
+
+void HAOperation::
+ha_get_columns_with_prefix(Client* client,
+                           const std::string& column_family,
+                           const std::string& key,
+                           const std::string& prefix,
+                           std::vector<ColumnOrSuperColumn>& columns,
+                           SAS::TrailId trail)
+{
+  HA(client, get_columns_with_prefix, trail, column_family, key, prefix, columns);
+}
+
+
+void HAOperation::
+ha_multiget_columns_with_prefix(Client* client,
+                                const std::string& column_family,
+                                const std::vector<std::string>& keys,
+                                const std::string& prefix,
+                                std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
+                                SAS::TrailId trail)
+{
+  HA(client, multiget_columns_with_prefix, trail, column_family, keys, prefix, columns);
+}
+
+void HAOperation::
+ha_get_all_columns(Client* client,
+                   const std::string& column_family,
+                   const std::string& key,
+                   std::vector<ColumnOrSuperColumn>& columns,
+                   SAS::TrailId trail)
+{
+  HA(client, get_row, trail, column_family, key, columns);
+}
+
+
 //
 // Client methods
 //
@@ -62,14 +157,25 @@ const int32_t GET_SLICE_MAX_COLUMNS = 1000000;
 RealThriftClient::RealThriftClient(boost::shared_ptr<TProtocol> prot,
                                    boost::shared_ptr<TFramedTransport> transport) :
   _cass_client(prot),
-  _transport(transport)
+  _transport(transport),
+  _connected(false)
 {
-  _transport->open();
 }
 
 RealThriftClient::~RealThriftClient()
 {
   _transport->close();
+}
+
+bool RealThriftClient::is_connected()
+{
+  return _connected;
+}
+
+void RealThriftClient::connect()
+{
+  _transport->open();
+  _connected = true;
 }
 
 void RealThriftClient::set_keyspace(const std::string& keyspace)
@@ -108,6 +214,15 @@ void RealThriftClient::remove(const std::string& key,
 {
   _cass_client.remove(key, column_path, timestamp, consistency_level);
 }
+
+void RealThriftClient::get_range_slices(std::vector<KeySlice> & _return,
+                                        const ColumnParent& column_parent,
+                                        const SlicePredicate& predicate,
+                                        const KeyRange& range,
+                                        const ConsistencyLevel::type consistency_level)
+{
+  _cass_client.get_range_slices(_return, column_parent, predicate, range, consistency_level);
+}
 // LCOV_EXCL_STOP
 
 
@@ -139,17 +254,14 @@ Store::Store(const std::string& keyspace) :
   _max_queue(0),
   _thread_pool(NULL),
   _comm_monitor(NULL),
-  _thread_local()
+  _conn_pool(new CassandraConnectionPool())
 {
-  // Create the thread-local storage that stores cassandra connections.
-  // delete_client is a destroy callback that is called when the thread exits.
-  pthread_key_create(&_thread_local, delete_client);
 }
-
 
 void Store::configure_connection(std::string cass_hostname,
                                  uint16_t cass_port,
-                                 BaseCommunicationMonitor* comm_monitor)
+                                 BaseCommunicationMonitor* comm_monitor,
+                                 CassandraResolver* resolver)
 {
   TRC_STATUS("Configuring store connection");
   TRC_STATUS("  Hostname:  %s", cass_hostname.c_str());
@@ -157,44 +269,22 @@ void Store::configure_connection(std::string cass_hostname,
   _cass_hostname = cass_hostname;
   _cass_port = cass_port;
   _comm_monitor = comm_monitor;
+  _resolver = resolver;
 }
 
 
 ResultCode Store::connection_test()
 {
-  ResultCode rc = OK;
+  TRC_DEBUG("Testing cassandra connection");
+
+  ResultCode rc = UNKNOWN_ERROR;
+  std::string cass_error_text = "";
 
   // Check that we can connect to cassandra by getting a client. This logs in
   // and switches to the specified keyspace, so is a good test of whether
   // cassandra is working properly.
-  TRC_DEBUG("Testing cassandra connection");
-
-  try
-  {
-    get_client();
-    release_client();
-  }
-  catch(TTransportException te)
-  {
-    TRC_ERROR("Store caught TTransportException: %s", te.what());
-    rc = CONNECTION_ERROR;
-  }
-  catch(NotFoundException nfe)
-  {
-    TRC_ERROR("Store caught NotFoundException: %s", nfe.what());
-    rc = NOT_FOUND;
-  }
-  catch(InvalidRequestException ire)
-  {
-    TRC_ERROR("Store caught InvalidRequestException: %s", ire.why.c_str());
-    rc = INVALID_REQUEST;
-  }
-  catch(...)
-  {
-    TRC_ERROR("Store caught unknown exception!");
-    rc = UNKNOWN_ERROR;
-  }
-
+  NoOperation no_op;
+  perform_op(&no_op, 0, rc, cass_error_text);
   return rc;
 }
 
@@ -272,89 +362,62 @@ Store::~Store()
     wait_stopped();
   }
 
-  pthread_key_delete(_thread_local);
+  delete _conn_pool; _conn_pool = NULL;
 }
 
 
-// LCOV_EXCL_START - UTs do not cover relationship of clients to threads.
-Client* Store::get_client()
-{
-  // See if we've already got a client for this thread.  If not allocate a new
-  // one and write it back into thread-local storage.
-  TRC_DEBUG("Getting thread-local Client");
-  Client* client = (Client*)pthread_getspecific(_thread_local);
-
-  if (client == NULL)
-  {
-    TRC_DEBUG("No thread-local Client - creating one");
-    boost::shared_ptr<TTransport> socket =
-      boost::shared_ptr<TSocket>(new TSocket(_cass_hostname, _cass_port));
-    boost::shared_ptr<TFramedTransport> transport =
-      boost::shared_ptr<TFramedTransport>(new TFramedTransport(socket));
-    boost::shared_ptr<TProtocol> protocol =
-      boost::shared_ptr<TBinaryProtocol>(new TBinaryProtocol(transport));
-    client = new RealThriftClient(protocol, transport);
-    client->set_keyspace(_keyspace);
-    pthread_setspecific(_thread_local, client);
-  }
-
-  return client;
-}
-
-
-void Store::release_client()
-{
-  // If this thread already has a client delete it and remove it from
-  // thread-local storage.
-  TRC_DEBUG("Looking to release thread-local client");
-  Client* client = (Client*)pthread_getspecific(_thread_local);
-
-  if (client != NULL)
-  {
-    TRC_DEBUG("Found thread-local client - destroying");
-    delete_client(client);
-    client = NULL;
-    pthread_setspecific(_thread_local, NULL);
-  }
-}
-
-
-void Store::delete_client(void* client)
-{
-  delete (Client*)client; client = NULL;
-}
-// LCOV_EXCL_STOP
-
-
-bool Store::do_sync(Operation* op, SAS::TrailId trail)
+bool Store::perform_op(Operation* op,
+                       SAS::TrailId trail,
+                       ResultCode& cass_result,
+                       std::string& cass_error_text)
 {
   bool success = false;
-  Client* client = NULL;
-  ResultCode cass_result = OK;
-  std::string cass_error_text = "";
-
-  // Set up whether the perform should be retried on failure.
-  // Only try once, unless there's connection error, in which case try twice.
-  bool retry = false;
+  bool retry = true;
   int attempt_count = 0;
 
-  // Call perform() to actually do the business logic of the request.  Catch
-  // exceptions and turn them into return codes and error text.
-  do
+  // Resolve the host
+  BaseAddrIterator* target_it = _resolver->resolve_iter(_cass_hostname,
+                                                        _cass_port,
+                                                        trail);
+  AddrInfo target;
+
+  // Iterate over targets until either we succeed in connecting, run out of
+  // targets or hit the maximum (2).
+  // If there is only one target, try it twice.
+  while (retry &&
+         (attempt_count < 2) &&
+         (target_it->next(target) || (attempt_count == 1)))
   {
+    cass_result = OK;
+    attempt_count++;
+
+    // Both Cassandra timeouts and connection errors should result in a retry
     retry = false;
 
+    // Get a client to execute the operation.
+    ConnectionHandle<Client*> conn_handle = _conn_pool->get_connection(target);
+
+    // Call perform() to actually do the business logic of the request.  Catch
+    // exceptions and turn them into return codes and error text.
     try
     {
-      attempt_count++;
+      // Ensure the client is connected and perform the operation
+      Client* client = conn_handle.get_connection();
 
-      // Get a client to execute the operation.
-      client = get_client();
+      if (!client->is_connected())
+      {
+        TRC_DEBUG("Connecting to %s", target.to_string().c_str());
+        client->connect();
+        client->set_keyspace(_keyspace);
+      }
 
       success = op->perform(client, trail);
     }
     catch(TTransportException& te)
     {
+      // A TTransportException means that we were unable to connect to the
+      // Cassandra node, so we blacklist it and try again (if this is our first
+      // try)
       cass_result = CONNECTION_ERROR;
       cass_error_text = (boost::format("Exception: %s [%d]")
                          % te.what() % te.getType()).str();
@@ -364,17 +427,32 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
       event.add_var_param(cass_error_text);
       SAS::report_event(event);
 
-      // Recycle the connection.
-      release_client(); client = NULL;
+      // Tell the pool not to reuse this connection
+      conn_handle.set_return_to_pool(false);
 
-      if (attempt_count <= 1)
-      {
-        // Connection error, destroy and recreate the connection, and retry the
-        //  request once
-        TRC_DEBUG("Connection error, retrying");
-        retry = true;
-        cass_result = OK;
-      }
+      TRC_DEBUG("Error connecting to Cassandra - retrying if possible");
+      retry = true;
+    }
+    catch(TimedOutException& te)
+    {
+      // A Cassandra timeout means that we successfully contacted the node, but
+      // that it was unable to perform the operation in time. Since we only
+      // blacklist nodes on connectivity errors, a timeout does not result in
+      // blacklisting the node.
+      // We do retry on a timeout though, as it may be that another node is able
+      // to perform the operation.
+      // A timeout should trigger a retry, but should not blacklist the node we
+      // connected to (as we succeeded in connecting to it)
+      cass_result = TIMEOUT;
+      cass_error_text = (boost::format("Exception: %s")
+                         % te.what()).str();
+
+      // SAS log the timeout.
+      SAS::Event event(trail, SASEvent::CASS_TIMEOUT, 0);
+      SAS::report_event(event);
+
+      TRC_DEBUG("Cassandra timeout - retrying if possible");
+      retry = true;
     }
     catch(InvalidRequestException& ire)
     {
@@ -405,8 +483,29 @@ bool Store::do_sync(Operation* op, SAS::TrailId trail)
       cass_result = UNKNOWN_ERROR;
       cass_error_text = "Unknown error";
     }
+
+    // Only blacklist the target if there was an error connecting to it
+    if (cass_result == CONNECTION_ERROR)
+    {
+      _resolver->blacklist(target);
+    }
+    else
+    {
+      _resolver->success(target);
+    }
   }
-  while (retry);
+
+  return success;
+}
+
+
+bool Store::do_sync(Operation* op, SAS::TrailId trail)
+{
+  ResultCode cass_result = UNKNOWN_ERROR;
+  std::string cass_error_text = "";
+
+  // perform_op() does the actual work
+  bool success  = perform_op(op, trail, cass_result, cass_error_text);
 
   if (cass_result == OK)
   {
@@ -658,101 +757,6 @@ put_columns(const std::vector<RowColumns>& to_put,
   // Execute the database operation.
   TRC_DEBUG("Executing put request operation");
   batch_mutate(mutmap, ConsistencyLevel::ONE);
-}
-
-// A map from quorum consistency levels to their corresponding SAS enum value.
-// Any changes made to this must be consistently applied to the sas resource
-// bundle.
-enum class Quorum_Consistency_Levels
-{
-  LOCAL_QUORUM = ::cass::ConsistencyLevel::LOCAL_QUORUM,
-  QUORUM = ::cass::ConsistencyLevel::QUORUM,
-  TWO = ::cass::ConsistencyLevel::TWO
-};
-
-// Macro to turn an underlying (non-HA) get method into an HA one.
-//
-// This macro takes the following arguments:
-// -  The name of the underlying get method to call.
-// -  The arguments for the underlying get method.
-//
-// It works as follows:
-// -  Call the underlying method with a consistency level of TWO.
-//    If successful, this indicates that we've managed to find multiple nodes
-//    with the same data, and so we can trust the response (if we're wrong, it
-//    will be because at least two local nodes failed or were down simultaneously
-//    which we can consider a non-mainline failure case for which some level of
-//    service impact is acceptable).
-// -  If this fails with UnavailableException, perform a ONE read.  In
-//    this case at most one of the replicas for the data is still up, so we
-//    can't do any better.
-//
-#define HA(METHOD, TRAIL_ID, ...)                                            \
-        try                                                                  \
-        {                                                                    \
-          METHOD(__VA_ARGS__, ConsistencyLevel::TWO);                        \
-        }                                                                    \
-        catch(UnavailableException& ue)                                      \
-        {                                                                    \
-          TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
-          int event_id = SASEvent::QUORUM_FAILURE;                           \
-          SAS::Event event(TRAIL_ID, event_id, 0);                           \
-          event.add_static_param(                                            \
-            static_cast<uint32_t>(Quorum_Consistency_Levels::TWO));          \
-          SAS::report_event(event);                                          \
-          METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
-        }                                                                    \
-        catch(TimedOutException& te)                                         \
-        {                                                                    \
-          TRC_DEBUG("Failed TWO read for %s. Try ONE", #METHOD);             \
-          int event_id = SASEvent::QUORUM_FAILURE;                           \
-          SAS::Event event(TRAIL_ID, event_id, 1);                           \
-          event.add_static_param(                                            \
-            static_cast<uint32_t>(Quorum_Consistency_Levels::TWO));          \
-          SAS::report_event(event);                                          \
-          METHOD(__VA_ARGS__, ConsistencyLevel::ONE);                        \
-        }
-
-
-void Client::
-ha_get_columns(const std::string& column_family,
-               const std::string& key,
-               const std::vector<std::string>& names,
-               std::vector<ColumnOrSuperColumn>& columns,
-               SAS::TrailId trail)
-{
-  HA(get_columns, trail, column_family, key, names, columns);
-}
-
-
-void Client::
-ha_get_columns_with_prefix(const std::string& column_family,
-                           const std::string& key,
-                           const std::string& prefix,
-                           std::vector<ColumnOrSuperColumn>& columns,
-                           SAS::TrailId trail)
-{
-  HA(get_columns_with_prefix, trail, column_family, key, prefix, columns);
-}
-
-
-void Client::
-ha_multiget_columns_with_prefix(const std::string& column_family,
-                                const std::vector<std::string>& keys,
-                                const std::string& prefix,
-                                std::map<std::string, std::vector<ColumnOrSuperColumn> >& columns,
-                                SAS::TrailId trail)
-{
-  HA(multiget_columns_with_prefix, trail, column_family, keys, prefix, columns);
-}
-
-void Client::
-ha_get_all_columns(const std::string& column_family,
-                   const std::string& key,
-                   std::vector<ColumnOrSuperColumn>& columns,
-                   SAS::TrailId trail)
-{
-  HA(get_row, trail, column_family, key, columns);
 }
 
 

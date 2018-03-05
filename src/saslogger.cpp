@@ -2,37 +2,12 @@
  * @file saslogger.cpp Utility function to log out errors in
  * the SAS connection
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013-2014 Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2015
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include <cstdarg>
@@ -42,38 +17,49 @@
 
 // LCOV_EXCL_START
 
-void sas_write(SAS::log_level_t sas_level, const char *module, int line_number, const char *fmt, ...)
+void sas_write(SAS::sas_log_level_t sas_level,
+               int32_t log_id_len,
+               unsigned char* log_id,
+               int32_t sas_ip_len,
+               unsigned char* sas_ip,
+               int32_t msg_len,
+               unsigned char* msg)
 {
   int level;
-  va_list args;
 
+  // Convert the sasclient_log_level_t to the common log level.
   switch (sas_level) {
-    case SAS::LOG_LEVEL_DEBUG:
-      level = Log::DEBUG_LEVEL;
+    case SAS::SASCLIENT_LOG_CRITICAL:
+      level = Log::ERROR_LEVEL;
       break;
-    case SAS::LOG_LEVEL_VERBOSE:
-      level = Log::VERBOSE_LEVEL;
+    case SAS::SASCLIENT_LOG_ERROR:
+      level = Log::ERROR_LEVEL;
       break;
-    case SAS::LOG_LEVEL_INFO:
-      level = Log::INFO_LEVEL;
-      break;
-    case SAS::LOG_LEVEL_STATUS:
-      level = Log::STATUS_LEVEL;
-      break;
-    case SAS::LOG_LEVEL_WARNING:
+    case SAS::SASCLIENT_LOG_WARNING:
       level = Log::WARNING_LEVEL;
       break;
-    case SAS::LOG_LEVEL_ERROR:
-      level = Log::ERROR_LEVEL;
+    case SAS::SASCLIENT_LOG_INFO:
+      level = Log::STATUS_LEVEL;
+      break;
+    case SAS::SASCLIENT_LOG_DEBUG:
+      level = Log::DEBUG_LEVEL;
+      break;
+    case SAS::SASCLIENT_LOG_TRACE:
+      level = Log::DEBUG_LEVEL;
+      break;
+    case SAS::SASCLIENT_LOG_STATS:
+      level = Log::INFO_LEVEL;
       break;
     default:
       TRC_ERROR("Unknown SAS log level %d, treating as error level", sas_level);
       level = Log::ERROR_LEVEL;
     }
 
-  va_start(args, fmt);
-  Log::_write(level, module, line_number, fmt, args);
-  va_end(args);
+  Log::write(level,
+             NULL,
+             0,
+             "%.*s %.*s %.*s",
+             log_id_len, log_id, sas_ip_len, sas_ip, msg_len, msg);
 }
 
 // LCOV_EXCL_STOP

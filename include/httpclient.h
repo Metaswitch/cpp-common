@@ -1,37 +1,12 @@
 /**
  * @file httpclient.h Definitions for HttpClient class.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2016  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #pragma once
@@ -65,11 +40,22 @@ static const long HTTP_FORBIDDEN = 403;
 static const long HTTP_NOT_FOUND = 404;
 static const long HTTP_BADMETHOD = 405;
 static const long HTTP_CONFLICT = 409;
+static const long HTTP_PRECONDITION_FAILED = 412;
+static const long HTTP_UNPROCESSABLE_ENTITY = 422;
 static const long HTTP_TEMP_UNAVAILABLE = 480;
 static const long HTTP_SERVER_ERROR = 500;
 static const long HTTP_NOT_IMPLEMENTED = 501;
+static const long HTTP_BAD_GATEWAY = 502;
 static const long HTTP_SERVER_UNAVAILABLE = 503;
 static const long HTTP_GATEWAY_TIMEOUT = 504;
+
+static const std::string HEADERS_END = "\r\n\r\n";
+static const std::string BODY_OMITTED = "\r\n\r\n<Body present but not logged>";
+
+// We don't need to include http_request.h here, it can just be included in
+// the .cpp file.
+class HttpRequest;
+class HttpResponse;
 
 /// Issues HTTP requests, supporting round-robin DNS load balancing.
 ///
@@ -78,142 +64,35 @@ class HttpClient
 public:
   // HttpConnectionPool requires access to the private Recorder class
   friend class HttpConnectionPool;
+  // HttpRequest requires access to the private send_request function
+  friend class HttpRequest;
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
              SNMP::IPCountTable* stat_table,
              LoadMonitor* load_monitor,
-             SASEvent::HttpLogLevel,
-             BaseCommunicationMonitor* comm_monitor);
+             SASEvent::HttpLogLevel sas_log_level,
+             BaseCommunicationMonitor* comm_monitor,
+             bool should_omit_body = false,
+             bool remote_connection = false,
+             long timeout_ms = -1,
+             bool log_display_address = false,
+             std::string server_display_address = "",
+             const std::string& source_address = "");
 
   HttpClient(bool assert_user,
              HttpResolver* resolver,
-             SASEvent::HttpLogLevel,
+             SASEvent::HttpLogLevel sas_log_level,
              BaseCommunicationMonitor* comm_monitor);
 
   virtual ~HttpClient();
 
-  /// Sends a HTTP GET request to _host with the specified parameters
-  ///
-  /// @param url            Full URL to request - includes http(s)?://
-  /// @param headers        Location to store the header part of the retrieved
-  ///                       data
-  /// @param response       Location to store retrieved data
-  /// @param username       Username to assert if assertUser is true, else
-  ///                       ignored
-  /// @param headers_to_add Extra headers to add to the request
-  /// @param trail          SAS trail to use
-  ///
-  /// @returns              HTTP code representing outcome of request
-  virtual long send_get(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& username,
-                        std::vector<std::string> headers_to_add,
-                        SAS::TrailId trail);
-  virtual long send_get(const std::string& path,
-                        std::string& response,
-                        std::vector<std::string> headers,
-                        SAS::TrailId trail);
-  virtual long send_get(const std::string& url,
-                        std::string& response,
-                        const std::string& username,
-                        SAS::TrailId trail);
-  virtual long send_get(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& username,
-                        SAS::TrailId trail);
-
-  /// Sends a HTTP DELETE request to _host with the specified parameters
-  ///
-  /// @param url      Full URL to request - includes http(s)?://
-  /// @param headers  Location to store the header part of the retrieved
-  ///                 data
-  /// @param response Location to store retrieved data
-  /// @param trail    SAS trail to use
-  /// @param body     Body to send on the request
-  /// @param username Username to assert if assertUser is true, else
-  ///                 ignored
-  ///
-  /// @returns        HTTP code representing outcome of request
-  virtual long send_delete(const std::string& url,
-                           std::map<std::string, std::string>& headers,
-                           std::string& response,
-                           SAS::TrailId trail,
-                           const std::string& body = "",
-                           const std::string& username = "");
-  virtual long send_delete(const std::string& url,
-                           SAS::TrailId trail,
-                           const std::string& body = "");
-  virtual long send_delete(const std::string& url,
-                           SAS::TrailId trail,
-                           const std::string& body,
-                           std::string& response);
-
-  /// Sends a HTTP PUT request to _host with the specified parameters
-  ///
-  /// @param url               Full URL to request - includes http(s)?://
-  /// @param headers           Location to store the header part of the retrieved
-  ///                          data
-  /// @param response          Location to store retrieved data
-  /// @param body              Body to send on the request
-  /// @param extra_req_headers Extra headers to add to the request
-  /// @param trail             SAS trail to use
-  /// @param username          Username to assert if assertUser is true, else
-  ///                          ignored
-  ///
-  /// @returns                 HTTP code representing outcome of request
-  virtual long send_put(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& body,
-                        const std::vector<std::string>& extra_req_headers,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-  virtual long send_put(const std::string& url,
-                        const std::string& body,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-  virtual long send_put(const std::string& url,
-                        std::string& response,
-                        const std::string& body,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-  virtual long send_put(const std::string& url,
-                        std::map<std::string, std::string>& headers,
-                        const std::string& body,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-
-  /// Sends a HTTP POST request to _host with the specified parameters
-  ///
-  /// @param url      Full URL to request - includes http(s)?://
-  /// @param headers  Location to store the header part of the retrieved
-  ///                 data
-  /// @param response Location to store retrieved data
-  /// @param body     Body to send on the request
-  /// @param trail    SAS trail to use
-  /// @param username Username to assert if assertUser is true, else
-  ///                 ignored
-  ///
-  /// @returns                HTTP code representing outcome of request
-  virtual long send_post(const std::string& url,
-                         std::map<std::string, std::string>& headers,
-                         std::string& response,
-                         const std::string& body,
-                         SAS::TrailId trail,
-                         const std::string& username = "");
-  virtual long send_post(const std::string& url,
-                         std::map<std::string, std::string>& headers,
-                         const std::string& body,
-                         SAS::TrailId trail,
-                         const std::string& username = "");
-
-
   static size_t string_store(void* ptr, size_t size, size_t nmemb, void* stream);
   static void cleanup_curl(void* curlptr);
   static void cleanup_uuid(void* uuid_gen);
+
+  /// Enum of HTTP request types, used when calling into send_request.
+  enum struct RequestType {DELETE, PUT, POST, GET};
 
 private:
 
@@ -243,17 +122,26 @@ private:
     int record_data(curl_infotype type, char *data, size_t size);
   };
 
-  /// Enum of HTTP request types that are used in this class
-  enum struct RequestType {DELETE, PUT, POST, GET};
+  static const int DEFAULT_HTTP_PORT = 80;
+  static const int DEFAULT_HTTPS_PORT = 443;
 
   /// Converts RequestType to string for logging
   static std::string request_type_to_string(RequestType request_type);
 
-  /// Sends a HTTP request to _host with the specified parameters
+  /// Sends the provided HTTP Request
+  ///
+  /// @param req  The HttpRequest to send
+  ///
+  /// @returns    The HttpResponse received.
+  virtual HttpResponse send_request(const HttpRequest& req);
+
+  /// Inner function to send an HTTP request.
+  /// This is only a helper function, and should not be used directly. Instead,
+  /// the send_request(const HttpRequest&) method should be used.
   ///
   /// @param request_type     The type of HTTP request to send
   /// @param url              Full URL to request - includes http(s)?://
-  /// @param body             Body to send on the request
+  /// @param body             JSON body to send on the request
   /// @param response         Location to store retrieved data
   /// @param username         Username to assert if assertUser is true, else
   ///                         ignored
@@ -270,11 +158,13 @@ private:
                             const std::string& username,
                             SAS::TrailId trail,
                             std::vector<std::string> headers_to_add,
-                            std::map<std::string, std::string>* response_headers);
+                            std::map<std::string, std::string>* response_headers,
+                            int allowed_host_state);
 
   /// Helper function that builds the curl header in the set_curl_options
   /// method.
   struct curl_slist* build_headers(std::vector<std::string> headers_to_add,
+                                   bool has_body,
                                    bool assert_user,
                                    const std::string& username,
                                    std::string uuid_str);
@@ -291,12 +181,29 @@ private:
   /// send_request
   void set_curl_options_request(CURL* curl, RequestType request_type);
 
+  /// Helper functions that sets host-specific curl options in send_request
+  virtual void* set_curl_options_host(CURL* curl, std::string host, int port)
+  {
+    return nullptr;
+  }
+
+  /// Clean-up function for any memory allocated by set_curl_options_host
+  virtual void cleanup_host_context(void* host_context)
+  {
+    // Since nothing is created by set_curl_options_host above, there is nothing to
+    // clean up in this function.
+    (void) host_context;
+  }
+
   void sas_add_ip(SAS::Event& event, CURL* curl, CURLINFO info);
 
   void sas_add_port(SAS::Event& event, CURL* curl, CURLINFO info);
 
   void sas_add_ip_addrs_and_ports(SAS::Event& event,
                                   CURL* curl);
+
+  // Check if the message has a body and obscure it if so.
+  std::string get_obscured_message_to_log(const std::string& message);
 
   void sas_log_http_req(SAS::TrailId trail,
                         CURL* curl,
@@ -320,7 +227,12 @@ private:
                           const std::string& method_str,
                           const std::string& url,
                           CURLcode code,
-                          uint32_t instance_id);
+                          uint32_t instance_id,
+                          const char* error);
+
+  void sas_log_bad_retry_after_value(SAS::TrailId trail,
+                                     const std::string value,
+                                     uint32_t instance_id);
 
   /// Enum of response types to correspond with ENUM defined in SAS resource
   /// bundle. Make sure the two are kept in sync
@@ -336,9 +248,12 @@ private:
 
   HTTPCode curl_code_to_http_code(CURL* curl, CURLcode code);
   static size_t write_headers(void *ptr, size_t size, size_t nmemb, std::map<std::string, std::string> *headers);
-  static void host_port_from_server(const std::string& server, std::string& host, int& port);
-  static std::string host_from_server(const std::string& server);
-  static int port_from_server(const std::string& server);
+  static void host_port_from_server(const std::string& scheme,
+                                    const std::string& server,
+                                    std::string& host,
+                                    int& port);
+  static std::string host_from_server(const std::string& scheme, const std::string& server);
+  static int port_from_server(const std::string& scheme, const std::string& server);
 
   boost::uuids::uuid get_random_uuid();
 
@@ -353,5 +268,7 @@ private:
   BaseCommunicationMonitor* _comm_monitor;
   SNMP::IPCountTable* _stat_table;
   HttpConnectionPool _conn_pool;
+  bool _should_omit_body;
+  bool _log_display_address;
+  std::string _server_display_address;
 };
-

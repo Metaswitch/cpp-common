@@ -1,37 +1,12 @@
 /**
  * @file dnscachedresolver.cpp Implements a DNS caching resolver using C-ARES
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include <sys/socket.h>
@@ -41,12 +16,15 @@
 
 #include <sstream>
 #include <iomanip>
+#include <fstream>
 
 #include "log.h"
 #include "dnsparser.h"
 #include "dnscachedresolver.h"
+#include "static_dns_cache.h"
 #include "sas.h"
 #include "sasevent.h"
+#include "cpp_common_pd_definitions.h"
 
 DnsResult::DnsResult(const std::string& domain,
                      int dnstype,
@@ -121,6 +99,7 @@ void DnsCachedResolver::init(const std::vector<IP46Address>& dns_servers)
 {
   _dns_servers = dns_servers;
   _cache_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER_NP;
+  TRC_DEBUG("Timeout = %d", _timeout);
 
   // Initialize the ares library.  This might have already been done by curl
   // but it's safe to do it twice.
@@ -174,23 +153,38 @@ void DnsCachedResolver::init_from_server_ips(const std::vector<std::string>& dns
 }
 
 
-DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers) :
-  _port(53),
-  _cache()
+DnsCachedResolver::DnsCachedResolver(const std::vector<IP46Address>& dns_servers,
+                                     int timeout,
+                                     const std::string& filename,
+                                     int port) :
+  _port(port),
+  _timeout(timeout),
+  _cache(),
+  _static_cache(filename)
 {
   init(dns_servers);
 }
 
-DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers) :
-  _port(53),
-  _cache()
+DnsCachedResolver::DnsCachedResolver(const std::vector<std::string>& dns_servers,
+                                     int timeout,
+                                     const std::string& filename,
+                                     int port) :
+  _port(port),
+  _timeout(timeout),
+  _cache(),
+  _static_cache(filename)
 {
   init_from_server_ips(dns_servers);
 }
 
-DnsCachedResolver::DnsCachedResolver(const std::string& dns_server, int port) :
+DnsCachedResolver::DnsCachedResolver(const std::string& dns_server,
+                                     int timeout,
+                                     const std::string& filename,
+                                     int port) :
   _port(port),
-  _cache()
+  _timeout(timeout),
+  _cache(),
+  _static_cache(filename)
 {
   init_from_server_ips({dns_server});
 }
@@ -207,6 +201,13 @@ DnsCachedResolver::~DnsCachedResolver()
 
   // Clear the cache.
   clear();
+}
+
+void DnsCachedResolver::reload_static_records()
+{
+  pthread_mutex_lock(&_cache_lock);
+  _static_cache.reload_static_records();
+  pthread_mutex_unlock(&_cache_lock);
 }
 
 DnsResult DnsCachedResolver::dns_query(const std::string& domain,
@@ -229,9 +230,77 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                                   std::vector<DnsResult>& results,
                                   SAS::TrailId trail)
 {
-  DnsChannel* channel = NULL;
+  // This will contain all of the domains we need to query the cache or perform
+  // a DNS lookup for.
+  std::vector<std::string> domains_to_query;
+
+  // Maps domain passed in -> canonical domain
+  std::map<std::string, std::string> canonical_map;
+
+  // Maps canonical domain -> result of DNS query
+  std::map<std::string, DnsResult> result_map;
 
   pthread_mutex_lock(&_cache_lock);
+
+  // First, check the _static_records map to see if there are any static records
+  // to use in preference to an actual DNS lookup (these are specified in the
+  // _dns_config_file)
+  for (const std::string& domain : domains)
+  {
+    TRC_DEBUG("Searching for DNS record matching %s in the static cache", domain.c_str());
+
+    // There may be some CNAME records in the static DNS cache that we should
+    // be using.
+    std::string canonical_domain = _static_cache.get_canonical_name(domain);
+    canonical_map.insert(std::pair<std::string,std::string>(domain, canonical_domain));
+
+    DnsResult static_result = _static_cache.get_static_dns_records(canonical_domain, dnstype);
+    if (!static_result.records().empty())
+    {
+      // There were some DNS records in the static cache - we use these in
+      // preference to a DNS lookup.
+      TRC_DEBUG("%s found in the static cache", canonical_domain.c_str());
+      result_map.insert(std::pair<std::string, DnsResult>(canonical_domain, static_result));
+    }
+    else
+    {
+      // The static cache didn't have any records that matched, so we'll need
+      // to do a DNS lookup.
+      TRC_DEBUG("%s not found in the static cache", canonical_domain.c_str());
+      domains_to_query.push_back(canonical_domain);
+    }
+  }
+
+  // Now perform any DNS lookups we still need to do.
+  inner_dns_query(domains_to_query, dnstype, result_map, trail);
+
+  // The vector of results must match the order of domains passed in.
+  for (const std::string& domain : domains)
+  {
+    // The results map is indexed by canonical domain rather than the domain
+    // from the initial query.
+    std::string canonical_domain = canonical_map.at(domain);
+    if (result_map.count(canonical_domain) > 0)
+    {
+      TRC_DEBUG("Found result for query %s (canonical domain: %s)",
+                domain.c_str(),
+                canonical_domain.c_str());
+      results.push_back(result_map.at(canonical_domain));
+    }
+  }
+
+  pthread_mutex_unlock(&_cache_lock);
+}
+
+void DnsCachedResolver::inner_dns_query(const std::vector<std::string>& domains,
+                                        int dnstype,
+                                        std::map<std::string, DnsResult>& results,
+                                        SAS::TrailId trail)
+{
+  DnsChannel* channel = NULL;
+
+  // We don't lock on cache_lock here because the wrapper function dns_query()
+  // already has the lock
 
   // Expire any cache entries that have passed their TTL.
   expire_cache();
@@ -252,16 +321,16 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
 
       // Create an empty record for this cache entry.
       TRC_DEBUG("Create cache entry pending query");
-      ce = create_cache_entry(*domain, dnstype);
+      ce = create_cache_entry(*domain, dnstype, trail);
       do_query = true;
       wait_for_query_result = true;
     }
-    else if (ce->expires < now)
+    else if (ce->expires <= now)
     {
       // We have a result, but it has expired.  We should kick off a new
       // asynchronous query to update our DNS cache, unless we have another
       // thread already doing this query for us.
-      
+
       if (ce->pending_query)
       {
         TRC_DEBUG("Expired entry found in cache - asynchronous query to update it already in progress on another thread");
@@ -271,7 +340,7 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
         if (ce->records.empty())
         {
           wait_for_query_result = true;
-        } 
+        }
       }
       else
       {
@@ -314,7 +383,11 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
     // request further.
     TRC_DEBUG("Wait for query responses");
     pthread_mutex_unlock(&_cache_lock);
-    wait_for_replies(channel);
+    CW_IO_STARTS("DNS query")
+    {
+      wait_for_replies(channel);
+    }
+    CW_IO_COMPLETES()
     pthread_mutex_lock(&_cache_lock);
     TRC_DEBUG("Received all query responses");
   }
@@ -333,7 +406,11 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
       // We must release the global lock and let the other thread finish
       // the query.
       TRC_DEBUG("Waiting for (non-cached) DNS query for %s", i->c_str());
-      pthread_cond_wait(&_got_reply_cond, &_cache_lock);
+      CW_IO_STARTS("DNS pending query")
+      {
+        pthread_cond_wait(&_got_reply_cond, &_cache_lock);
+      }
+      CW_IO_COMPLETES()
       ce = get_cache_entry(*i, dnstype);
       TRC_DEBUG("Reawoken from wait for %s type %d", i->c_str(), dnstype);
     }
@@ -346,6 +423,12 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
                 ce->domain.c_str(),
                 DnsRRecord::rrtype_to_string(ce->dnstype).c_str());
 
+      SAS::Event event(trail, SASEvent::DNS_CACHE_USED, 0);
+      event.add_static_param(ce->records.size());
+      event.add_static_param(ce->original_trail);
+      event.add_var_param(ce->domain);
+      event.add_var_param(ce->original_time);
+      SAS::report_event(event);
       int expiry = ce->expires - time(NULL);
       if (expiry < 0)
       {
@@ -354,28 +437,30 @@ void DnsCachedResolver::dns_query(const std::vector<std::string>& domains,
         expiry = 0;
       }
 
-      results.push_back(DnsResult(ce->domain,
-                                  ce->dnstype,
-                                  ce->records,
-                                  expiry));
+      results.insert(std::pair<std::string, DnsResult>(*i, DnsResult(ce->domain,
+                                                                     ce->dnstype,
+                                                                     ce->records,
+                                                                     expiry)));
     }
     else
     {
       // This shouldn't happen, but if it does, return an empty result set.
       TRC_DEBUG("Return empty result set");
-      results.push_back(DnsResult(*i, dnstype, 0));
+      results.insert(std::pair<std::string, DnsResult>(*i, DnsResult(*i, dnstype, 0)));
     }
   }
-
-  pthread_mutex_unlock(&_cache_lock);
 }
 
-/// Adds or updates an entry in the cache.
+/// Adds or updates an entry in the cache. This function is only used in unit
+/// tests, to insert entries into the cache so we aren't using a real DNS
+/// lookup.
 void DnsCachedResolver::add_to_cache(const std::string& domain,
                                      int dnstype,
                                      std::vector<DnsRRecord*>& records)
 {
   pthread_mutex_lock(&_cache_lock);
+  // We don't have a trail ID available as this is test code - use trail ID 0.
+  SAS::TrailId no_trail = 0;
 
   TRC_DEBUG("Adding cache entry %s %s",
             domain.c_str(), DnsRRecord::rrtype_to_string(dnstype).c_str());
@@ -386,7 +471,7 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   {
     // Create a new cache entry.
     TRC_DEBUG("Create cache entry");
-    ce = create_cache_entry(domain, dnstype);
+    ce = create_cache_entry(domain, dnstype, no_trail);
   }
   else
   {
@@ -397,7 +482,7 @@ void DnsCachedResolver::add_to_cache(const std::string& domain,
   // Copy all the records across to the cache entry.
   for (size_t ii = 0; ii < records.size(); ++ii)
   {
-    add_record_to_cache(ce, records[ii]);
+    add_record_to_cache(ce, records[ii], no_trail);
   }
 
   records.clear();
@@ -461,8 +546,11 @@ void DnsCachedResolver::dns_response(const std::string& domain,
 {
   pthread_mutex_lock(&_cache_lock);
 
-  TRC_DEBUG("Received DNS response for %s type %s",
-            domain.c_str(), DnsRRecord::rrtype_to_string(dnstype).c_str());
+  TRC_DEBUG("Received DNS response for %s type %s - status is %d (%s)",
+             domain.c_str(),
+             DnsRRecord::rrtype_to_string(dnstype).c_str(),
+             status,
+             ares_strerror(status));
 
   // Stores the domain pointed to by a CNAME record
   std::string canonical_domain;
@@ -493,6 +581,9 @@ void DnsCachedResolver::dns_response(const std::string& domain,
       // Parsing was successful, so clear out any old records, then process
       // the answers and additional data.
       clear_cache_entry(ce);
+      TRC_DEBUG("DNS response for %s - response contains %d answers",
+                 domain.c_str(),
+                 parser.answers().size());
 
       while (!parser.answers().empty())
       {
@@ -507,7 +598,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
               (strcasecmp(rr->rrname().c_str(), canonical_domain.c_str()) == 0))
           {
             // RRNAME matches, so add this record to the cache entry.
-            add_record_to_cache(ce, rr);
+            add_record_to_cache(ce, rr, trail);
           }
           else
           {
@@ -520,7 +611,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
                  (rr->rrtype() == ns_t_naptr))
         {
           // SRV or NAPTR record, so add it to the cache entry.
-          add_record_to_cache(ce, rr);
+          add_record_to_cache(ce, rr, trail);
         }
         else if (rr->rrtype() == ns_t_cname)
         {
@@ -576,7 +667,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
         if (ace == NULL)
         {
           // No existing cache entry, so create one.
-          ace = create_cache_entry(i->first.second, i->first.first);
+          ace = create_cache_entry(i->first.second, i->first.first, trail);
         }
         else
         {
@@ -587,7 +678,7 @@ void DnsCachedResolver::dns_response(const std::string& domain,
              j != i->second.end();
              ++j)
         {
-          add_record_to_cache(ace, *j);
+          add_record_to_cache(ace, *j, trail);
         }
 
         // Finally make sure the record is in the expiry list.
@@ -604,13 +695,13 @@ void DnsCachedResolver::dns_response(const std::string& domain,
     // extended for 30 seconds at a time. Note that this only kicks in
     // on DNS server failure, and if a record is deliberately deleted,
     // that will return NXDOMAIN and not be cached.
-    TRC_ERROR("Failed to retrieve record for %s: %s", domain.c_str(), ares_strerror(status));
+    TRC_WARNING("Failed to retrieve record for %s: %s", domain.c_str(), ares_strerror(status));
 
     if (status == ARES_ENOTFOUND)
     {
       // NXDOMAIN, indicating that the DNS entry has been definitively removed
       // (rather than a DNS server failure). Clear the cache for this
-      // entry.
+      // entry and if there's a TTL on the SOA, use that.
       if (trail != 0)
       {
         SAS::Event event(trail, SASEvent::DNS_NOT_FOUND, 0);
@@ -620,6 +711,32 @@ void DnsCachedResolver::dns_response(const std::string& domain,
       }
 
       clear_cache_entry(ce);
+
+      DnsParser parser(abuf, alen);
+      if (parser.parse())
+      {
+        while (!parser.authorities().empty())
+        {
+          DnsRRecord* rr = parser.authorities().front();
+          parser.authorities().pop_front();
+
+          if (rr->rrtype() == ns_t_soa)
+          {
+            // Clamp the expiry time to be no more than the default TTL from now
+            int max_expires = DEFAULT_NEGATIVE_CACHE_TTL + time(NULL);
+            ce->expires = std::min(rr->expires(), max_expires);
+
+            // We must delete any records we remove from the parser
+            delete rr;
+            break;
+          }
+          else
+          {
+            // We must delete any records we remove from the parser
+            delete rr;
+          }
+        }
+      }
     }
     else
     {
@@ -679,13 +796,18 @@ DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::get_cache_entry(const std
 }
 
 /// Creates a new empty cache entry for the specified domain name and NS type.
-DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::create_cache_entry(const std::string& domain, int dnstype)
+DnsCachedResolver::DnsCacheEntryPtr DnsCachedResolver::create_cache_entry(const std::string& domain,
+                                                                          int dnstype,
+                                                                          SAS::TrailId trail)
 {
   DnsCacheEntryPtr ce = DnsCacheEntryPtr(new DnsCacheEntry());
   ce->domain = domain;
   ce->dnstype = dnstype;
   ce->expires = 0;
   ce->pending_query = false;
+  ce->original_trail = trail;
+  ce->update_timestamp();
+
   _cache[std::make_pair(dnstype, domain)] = ce;
 
   return ce;
@@ -718,7 +840,7 @@ void DnsCachedResolver::expire_cache()
   int now = time(NULL);
 
   while ((!_cache_expiry_list.empty()) &&
-         (_cache_expiry_list.begin()->first < now))
+         (_cache_expiry_list.begin()->first <= now))
   {
     std::multimap<int, DnsCacheKey>::iterator i = _cache_expiry_list.begin();
     TRC_DEBUG("Removing record for %s (type %d, expiry time %d) from the expiry list", i->second.second.c_str(), i->second.first, i->first);
@@ -756,9 +878,14 @@ void DnsCachedResolver::clear_cache_entry(DnsCacheEntryPtr ce)
 }
 
 /// Adds a DNS RR to a cache entry.
-void DnsCachedResolver::add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr)
+void DnsCachedResolver::add_record_to_cache(DnsCacheEntryPtr ce,
+                                            DnsRRecord* rr,
+                                            SAS::TrailId trail)
 {
   TRC_DEBUG("Adding record to cache entry, TTL=%d, expiry=%ld", rr->ttl(), rr->expires());
+  ce->original_trail = trail;
+  ce->update_timestamp();
+
   if ((ce->expires == 0) ||
       (ce->expires > rr->expires()))
   {
@@ -839,10 +966,12 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
   // found.
   DnsChannel* channel = (DnsChannel*)pthread_getspecific(_thread_local);
   size_t server_count = _dns_servers.size();
-  if (server_count > 3)
+  if (server_count > MAX_DNS_SERVER_POLL)
   {
-    TRC_WARNING("%d DNS servers provided, only using the first 3", _dns_servers.size());
-    server_count = 3;
+    TRC_WARNING("%d DNS servers provided, only using the first %d",
+                _dns_servers.size(),
+                MAX_DNS_SERVER_POLL);
+    server_count = MAX_DNS_SERVER_POLL;
   }
 
   if ((channel == NULL) &&
@@ -853,12 +982,11 @@ DnsCachedResolver::DnsChannel* DnsCachedResolver::get_dns_channel()
     channel->resolver = this;
     struct ares_options options;
 
-    // ARES_FLAG_STAYOPEN implements TCP keepalive - it doesn't do
-    // anything obviously helpful for UDP connections to the DNS server,
-    // but it's what we've always tested with so not worth the risk of removing.
     options.flags = ARES_FLAG_STAYOPEN;
-    options.timeout = 1000;
-    options.tries = server_count;
+    // At start of day large deployments make a large number of DNS requests, allow a low
+    // number of DNS servers more time to complete.
+    options.timeout = _timeout / server_count;
+    options.tries = 1;
     options.ndots = 0;
     options.udp_port = _port;
     // We must use ares_set_servers rather than setting it in the options for IPv6 support.
@@ -941,6 +1069,10 @@ void DnsCachedResolver::DnsTsx::execute()
     SAS::report_event(event);
   }
 
+  TRC_DEBUG("Executing DNS lookup for %s (type %s)",
+             _domain.c_str(),
+             DnsRRecord::rrtype_to_string(_dnstype).c_str());
+
   ares_query(_channel->channel,
              _domain.c_str(),
              ns_c_in,
@@ -961,6 +1093,16 @@ void DnsCachedResolver::DnsTsx::ares_callback(void* arg,
 
 void DnsCachedResolver::DnsTsx::ares_callback(int status, int timeouts, unsigned char* abuf, int alen)
 {
+  if (timeouts > 0)
+  {
+    TRC_ERROR("Resolution of %s timed out", _domain.c_str());
+    SAS::Event event(_trail, SASEvent::DNS_TIMEOUT, 0);
+    event.add_static_param(_dnstype);
+    event.add_static_param(timeouts);
+    event.add_var_param(_domain);
+    SAS::report_event(event);
+  }
+
   _channel->resolver->dns_response(_domain, _dnstype, status, abuf, alen, _trail);
   --_channel->pending_queries;
   delete this;

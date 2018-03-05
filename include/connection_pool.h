@@ -2,37 +2,12 @@
  * @file connectionpool.h  Declaration of template classes for connection
  * pooling
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2016  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef CONNECTION_POOL_H__
@@ -40,6 +15,7 @@
 
 #include <map>
 #include <deque>
+#include <forward_list>
 #include <pthread.h>
 #include <time.h>
 
@@ -99,7 +75,7 @@ class ConnectionPool
   using Pool = std::map<AddrInfo, Slot>;
 
 public:
-  ConnectionPool(time_t max_idle_time_s);
+  ConnectionPool(time_t max_idle_time_s, bool free_on_error = false);
 
   /// The pool cannot be safely emptied in this destructor, as an implementation
   /// of the destroy_connection method is required to safely destroy type T
@@ -111,7 +87,8 @@ public:
   /// Retrieves a connection for the given target from the pool if it exists,
   /// and creates one otherwise. Returns this connection wrapped in a
   /// ConnectionHandle.
-  ConnectionHandle<T> get_connection(AddrInfo target);
+  /// (virtual to allow for testing)
+  virtual ConnectionHandle<T> get_connection(AddrInfo target);
 
 protected:
   /// Creates a type T connection for the given target
@@ -137,6 +114,10 @@ private:
   Pool _conn_pool;
   pthread_mutex_t _conn_pool_lock;
   time_t _max_idle_time_s;
+
+  // Whether one dead connection should trigger cleanup of any others to the
+  // same target
+  bool _free_on_error;
 };
 
 /// Template class storing a connection in a ConnectionInfo object. On
@@ -184,8 +165,9 @@ private:
 };
 
 template<typename T>
-ConnectionPool<T>::ConnectionPool(time_t max_idle_time_s) :
-  _max_idle_time_s(max_idle_time_s)
+ConnectionPool<T>::ConnectionPool(time_t max_idle_time_s, bool free_on_error) :
+  _max_idle_time_s(max_idle_time_s),
+  _free_on_error(free_on_error)
 {
   pthread_mutex_init(&_conn_pool_lock, NULL);
 }
@@ -224,7 +206,7 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
             target.address.to_string().c_str(),
             target.port);
 
-  ConnectionInfo<T>* conn_info_ptr;
+  ConnectionInfo<T>* conn_info_ptr = nullptr;
 
   pthread_mutex_lock(&_conn_pool_lock);
 
@@ -237,7 +219,10 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
     slot_it->second.pop_front();
     TRC_DEBUG("Found existing connection %p in pool", conn_info_ptr);
   }
-  else
+
+  pthread_mutex_unlock(&_conn_pool_lock);
+
+  if (!conn_info_ptr)
   {
     // If there is no connection in the pool for the given AddrInfo, create a
     // new one
@@ -245,8 +230,6 @@ ConnectionHandle<T> ConnectionPool<T>::get_connection(AddrInfo target)
     conn_info_ptr = new ConnectionInfo<T>(create_connection(target), target);
     TRC_DEBUG("Created new connection %p", conn_info_ptr);
   }
-
-  pthread_mutex_unlock(&_conn_pool_lock);
 
   return ConnectionHandle<T>(conn_info_ptr, this);
 }
@@ -274,9 +257,44 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
   }
   else
   {
-    // Safely destroy the connection and its associated ConnectionInfo
+    if (_free_on_error)
+    {
+      // Need to destroy all connections for the same target that are currently
+      // in the pool
+      // To do this, we create a list of connections and move all of the
+      // connections currently in the pool for that target into the list.
+      // This means that we can release the lock before we need to actually
+      // destroy the connections, as we have no control over how long that may
+      // take
+      std::forward_list<ConnectionInfo<T>*> conns_to_destroy;
+
+      pthread_mutex_lock(&_conn_pool_lock);
+
+      typename Pool::iterator slot_it = _conn_pool.find(conn_info_ptr->target);
+      if (slot_it != _conn_pool.end())
+      {
+        TRC_DEBUG("Freeing %d other connections", slot_it->second.size());
+        while (!slot_it->second.empty())
+        {
+          ConnectionInfo<T>* conn_info = slot_it->second.front();
+          conns_to_destroy.push_front(conn_info);
+          slot_it->second.pop_front();
+        }
+      }
+
+      pthread_mutex_unlock(&_conn_pool_lock);
+
+      for (ConnectionInfo<T>* conn_info : conns_to_destroy)
+      {
+        destroy_connection(conn_info->target, conn_info->conn);
+        delete conn_info; conn_info = nullptr;
+      }
+    }
+
+    // Now safely destroy the connection and its associated ConnectionInfo
+    // (which isn't in the pool, and hence wasn't destroyed above)
     destroy_connection(conn_info_ptr->target, conn_info_ptr->conn);
-    delete conn_info_ptr; conn_info_ptr = NULL;
+    delete conn_info_ptr; conn_info_ptr = nullptr;
   }
 
   free_old_connection();
@@ -285,7 +303,8 @@ void ConnectionPool<T>::release_connection(ConnectionInfo<T>* conn_info_ptr,
 template<typename T>
 void ConnectionPool<T>::free_old_connection()
 {
-  time_t current_time = time(NULL);
+  time_t current_time = time(nullptr);
+  ConnectionInfo<T>* conn_to_destroy = nullptr;
 
   pthread_mutex_lock(&_conn_pool_lock);
 
@@ -302,23 +321,10 @@ void ConnectionPool<T>::free_old_connection()
 
       if (current_time > oldest_conn_info_ptr->last_used_time_s + _max_idle_time_s)
       {
-        if (Log::enabled(Log::DEBUG_LEVEL))
-        {
-          /// Create strings required for debug logging
-          std::string addr_info_str = oldest_conn_info_ptr->target.address_and_port_to_string();
-          std::string current_time_str = ctime(&current_time);
-          std::string last_used_time_s_str = ctime(&(oldest_conn_info_ptr->last_used_time_s));
-
-          TRC_DEBUG("Free idle connection to target: %s (time now is %s, last used %s)",
-                    addr_info_str.c_str(),
-                    current_time_str.c_str(),
-                    last_used_time_s_str.c_str());
-        }
-
-        // Delete the connection as it is too old
+        // Mark the connection for destruction. Don't actually delete it behind
+        // the lock, as we don't know how long doing so will take
+        conn_to_destroy = oldest_conn_info_ptr;
         slot_it->second.pop_back();
-        destroy_connection(oldest_conn_info_ptr->target, oldest_conn_info_ptr->conn);
-        delete oldest_conn_info_ptr; oldest_conn_info_ptr = NULL;
 
         // Delete the entire slot if it is now empty
         if (slot_it->second.empty())
@@ -326,13 +332,33 @@ void ConnectionPool<T>::free_old_connection()
           _conn_pool.erase(slot_it);
         }
 
-        // We have deleted one old connection, so we stop here
+        // We have an old connection to delete, so we stop here
         break;
       }
     }
   }
 
   pthread_mutex_unlock(&_conn_pool_lock);
+
+  if (conn_to_destroy)
+  {
+    // We have a connection marked for destruction. Destroy it.
+    if (Log::enabled(Log::DEBUG_LEVEL))
+    {
+      /// Create strings required for debug logging
+      std::string addr_info_str = conn_to_destroy->target.address_and_port_to_string();
+      std::string current_time_str = ctime(&current_time);
+      std::string last_used_time_s_str = ctime(&(conn_to_destroy->last_used_time_s));
+
+      TRC_DEBUG("Free idle connection to target: %s (time now is %s, last used %s)",
+                addr_info_str.c_str(),
+                current_time_str.c_str(),
+                last_used_time_s_str.c_str());
+    }
+
+    destroy_connection(conn_to_destroy->target, conn_to_destroy->conn);
+    delete conn_to_destroy; conn_to_destroy = nullptr;
+  }
 }
 
 template <typename T>

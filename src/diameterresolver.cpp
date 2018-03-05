@@ -1,37 +1,12 @@
 /**
  * @file diameterresolver.cpp  Implementation of Diameter DNS resolver class.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include "log.h"
@@ -81,6 +56,7 @@ void DiameterResolver::resolve(const std::string& realm,
   targets.clear();
   int new_ttl = 0;
   ttl = 0;
+  bool set_ttl = false;
 
   AddrInfo ai;
   int transport = DEFAULT_TRANSPORT;
@@ -95,11 +71,12 @@ void DiameterResolver::resolve(const std::string& realm,
     // Realm is specified, so do a NAPTR lookup for the target.
     TRC_DEBUG("Do NAPTR look-up for %s", realm.c_str());
 
-    NAPTRReplacement* naptr = _naptr_cache->get(realm, ttl, 0);
+    std::shared_ptr<NAPTRReplacement> naptr = _naptr_cache->get(realm, ttl, 0);
 
     if (naptr != NULL)
     {
       // NAPTR resolved to a supported service
+      set_ttl = true;
       TRC_DEBUG("NAPTR resolved to transport %d", naptr->transport);
       transport = naptr->transport;
       if (strcasecmp(naptr->flags.c_str(), "S") == 0)
@@ -137,7 +114,8 @@ void DiameterResolver::resolve(const std::string& realm,
         TRC_DEBUG("TCP SRV lookup successful, select TCP transport");
         transport = IPPROTO_TCP;
         srv_name = tcp_result.domain();
-        ttl = std::min(ttl, tcp_result.ttl());
+        ttl = tcp_result.ttl();
+        set_ttl = true;
       }
       else if (!sctp_result.records().empty())
       {
@@ -145,30 +123,31 @@ void DiameterResolver::resolve(const std::string& realm,
         TRC_DEBUG("SCTP SRV lookup successful, select SCTP transport");
         transport = IPPROTO_SCTP;
         srv_name = sctp_result.domain();
-        ttl = std::min(ttl, sctp_result.ttl());
+        ttl = sctp_result.ttl();
+        set_ttl = true;
       }
     }
-
-    _naptr_cache->dec_ref(realm);
 
     // We might now have got SRV or A domain names, so do lookups for them if so.
     if (srv_name != "")
     {
       TRC_DEBUG("Do SRV lookup for %s", srv_name.c_str());
       srv_resolve(srv_name, _address_family, transport, max_targets, targets, new_ttl, 0);
-      ttl = std::min(ttl, new_ttl);
+      ttl = set_ttl ? std::min(ttl, new_ttl) : new_ttl;
+      set_ttl = true;
     }
     else if (a_name != "")
     {
       TRC_DEBUG("Do A/AAAA lookup for %s", a_name.c_str());
       a_resolve(a_name, _address_family, DEFAULT_PORT, transport, max_targets, targets, new_ttl, 0);
-      ttl = std::min(ttl, new_ttl);
+      ttl = set_ttl ? std::min(ttl, new_ttl) : new_ttl;
+      set_ttl = true;
     }
   }
 
   if ((targets.empty()) && (host != ""))
   {
-    if (parse_ip_target(host, ai.address))
+    if (Utils::parse_ip_target(host, ai.address))
     {
       // The name is already an IP address, so no DNS resolution is possible.
       // Use specified transport and port or defaults if not specified.
@@ -179,7 +158,8 @@ void DiameterResolver::resolve(const std::string& realm,
     }
     else
     {
-      a_resolve(host, _address_family, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, ttl, 0);
+      a_resolve(host, _address_family, DEFAULT_PORT, DEFAULT_TRANSPORT, max_targets, targets, new_ttl, 0);
+      ttl = set_ttl ? std::min(ttl, new_ttl) : new_ttl;
     }
   }
 }

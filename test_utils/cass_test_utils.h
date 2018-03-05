@@ -1,37 +1,12 @@
 /**
  * @file cass_test_utils.h Cassandra unit test utlities.
  *
- * Project Clearwater - IMS in the cloud.
- * Copyright (C) 2014  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef CASS_TEST_UTILS_H_
@@ -188,7 +163,7 @@ const multiget_slice_t empty_slice_multiget;
 
 // Utility functions to make a slice from a map of column names => values.
 void make_slice(slice_t& slice,
-                std::map<std::string, std::string>& columns,
+                const std::map<std::string, std::string>& columns,
                 int32_t ttl = 0)
 {
   for(std::map<std::string, std::string>::const_iterator it = columns.begin();
@@ -944,6 +919,46 @@ MATCHER_P(ColumnsWithPrefix,
   if (arg.slice_range.finish != end_str)
   {
     *result_listener << "has incorrect finish (" << arg.slice_range.finish << ")";
+    return false;
+  }
+
+  return true;
+}
+
+// Matcher that checks that a key range has the right start and end keys
+// specified.
+MATCHER_P2(KeysInRange,
+           start_key,
+           end_key,
+           std::string("requests keys between ") + start_key + " and " + end_key)
+{
+  if (!arg.__isset.start_key || !arg.__isset.end_key)
+  {
+    *result_listener << "does not request a range of keys"; return false;
+  }
+  if (arg.__isset.start_token || arg.__isset.end_token)
+  {
+    *result_listener << "also specifies a token range"; return false;
+  }
+
+  if (start_key != arg.start_key)
+  {
+    *result_listener << "has incorrect start key (" << arg.start_key << ")"; return false;
+  }
+  if (start_key != arg.end_key)
+  {
+    *result_listener << "has incorrect end key (" << arg.end_key << ")"; return false;
+  }
+
+  return true;
+}
+
+// Matcher that checks that a key range specifies a particular maximum count.
+MATCHER_P(KeyRangeWithCount, count, std::string("requests ") + std::to_string(count) + " keys")
+{
+  if (count != arg.count)
+  {
+    *result_listener << "has incorrect count (expected " << count << " got " << arg.count;
     return false;
   }
 

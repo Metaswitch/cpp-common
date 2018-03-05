@@ -2,52 +2,40 @@
  * @file http_connection_pool.cpp  Implementation of derived class for HTTP
  * connection pooling.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2016 Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2016
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include "http_connection_pool.h"
 #include "httpconnection.h"
 
 HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
-                                       SNMP::IPCountTable* stat_table) :
+                                       SNMP::IPCountTable* stat_table,
+                                       bool remote_connection,
+                                       long timeout_ms,
+                                       const std::string& source_address) :
   ConnectionPool<CURL*>(MAX_IDLE_TIME_S),
-  _stat_table(stat_table)
+  _stat_table(stat_table),
+  _connection_timeout_ms(remote_connection ? REMOTE_CONNECTION_LATENCY_MS :
+                                             LOCAL_CONNECTION_LATENCY_MS),
+  _source_address(source_address)
 {
-  _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
+  if (timeout_ms != -1)
+  {
+    _timeout_ms = timeout_ms;
+    TRC_STATUS("Connection pool will use override response timeout of %ldms", _timeout_ms);
+  }
+  else
+  {
+    _timeout_ms = calc_req_timeout_from_latency((load_monitor != NULL) ?
                                                               load_monitor->get_target_latency_us() :
                                                               DEFAULT_LATENCY_US);
-
-  TRC_STATUS("Connection pool will use a response timeout of %ldms", _timeout_ms);
+    TRC_STATUS("Connection pool will use calculated response timeout of %ldms", _timeout_ms);
+  }
 }
 
 CURL* HttpConnectionPool::create_connection(AddrInfo target)
@@ -69,7 +57,7 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
   // Time to wait until we establish a TCP connection to a single host.
   curl_easy_setopt(conn,
                    CURLOPT_CONNECTTIMEOUT_MS,
-                   SINGLE_CONNECT_TIMEOUT_MS);
+                   _connection_timeout_ms);
 
   // We mustn't reuse DNS responses, because cURL does no shuffling
   // of DNS entries and we rely on this for load balancing.
@@ -91,6 +79,17 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
                    HttpClient::Recorder::debug_callback);
 
   curl_easy_setopt(conn, CURLOPT_VERBOSE, 1L);
+
+  // If we've been asked to connect from a specific address, get cURL to ask us
+  // when starting up a new socket.
+  if (!_source_address.empty())
+  {
+    // LCOV_EXCL_START - we don't test sending from a source address in UT. This
+    // is tested in clearwater-fv-test instead.
+    curl_easy_setopt(conn, CURLOPT_OPENSOCKETFUNCTION, &HttpConnectionPool::open_socket_fn);
+    curl_easy_setopt(conn, CURLOPT_OPENSOCKETDATA, this);
+    // LCOV_EXCL_STOP
+  }
 
   increment_statistic(target, conn);
 
@@ -127,8 +126,12 @@ void HttpConnectionPool::decrement_statistic(AddrInfo target, CURL* conn)
     // safe to access the table
     if (_stat_table->get(ip_address)->decrement() == 0)
     {
-      // If the statistic is now zero, remove from the table
-      _stat_table->remove(ip_address);
+      // Commenting out remove below.
+
+      // If the statistic is now zero, we would like to remove it from the
+      // table, but this causes a race condition where we remove the row while
+      // someone else is using it, causing sprout to crash. See issue #2905."
+      // _stat_table->remove(ip_address);
     }
   }
 }
@@ -136,6 +139,14 @@ void HttpConnectionPool::decrement_statistic(AddrInfo target, CURL* conn)
 void HttpConnectionPool::destroy_connection(AddrInfo target, CURL* conn)
 {
   decrement_statistic(target, conn);
+  curl_slist *host_resolve = NULL;
+  curl_easy_getinfo(conn, CURLINFO_PRIVATE, &host_resolve);
+  if (host_resolve != NULL)
+  {
+    curl_easy_setopt(conn, CURLOPT_PRIVATE, NULL);
+    curl_slist_free_all(host_resolve);
+  }
+
   curl_easy_cleanup(conn);
 }
 
@@ -159,5 +170,71 @@ void HttpConnectionPool::release_connection(ConnectionInfo<CURL*>* conn_info,
 
 long HttpConnectionPool::calc_req_timeout_from_latency(int latency_us)
 {
-  return std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
+  return _connection_timeout_ms + std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
 }
+
+// LCOV_EXCL_START - we don't test sending from a source address in UT. This
+// is tested in clearwater-fv-test instead.
+curl_socket_t HttpConnectionPool::open_socket_fn(void *clientp,
+                                                 curlsocktype purpose,
+                                                 struct curl_sockaddr *address)
+{
+  HttpConnectionPool* pool = static_cast<HttpConnectionPool*>(clientp);
+  return pool->open_socket(purpose, address);
+}
+
+curl_socket_t HttpConnectionPool::open_socket(curlsocktype purpose,
+                                              struct curl_sockaddr *address)
+{
+  int fd = socket(address->family, address->socktype, address->protocol);
+
+  if (fd <= 0)
+  {
+    TRC_ERROR("Error creating socket %d (%s)", errno, strerror(errno));
+    return -1;
+  }
+
+  TRC_DEBUG("Bind socket %d to address %s", fd, _source_address.c_str());
+
+  struct sockaddr_storage sa_storage = {0};
+  size_t sa_size = 0;
+  int rc;
+
+  if (address->family == AF_INET)
+  {
+    struct sockaddr_in* sa = (struct sockaddr_in*)&sa_storage;
+    sa_size = sizeof(*sa);
+
+    sa->sin_family = address->family;
+    rc = inet_pton(address->family, _source_address.c_str(), &sa->sin_addr);
+  }
+  else
+  {
+    struct sockaddr_in6* sa = (struct sockaddr_in6*)&sa_storage;
+    sa_size = sizeof(*sa);
+
+    sa->sin6_family = address->family;
+    rc = inet_pton(address->family, _source_address.c_str(), &sa->sin6_addr);
+  }
+
+  if (rc == 1)
+  {
+    rc = bind(fd, (const struct sockaddr*)&sa_storage, sa_size);
+
+    if (rc != 0)
+    {
+      TRC_ERROR("Error %d (%s) trying to bind to address %s in family %d",
+                errno, strerror(errno), _source_address.c_str(), address->family);
+      return -1;
+    }
+  }
+  else
+  {
+    TRC_ERROR("inet_pton() returned %d when parsing address %s in family %d",
+              rc, _source_address.c_str(), address->family);
+    return -1;
+  }
+
+  return fd;
+}
+// LCOV_EXCL_STOP

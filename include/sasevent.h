@@ -1,37 +1,12 @@
 /**
  * @file sasevent.h
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef SASEVENT_H__
@@ -41,14 +16,22 @@
 #include "sas.h"
 
 namespace SASEvent {
-
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20160815";
+  // The resource bundle datestamp is updated automatically by Jenkins.  You
+  // should not normally edit this value by hand.  If you have to, make sure
+  // that you update all of the other code locations that are updated by the
+  // Jenkins job "update-sas-resources".
+  //
+  // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20180305";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
 
   // Name of the HTTP header we use to correlate the client and server in SAS.
   const std::string HTTP_BRANCH_HEADER_NAME = "X-SAS-HTTP-Branch-ID";
+
+  // Name of the header used by microservices for trail correlation.
+  const std::string HTTP_SPAN_ID = "X-Span-ID";
 
   // The levels at which clearwater nodes may log HTTP messages.
   enum struct HttpLogLevel
@@ -88,6 +71,11 @@ namespace SASEvent {
   const int MANGELWURZEL_BASE = 0x870000;
   const int CEDAR_BASE = 0x880000;
   const int HOUDINI_BASE = 0x890000;
+  const int BIFROST_BASE = 0x8A0000;
+  const int WEATHERWAX_BASE = 0x8B0000;
+  const int RPE_BASE = 0x8C0000;
+  const int CHRONOS_BASE = 0x8D0000;
+  const int S4_BASE = 0x8E0000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
@@ -114,12 +102,21 @@ namespace SASEvent {
   const int DIAMETER_TX = COMMON_BASE + 0x00000F;
   const int DIAMETER_RX = COMMON_BASE + 0x000010;
   const int DIAMETER_TIMEOUT = COMMON_BASE + 0x000011;
+  const int DIAMETER_MSG_MISSING_AVP = COMMON_BASE + 0x000012;
 
   const int HTTP_ABORT = COMMON_BASE + 0x000012;
   const int HTTP_ABORT_DETAIL = COMMON_BASE + 0x000013;
 
   const int DIAMETER_NO_PEERS = COMMON_BASE + 0x000014;
   const int DIAMETER_NO_CONNECTED_PEERS = COMMON_BASE + 0x000015;
+
+  const int HTTP_BAD_RETRY_AFTER_VALUE = COMMON_BASE + 0x000016;
+  const int HTTP_BAD_RETRY_AFTER_VALUE_DETAIL = COMMON_BASE + 0x000017;
+
+  const int HTTP_HOSTNAME_DID_NOT_RESOLVE = COMMON_BASE + 0x000018;
+  const int HTTP_HOSTNAME_DID_NOT_RESOLVE_DETAIL = COMMON_BASE + 0x000019;
+
+  const int DIAMETER_MSG_ROUTING_ERROR = COMMON_BASE + 0x00001A;
 
   const int MEMCACHED_GET_START = COMMON_BASE + 0x000100;
   const int MEMCACHED_GET_SUCCESS = COMMON_BASE + 0x000101;
@@ -136,6 +133,11 @@ namespace SASEvent {
   const int MEMCACHED_DELETE_FAILURE = COMMON_BASE + 0x00010C;
   const int MEMCACHED_NO_HOSTS = COMMON_BASE + 0x00010D;
   const int MEMCACHED_TRY_HOST = COMMON_BASE + 0x00010E;
+  const int MEMCACHED_SET_WITHOUT_CAS_START = COMMON_BASE + 0x00010F;
+  const int MEMCACHED_GET_WITHOUT_DATA_SUCCESS = COMMON_BASE + 0x000110;
+  const int MEMCACHED_SET_WITHOUT_DATA_START = COMMON_BASE + 0x000111;
+  const int MEMCACHED_SET_WITHOUT_DATA_OR_CAS_START = COMMON_BASE + 0x000112;
+  const int MEMCACHED_REQ_TOO_LARGE = COMMON_BASE + 0x000113;
 
   const int BASERESOLVE_SRV_RESULT = COMMON_BASE + 0x000200;
   const int BASERESOLVE_A_RESULT_TARGET_SELECT = COMMON_BASE + 0x000201;
@@ -143,13 +145,27 @@ namespace SASEvent {
   const int DNS_SUCCESS = COMMON_BASE + 0x000203;
   const int DNS_FAILED = COMMON_BASE + 0x000204;
   const int DNS_NOT_FOUND = COMMON_BASE + 0x000205;
+  const int DNS_TIMEOUT = COMMON_BASE + 0x000206;
+  const int BASERESOLVE_NO_RECORDS = COMMON_BASE + 0x000207;
+  const int BASERESOLVE_NO_ALLOWED_RECORDS = COMMON_BASE + 0x000208;
+  const int BASERESOLVE_IP_ALLOWED = COMMON_BASE + 0x000209;
+  const int BASERESOLVE_IP_NOT_ALLOWED = COMMON_BASE + 0x00020A;
+  const int DNS_CACHE_USED = COMMON_BASE + 0x00020B;
 
   const int CASS_CONNECT_FAIL = COMMON_BASE + 0x0300;
+  const int CASS_TIMEOUT = COMMON_BASE + 0x0301;
 
-  const int QUORUM_FAILURE = COMMON_BASE + 0x0400;
+  const int CASS_REQUEST_TWO_FAIL = COMMON_BASE + 0x0400;
 
   const int LOAD_MONITOR_ACCEPTED_REQUEST = COMMON_BASE + 0x0500;
   const int LOAD_MONITOR_REJECTED_REQUEST = COMMON_BASE + 0x0501;
+  const int LOAD_MONITOR_RECALCULATE_RATE = COMMON_BASE + 0x0502;
+  const int LOAD_MONITOR_DECREASE_RATE = COMMON_BASE + 0x0503;
+  const int LOAD_MONITOR_DECREASE_PENALTIES = COMMON_BASE + 0x0504;
+  const int LOAD_MONITOR_INCREASE_RATE = COMMON_BASE + 0x0505;
+  const int LOAD_MONITOR_UNCHANGED_THRESHOLD = COMMON_BASE + 0x0506;
+  const int LOAD_MONITOR_UNCHANGED_RATE = COMMON_BASE + 0x0507;
+  const int LOAD_MONITOR_UNADJUSTED = COMMON_BASE + 0x0508;
 
 } // namespace SASEvent
 

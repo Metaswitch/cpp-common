@@ -1,37 +1,12 @@
 /**
  * @file dnsrrecords.h  Classes used to represent DNS RRs internally.
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2014  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2014
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #ifndef DNSRRECORDS_H__
@@ -39,6 +14,7 @@
 
 #include <string>
 #include <list>
+#include <vector>
 #include <sstream>
 #include <iomanip>
 
@@ -46,28 +22,6 @@
 #include <arpa/inet.h>
 #include <arpa/nameser.h>
 #include <time.h>
-
-class DnsQuestion
-{
-public:
-  DnsQuestion(const std::string& qname,
-              int qtype,
-              int qclass) :
-    _qname(qname),
-    _qtype(qtype),
-    _qclass(qclass)
-  {
-  }
-
-  const std::string& qname() const { return _qname; }
-  int qtype() const { return _qtype; }
-  int qclass() const { return _qclass; }
-
-private:
-  const std::string _qname;
-  const int _qtype;
-  const int _qclass;
-};
 
 class DnsRRecord
 {
@@ -331,6 +285,49 @@ DnsCNAMERecord(const std::string& rrname, int ttl, const std::string& target) :
 
 private:
   const std::string _target;
+};
+
+class DnsQuestion
+{
+public:
+  DnsQuestion(const std::string& qname,
+              int qtype,
+              int qclass) :
+    _qname(qname),
+    _qtype(qtype),
+    _qclass(qclass)
+  {
+  }
+
+  const std::string& qname() const { return _qname; }
+  int qtype() const { return _qtype; }
+  int qclass() const { return _qclass; }
+
+private:
+  const std::string _qname;
+  const int _qtype;
+  const int _qclass;
+};
+
+class DnsResult
+{
+public:
+  DnsResult(const std::string& domain, int dnstype, const std::vector<DnsRRecord*>& records, int ttl);
+  DnsResult(const std::string& domain, int dnstype, int ttl);
+  DnsResult(const DnsResult &obj);
+  DnsResult(DnsResult &&obj);
+  ~DnsResult();
+
+  const std::string& domain() const { return _domain; }
+  int dnstype() const { return _dnstype; }
+  std::vector<DnsRRecord*>& records() { return _records; }
+  int ttl() const { return _ttl; }
+
+private:
+  std::string _domain;
+  int _dnstype;
+  std::vector<DnsRRecord*> _records;
+  int _ttl;
 };
 
 #endif

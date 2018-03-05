@@ -30,3 +30,4 @@
 std::string base64_encode(unsigned char const* , unsigned int len);
 std::string base64_decode(std::string const& s);
 std::string base64_encode(const std::string& string_to_encode);
+bool is_base64(const std::string& encoded_string);

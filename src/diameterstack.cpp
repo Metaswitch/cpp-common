@@ -1,37 +1,12 @@
 /**
  * @file diameterstack.cpp class implementation wrapping freeDiameter
  *
- * Project Clearwater - IMS in the Cloud
- * Copyright (C) 2013  Metaswitch Networks Ltd
- *
- * This program is free software: you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version, along with the "Special Exception" for use of
- * the program along with SSL, set forth below. This program is distributed
- * in the hope that it will be useful, but WITHOUT ANY WARRANTY;
- * without even the implied warranty of MERCHANTABILITY or FITNESS FOR
- * A PARTICULAR PURPOSE.  See the GNU General Public License for more
- * details. You should have received a copy of the GNU General Public
- * License along with this program.  If not, see
- * <http://www.gnu.org/licenses/>.
- *
- * The author can be reached by email at clearwater@metaswitch.com or by
- * post at Metaswitch Networks Ltd, 100 Church St, Enfield EN2 6BQ, UK
- *
- * Special Exception
- * Metaswitch Networks Ltd  grants you permission to copy, modify,
- * propagate, and distribute a work formed by combining OpenSSL with The
- * Software, or a work derivative of such a combination, even if such
- * copying, modification, propagation, or distribution would otherwise
- * violate the terms of the GPL. You must comply with the GPL in all
- * respects for all of the code used other than OpenSSL.
- * "OpenSSL" means OpenSSL toolkit software distributed by the OpenSSL
- * Project and licensed under the OpenSSL Licenses, or a work based on such
- * software and licensed under the OpenSSL Licenses.
- * "OpenSSL Licenses" means the OpenSSL License and Original SSLeay License
- * under which the OpenSSL Project distributes the OpenSSL toolkit software,
- * as those licenses appear in the file LICENSE-OPENSSL.
+ * Copyright (C) Metaswitch Networks 2017
+ * If license terms are provided to you in a COPYING file in the root directory
+ * of the source code repository by which you are accessing this code, then
+ * the license outlined in that COPYING file applies to your use.
+ * Otherwise no rights are granted except for those provided to you by
+ * Metaswitch Networks in a separate written agreement.
  */
 
 #include "diameterstack.h"
@@ -93,7 +68,7 @@ void Stack::initialize()
                           fd_null_hook_cb, this, NULL, &_null_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_hook_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_hook_register(fd_null_hook_cb)", rc); // LCOV_EXCL_LINE
     }
 
     CL_DIAMETER_INIT_CMPL.log();
@@ -112,7 +87,7 @@ void Stack::initialize()
                     fd_error_hook_cb, this, _sas_cb_data_hdl, &_error_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_log_handler_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_hook_register(fd_error_hook_cb)", rc); // LCOV_EXCL_LINE
     }
     rc = fd_hook_register(HOOK_MASK(HOOK_MESSAGE_RECEIVED,
                                     HOOK_MESSAGE_SENT),
@@ -122,7 +97,7 @@ void Stack::initialize()
                           &_sas_cb_hdlr);
     if (rc != 0)
     {
-      throw Exception("fd_hook_register", rc); // LCOV_EXCL_LINE
+      throw Exception("fd_hook_register(fd_sas_log_diameter_message)", rc); // LCOV_EXCL_LINE
     }
 
     _initialized = true;
@@ -304,16 +279,16 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     _host_counter->increment();
   }
 
-  // Make a SAS log if either of the following conditions holds:
+  // Make a SAS log. If either of the following conditions holds:
   //
   // - the number of managed peers is zero (suggesting a configuration or DNS problem).
   // - the number of currently connected peers is zero.
   //
-  // FreeDiameter should only call us if the set of connected peers is zero (for one
-  // of these reasons), but we check explicitly below to ensure that no SAS
-  // log is made if we don't know the reason why.
+  // make a SAS log corresponding to the condition. We use counts given to us by upstream
+  // applications, if any exist.
   //
-  // We use counts given to us by upstream applications, if any exist.
+  // If neither condition holds, make a "catch all" SAS log to cover us in the event
+  // that freeDiameter rejects a request for some unexpected reason.
   bool no_peers;
   bool no_connected_peers;
   pthread_mutex_lock(&_peer_counts_lock);
@@ -335,6 +310,14 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     else if (no_connected_peers)
     {
       SAS::Event event(pmd->trail, SASEvent::DIAMETER_NO_CONNECTED_PEERS, 0);
+      event.add_var_param((char *)other);
+      event.add_var_param(dest_host);
+      event.add_var_param(dest_realm);
+      SAS::report_event(event);
+    }
+    else
+    {
+      SAS::Event event(pmd->trail, SASEvent::DIAMETER_MSG_ROUTING_ERROR, 0);
       event.add_var_param((char *)other);
       event.add_var_param(dest_host);
       event.add_var_param(dest_realm);
@@ -535,9 +518,24 @@ int Stack::request_callback_fn(struct msg** req,
 {
   HandlerInterface* handler = (HandlerInterface*)handler_param;
 
-  // A SAS trail has already been allocated in fd_sas_log_diameter_message. Get
-  // it.
-  SAS::TrailId trail = fd_hook_get_pmd(_sas_cb_data_hdl, *req)->trail;
+  struct msg_hdr* message_header = NULL;
+  fd_msg_hdr(*req, &message_header);
+  TRC_DEBUG("Handling diameter message with hop-by-hop identifier %u and end-to-end identifier %u",
+           message_header->msg_hbhid, message_header->msg_eteid);
+
+  // A SAS trail should have already been allocated in fd_sas_log_diameter_message.
+  // Get it if so (or create a new one if not).
+  SAS::TrailId trail;
+  struct fd_hook_permsgdata* pmd = fd_hook_get_pmd(_sas_cb_data_hdl, *req);
+  if (pmd != NULL)
+  {
+    trail = pmd->trail;
+  }
+  else
+  {
+    trail = SAS::new_trail(0);
+    TRC_WARNING("No per-message data found - allocated new trail ID: %lu", trail);
+  }
   TRC_DEBUG("Invoke diameter request handler on trail %lu", trail);
 
   // Pass the request to the registered handler.
@@ -823,9 +821,15 @@ bool Stack::add(Peer* peer)
   free(info.config.pic_realm);
   while (!FD_IS_LIST_EMPTY(&info.pi_endpoints))
   {
-    struct fd_list * li = info.pi_endpoints.next;
+    // scan-build currently detects this loop as double freeing memory, as it
+    // doesn't recognise that the value of li changes each loop iteration.
+    // Excluding from analysis while this bug is present
+    // (https://bugs.llvm.org/show_bug.cgi?id=18222).
+    #ifndef __clang_analyzer__
+    struct fd_list* li = info.pi_endpoints.next;
     fd_list_unlink(li);
     free(li);
+    #endif
   }
 
   if (rc != 0)
@@ -892,22 +896,46 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
       // Received request. Allocate a new trail and store it in PMD.
       trail = SAS::new_trail(0);
       TRC_DEBUG("Allocated new trail ID: %lu", trail);
-      pmd->trail = trail;
+
+      // If there is a permsgdata, store the trail.  This might not be true
+      // in some error scenarios, in which case we'll log, but might not
+      // correlate correctly.
+      if (pmd != NULL)
+      {
+        pmd->trail = trail;
+      }
     }
     else
     {
       // Received answer. Get the trail from the request.
-      trail = fd_hook_get_request_pmd(stack->_sas_cb_data_hdl, msg)->trail;
-      TRC_DEBUG("Got existing trail ID: %lu", trail);
+      struct fd_hook_permsgdata *req_pmd = fd_hook_get_request_pmd(stack->_sas_cb_data_hdl, msg);
+      if (req_pmd != NULL)
+      {
+        trail = req_pmd->trail;
+        TRC_DEBUG("Got existing trail ID: %lu", trail);
+      }
+      else
+      {
+        trail = SAS::new_trail(0);
+        TRC_WARNING("No per-message data found - allocated new trail ID: %lu", trail);
+      }
     }
   }
   else if (type == HOOK_MESSAGE_SENT)
   {
     // Sent request / answer. Use the trail ID that the diameter stack set on
-    // the message.
+    // the message (if available) or create a new one if not.
     TRC_DEBUG("Processing a sent diameter message");
-    trail = pmd->trail;
-    TRC_DEBUG("Got existing trail ID: %lu", trail);
+    if (pmd != NULL)
+    {
+      trail = pmd->trail;
+      TRC_DEBUG("Got existing trail ID: %lu", trail);
+    }
+    else
+    {
+      trail = SAS::new_trail(0);
+      TRC_WARNING("No per-message data found - allocated new trail ID: %lu", trail);
+    }
   }
   else
   {
@@ -947,9 +975,8 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
     event.add_static_param(0);
   }
 
-
   struct fd_cnx_rcvdata* data = (struct fd_cnx_rcvdata*)other;
-  event.add_compressed_param(data->length, data->buffer, &SASEvent::PROFILE_LZ4);
+  event.add_var_param(data->length, data->buffer);
 
   SAS::report_event(event);
 
@@ -967,7 +994,7 @@ void Stack::fd_sas_log_diameter_message(enum fd_hook_type type,
     {
       TRC_DEBUG("Raising correlating marker with diameter session ID = %.*s",
                 session_id_len, session_id);
-      SAS::Marker corr(trail, MARKED_ID_GENERIC_CORRELATOR, 0);
+      SAS::Marker corr(trail, MARKER_ID_GENERIC_CORRELATOR, 0);
       corr.add_static_param((uint32_t)UniquenessScopes::DIAMETER_SID_RFC6733);
       corr.add_var_param(session_id_len, session_id);
 
@@ -1113,6 +1140,8 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
   Stack* stack = Stack::get_instance();
   Message msg(tsx->_dict, *req, stack);
 
+  TRC_VERBOSE("Diameter request of type %u timed out to %.*s",
+              msg.command_code(), to_len, to);
   TRC_VERBOSE("Diameter request of type %u timed out - calling callback on transaction %p",
               msg.command_code(), tsx);
 
@@ -1124,11 +1153,11 @@ void Transaction::on_timeout(void* data, DiamId_t to, size_t to_len, struct msg*
 
     if (fd_msg_bufferize(*req, &buf, &len) == 0)
     {
-      event.add_compressed_param(len, buf, &SASEvent::PROFILE_LZ4);
+      event.add_var_param(len, buf);
     }
     else
     {
-      event.add_compressed_param("unknown", &SASEvent::PROFILE_LZ4);
+      event.add_var_param("unknown");
     }
 
     SAS::report_event(event);
@@ -1407,6 +1436,21 @@ Message& Message::add_session_id(const std::string& session_id)
   session_id_avp.val_str(session_id);
   add(session_id_avp);
   return *this;
+}
+
+const std::string Message::get_session_id()
+{
+  Diameter::AVP::iterator avps = begin((dict())->SESSION_ID);
+
+  if (avps != end())
+  {
+    return avps->val_str();
+  }
+  else
+  {
+    TRC_ERROR("No Session-ID found in request");
+    throw Diameter::AVPException("Session-ID");
+  }
 }
 
 void Message::send(SAS::TrailId trail)
