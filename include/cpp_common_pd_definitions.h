@@ -106,29 +106,56 @@ static const PDLog2<const char*, const char*> CL_CM_CONNECTION_CLEARED
   "None."
 );
 
-static const PDLog3<const char*, const char*, const char*> CL_RM_CONNECTION_ERROR
+static const PDLog CL_DNS_FILE_MALFORMED
 (
   PDLogBase::CL_CPP_COMMON_ID + 11,
-  LOG_INFO,
-  "Connections between %s and %s applications at %s have failed.",
-  "At least one of the Diameter peers is not contactable and the number of contactabble "
-  "instances is strictly less than expected (two unless changed through configuration)",
-  "This process was unable to contact some instances of the application "
-  "it's trying to connect to",
-  "(1). Check that the application this process is trying to connect to is running."
-  "(2). Check the configuration in /etc/clearwater is correct."
-  "(3). Check that this process has connectivity to the application it's trying to connect to."
+  LOG_ERR,
+  "DNS config file is malformed.",
+  "The DNS config file /etc/clearwater/dns.json is invalid JSON.",
+  "The DNS config file will be ignored, and all DNS queries will be directed at "
+  "the DNS server rather than using any local overrides.",
+  "(1). Check the DNS config file for correctness."
+  "(2). Upload the corrected config with "
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json"
 );
 
-static const PDLog2<const char*, const char*> CL_RM_CONNECTION_CLEARED
+static const PDLog CL_DNS_FILE_DUPLICATES
 (
   PDLogBase::CL_CPP_COMMON_ID + 12,
   LOG_INFO,
-  "Some connections between %s and %s have been restored.",
-  "Either all known Diameter peers are conntactable, or there are enough contactable peers (two "
-  "unless changed through configuration) to provide the required level of Diameter peer resilience.",
-  "Normal.",
-  "None."
+  "Duplicate entries found in the DNS config file",
+  "The DNS config file /etc/clearwater/dns.json contains duplicate entries.",
+  "Only the first of the duplicates will be used - the others will be ignored.",
+  "(1). Check the DNS config file for duplicates."
+  "(2). Upload the corrected config with "
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json"
+);
+
+static const PDLog CL_DNS_FILE_MISSING
+(
+  PDLogBase::CL_CPP_COMMON_ID + 13,
+  LOG_ERR,
+  "DNS config file is missing.",
+  "The DNS config file /etc/clearwater/dns.json is not present.",
+  "The DNS config file will be ignored, and all DNS queries will be directed at "
+  "the DNS server rather than using any local overrides.",
+  "(1). Replace the missing DNS config file if desired."
+  "(2). Upload the corrected config with "
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json "
+  "(if no config file is present, no DNS overrides will be applied)"
+);
+
+static const PDLog CL_DNS_FILE_BAD_ENTRY
+(
+  PDLogBase::CL_CPP_COMMON_ID + 14,
+  LOG_ERR,
+  "DNS config file has a malformed entry.",
+  "The DNS config file /etc/clearwater/dns.json contains a malformed entry.",
+  "The malformed entry will be ignored. Other, correctly formed, entries will "
+  "still be used.",
+  "(1). Check the DNS config file for correctness."
+  "(2). Upload the corrected config with "
+  "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json"
 );
 
 #endif
