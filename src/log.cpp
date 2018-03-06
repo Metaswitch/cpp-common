@@ -121,6 +121,7 @@ namespace Log
   static Logger *logger = &logger_static;
   static pthread_mutex_t serialization_lock = PTHREAD_MUTEX_INITIALIZER;
   int loggingLevel = 4;
+  int ramRecordEverything = false;
 
   // RAM trace buffer and associated static parameters.  The RAM trace buffer
   // consists of an area of memory (of arbitrary size) to which structures of type
@@ -828,6 +829,11 @@ void Log::setLoggingLevel(int level)
     level = ERROR_LEVEL; // LCOV_EXCL_LINE
   }
   Log::loggingLevel = level;
+}
+
+void Log::enableRamRecordEverything()
+{
+  Log::ramRecordEverything = true;
 }
 
 // Note that the caller is responsible for deleting the previous
