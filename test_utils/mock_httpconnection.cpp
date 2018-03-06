@@ -1,7 +1,7 @@
 /**
- * @file mockhttpconnection.cpp Mock httpconnection.
+ * @file mock_httpconnection.cpp Mock httpconnection.
  *
- * Copyright (C) Metaswitch Networks 2015
+ * Copyright (C) Metaswitch Networks 2018
  * If license terms are provided to you in a COPYING file in the root directory
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
@@ -9,13 +9,10 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#include "mockhttpconnection.h"
+#include "mock_httpconnection.h"
 
 MockHttpConnection::MockHttpConnection() :
     HttpConnection("localhost",
-                   true,
-                   NULL,
-                   SASEvent::HttpLogLevel::PROTOCOL,
                    NULL)
   {}
 

@@ -13,248 +13,44 @@
 
 #include <string>
 
-#include "httpresolver.h"
-#include "snmp_ip_count_table.h"
-#include "load_monitor.h"
-#include "sasevent.h"
-#include "communicationmonitor.h"
 #include "httpclient.h"
+#include "http_request.h"
 
-/// Provides managed access to data on a single HTTP server. Properly
-/// supports round-robin DNS load balancing.
+/// This class manages creation of HttpRequests for a single server and scheme.
+/// Allows the user to create HttpRequests without needing to pass the server
+/// name and scheme around their code.
 ///
-/// This class is a thin wrapper around HttpClient.
-///
+/// Provides no additional function beyond what is provided by the HttpRequest
+/// and HttpClient objects.
 class HttpConnection
 {
 public:
   HttpConnection(const std::string& server,
-                 bool assert_user,
-                 HttpResolver* resolver,
-                 SNMP::IPCountTable* stat_table,
-                 LoadMonitor* load_monitor,
-                 SASEvent::HttpLogLevel sas_log_level,
-                 BaseCommunicationMonitor* comm_monitor,
-                 const std::string& scheme = "http",
-                 bool should_omit_body = false,
-                 bool remote_connection = false,
-                 long timeout_ms = -1,
-                 bool log_display_address = false,
-                 std::string server_display_address = "") :
+                 HttpClient* client,
+                 const std::string& scheme = "http") :
     _scheme(scheme),
     _server(server),
-    _client(assert_user,
-            resolver,
-            stat_table,
-            load_monitor,
-            sas_log_level,
-            comm_monitor,
-            should_omit_body,
-            remote_connection,
-            timeout_ms,
-            log_display_address,
-            server_display_address)
+    _client(client)
   {
     TRC_STATUS("Configuring HTTP Connection");
     TRC_STATUS("  Connection created for server %s", _server.c_str());
   }
 
-  HttpConnection(const std::string& server,
-                 bool assert_user,
-                 HttpResolver* resolver,
-                 SASEvent::HttpLogLevel sas_log_level,
-                 BaseCommunicationMonitor* comm_monitor,
-                 bool remote_connection = false) :
-    HttpConnection(server,
-                   assert_user,
-                   resolver,
-                   NULL,
-                   NULL,
-                   sas_log_level,
-                   comm_monitor,
-                   "http",
-                   false,
-                   remote_connection)
-  {}
-
   virtual ~HttpConnection()
   {
   }
 
-  /// Sends a HTTP GET request to _server with the specified parameters
-  ///
-  /// @param url_tail           Everything after the server part of the URL - must
-  ///                           start with "/" and can contain path, query and
-  ///                           fragment parts.
-  /// @param headers            Location to store the header part of the retrieved
-  ///                           data
-  /// @param response           Location to store retrieved data
-  /// @param username           Username to assert if assertUser is true, else
-  ///                           ignored
-  /// @param headers_to_add     Extra headers to add to the request
-  /// @param trail              SAS trail to use
-  /// @param allowed_host_state what lists to resolve hosts from, where we
-  ///                           can take whitelisted, blacklisted, or all results
-  ///
-  /// @returns                  HTTP code representing outcome of request
-  virtual long send_get(const std::string& url_tail,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& username,
-                        std::vector<std::string> headers_to_add,
-                        SAS::TrailId trail,
-                        int allowed_host_state);
-  virtual long send_get(const std::string& url_tail,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& username,
-                        std::vector<std::string> headers_to_add,
-                        SAS::TrailId trail)
+  /// Create an HttpRequest with our server and scheme arguments
+  HttpRequest create_request(HttpClient::RequestType method,
+                             const std::string& path)
   {
-    return send_get(url_tail, headers, response, username, headers_to_add, trail, BaseResolver::ALL_LISTS);
+    HttpRequest req(_server, _scheme, _client, method, path);
+    return req;
   }
-
-  virtual long send_get(const std::string& url_tail,
-                        std::string& response,
-                        const std::string& username,
-                        SAS::TrailId trail);
-  virtual long send_get(const std::string& url_tail,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& username,
-                        SAS::TrailId trail);
-
-  /// Sends a HTTP DELETE request to _server with the specified parameters
-  ///
-  /// @param url_tail           Everything after the server part of the URL - must
-  ///                           start with "/". Contains path, query and fragment
-  ///                           parts.
-  /// @param headers            Location to store the header part of the retrieved
-  ///                           data
-  /// @param response           Location to store retrieved data
-  /// @param trail              SAS trail to use
-  /// @param body               JSON body to send on the request
-  /// @param username           Username to assert if assertUser is true, else
-  ///                           ignored
-  /// @param allowed_host_state what lists to resolve hosts from, where we
-  ///                           can take whitelisted, blacklisted, or all results
-  ///
-  /// @returns                  HTTP code representing outcome of request
-  virtual long send_delete(const std::string& url_tail,
-                           std::map<std::string, std::string>& headers,
-                           std::string& response,
-                           SAS::TrailId trail,
-                           const std::string& body,
-                           const std::string& username,
-                           int allowed_host_state);
-  virtual long send_delete(const std::string& url_tail,
-                           std::map<std::string, std::string>& headers,
-                           std::string& response,
-                           SAS::TrailId trail,
-                           const std::string& body = "",
-                           const std::string& username = "")
-  {
-    return send_delete(url_tail, headers, response, trail, body, username, BaseResolver::ALL_LISTS);
-  }
-
-  virtual long send_delete(const std::string& url_tail,
-                           SAS::TrailId trail,
-                           const std::string& body = "");
-  virtual long send_delete(const std::string& url_tail,
-                           SAS::TrailId trail,
-                           const std::string& body,
-                           std::string& response);
-
-  /// Sends a HTTP PUT request to _server with the specified parameters
-  ///
-  /// @param url_tail           Everything after the server part of the URL - must
-  ///                           start with "/" and can contain path, query and
-  ///                           fragment parts
-  /// @param headers            Location to store the header part of the retrieved
-  ///                           data
-  /// @param response           Location to store retrieved data
-  /// @param body               JSON body to send on the request
-  /// @param extra_req_headers  Extra headers to add to the request
-  /// @param trail              SAS trail to use
-  /// @param username           Username to assert if assertUser is true, else
-  ///                           ignored
-  /// @param allowed_host_state what lists to resolve hosts from, where we
-  ///                           can take whitelisted, blacklisted, or all results
-  ///
-  /// @returns                  HTTP code representing outcome of request
-  virtual long send_put(const std::string& url_tail,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& body,
-                        const std::vector<std::string>& extra_req_headers,
-                        SAS::TrailId trail,
-                        const std::string& username,
-                        int allowed_host_state);
-  virtual long send_put(const std::string& url_tail,
-                        std::map<std::string, std::string>& headers,
-                        std::string& response,
-                        const std::string& body,
-                        const std::vector<std::string>& extra_req_headers,
-                        SAS::TrailId trail,
-                        const std::string& username = "")
-  {
-    return send_put(url_tail, headers, response, body, extra_req_headers, trail, username, BaseResolver::ALL_LISTS);
-  }
-
-  virtual long send_put(const std::string& url_tail,
-                        const std::string& body,
-                        SAS::TrailId trail,
-                        const std::string& username);
-  virtual long send_put(const std::string& url_tail,
-                        const std::string& body,
-                        SAS::TrailId trail);
-  virtual long send_put(const std::string& url_tail,
-                        std::string& response,
-                        const std::string& body,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-  virtual long send_put(const std::string& url_tail,
-                        std::map<std::string, std::string>& headers,
-                        const std::string& body,
-                        SAS::TrailId trail,
-                        const std::string& username = "");
-
-  /// Sends a HTTP POST request to _server with the specified parameters
-  ///
-  /// @param url_tail Everything after the server part of the URL - must
-  ///                 start with "/" and can contain path, query and
-  ///                 fragment parts
-  /// @param headers  Location to store the header part of the retrieved
-  ///                 data
-  /// @param response Location to store retrieved data
-  /// @param body     JSON body to send on the request
-  /// @param extra_req_headers  Extra headers to add to the request
-  /// @param trail    SAS trail to use
-  /// @param username Username to assert if assertUser is true, else
-  ///                 ignored
-  ///
-  /// @returns        HTTP code representing outcome of request
-  virtual long send_post(const std::string& url_tail,
-                         std::map<std::string, std::string>& headers,
-                         std::string& response,
-                         const std::string& body,
-                         SAS::TrailId trail,
-                         const std::string& username = "");
-  virtual long send_post(const std::string& url_tail,
-                         std::map<std::string, std::string>& headers,
-                         const std::string& body,
-                         SAS::TrailId trail,
-                         const std::string& username = "");
-  virtual long send_post(const std::string& url_tail,
-                         std::map<std::string, std::string>& headers,
-                         const std::string& body,
-                         const std::vector<std::string>& extra_req_headers,
-                         SAS::TrailId trail,
-                         const std::string& username = "");
 
 protected:
 
   std::string _scheme;
   std::string _server;
-  HttpClient _client;
+  HttpClient* _client;
 };

@@ -171,7 +171,6 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
   addrinfo* servinfo = NULL;
 
   std::string full_bind_address = bind_address;
-  std::string local_bind_address = "127.0.0.1";
   const int error_num = getaddrinfo(bind_address.c_str(), NULL, &hints, &servinfo);
 
   if ((error_num == 0) &&
@@ -194,7 +193,6 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
               INET6_ADDRSTRLEN);
     full_bind_address = dest_str;
     full_bind_address = "ipv6:" + full_bind_address;
-    local_bind_address = "ipv6:::1";
   }
 
   freeaddrinfo(servinfo);
@@ -210,23 +208,6 @@ void HttpStack::bind_tcp_socket(const std::string& bind_address,
     // LCOV_EXCL_STOP
   }
 
-  if ((local_bind_address != full_bind_address) &&
-      (full_bind_address != "0.0.0.0")          &&
-      (full_bind_address != "ipv6:::"))
-  {
-    // Listen on the local address as well as the main address (so long as the
-    // main address isn't all)
-    rc = evhtp_bind_socket(_evhtp, local_bind_address.c_str(), port, 1024);
-    if (rc != 0)
-    {
-      // LCOV_EXCL_START
-      TRC_ERROR("evhtp_bind_socket failed with address %s and port %d",
-                local_bind_address.c_str(),
-                port);
-      throw Exception("evhtp_bind_socket (tcp) - localhost", rc);
-      // LCOV_EXCL_STOP
-    }
-  }
 }
 
 void HttpStack::bind_unix_socket(const std::string& bind_path)
@@ -346,6 +327,10 @@ void HttpStack::handler_callback(evhtp_request_t* req,
   }
   else
   {
+    TRC_DEBUG("Rejecting request for URL %s, args %s with 503 due to overload",
+                req->uri->path->full,
+                req->uri->query_raw);
+
     request.sas_log_overload(trail,
                              503,
                              _load_monitor->get_target_latency_us(),
@@ -524,7 +509,7 @@ void HttpStack::SasLogger::log_correlators(SAS::TrailId trail,
                  req,
                  instance_id,
                  SASEvent::HTTP_SPAN_ID,
-                 MARKED_ID_GENERIC_CORRELATOR);
+                 MARKER_ID_GENERIC_CORRELATOR);
 }
 
 void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
@@ -545,7 +530,7 @@ void HttpStack::SasLogger::log_correlator(SAS::TrailId trail,
     corr_marker.add_var_param(correlator);
 
     // Generic correlators have a uniqueness scope. Use UUIDs for HTTP requests
-    if (marker_type == MARKED_ID_GENERIC_CORRELATOR) {
+    if (marker_type == MARKER_ID_GENERIC_CORRELATOR) {
       corr_marker.add_static_param(
         static_cast<uint32_t>(UniquenessScopes::UUID_RFC4122));
     }
@@ -570,7 +555,7 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
 
   if (!omit_body)
   {
-    event.add_compressed_param(req.get_rx_message(), &SASEvent::PROFILE_HTTP);
+    event.add_var_param(req.get_rx_message());
   }
   else
   {
@@ -578,14 +563,13 @@ void HttpStack::SasLogger::log_req_event(SAS::TrailId trail,
     {
       // We are omitting the body but there wasn't one in the messaage. Just log
       // the headers.
-      event.add_compressed_param(req.get_rx_header(), &SASEvent::PROFILE_HTTP);
+      event.add_var_param(req.get_rx_header());
     }
     else
     {
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
-      event.add_compressed_param(req.get_rx_header() + BODY_OMITTED,
-                                 &SASEvent::PROFILE_HTTP);
+      event.add_var_param(req.get_rx_header() + BODY_OMITTED);
     }
   }
 
@@ -610,7 +594,7 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
 
   if (!omit_body)
   {
-    event.add_compressed_param(req.get_tx_message(rc), &SASEvent::PROFILE_HTTP);
+    event.add_var_param(req.get_tx_message(rc));
   }
   else
   {
@@ -618,14 +602,13 @@ void HttpStack::SasLogger::log_rsp_event(SAS::TrailId trail,
     {
       // We are omitting the body but there wasn't one in the messaage. Just log
       // the headers.
-      event.add_compressed_param(req.get_tx_header(rc), &SASEvent::PROFILE_HTTP);
+      event.add_var_param(req.get_tx_header(rc));
     }
     else
     {
       // There was a body that we need to omit. Add a fake body to the header
       // explaining that the body was intentionally not logged.
-      event.add_compressed_param(req.get_tx_header(rc) + BODY_OMITTED,
-                                 &SASEvent::PROFILE_HTTP);
+      event.add_var_param(req.get_tx_header(rc) + BODY_OMITTED);
     }
   }
 

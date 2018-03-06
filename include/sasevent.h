@@ -22,7 +22,7 @@ namespace SASEvent {
   // Jenkins job "update-sas-resources".
   //
   // !!!DO NOT EDIT THE FOLLOWING LINE MANUALLY!!!
-  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20180111";
+  const std::string CURRENT_RESOURCE_BUNDLE_DATESTAMP = "20180305";
   const std::string RESOURCE_BUNDLE_NAME = "org.projectclearwater";
   const std::string CURRENT_RESOURCE_BUNDLE =
                  RESOURCE_BUNDLE_NAME + "." + CURRENT_RESOURCE_BUNDLE_DATESTAMP;
@@ -31,7 +31,7 @@ namespace SASEvent {
   const std::string HTTP_BRANCH_HEADER_NAME = "X-SAS-HTTP-Branch-ID";
 
   // Name of the header used by microservices for trail correlation.
-  const std::string HTTP_SPAN_ID = "X-Span-Id";
+  const std::string HTTP_SPAN_ID = "X-Span-ID";
 
   // The levels at which clearwater nodes may log HTTP messages.
   enum struct HttpLogLevel
@@ -75,6 +75,7 @@ namespace SASEvent {
   const int WEATHERWAX_BASE = 0x8B0000;
   const int RPE_BASE = 0x8C0000;
   const int CHRONOS_BASE = 0x8D0000;
+  const int S4_BASE = 0x8E0000;
 
   //----------------------------------------------------------------------------
   // Common events and protocol flows.
@@ -149,6 +150,7 @@ namespace SASEvent {
   const int BASERESOLVE_NO_ALLOWED_RECORDS = COMMON_BASE + 0x000208;
   const int BASERESOLVE_IP_ALLOWED = COMMON_BASE + 0x000209;
   const int BASERESOLVE_IP_NOT_ALLOWED = COMMON_BASE + 0x00020A;
+  const int DNS_CACHE_USED = COMMON_BASE + 0x00020B;
 
   const int CASS_CONNECT_FAIL = COMMON_BASE + 0x0300;
   const int CASS_TIMEOUT = COMMON_BASE + 0x0301;

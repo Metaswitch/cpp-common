@@ -26,36 +26,24 @@
 
 #include "utils.h"
 #include "dnsrrecords.h"
+#include "static_dns_cache.h"
 #include "sas.h"
-
-class DnsResult
-{
-public:
-  DnsResult(const std::string& domain, int dnstype, const std::vector<DnsRRecord*>& records, int ttl);
-  DnsResult(const std::string& domain, int dnstype, int ttl);
-  DnsResult(const DnsResult &obj);
-  DnsResult(DnsResult &&obj);
-  ~DnsResult();
-
-  const std::string& domain() const { return _domain; }
-  int dnstype() const { return _dnstype; }
-  std::vector<DnsRRecord*>& records() { return _records; }
-  int ttl() const { return _ttl; }
-
-private:
-  std::string _domain;
-  int _dnstype;
-  std::vector<DnsRRecord*> _records;
-  int _ttl;
-};
 
 class DnsCachedResolver
 {
 public:
-  DnsCachedResolver(const std::vector<IP46Address>& dns_servers, int timeout = DEFAULT_TIMEOUT, const std::string& filename = "");
-  DnsCachedResolver(const std::vector<std::string>& dns_servers, int timeout = DEFAULT_TIMEOUT, const std::string& filename = "");
-  DnsCachedResolver(const std::string& dns_server, int port, int timeout = DEFAULT_TIMEOUT, const std::string& filename = "");
-  DnsCachedResolver(const std::string& dns_server) : DnsCachedResolver(dns_server, DEFAULT_PORT) {};
+  DnsCachedResolver(const std::vector<IP46Address>& dns_servers,
+                    int timeout = DEFAULT_TIMEOUT,
+                    const std::string& filename = NO_DNS_FILE,
+                    int port = DEFAULT_PORT);
+  DnsCachedResolver(const std::vector<std::string>& dns_servers,
+                    int timeout = DEFAULT_TIMEOUT,
+                    const std::string& filename = NO_DNS_FILE,
+                    int port = DEFAULT_PORT);
+  DnsCachedResolver(const std::string& dns_server,
+                    int timeout = DEFAULT_TIMEOUT,
+                    const std::string& filename = NO_DNS_FILE,
+                    int port = DEFAULT_PORT);
   ~DnsCachedResolver();
 
   /// Queries a single DNS record.
@@ -80,14 +68,22 @@ public:
   /// Clear the cache
   void clear();
 
-  // Reads DNS records from _dns_config_file and stores them in _static_records
+  // Calls into StaticDnsCache to reload the records from its
+  // _dns_config_file.
   void reload_static_records();
 
-  // Default timeout for DNS requests over the wire (in milliseconds)
-  static const int DEFAULT_TIMEOUT = 200;
+  // The total timeout across all DNS requests over the wire (in milliseconds)
+  static const int DEFAULT_TIMEOUT = 600;
 
   // Default port number for DNS requests
   static const int DEFAULT_PORT = 53;
+
+  // Maximum number of DNS servers to poll for a single query
+  static const int MAX_DNS_SERVER_POLL = 3;
+
+  // Constant that makes it clear what is going on when calling code wants to
+  // construct a resolver with no DNS file.
+  static constexpr const char* NO_DNS_FILE = "";
 
 private:
   void init(const std::vector<IP46Address>& dns_server);
@@ -104,7 +100,7 @@ private:
   {
   public:
     DnsTsx(DnsChannel* channel, const std::string& domain, int dnstype, SAS::TrailId trail);
-    ~DnsTsx();;
+    ~DnsTsx();
     void execute();
     static void ares_callback(void* arg, int status, int timeouts, unsigned char* abuf, int alen);
     void ares_callback(int status, int timeouts, unsigned char* abuf, int alen);
@@ -122,7 +118,27 @@ private:
     std::string domain;
     int dnstype;
     int expires;
+    std::string original_time;
+    SAS::TrailId original_trail;
     std::vector<DnsRRecord*> records;
+
+    void update_timestamp() {
+      struct timespec timespec;
+      struct tm dt;
+      char timestamp[100];
+      clock_gettime(CLOCK_REALTIME, &timespec);
+      gmtime_r(&timespec.tv_sec, &dt);
+      snprintf(timestamp, 100,
+               "%2.2d:%2.2d:%2.2d.%3.3d UTC",
+               dt.tm_hour,
+               dt.tm_min,
+               dt.tm_sec,
+               (int)(timespec.tv_nsec / 1000000));
+
+      this->original_time = timestamp;
+
+
+    }
   };
 
   class DnsCacheKeyCompare
@@ -156,7 +172,7 @@ private:
   /// Performs the actual DNS query.
   void inner_dns_query(const std::vector<std::string>& domains,
                        int dnstype,
-                       std::vector<DnsResult>& results,
+                       std::map<std::string, DnsResult>& results,
                        SAS::TrailId trail);
 
   void dns_response(const std::string& domain,
@@ -169,10 +185,10 @@ private:
   bool caching_enabled(int rrtype);
 
   DnsCacheEntryPtr get_cache_entry(const std::string& domain, int dnstype);
-  DnsCacheEntryPtr create_cache_entry(const std::string& domain, int dnstype);
+  DnsCacheEntryPtr create_cache_entry(const std::string& domain, int dnstype, SAS::TrailId trail);
   void add_to_expiry_list(DnsCacheEntryPtr ce);
   void expire_cache();
-  void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr);
+  void add_record_to_cache(DnsCacheEntryPtr ce, DnsRRecord* rr, SAS::TrailId trail);
   void clear_cache_entry(DnsCacheEntryPtr ce);
 
 
@@ -196,8 +212,8 @@ private:
   pthread_cond_t _got_reply_cond;
   DnsCache _cache;
 
-  std::string _dns_config_file;
-  std::map<std::string, std::vector<DnsRRecord*>> _static_records;
+  // The static cache contains hardcoded DNS records loaded from file.
+  StaticDnsCache _static_cache;
 
   // Expiry is done efficiently by storing pointers to cache entries in a
   // multimap indexed on expiry time.

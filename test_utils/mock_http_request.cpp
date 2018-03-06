@@ -1,7 +1,7 @@
 /**
- * @file mock_chronos_connection.cpp
+ * @file mock_http_request.cpp
  *
- * Copyright (C) Metaswitch Networks 2015
+ * Copyright (C) Metaswitch Networks 2018
  * If license terms are provided to you in a COPYING file in the root directory
  * of the source code repository by which you are accessing this code, then
  * the license outlined in that COPYING file applies to your use.
@@ -9,10 +9,14 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
-#include "mock_chronos_connection.h"
+#include "mock_http_request.h"
 
-MockChronosConnection::MockChronosConnection() :
-  ChronosConnection("localhost:10888", NULL)
+MockHttpRequest::MockHttpRequest() :
+    HttpRequest("localhost",
+                "http",
+                nullptr,
+                HttpClient::RequestType::GET,
+                "/path")
   {}
 
-MockChronosConnection::~MockChronosConnection() {}
+MockHttpRequest::~MockHttpRequest() {}

@@ -14,6 +14,7 @@
 
 #include <string>
 #include <list>
+#include <vector>
 #include <sstream>
 #include <iomanip>
 
@@ -21,28 +22,6 @@
 #include <arpa/inet.h>
 #include <arpa/nameser.h>
 #include <time.h>
-
-class DnsQuestion
-{
-public:
-  DnsQuestion(const std::string& qname,
-              int qtype,
-              int qclass) :
-    _qname(qname),
-    _qtype(qtype),
-    _qclass(qclass)
-  {
-  }
-
-  const std::string& qname() const { return _qname; }
-  int qtype() const { return _qtype; }
-  int qclass() const { return _qclass; }
-
-private:
-  const std::string _qname;
-  const int _qtype;
-  const int _qclass;
-};
 
 class DnsRRecord
 {
@@ -306,6 +285,49 @@ DnsCNAMERecord(const std::string& rrname, int ttl, const std::string& target) :
 
 private:
   const std::string _target;
+};
+
+class DnsQuestion
+{
+public:
+  DnsQuestion(const std::string& qname,
+              int qtype,
+              int qclass) :
+    _qname(qname),
+    _qtype(qtype),
+    _qclass(qclass)
+  {
+  }
+
+  const std::string& qname() const { return _qname; }
+  int qtype() const { return _qtype; }
+  int qclass() const { return _qclass; }
+
+private:
+  const std::string _qname;
+  const int _qtype;
+  const int _qclass;
+};
+
+class DnsResult
+{
+public:
+  DnsResult(const std::string& domain, int dnstype, const std::vector<DnsRRecord*>& records, int ttl);
+  DnsResult(const std::string& domain, int dnstype, int ttl);
+  DnsResult(const DnsResult &obj);
+  DnsResult(DnsResult &&obj);
+  ~DnsResult();
+
+  const std::string& domain() const { return _domain; }
+  int dnstype() const { return _dnstype; }
+  std::vector<DnsRRecord*>& records() { return _records; }
+  int ttl() const { return _ttl; }
+
+private:
+  std::string _domain;
+  int _dnstype;
+  std::vector<DnsRRecord*> _records;
+  int _ttl;
 };
 
 #endif

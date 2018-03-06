@@ -73,7 +73,8 @@ protected:
   // instantiated directly.
   BaseMemcachedStore(bool binary,
                      bool remote_store,
-                     BaseCommunicationMonitor* comm_monitor);
+                     BaseCommunicationMonitor* comm_monitor,
+                     const std::string& source_address = "");
 
   // Perform a get request to a single replica.
   memcached_return_t get_from_replica(memcached_st* replica,
@@ -120,7 +121,8 @@ public:
   TopologyNeutralMemcachedStore(const std::string& target_domain,
                                 AstaireResolver* resolver,
                                 bool remote_store,
-                                BaseCommunicationMonitor* comm_monitor = NULL);
+                                BaseCommunicationMonitor* comm_monitor = NULL,
+                                const std::string& source_address = "");
 
   ~TopologyNeutralMemcachedStore() {}
 

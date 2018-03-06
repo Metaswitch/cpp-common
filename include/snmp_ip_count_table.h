@@ -70,6 +70,7 @@ public:
   virtual void remove(std::string key) = 0;
 protected:
   IPCountTable() {};
+  pthread_mutex_t _map_lock = PTHREAD_MUTEX_INITIALIZER;
 };
 
 }

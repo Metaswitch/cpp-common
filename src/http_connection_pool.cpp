@@ -16,11 +16,13 @@
 HttpConnectionPool::HttpConnectionPool(LoadMonitor* load_monitor,
                                        SNMP::IPCountTable* stat_table,
                                        bool remote_connection,
-                                       long timeout_ms) :
+                                       long timeout_ms,
+                                       const std::string& source_address) :
   ConnectionPool<CURL*>(MAX_IDLE_TIME_S),
   _stat_table(stat_table),
   _connection_timeout_ms(remote_connection ? REMOTE_CONNECTION_LATENCY_MS :
-                                             LOCAL_CONNECTION_LATENCY_MS)
+                                             LOCAL_CONNECTION_LATENCY_MS),
+  _source_address(source_address)
 {
   if (timeout_ms != -1)
   {
@@ -77,6 +79,17 @@ CURL* HttpConnectionPool::create_connection(AddrInfo target)
                    HttpClient::Recorder::debug_callback);
 
   curl_easy_setopt(conn, CURLOPT_VERBOSE, 1L);
+
+  // If we've been asked to connect from a specific address, get cURL to ask us
+  // when starting up a new socket.
+  if (!_source_address.empty())
+  {
+    // LCOV_EXCL_START - we don't test sending from a source address in UT. This
+    // is tested in clearwater-fv-test instead.
+    curl_easy_setopt(conn, CURLOPT_OPENSOCKETFUNCTION, &HttpConnectionPool::open_socket_fn);
+    curl_easy_setopt(conn, CURLOPT_OPENSOCKETDATA, this);
+    // LCOV_EXCL_STOP
+  }
 
   increment_statistic(target, conn);
 
@@ -159,3 +172,69 @@ long HttpConnectionPool::calc_req_timeout_from_latency(int latency_us)
 {
   return _connection_timeout_ms + std::max(1, (latency_us * TIMEOUT_LATENCY_MULTIPLIER) / 1000);
 }
+
+// LCOV_EXCL_START - we don't test sending from a source address in UT. This
+// is tested in clearwater-fv-test instead.
+curl_socket_t HttpConnectionPool::open_socket_fn(void *clientp,
+                                                 curlsocktype purpose,
+                                                 struct curl_sockaddr *address)
+{
+  HttpConnectionPool* pool = static_cast<HttpConnectionPool*>(clientp);
+  return pool->open_socket(purpose, address);
+}
+
+curl_socket_t HttpConnectionPool::open_socket(curlsocktype purpose,
+                                              struct curl_sockaddr *address)
+{
+  int fd = socket(address->family, address->socktype, address->protocol);
+
+  if (fd <= 0)
+  {
+    TRC_ERROR("Error creating socket %d (%s)", errno, strerror(errno));
+    return -1;
+  }
+
+  TRC_DEBUG("Bind socket %d to address %s", fd, _source_address.c_str());
+
+  struct sockaddr_storage sa_storage = {0};
+  size_t sa_size = 0;
+  int rc;
+
+  if (address->family == AF_INET)
+  {
+    struct sockaddr_in* sa = (struct sockaddr_in*)&sa_storage;
+    sa_size = sizeof(*sa);
+
+    sa->sin_family = address->family;
+    rc = inet_pton(address->family, _source_address.c_str(), &sa->sin_addr);
+  }
+  else
+  {
+    struct sockaddr_in6* sa = (struct sockaddr_in6*)&sa_storage;
+    sa_size = sizeof(*sa);
+
+    sa->sin6_family = address->family;
+    rc = inet_pton(address->family, _source_address.c_str(), &sa->sin6_addr);
+  }
+
+  if (rc == 1)
+  {
+    rc = bind(fd, (const struct sockaddr*)&sa_storage, sa_size);
+
+    if (rc != 0)
+    {
+      TRC_ERROR("Error %d (%s) trying to bind to address %s in family %d",
+                errno, strerror(errno), _source_address.c_str(), address->family);
+      return -1;
+    }
+  }
+  else
+  {
+    TRC_ERROR("inet_pton() returned %d when parsing address %s in family %d",
+              rc, _source_address.c_str(), address->family);
+    return -1;
+  }
+
+  return fd;
+}
+// LCOV_EXCL_STOP
