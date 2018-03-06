@@ -30,11 +30,11 @@ public:
   void reload_config();
   void extract_config();
 
-  std::string get_single_sas_server() {return _last_sas_server;};
+  std::string get_single_sas_server() {return _single_sas_server;};
   std::string get_sas_servers() {return _sas_servers;};
 private:
   std::string _configuration;
-  std::string _last_sas_server = "0.0.0.0";
+  std::string _single_sas_server = "0.0.0.0";
   std::string _sas_servers = "[]";
   Updater<void, SasService>* _updater;
 };

@@ -81,7 +81,7 @@ void SasService::extract_config()
       JSON_ASSERT_CONTAINS(*sas_it, "ip");
       JSON_ASSERT_STRING((*sas_it)["ip"]);
 
-      _last_sas_server = (*sas_it)["ip"].GetString();
+      _single_sas_server = (*sas_it)["ip"].GetString();
     }
 
     // We have a valid rapidjson object.  Write this to the _sas_servers member
