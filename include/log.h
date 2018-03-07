@@ -55,6 +55,7 @@ namespace Log
   void ramCacheTrcCall(int *trc_id, const char *module, int lineno, const char*fmt, ...);
   void ramTrace(int trc_id, const char *fmt, ...);
   void ramDecode(FILE *output);
+  void dumpRamRecorder(std::string output_dir);
 
   inline bool enabled(int level)
   {

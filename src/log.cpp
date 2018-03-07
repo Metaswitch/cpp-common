@@ -818,6 +818,17 @@ void Log::ramDecode(FILE *output)
   }
 }
 
+void Log::dumpRamRecorder(std::string output_dir)
+{
+  // Dump out the RAM trace buffer
+  char ramname[64];
+  std::string filename_template = output_dir + "/" + "ramtrace.%ld.txt";
+  sprintf(ramname, filename_template.c_str(), time(NULL));
+  FILE *ramtrace = fopen(ramname, "w");
+  Log::ramDecode(ramtrace);
+  fclose(ramtrace);
+}
+
 void Log::setLoggingLevel(int level)
 {
   if (level > DEBUG_LEVEL)
