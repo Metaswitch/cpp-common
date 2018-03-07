@@ -105,6 +105,23 @@ bool RealmManager::remove_from_failed_peers(Diameter::Peer* peer)
   return (bool)_failed_peers.erase(peer->addr_info());
 }
 
+void RealmManager::remove_old_failed_peers(unsigned long now_ms)
+{
+  now_ms = now_ms ? now_ms : Utils::current_time_ms();
+  for (std::map<AddrInfo, const unsigned long>::iterator ii = _failed_peers.begin();
+                                                         ii != _failed_peers.end();)
+  {
+    if (ii->second + FAILED_PEERS_TIMEOUT_MS <= now_ms)
+    {
+      _failed_peers.erase(ii++);
+    }
+    else 
+    {
+      ++ii;
+    }
+  }
+}
+
 // This function is responsible for monitoring diameter peer connections.
 //
 // The _peer_connection_alarm is used to monitor the connection to diameter
@@ -495,19 +512,8 @@ void RealmManager::manage_connections(int& ttl)
   pthread_rwlock_wrlock(&_peers_lock);
   _peers = locked_peers;
 
-  // 8. Remove old _failed_peers.
-  const unsigned long current_time = Utils::current_time_ms();
-  for (std::map<AddrInfo, const unsigned long>::iterator ii = _failed_peers.begin();
-                                                         ii != _failed_peers.end();)
-  {
-    if (ii->second + FAILED_PEERS_TIMEOUT_MS <= current_time)
-    {
-      _failed_peers.erase(ii++);
-    }
-    else 
-    {
-      ++ii;
-    }
-  }
+  // 8.
+  remove_old_failed_peers();
+
   pthread_rwlock_unlock(&_peers_lock);
 }
