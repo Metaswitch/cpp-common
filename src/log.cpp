@@ -17,9 +17,9 @@
 #include <sys/time.h>
 #include <time.h>
 
+
 // Define the "Warn unused return" macro (to be nothing) as this macro is
 // needed by printf.h and is apparently undefined under -O2 optimisation
-//#define __wur
 #undef __wur
 #define __wur
 #include <printf.h>
@@ -821,12 +821,13 @@ void Log::ramDecode(FILE *output)
 void Log::dumpRamRecorder(std::string output_dir)
 {
   // Dump out the RAM trace buffer
-  char ramname[64];
-  std::string filename_template = output_dir + "/" + "ramtrace.%ld.txt";
-  sprintf(ramname, filename_template.c_str(), time(NULL));
-  FILE *ramtrace = fopen(ramname, "w");
-  Log::ramDecode(ramtrace);
-  fclose(ramtrace);
+  std::string ram_file_name = output_dir + "/ramtrace." + std::to_string(time(NULL)) + ".txt";
+  FILE *ramtrace = fopen(ram_file_name.c_str(), "w");
+  if (ramtrace != NULL)
+  {
+    Log::ramDecode(ramtrace);
+    fclose(ramtrace);
+  }
 }
 
 void Log::setLoggingLevel(int level)
