@@ -696,7 +696,7 @@ void Stack::logger(int fd_log_level, const char* fmt, va_list args)
   }
   
   Log::_write(log_level, "freeDiameter", 0, fmt, args);
-  Log::ramTrace(0, fmt, args);
+  TRC_RAMTRACE(fmt, args);
 }
 
 void Stack::set_trail_id(struct msg* fd_msg, SAS::TrailId trail)
