@@ -25,7 +25,6 @@
   static int trc_id = 0;                                                      \
                                                                               \
   Log::ramCacheTrcCall(&trc_id,__FILE__,__LINE__,__VA_ARGS__);                \
-                                                                              \
   Log::ramTrace(trc_id,__VA_ARGS__);                                          \
 }
 
@@ -54,8 +53,6 @@ namespace Log
   extern pthread_mutex_t trc_ram_trc_cache_lock;
 
   void ramCacheTrcCall(int *trc_id, const char *module, int lineno, const char*fmt, ...);
-
-  int ramCacheTrcCall(const char *module, int lineno, const char*fmt, ...);
   void ramTrace(int trc_id, const char *fmt, ...);
   void ramDecode(FILE *output);
 
