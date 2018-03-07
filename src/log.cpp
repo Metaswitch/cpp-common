@@ -17,9 +17,9 @@
 #include <sys/time.h>
 #include <time.h>
 
+
 // Define the "Warn unused return" macro (to be nothing) as this macro is
 // needed by printf.h and is apparently undefined under -O2 optimisation
-//#define __wur
 #undef __wur
 #define __wur
 #include <printf.h>
@@ -121,6 +121,7 @@ namespace Log
   static Logger *logger = &logger_static;
   static pthread_mutex_t serialization_lock = PTHREAD_MUTEX_INITIALIZER;
   int loggingLevel = 4;
+  int ramRecordEverything = false;
 
   // RAM trace buffer and associated static parameters.  The RAM trace buffer
   // consists of an area of memory (of arbitrary size) to which structures of type
@@ -817,6 +818,18 @@ void Log::ramDecode(FILE *output)
   }
 }
 
+void Log::dumpRamRecorder(std::string output_dir)
+{
+  // Dump out the RAM trace buffer
+  std::string ram_file_name = output_dir + "/ramtrace." + std::to_string(time(NULL)) + ".txt";
+  FILE *ramtrace = fopen(ram_file_name.c_str(), "w");
+  if (ramtrace != NULL)
+  {
+    Log::ramDecode(ramtrace);
+    fclose(ramtrace);
+  }
+}
+
 void Log::setLoggingLevel(int level)
 {
   if (level > DEBUG_LEVEL)
@@ -828,6 +841,11 @@ void Log::setLoggingLevel(int level)
     level = ERROR_LEVEL; // LCOV_EXCL_LINE
   }
   Log::loggingLevel = level;
+}
+
+void Log::enableRamRecordEverything()
+{
+  Log::ramRecordEverything = true;
 }
 
 // Note that the caller is responsible for deleting the previous
