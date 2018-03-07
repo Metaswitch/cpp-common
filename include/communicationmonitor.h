@@ -14,6 +14,7 @@
 
 #include "alarm.h"
 #include "base_communication_monitor.h"
+#include "utils.h"
 
 /// @class CommunicationMonitor
 ///
@@ -41,7 +42,6 @@ public:
 
 private:
   virtual void track_communication_changes(unsigned long now_ms);
-  unsigned long current_time_ms();
 
   Alarm* _alarm;
   std::string _sender;

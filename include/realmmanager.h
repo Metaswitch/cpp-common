@@ -16,6 +16,7 @@
 
 #include "diameterstack.h"
 #include "diameterresolver.h"
+#include "pdlog.h"
 
 class RealmManager
 {
@@ -24,7 +25,10 @@ public:
                std::string realm,
                std::string host,
                int max_peers,
-               DiameterResolver* resolver);
+               DiameterResolver* resolver,
+               Alarm* alarm,
+               const PDLog* ALARM_CLEAR_LOG,
+               const PDLog1<const char*>* ALARM_ERROR_LOG);
   virtual ~RealmManager();
 
   void start();
@@ -37,12 +41,24 @@ public:
   void srv_priority_cb(struct fd_list* candidates);
 
   static const int DEFAULT_BLACKLIST_DURATION;
+  static const unsigned int FAILED_PEERS_TIMEOUT_MS = 24*3600*1000;
 
 private:
   void thread_function();
   static void* thread_function(void* realm_manager_ptr);
 
   void manage_connections(int& ttl);
+  void monitor_connections(const bool& failed_peers_changed);
+
+  // Utility function that turns the std::map _failed_peers into a CSV string
+  std::string create_failed_peers_string();
+  
+  // Helper functions that modify the _failed_peers map. Both return true if
+  // modified, false otherwise.
+  bool add_to_failed_peers(Diameter::Peer* peer);
+  bool remove_from_failed_peers(Diameter::Peer* peer);
+
+  void remove_old_failed_peers(unsigned long now_ms = 0);
 
   // We use a read/write lock to read and update the _peers map (defined below).
   // However, we read this map on every single Diameter message, so we want to
@@ -64,8 +80,11 @@ private:
   pthread_t _thread;
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
+  Alarm* _peer_connection_alarm;
   std::map<std::string, Diameter::Peer*> _peers;
+  std::map<AddrInfo, const unsigned long> _failed_peers;
+  const PDLog* _ALARM_CLEAR_LOG;
+  const PDLog1<const char*>* _ALARM_ERROR_LOG;
   volatile bool _terminating;
 };
-
 #endif
