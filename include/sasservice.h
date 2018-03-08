@@ -14,8 +14,6 @@
 
 #include <map>
 #include <string>
-#include <boost/regex.hpp>
-#include <boost/thread.hpp>
 
 #include <functional>
 #include "updater.h"
