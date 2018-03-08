@@ -217,31 +217,36 @@ static char ram_buffer[RAM_BUFFER_SIZE];
 static char* ram_buffer_start = ram_buffer;
 static char* ram_buffer_end = ram_buffer;
 
+bool RamRecorder::record_everything = false;
+
+void RamRecorder::recordEverything()
+{
+  RamRecorder::record_everything = true;
+}
+
 void RamRecorder::record(int level, const char* module, int lineno, const char* format, ...)
 {
-  va_list args;
-  va_start(args, format);
-  RamRecorder::write(format, args);
-  va_end(args);
-
   int written;
   int truncated;
-  char logline[MAXLOGLINE];
+  char logline[MAX_LOGLINE];
 
   // Fill out the log line
+  va_list args;
+  va_start(args, format);
   log_helper(logline, written, truncated, level, module, lineno, format, args);
+  va_end(args);
 
-  RamRecorder::record(logline, written);
+  RamRecorder::write(logline, written);
 
   if (truncated)
   {
     char buf[128];
     int len = snprintf(buf, 128, "Previous log was truncated by %d characters\n", truncated);
-    RemRecorder::write(buf, len);
+    RamRecorder::write(buf, len);
   }
 }
 
-void RamRecorder::write(const char* buffer, int length)
+void RamRecorder::write(const char* buffer, size_t length)
 {
   char* end = ram_buffer + RAM_BUFFER_SIZE;
 
@@ -301,7 +306,7 @@ void RamRecorder::write(const char* buffer, int length)
   }
 }
 
-void RamRecorder::dump(std::string& output_dir)
+void RamRecorder::dump(const std::string& output_dir)
 {
   std::string ram_file_name = output_dir + "/ramtrace." + std::to_string(time(NULL)) + ".txt";
 
@@ -327,10 +332,12 @@ void RamRecorder::dump(std::string& output_dir)
       const char* end = ram_buffer + RAM_BUFFER_SIZE;
       fwrite(ram_buffer_start,
              sizeof(char),
-             end - ram_buffer_start);
+             end - ram_buffer_start,
+             file);
       fwrite(ram_buffer,
              sizeof(char),
-             ram_buffer_end - ram_buffer);
+             ram_buffer_end - ram_buffer,
+             file);
     }
 
     fprintf(file, "==========\n");

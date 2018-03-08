@@ -70,16 +70,11 @@ namespace Log
 
 namespace RamRecorder
 {
-  bool record_everything = false;
-
-  void recordEverything()
-  {
-    record_everything = true;
-  }
-
+  extern bool record_everything;
+  void recordEverything();
   void record(int level, const char* module, int lineno, const char* format, ...);
-  void write(const char* buffer, int length);
-  void dump(std::string output_dir);
+  void write(const char* buffer, size_t length);
+  void dump(const std::string& output_dir);
 }
 
 #endif
