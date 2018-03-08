@@ -75,6 +75,7 @@ static void log_helper(char* logline,
                 int level,
                 const char *module,
                 int line_number,
+                const char* context,
                 const char *fmt,
                 va_list args)
 {
@@ -95,11 +96,25 @@ static void log_helper(char* logline,
 
     if (line_number)
     {
-      written += snprintf(logline + written, bytes_available, "%s:%d: ", module, line_number);
+      if (context)
+      {
+        written += snprintf(logline + written, bytes_available, "%s:%d:%s: ", module, line_number, context);
+      }
+      else
+      {
+        written += snprintf(logline + written, bytes_available, "%s:%d: ", module, line_number);
+      }
     }
     else
     {
-      written += snprintf(logline + written, bytes_available, "%s: ", module);
+      if (context)
+      {
+        written += snprintf(logline + written, bytes_available, "%s:%s: ", module, context);
+      }
+      else
+      {
+        written += snprintf(logline + written, bytes_available, "%s: ", module);
+      }
     }
   }
 
@@ -145,7 +160,7 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   int written;
   int truncated;
 
-  log_helper(logline, written, truncated, level, module, line_number, fmt, args);
+  log_helper(logline, written, truncated, level, module, line_number, nullptr, fmt, args);
 
   // Add a null termination.
   logline[written+1] = '\0';
@@ -224,17 +239,14 @@ void RamRecorder::recordEverything()
   RamRecorder::record_everything = true;
 }
 
-void RamRecorder::record(int level, const char* module, int lineno, const char* format, ...)
+static void _record(int level, const char* module, int lineno, const char* context, const char* format, va_list args)
 {
   int written;
   int truncated;
   char logline[MAX_LOGLINE];
 
   // Fill out the log line
-  va_list args;
-  va_start(args, format);
-  log_helper(logline, written, truncated, level, module, lineno, format, args);
-  va_end(args);
+  log_helper(logline, written, truncated, level, module, lineno, context, format, args);
 
   RamRecorder::write(logline, written);
 
@@ -246,7 +258,23 @@ void RamRecorder::record(int level, const char* module, int lineno, const char* 
   }
 }
 
-void RamRecorder::write(const char* buffer, size_t length)
+void RamRecorder::record(int level, const char* module, int lineno, const char* format, ...)
+{
+  va_list args;
+  va_start(args, format);
+  _record(level, module, lineno, nullptr, format, args);
+  va_end(args);
+}
+
+void RamRecorder::record_with_context(int level, const char* module, int lineno, char* context, const char* format, ...)
+{
+  va_list args;
+  va_start(args, format);
+  _record(level, module, lineno, context, format, args);
+  va_end(args);
+}
+
+void RamRecorder::write(const char* message, size_t length)
 {
   char* end = ram_buffer + RAM_BUFFER_SIZE;
 

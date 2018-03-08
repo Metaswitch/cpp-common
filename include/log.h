@@ -73,6 +73,7 @@ namespace RamRecorder
   extern bool record_everything;
   void recordEverything();
   void record(int level, const char* module, int lineno, const char* format, ...);
+  void record_with_context(int level, const char* module, int lineno, char* context, const char* format, ...);
   void write(const char* buffer, size_t length);
   void dump(const std::string& output_dir);
 }
