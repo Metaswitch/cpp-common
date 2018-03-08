@@ -228,11 +228,15 @@ void Log::commit()
 // 20 MB RAM Bufffer
 #define RAM_BUFFER_SIZE 20971520
 
-static char ram_buffer[RAM_BUFFER_SIZE];
-static char* ram_buffer_start = ram_buffer;
-static char* ram_buffer_end = ram_buffer;
+namespace RamRecorder
+{
+  static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
-bool RamRecorder::record_everything = false;
+  static char buffer[RAM_BUFFER_SIZE];
+  static char* buffer_start = buffer;
+  static char* buffer_end = buffer;
+  bool record_everything = false;
+}
 
 void RamRecorder::recordEverything()
 {
@@ -276,97 +280,104 @@ void RamRecorder::record_with_context(int level, const char* module, int lineno,
 
 void RamRecorder::write(const char* message, size_t length)
 {
-  char* end = ram_buffer + RAM_BUFFER_SIZE;
+  pthread_mutex_lock(&RamRecorder::lock);
+  const char* end = buffer + RAM_BUFFER_SIZE;
 
   while (length > 0)
   {
-    size_t left = end - ram_buffer_end;
+    size_t left = end - buffer_end;
     size_t write = std::min(length, left);
 
     // Write until the end of the buffer
-    memcpy(ram_buffer_end, buffer, write);
+    memcpy(buffer_end, message, write);
 
     // We've got less to write now
     length -= write;
 
-    // We've also got less in the buffer to write
-    buffer += write;
+    // We've also got less in the message buffer to write
+    message += write;
 
     if (write == left)
     {
       // We've reached the end of the buffer.
 
       // Reset the end of the buffer to cycle round
-      char* new_ram_buffer_end = ram_buffer;
+      char* new_buffer_end = buffer;
 
-      if (ram_buffer_end < ram_buffer_start)
+      if (buffer_end < buffer_start)
       {
         // The end has caught back up with the start
-        ram_buffer_start = ram_buffer + 1;
+        buffer_start = buffer + 1;
       }
 
-      ram_buffer_end = new_ram_buffer_end;
+      buffer_end = new_buffer_end;
     }
     else
     {
       // There's still some room left. Just move the pointer along
-      char* new_ram_buffer_end = ram_buffer_end + write;
+      char* new_buffer_end = buffer_end + write;
 
-      if (ram_buffer_end < ram_buffer_start)
+      if (buffer_end < buffer_start)
       {
         // The end has cycled round and is catching up with the start
 
-        if (new_ram_buffer_end >= ram_buffer_start)
+        if (new_buffer_end >= buffer_start)
         {
           // It's caught up with the start. Move the start on
-          ram_buffer_start = new_ram_buffer_end + 1;
+          buffer_start = new_buffer_end + 1;
 
-          if (ram_buffer_start >= end)
+          if (buffer_start >= end)
           {
             // The start's got to the end. Move it back to the start
-            ram_buffer_start = ram_buffer;
+            buffer_start = buffer;
           }
         }
       }
 
-      ram_buffer_end = new_ram_buffer_end;
+      buffer_end = new_buffer_end;
     }
   }
+
+  pthread_mutex_unlock(&RamRecorder::lock);
 }
 
 void RamRecorder::dump(const std::string& output_dir)
 {
-  std::string ram_file_name = output_dir + "/ramtrace." + std::to_string(time(NULL)) + ".txt";
+  std::string file_name = output_dir + "/ramtrace." + std::to_string(time(NULL)) + ".txt";
 
-  FILE *file = fopen(ram_file_name.c_str(), "w");
+  FILE *file = fopen(file_name.c_str(), "w");
 
   if (file)
   {
     fprintf(file, "RAM BUFFER\n==========\n");
 
-    if (ram_buffer_end == ram_buffer_start)
+    pthread_mutex_lock(&RamRecorder::lock);
+
+    if (buffer_end == buffer_start)
     {
       // No bufffered data
     }
-    else if (ram_buffer_end > ram_buffer_start)
+    else if (buffer_end > buffer_start)
     {
-      fwrite(ram_buffer_start,
+      fwrite(buffer_start,
              sizeof(char),
-             ram_buffer_end - ram_buffer_start,
+             buffer_end - buffer_start,
              file);
     }
     else
     {
-      const char* end = ram_buffer + RAM_BUFFER_SIZE;
-      fwrite(ram_buffer_start,
+      const char* end = buffer + RAM_BUFFER_SIZE;
+      fwrite(buffer_start,
              sizeof(char),
-             end - ram_buffer_start,
+             end - buffer_start,
              file);
-      fwrite(ram_buffer,
+      fwrite(buffer,
              sizeof(char),
-             ram_buffer_end - ram_buffer,
+             buffer_end - buffer,
              file);
     }
+
+    pthread_mutex_unlock(&RamRecorder::lock);
 
     fprintf(file, "==========\n");
   }
