@@ -69,28 +69,17 @@ void Log::write(int level, const char *module, int line_number, const char *fmt,
 
 static void release_lock(void* notused) { pthread_mutex_unlock(&Log::serialization_lock); } // LCOV_EXCL_LINE
 
-void Log::_write(int level, const char *module, int line_number, const char *fmt, va_list args)
+static void log_helper(char* logline,
+                int& written,
+                int& truncated,
+                int level,
+                const char *module,
+                int line_number,
+                const char *fmt,
+                va_list args)
 {
-  if (level > Log::loggingLevel)
-  {
-    return;
-  }
-
-  pthread_mutex_lock(&Log::serialization_lock);
-  if (!Log::logger)
-  {
-    // LCOV_EXCL_START
-    pthread_mutex_unlock(&Log::serialization_lock);
-    return;
-    // LCOV_EXCL_STOP
-  }
-
-  pthread_cleanup_push(release_lock, 0);
-
-  char logline[MAX_LOGLINE];
-
-  int written = 0;
-  int truncated = 0;
+  written = 0;
+  truncated = 0;
 
   pthread_t thread = pthread_self();
 
@@ -128,8 +117,37 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
     written = MAX_LOGLINE - 2;
   }
 
-  // Add a new line and null termination.
+  // Add a new line
   logline[written] = '\n';
+  written++;
+}
+
+
+void Log::_write(int level, const char *module, int line_number, const char *fmt, va_list args)
+{
+  if (level > Log::loggingLevel)
+  {
+    return;
+  }
+
+  pthread_mutex_lock(&Log::serialization_lock);
+  if (!Log::logger)
+  {
+    // LCOV_EXCL_START
+    pthread_mutex_unlock(&Log::serialization_lock);
+    return;
+    // LCOV_EXCL_STOP
+  }
+
+  pthread_cleanup_push(release_lock, 0);
+
+  char logline[MAX_LOGLINE];
+  int written;
+  int truncated;
+
+  log_helper(logline, written, truncated, level, module, line_number, fmt, args);
+
+  // Add a null termination.
   logline[written+1] = '\0';
 
   Log::logger->write(logline);
@@ -139,9 +157,9 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
     snprintf(buf, 128, "Previous log was truncated by %d characters\n", truncated);
     Log::logger->write(buf);
   }
+
   pthread_cleanup_pop(0);
   pthread_mutex_unlock(&Log::serialization_lock);
-
 }
 
 // LCOV_EXCL_START Only used in exceptional signal handlers - not hit in UT
@@ -191,3 +209,136 @@ void Log::commit()
 }
 
 // LCOV_EXCL_STOP
+
+// 20 MB RAM Bufffer
+#define RAM_BUFFER_SIZE 20971520
+
+static char ram_buffer[RAM_BUFFER_SIZE];
+static char* ram_buffer_start = ram_buffer;
+static char* ram_buffer_end = ram_buffer;
+
+void RamRecorder::record(int level, const char* module, int lineno, const char* format, ...)
+{
+  va_list args;
+  va_start(args, format);
+  RamRecorder::write(format, args);
+  va_end(args);
+
+  int written;
+  int truncated;
+  char logline[MAXLOGLINE];
+
+  // Fill out the log line
+  log_helper(logline, written, truncated, level, module, lineno, format, args);
+
+  RamRecorder::record(logline, written);
+
+  if (truncated)
+  {
+    char buf[128];
+    int len = snprintf(buf, 128, "Previous log was truncated by %d characters\n", truncated);
+    RemRecorder::write(buf, len);
+  }
+}
+
+void RamRecorder::write(const char* buffer, int length)
+{
+  char* end = ram_buffer + RAM_BUFFER_SIZE;
+
+  while (length > 0)
+  {
+    size_t left = end - ram_buffer_end;
+    size_t write = std::min(length, left);
+
+    // Write until the end of the buffer
+    memcpy(ram_buffer_end, buffer, write);
+
+    // We've got less to write now
+    length -= write;
+
+    // We've also got less in the buffer to write
+    buffer += write;
+
+    if (write == left)
+    {
+      // We've reached the end of the buffer.
+
+      // Reset the end of the buffer to cycle round
+      char* new_ram_buffer_end = ram_buffer;
+
+      if (ram_buffer_end < ram_buffer_start)
+      {
+        // The end has caught back up with the start
+        ram_buffer_start = ram_buffer + 1;
+      }
+
+      ram_buffer_end = new_ram_buffer_end;
+    }
+    else
+    {
+      // There's still some room left. Just move the pointer along
+      char* new_ram_buffer_end = ram_buffer_end + write;
+
+      if (ram_buffer_end < ram_buffer_start)
+      {
+        // The end has cycled round and is catching up with the start
+
+        if (new_ram_buffer_end >= ram_buffer_start)
+        {
+          // It's caught up with the start. Move the start on
+          ram_buffer_start = new_ram_buffer_end + 1;
+
+          if (ram_buffer_start >= end)
+          {
+            // The start's got to the end. Move it back to the start
+            ram_buffer_start = ram_buffer;
+          }
+        }
+      }
+
+      ram_buffer_end = new_ram_buffer_end;
+    }
+  }
+}
+
+void RamRecorder::dump(std::string& output_dir)
+{
+  std::string ram_file_name = output_dir + "/ramtrace." + std::to_string(time(NULL)) + ".txt";
+
+  FILE *file = fopen(ram_file_name.c_str(), "w");
+
+  if (file)
+  {
+    fprintf(file, "RAM BUFFER\n==========\n");
+
+    if (ram_buffer_end == ram_buffer_start)
+    {
+      // No bufffered data
+    }
+    else if (ram_buffer_end > ram_buffer_start)
+    {
+      fwrite(ram_buffer_start,
+             sizeof(char),
+             ram_buffer_end - ram_buffer_start,
+             file);
+    }
+    else
+    {
+      const char* end = ram_buffer + RAM_BUFFER_SIZE;
+      fwrite(ram_buffer_start,
+             sizeof(char),
+             end - ram_buffer_start);
+      fwrite(ram_buffer,
+             sizeof(char),
+             ram_buffer_end - ram_buffer);
+    }
+
+    fprintf(file, "==========\n");
+  }
+  else
+  {
+    printf("Failed to open file to dump RAM buffer!");
+  }
+
+  fclose(file);
+}
