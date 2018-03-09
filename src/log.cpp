@@ -243,7 +243,7 @@ void RamRecorder::recordEverything()
   RamRecorder::record_everything = true;
 }
 
-static void _record(int level, const char* module, int lineno, const char* context, const char* format, va_list args)
+void RamRecorder::_record(int level, const char* module, int lineno, const char* context, const char* format, va_list args)
 {
   int written;
   int truncated;
