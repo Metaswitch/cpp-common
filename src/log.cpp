@@ -257,7 +257,7 @@ void RamRecorder::_record(int level, const char* module, int lineno, const char*
   if (truncated)
   {
     char buf[128];
-    int len = snprintf(buf, 128, "Previous log was truncated by %d characters\n", truncated);
+    int len = snprintf(buf, 128, "Earlier log was truncated by %d characters\n", truncated);
     RamRecorder::write(buf, len);
   }
 }
@@ -356,6 +356,7 @@ void RamRecorder::dump(const std::string& output_dir)
     if (buffer_end == buffer_start)
     {
       // No bufffered data
+      fprintf(file, "No recorded logs");
     }
     else if (buffer_end > buffer_start)
     {
