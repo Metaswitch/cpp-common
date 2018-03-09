@@ -163,7 +163,7 @@ void Log::_write(int level, const char *module, int line_number, const char *fmt
   log_helper(logline, written, truncated, level, module, line_number, nullptr, fmt, args);
 
   // Add a null termination.
-  logline[written+1] = '\0';
+  logline[written] = '\0';
 
   Log::logger->write(logline);
   if (truncated > 0)
