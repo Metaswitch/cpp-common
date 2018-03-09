@@ -21,16 +21,16 @@ RealmManager::RealmManager(Diameter::Stack* stack,
                            int max_peers,
                            DiameterResolver* resolver,
                            Alarm* alarm,
-                           const PDLog* ALARM_CLEAR_LOG,
-                           const PDLog1<const char*>* ALARM_ERROR_LOG) :
+                           const PDLog& peer_comm_restored_log,
+                           const PDLog1<const char*>& peer_comm_error_log) :
                            _stack(stack),
                            _realm(realm),
                            _host(host),
                            _max_peers(max_peers),
                            _resolver(resolver),
                            _peer_connection_alarm(alarm),
-                           _ALARM_CLEAR_LOG(ALARM_CLEAR_LOG),
-                           _ALARM_ERROR_LOG(ALARM_ERROR_LOG),
+                           _peer_comm_restored_log(peer_comm_restored_log),
+                           _peer_comm_error_log(peer_comm_error_log),
                            _terminating(false)
 {
   pthread_mutex_init(&_main_thread_lock, NULL);
@@ -83,33 +83,67 @@ std::string RealmManager::create_failed_peers_string()
 {
   std::string failed_peers_string = "";
   std::string sep = "";
-  for (std::pair<AddrInfo, const unsigned long> failed_peer : _failed_peers)
+
+  for (std::pair<AddrInfo, unsigned long> failed_peer : _failed_peers)
   {
     failed_peers_string += sep + Utils::ip_addr_to_arpa(failed_peer.first.address);
     sep = ", ";
   }
+
   return failed_peers_string;
 }
 
-bool RealmManager::add_to_failed_peers(Diameter::Peer* peer)
+// This function tries to add a peer to _failed_peers. Returns a bool
+// indicating whether the peer was successfully added (i.e. whether the peer
+// wasn't failed before)
+bool RealmManager::try_add_to_failed_peers(Diameter::Peer* peer)
 {
-  // map::insert returns true if inserted, false otherwise
-  return _failed_peers.insert(std::pair<AddrInfo, const unsigned long>
-                              (peer->addr_info(),
-                              Utils::current_time_ms())).second; 
+  std::map<AddrInfo, unsigned long>::iterator it;
+  it = _failed_peers.find(peer->addr_info());
+
+  if (it == _failed_peers.end())
+  {
+    // peer wansn't failed before so add it to _failed_peers
+    _failed_peers.insert(std::pair<AddrInfo, unsigned long>(
+      peer->addr_info(),
+      Utils::current_time_ms()));
+    return true;
+  }
+  else
+  {
+    // peer was already failed, update the timestamp
+    it->second = Utils::current_time_ms();
+    return false;
+  }
 }
 
-bool RealmManager::remove_from_failed_peers(Diameter::Peer* peer)
+// This function tries to remove a peer from _failed_peers. Returns a bool
+// indicating whether the peer is successfully removed (i.e. whether the peer
+// was failed already)
+bool RealmManager::try_remove_from_failed_peers(Diameter::Peer* peer)
 {
-  // map::erase returns the number of elements erased
-  return (bool)_failed_peers.erase(peer->addr_info());
+  std::map<AddrInfo, unsigned long>::iterator it;
+  it = _failed_peers.find(peer->addr_info());
+
+  if (it == _failed_peers.end())
+  {
+    // peer wasn't failed before so nothing to remove
+    return false;
+  }
+  else
+  {
+    // peer was failed so remove it
+    _failed_peers.erase(it);
+    return true;
+  }
 }
 
 void RealmManager::remove_old_failed_peers(unsigned long now_ms)
 {
   now_ms = now_ms ? now_ms : Utils::current_time_ms();
-  for (std::map<AddrInfo, const unsigned long>::iterator ii = _failed_peers.begin();
-                                                         ii != _failed_peers.end();)
+
+  for (std::map<AddrInfo, unsigned long>::iterator ii = _failed_peers.begin();
+                                                   ii != _failed_peers.end();)
   {
     if (ii->second + FAILED_PEERS_TIMEOUT_MS <= now_ms)
     {
@@ -161,14 +195,14 @@ void RealmManager::monitor_connections(const bool& failed_peers_changed)
       if (clear_alarm)
       {
         _peer_connection_alarm->clear();
-        _ALARM_CLEAR_LOG->log();
+        _peer_comm_restored_log.log();
       }
       else if (failed_peers_changed)
       {
         // We either failed to connect to a new peer or we successfully connected
         // to a previously uncontactable peer. Make an ENT log updating the ip
         // addresses of the uncontactable peers.
-        _ALARM_ERROR_LOG->log(create_failed_peers_string().c_str());
+        _peer_comm_error_log.log(create_failed_peers_string().c_str());
       }
     }
     else
@@ -177,7 +211,7 @@ void RealmManager::monitor_connections(const bool& failed_peers_changed)
       if (!clear_alarm)
       {
         _peer_connection_alarm->set();
-        _ALARM_ERROR_LOG->log(create_failed_peers_string().c_str());
+        _peer_comm_error_log.log(create_failed_peers_string().c_str());
       }
     }
   }
@@ -203,7 +237,7 @@ void RealmManager::peer_connection_cb(bool connection_success,
                  realm.c_str());
         pthread_rwlock_unlock(&_peers_lock);
         pthread_rwlock_wrlock(&_peers_lock);
-        bool was_already_failed = remove_from_failed_peers(peer);
+        bool was_already_failed = try_remove_from_failed_peers(peer);
         peer->set_connected();
 
         monitor_connections(was_already_failed);
@@ -219,7 +253,7 @@ void RealmManager::peer_connection_cb(bool connection_success,
         _resolver->blacklist(peer->addr_info());
         pthread_rwlock_unlock(&_peers_lock);
         pthread_rwlock_wrlock(&_peers_lock);
-        bool wasnt_already_failed = add_to_failed_peers(peer);
+        bool wasnt_already_failed = try_add_to_failed_peers(peer);
         delete peer;
         _peers.erase(ii);
 
@@ -235,7 +269,7 @@ void RealmManager::peer_connection_cb(bool connection_success,
 
       pthread_rwlock_unlock(&_peers_lock);
       pthread_rwlock_wrlock(&_peers_lock);
-      bool wasnt_already_failed = add_to_failed_peers(peer);
+      bool wasnt_already_failed = try_add_to_failed_peers(peer);
       delete peer;
       _peers.erase(ii);
 

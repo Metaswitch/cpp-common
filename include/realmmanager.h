@@ -27,8 +27,8 @@ public:
                int max_peers,
                DiameterResolver* resolver,
                Alarm* alarm,
-               const PDLog* ALARM_CLEAR_LOG,
-               const PDLog1<const char*>* ALARM_ERROR_LOG);
+               const PDLog& peer_comm_restored_log,
+               const PDLog1<const char*>& peer_comm_error_log);
   virtual ~RealmManager();
 
   void start();
@@ -55,8 +55,8 @@ private:
   
   // Helper functions that modify the _failed_peers map. Both return true if
   // modified, false otherwise.
-  bool add_to_failed_peers(Diameter::Peer* peer);
-  bool remove_from_failed_peers(Diameter::Peer* peer);
+  bool try_add_to_failed_peers(Diameter::Peer* peer);
+  bool try_remove_from_failed_peers(Diameter::Peer* peer);
 
   void remove_old_failed_peers(unsigned long now_ms = 0);
 
@@ -82,9 +82,9 @@ private:
   DiameterResolver* _resolver;
   Alarm* _peer_connection_alarm;
   std::map<std::string, Diameter::Peer*> _peers;
-  std::map<AddrInfo, const unsigned long> _failed_peers;
-  const PDLog* _ALARM_CLEAR_LOG;
-  const PDLog1<const char*>* _ALARM_ERROR_LOG;
+  std::map<AddrInfo, unsigned long> _failed_peers;
+  const PDLog& _peer_comm_restored_log;
+  const PDLog1<const char*>& _peer_comm_error_log;
   volatile bool _terminating;
 };
 
