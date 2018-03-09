@@ -15,6 +15,7 @@
 #include <string.h>
 #include <pthread.h>
 #include <algorithm>
+#include <time.h>
 #include "log.h"
 
 const char* log_level[] = {"Error", "Warning", "Status", "Info", "Verbose", "Debug"};
@@ -247,12 +248,26 @@ void RamRecorder::_record(int level, const char* module, int lineno, const char*
 {
   int written;
   int truncated;
-  char logline[MAX_LOGLINE];
 
-  // Fill out the log line
-  log_helper(logline, written, truncated, level, module, lineno, context, format, args);
+  {
+    char timestamp[100];
+    timestamp_t ts;
+    struct timespec timespec;
+    clock_gettime(CLOCK_REALTIME, &timespec);
+    Logger::get_timestamp(ts, timespec);
+    Logger::format_timestamp(ts, timestamp, sizeof(timestamp));
+    RamRecorder::write(timestamp, strlen(timestamp));
+    RamRecorder::write(" ", 1);
+  }
 
-  RamRecorder::write(logline, written);
+  {
+    char logline[MAX_LOGLINE];
+
+    // Fill out the log line
+    log_helper(logline, written, truncated, level, module, lineno, context, format, args);
+
+    RamRecorder::write(logline, written);
+  }
 
   if (truncated)
   {

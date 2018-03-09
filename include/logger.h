@@ -19,6 +19,19 @@
 #include <pthread.h>
 #include <atomic>
 
+/// Encodes the time as needed by the logger.
+typedef struct
+{
+  int year;
+  int mon;
+  int mday;
+  int hour;
+  int min;
+  int sec;
+  int msec;
+  int yday;
+} timestamp_t;
+
 class Logger
 {
 public:
@@ -53,27 +66,16 @@ public:
   // threads are running - generally from a signal handler.
   virtual void backtrace_advanced();
 
+  static void get_timestamp(timestamp_t& ts, struct timespec& timespec);
+  static void format_timestamp(const timestamp_t& ts, char* buf, size_t len);
+
 protected:
   virtual void gettime_monotonic(struct timespec* ts);
   virtual void gettime(struct timespec* ts);
 
-private:
-  /// Encodes the time as needed by the logger.
-  typedef struct
-  {
-    int year;
-    int mon;
-    int mday;
-    int hour;
-    int min;
-    int sec;
-    int msec;
-    int yday;
-  } timestamp_t;
-
   void get_timestamp(timestamp_t& ts);
+private:
   void write_log_file(const char* data, const timestamp_t& ts);
-  void format_timestamp(const timestamp_t& ts, char* buf, size_t len);
   void cycle_log_file(const timestamp_t& ts);
 
   // Two methods to use with pthread_cleanup_push to release the lock if the logging thread is
