@@ -293,6 +293,15 @@ void RamRecorder::record_with_context(int level, const char* module, int lineno,
   va_end(args);
 }
 
+void RamRecorder::reset()
+{
+  RamRecorder::record_everything = false;
+  pthread_mutex_lock(&RamRecorder::lock);
+  buffer_end = buffer;
+  buffer_start = buffer;
+  pthread_mutex_unlock(&RamRecorder::lock);
+}
+
 void RamRecorder::write(const char* message, size_t length)
 {
   pthread_mutex_lock(&RamRecorder::lock);
