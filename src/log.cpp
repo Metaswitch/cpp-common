@@ -382,7 +382,7 @@ void RamRecorder::dump(const std::string& output_dir)
     if (buffer_end == buffer_start)
     {
       // No bufffered data
-      fprintf(file, "No recorded logs");
+      fprintf(file, "No recorded logs\n");
     }
     else if (buffer_end > buffer_start)
     {
