@@ -407,11 +407,11 @@ void RamRecorder::dump(const std::string& output_dir)
     pthread_mutex_unlock(&RamRecorder::lock);
 
     fprintf(file, "==========\n");
+
+    fclose(file);
   }
   else
   {
-    printf("Failed to open file to dump RAM buffer!");
+    TRC_ERROR("Failed to open file to dump RAM buffer!\n");
   }
-
-  fclose(file);
 }
