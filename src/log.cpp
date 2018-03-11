@@ -122,12 +122,12 @@ static void log_helper(char* logline,
   // snprintf and vsnprintf return the bytes that would have been
   // written if their second argument was large enough, so we need to
   // reduce the size of written to compensate if it is too large.
-  written = std::min(written, MAX_LOGLINE - 2);
+  written = std::min(written, MAX_LOGLINE - 1);
 
-  bytes_available = MAX_LOGLINE - written - 2;
+  bytes_available = MAX_LOGLINE - written - 1;
   written += vsnprintf(logline + written, bytes_available, fmt, args);
 
-  if (written > (MAX_LOGLINE - 2))
+  if (written > (MAX_LOGLINE - 1))
   {
     truncated = written - (MAX_LOGLINE - 2);
     written = MAX_LOGLINE - 2;
