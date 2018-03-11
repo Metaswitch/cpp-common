@@ -328,9 +328,11 @@ void RamRecorder::write(const char* message, size_t length)
       // Reset the end of the buffer to cycle round
       char* new_buffer_end = buffer;
 
-      if (buffer_end < buffer_start)
+      if ((buffer_end < buffer_start) ||
+          (buffer_start == new_buffer_end))
       {
-        // The end has caught back up with the start
+        // The end has caught back up with the start,
+        // or is about to
         buffer_start = buffer + 1;
       }
 
