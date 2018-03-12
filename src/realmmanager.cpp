@@ -20,7 +20,7 @@ RealmManager::RealmManager(Diameter::Stack* stack,
                            std::string host,
                            int max_peers,
                            DiameterResolver* resolver,
-                           Alarm* alarm,
+                           Alarm& alarm,
                            const PDLog& peer_comm_restored_log,
                            const PDLog1<const char*>& peer_comm_error_log) :
                            _stack(stack),
@@ -167,45 +167,42 @@ void RealmManager::remove_old_failed_peers()
 // thus helping us diagnose which peers we failed to connect to.
 void RealmManager::monitor_connections(const bool& failed_peers_changed)
 {
-  if (_peer_connection_alarm)
+  // First find the number of connected peers.
+  int num_connected_peers = 0;
+  for (std::pair<std::string, Diameter::Peer*> peer : _peers)
   {
-    // First find the number of connected peers.
-    int num_connected_peers = 0;
-    for (std::pair<std::string, Diameter::Peer*> peer : _peers)
+    if ((peer.second)->connected())
     {
-      if ((peer.second)->connected())
-      {
-        num_connected_peers++;
-      }
+      num_connected_peers++;
     }
+  }
 
-    const bool clear_condition = (num_connected_peers >= _max_peers) ||
-                                 _failed_peers.empty();
+  const bool clear_condition = (num_connected_peers >= _max_peers) ||
+                                _failed_peers.empty();
 
-    if (_peer_connection_alarm->get_alarm_state() == AlarmState::ALARMED)
+  if (_peer_connection_alarm.get_alarm_state() == AlarmState::ALARMED)
+  {
+    // Alarm is raised so consider clearing it
+    if (clear_condition)
     {
-      // Alarm is raised so consider clearing it
-      if (clear_condition)
-      {
-        _peer_connection_alarm->clear();
-        _peer_comm_restored_log.log();
-      }
-      else if (failed_peers_changed)
-      {
-        // We either failed to connect to a new peer or we successfully connected
-        // to a previously uncontactable peer. Make an ENT log updating the ip
-        // addresses of the uncontactable peers.
-        _peer_comm_error_log.log(create_failed_peers_string().c_str());
-      }
+      _peer_connection_alarm.clear();
+      _peer_comm_restored_log.log();
     }
-    else
+    else if (failed_peers_changed)
     {
-      // Alarm is not raised so consider raising it
-      if (!clear_condition)
-      {
-        _peer_connection_alarm->set();
-        _peer_comm_error_log.log(create_failed_peers_string().c_str());
-      }
+      // We either failed to connect to a new peer or we successfully connected
+      // to a previously uncontactable peer. Make an ENT log updating the ip
+      // addresses of the uncontactable peers.
+      _peer_comm_error_log.log(create_failed_peers_string().c_str());
+    }
+  }
+  else
+  {
+    // Alarm is not raised so consider raising it
+    if (!clear_condition)
+    {
+      _peer_connection_alarm.set();
+      _peer_comm_error_log.log(create_failed_peers_string().c_str());
     }
   }
 }

@@ -26,7 +26,7 @@ public:
                std::string host,
                int max_peers,
                DiameterResolver* resolver,
-               Alarm* alarm,
+               Alarm& alarm,
                const PDLog& peer_comm_restored_log,
                const PDLog1<const char*>& peer_comm_error_log);
   virtual ~RealmManager();
@@ -80,7 +80,7 @@ private:
   pthread_t _thread;
   pthread_cond_t _cond;
   DiameterResolver* _resolver;
-  Alarm* _peer_connection_alarm;
+  Alarm& _peer_connection_alarm;
   std::map<std::string, Diameter::Peer*> _peers;
   std::map<AddrInfo, unsigned long> _failed_peers;
   const PDLog& _peer_comm_restored_log;
