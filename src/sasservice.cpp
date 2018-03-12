@@ -16,15 +16,27 @@
 #include <fstream>
 #include <stdlib.h>
 
-#include "sas.h"
+#include "sasevent.h"
 #include "log.h"
 #include "sasservice.h"
+#include "saslogger.h"
+#include "namespace_hop.h"
 
-SasService::SasService(std::string configuration) :
+SasService::SasService(std::string system_name, std::string system_type, bool sas_signaling_if, std::string configuration) :
   _configuration(configuration),
-  _updater(NULL)
+  _sas_servers("[]"),
+  _single_sas_server("0.0.0.0")
 {
   extract_config();
+
+  // Having read the sas.json config, initialise the connection to SAS
+  SAS::init(system_name,
+            system_type,
+            SASEvent::CURRENT_RESOURCE_BUNDLE,
+            get_single_sas_server(),
+            sas_write,
+            sas_signaling_if ? create_connection_in_signaling_namespace
+                             : create_connection_in_management_namespace);
 }
 
 void SasService::extract_config()
@@ -68,7 +80,6 @@ void SasService::extract_config()
 
   try
   {
-
     JSON_ASSERT_CONTAINS(doc, "sas_servers");
     JSON_ASSERT_ARRAY(doc["sas_servers"]);
     rapidjson::Value& sas_servers = doc["sas_servers"];
@@ -100,7 +111,6 @@ void SasService::extract_config()
 
 SasService::~SasService()
 {
-  // Destroy the updater (if it was created).
-  delete _updater;
-  _updater = NULL;
+  // Terminate the initiated SAS connection
+  SAS::term();
 }

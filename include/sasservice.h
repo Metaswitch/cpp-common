@@ -14,27 +14,23 @@
 
 #include <map>
 #include <string>
-
 #include <functional>
-#include "updater.h"
-#include "sas.h"
+
 
 class SasService
 {
 public:
-  SasService(std::string configuration = "/etc/clearwater/sas.json");
+  SasService(std::string system_name, std::string system_type, bool sas_signaling_if, std::string configuration = "/etc/clearwater/sas.json");
   ~SasService();
-
-  void reload_config();
-  void extract_config();
 
   std::string get_single_sas_server() {return _single_sas_server;};
   std::string get_sas_servers() {return _sas_servers;};
 private:
+  void extract_config();
+
   std::string _configuration;
-  std::string _single_sas_server = "0.0.0.0";
-  std::string _sas_servers = "[]";
-  Updater<void, SasService>* _updater;
+  std::string _sas_servers;
+  std::string _single_sas_server;
 };
 
 #endif
