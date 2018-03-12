@@ -93,17 +93,14 @@ std::string RealmManager::create_failed_peers_string()
   return failed_peers_string;
 }
 
-// This function tries to add a peer to _failed_peers. Returns a bool
-// indicating whether the peer was successfully added (i.e. whether the peer
-// wasn't failed before)
-bool RealmManager::try_add_to_failed_peers(Diameter::Peer* peer)
+// This function adds a new peer to the _failed_peers map or, if the peer is
+// already failed, updates the peer in the map. Returns false if the peer was
+// in the map already, otherwise returns true.
+bool RealmManager::add_to_failed_peers(Diameter::Peer* peer)
 {
-  std::map<AddrInfo, unsigned long>::iterator it;
-  it = _failed_peers.find(peer->addr_info());
-
-  if (it == _failed_peers.end())
+  if (_failed_peers.find(peer->addr_info()) == _failed_peers.end())
   {
-    // peer wansn't failed before so add it to _failed_peers
+    // Peer wansn't failed before so add it to _failed_peers
     _failed_peers.insert(std::pair<AddrInfo, unsigned long>(
       peer->addr_info(),
       Utils::current_time_ms()));
@@ -111,41 +108,37 @@ bool RealmManager::try_add_to_failed_peers(Diameter::Peer* peer)
   }
   else
   {
-    // peer was already failed, update the timestamp
-    it->second = Utils::current_time_ms();
+    // Peer was already failed, update the timestamp
+    _failed_peers.find(peer->addr_info())->second = Utils::current_time_ms();
     return false;
   }
 }
 
-// This function tries to remove a peer from _failed_peers. Returns a bool
-// indicating whether the peer is successfully removed (i.e. whether the peer
-// was failed already)
-bool RealmManager::try_remove_from_failed_peers(Diameter::Peer* peer)
+// This function ensures that the peer is not in _failed_peers map, removing
+// it if necessary. It returns whether the peer was in the map at the start.
+bool RealmManager::remove_from_failed_peers(Diameter::Peer* peer)
 {
-  std::map<AddrInfo, unsigned long>::iterator it;
-  it = _failed_peers.find(peer->addr_info());
-
-  if (it == _failed_peers.end())
+  if (_failed_peers.find(peer->addr_info()) == _failed_peers.end())
   {
-    // peer wasn't failed before so nothing to remove
+    // Peer wasn't failed before so nothing to remove
     return false;
   }
   else
   {
-    // peer was failed so remove it
-    _failed_peers.erase(it);
+    // Peer was failed so remove it
+    _failed_peers.erase(_failed_peers.find(peer->addr_info()));
     return true;
   }
 }
 
-void RealmManager::remove_old_failed_peers(unsigned long now_ms)
+void RealmManager::remove_old_failed_peers()
 {
-  now_ms = now_ms ? now_ms : Utils::current_time_ms();
+  unsigned long current_time = Utils::current_time_ms();
 
   for (std::map<AddrInfo, unsigned long>::iterator ii = _failed_peers.begin();
                                                    ii != _failed_peers.end();)
   {
-    if (ii->second + FAILED_PEERS_TIMEOUT_MS <= now_ms)
+    if (ii->second + FAILED_PEERS_TIMEOUT_MS <= current_time)
     {
       _failed_peers.erase(ii++);
     }
@@ -186,13 +179,13 @@ void RealmManager::monitor_connections(const bool& failed_peers_changed)
       }
     }
 
-    const bool clear_alarm = (num_connected_peers >= _max_peers) ||
-                              _failed_peers.empty();
+    const bool clear_condition = (num_connected_peers >= _max_peers) ||
+                                 _failed_peers.empty();
 
     if (_peer_connection_alarm->get_alarm_state() == AlarmState::ALARMED)
     {
       // Alarm is raised so consider clearing it
-      if (clear_alarm)
+      if (clear_condition)
       {
         _peer_connection_alarm->clear();
         _peer_comm_restored_log.log();
@@ -208,7 +201,7 @@ void RealmManager::monitor_connections(const bool& failed_peers_changed)
     else
     {
       // Alarm is not raised so consider raising it
-      if (!clear_alarm)
+      if (!clear_condition)
       {
         _peer_connection_alarm->set();
         _peer_comm_error_log.log(create_failed_peers_string().c_str());
@@ -237,7 +230,7 @@ void RealmManager::peer_connection_cb(bool connection_success,
                  realm.c_str());
         pthread_rwlock_unlock(&_peers_lock);
         pthread_rwlock_wrlock(&_peers_lock);
-        bool was_already_failed = try_remove_from_failed_peers(peer);
+        bool was_already_failed = remove_from_failed_peers(peer);
         peer->set_connected();
 
         monitor_connections(was_already_failed);
@@ -253,7 +246,7 @@ void RealmManager::peer_connection_cb(bool connection_success,
         _resolver->blacklist(peer->addr_info());
         pthread_rwlock_unlock(&_peers_lock);
         pthread_rwlock_wrlock(&_peers_lock);
-        bool wasnt_already_failed = try_add_to_failed_peers(peer);
+        bool wasnt_already_failed = add_to_failed_peers(peer);
         delete peer;
         _peers.erase(ii);
 
@@ -269,7 +262,7 @@ void RealmManager::peer_connection_cb(bool connection_success,
 
       pthread_rwlock_unlock(&_peers_lock);
       pthread_rwlock_wrlock(&_peers_lock);
-      bool wasnt_already_failed = try_add_to_failed_peers(peer);
+      bool wasnt_already_failed = add_to_failed_peers(peer);
       delete peer;
       _peers.erase(ii);
 

@@ -55,10 +55,10 @@ private:
   
   // Helper functions that modify the _failed_peers map. Both return true if
   // modified, false otherwise.
-  bool try_add_to_failed_peers(Diameter::Peer* peer);
-  bool try_remove_from_failed_peers(Diameter::Peer* peer);
+  bool add_to_failed_peers(Diameter::Peer* peer);
+  bool remove_from_failed_peers(Diameter::Peer* peer);
 
-  void remove_old_failed_peers(unsigned long now_ms = 0);
+  void remove_old_failed_peers();
 
   // We use a read/write lock to read and update the _peers map (defined below).
   // However, we read this map on every single Diameter message, so we want to
