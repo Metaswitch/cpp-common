@@ -121,7 +121,7 @@ std::string SasService::get_single_sas_server()
 
 std::string SasService::get_sas_servers()
 {
-  boost::shared_lock<boost::shared_mutex> read_lock(_single_sas_server_lock);
+  boost::shared_lock<boost::shared_mutex> read_lock(_sas_servers_lock);
   return _sas_servers;
 }
 
