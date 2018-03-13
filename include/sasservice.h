@@ -34,8 +34,7 @@ private:
   std::string _sas_servers;
   std::string _single_sas_server;
 
-  boost::shared_mutex _sas_servers_lock;
-  boost::shared_mutex _single_sas_server_lock;
+  boost::shared_mutex _sas_server_lock;
 };
 
 #endif

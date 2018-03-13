@@ -10,17 +10,18 @@
  */
 
 #include <sys/stat.h>
-#include "rapidjson/document.h"
-#include "rapidjson/error/en.h"
-#include "json_parse_utils.h"
 #include <fstream>
 #include <stdlib.h>
 
+#include "rapidjson/document.h"
+#include "rapidjson/error/en.h"
+
+#include "json_parse_utils.h"
+#include "namespace_hop.h"
 #include "sasevent.h"
 #include "log.h"
-#include "sasservice.h"
 #include "saslogger.h"
-#include "namespace_hop.h"
+#include "sasservice.h"
 
 SasService::SasService(std::string system_name, std::string system_type, bool sas_signaling_if, std::string configuration) :
   _configuration(configuration),
@@ -92,7 +93,7 @@ void SasService::extract_config()
       JSON_ASSERT_CONTAINS(*sas_it, "ip");
       JSON_ASSERT_STRING((*sas_it)["ip"]);
 
-      boost::lock_guard<boost::shared_mutex> write_lock(_single_sas_server_lock);
+      boost::lock_guard<boost::shared_mutex> write_lock(_sas_server_lock);
       _single_sas_server = (*sas_it)["ip"].GetString();
     }
 
@@ -103,8 +104,7 @@ void SasService::extract_config()
 
     TRC_DEBUG("New _sas_servers config:  %s", buffer.GetString());
 
-    boost::lock_guard<boost::shared_mutex> write_lock(_sas_servers_lock);
-
+    boost::lock_guard<boost::shared_mutex> write_lock(_sas_server_lock);
     _sas_servers = buffer.GetString();
   }
   catch (JsonFormatError err)
@@ -115,13 +115,13 @@ void SasService::extract_config()
 
 std::string SasService::get_single_sas_server()
 {
-  boost::shared_lock<boost::shared_mutex> read_lock(_single_sas_server_lock);
+  boost::shared_lock<boost::shared_mutex> read_lock(_sas_server_lock);
   return _single_sas_server;
 }
 
 std::string SasService::get_sas_servers()
 {
-  boost::shared_lock<boost::shared_mutex> read_lock(_sas_servers_lock);
+  boost::shared_lock<boost::shared_mutex> read_lock(_sas_server_lock);
   return _sas_servers;
 }
 
