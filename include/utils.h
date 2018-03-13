@@ -694,6 +694,20 @@ namespace Utils
     IOStartedCallback _io_started_cb;
     IOCompletedCallback _io_completed_cb;
   };
+
+  class IOMonitor
+  {
+  public:
+    static void io_starts(const std::string& reason);
+    static void io_completes(const std::string& reason);
+    static bool thread_doing_overt_io();
+    static bool thread_allows_covert_io();
+    static void set_thread_allows_covert_io(bool allowed);
+
+  private:
+    static thread_local int _overt_io_depth;
+    static thread_local bool _covert_io_allowed;
+  };
 } // namespace Utils
 
 /// Helper macros to make it easier to invoke an I/O hook, and that means the
@@ -709,10 +723,15 @@ namespace Utils
 #define CW_IO_STARTS(REASON)                                                   \
   {                                                                            \
     std::string description = REASON;                                          \
+    Utils::IOMonitor::io_starts(description);                                  \
     Utils::IOHook::io_starts(description);
 
 #define CW_IO_COMPLETES()                                                      \
     Utils::IOHook::io_completes(description);                                  \
+    Utils::IOMonitor::io_completes(description);                               \
   }
+
+#define CW_IO_CALLS_REQUIRED()                                                 \
+  Utils::IOMonitor::set_thread_allows_covert_io(false)
 
 #endif /* UTILS_H_ */

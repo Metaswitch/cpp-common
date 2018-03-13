@@ -127,7 +127,7 @@ std::string Utils::url_unescape(const std::string& s)
   return r;
 }
 
-// The following function quotes strings in SIP headers as described by RFC 3261 
+// The following function quotes strings in SIP headers as described by RFC 3261
 // Section 25.1
 std::string Utils::quote_string(const std::string& s)
 {
@@ -903,3 +903,31 @@ void Utils::IOHook::io_completes(const std::string& reason)
 }
 
 thread_local std::vector<Utils::IOHook*> Utils::IOHook::_hooks = {};
+
+void Utils::IOMonitor::io_starts(const std::string& reason)
+{
+  _overt_io_depth++;
+}
+
+void Utils::IOMonitor::io_completes(const std::string& reason)
+{
+  _overt_io_depth--;
+}
+
+bool Utils::IOMonitor::thread_doing_overt_io()
+{
+  return _overt_io_depth != 0;
+}
+
+bool Utils::IOMonitor::thread_allows_covert_io()
+{
+  return _covert_io_allowed;
+}
+
+void Utils::IOMonitor::set_thread_allows_covert_io(bool allowed)
+{
+  _covert_io_allowed = allowed;
+}
+
+thread_local int Utils::IOMonitor::_overt_io_depth = 0;
+thread_local bool Utils::IOMonitor::_covert_io_allowed = true;
