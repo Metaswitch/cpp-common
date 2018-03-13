@@ -234,8 +234,11 @@ namespace RamRecorder
   static pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 
   static char buffer[RAM_BUFFER_SIZE];
-  static char* buffer_start = buffer;
-  static char* buffer_end = buffer;
+
+  // These pointers represent the start and end of our sliding window across the
+  // buffer.
+  static char* window_start = buffer;
+  static char* window_end = buffer;
   bool record_everything = false;
 }
 
@@ -303,70 +306,73 @@ void RamRecorder::reset()
 {
   RamRecorder::record_everything = false;
   pthread_mutex_lock(&RamRecorder::lock);
-  buffer_end = buffer;
-  buffer_start = buffer;
+  window_end = buffer;
+  window_start = buffer;
   pthread_mutex_unlock(&RamRecorder::lock);
 }
 
 void RamRecorder::write(const char* message, size_t length)
 {
   pthread_mutex_lock(&RamRecorder::lock);
-  const char* end = buffer + RAM_BUFFER_SIZE;
+  const char* buffer_end = buffer + RAM_BUFFER_SIZE;
 
   while (length > 0)
   {
-    size_t left = end - buffer_end;
-    size_t write = std::min(length, left);
+    // How much space is left in the buffer
+    size_t bytes_left_in_buffer = buffer_end - window_end;
+
+    // How much we should write in this iteration
+    size_t bytes_to_write = std::min(length, bytes_left_in_buffer);
 
     // Write until the end of the buffer
-    memcpy(buffer_end, message, write);
+    memcpy(window_end, message, bytes_to_write);
 
     // We've got less to write now
-    length -= write;
+    length -= bytes_to_write;
 
     // We've also got less in the message buffer to write
-    message += write;
+    message += bytes_to_write;
 
-    if (write == left)
+    if (bytes_to_write == bytes_left_in_buffer)
     {
       // We've reached the end of the buffer.
 
       // Reset the end of the buffer to cycle round
-      char* new_buffer_end = buffer;
+      char* new_window_end = buffer;
 
-      if ((buffer_end < buffer_start) ||
-          (buffer_start == new_buffer_end))
+      if ((window_end < window_start) ||
+          (window_start == new_window_end))
       {
         // The end has caught back up with the start,
         // or is about to
-        buffer_start = buffer + 1;
+        window_start = buffer + 1;
       }
 
-      buffer_end = new_buffer_end;
+      window_end = new_window_end;
     }
     else
     {
       // There's still some room left. Just move the pointer along
-      char* new_buffer_end = buffer_end + write;
+      char* new_window_end = window_end + bytes_to_write;
 
-      if (buffer_end < buffer_start)
+      if (window_end < window_start)
       {
-        // The end has cycled round and is catching up with the start
+        // The end of the window has cycled round and is catching up with the start
 
-        if (new_buffer_end >= buffer_start)
+        if (new_window_end >= window_start)
         {
           // It's caught up with the start. Move the start on
-          buffer_start = new_buffer_end + 1;
+          window_start = new_window_end + 1;
 
-          if (buffer_start >= end)
+          if (window_start >= buffer_end)
           {
             // The start's got to the end. Move it back to the start
-            buffer_start = buffer;
+            window_start = buffer;
           }
         }
       }
 
-      buffer_end = new_buffer_end;
+      window_end = new_window_end;
     }
   }
 
@@ -385,28 +391,28 @@ void RamRecorder::dump(const std::string& output_dir)
 
     pthread_mutex_lock(&RamRecorder::lock);
 
-    if (buffer_end == buffer_start)
+    if (window_end == window_start)
     {
       // No bufffered data
       fprintf(file, "No recorded logs\n");
     }
-    else if (buffer_end > buffer_start)
+    else if (window_end > window_start)
     {
-      fwrite(buffer_start,
+      fwrite(window_start,
              sizeof(char),
-             buffer_end - buffer_start,
+             window_end - window_start,
              file);
     }
     else
     {
       const char* end = buffer + RAM_BUFFER_SIZE;
-      fwrite(buffer_start,
+      fwrite(window_start,
              sizeof(char),
-             end - buffer_start,
+             end - window_start,
              file);
       fwrite(buffer,
              sizeof(char),
-             buffer_end - buffer,
+             window_end - buffer,
              file);
     }
 
