@@ -246,27 +246,33 @@ void RamRecorder::recordEverything()
 
 void RamRecorder::_record(int level, const char* module, int lineno, const char* context, const char* format, va_list args)
 {
-  int written;
   int truncated;
 
   {
-    char timestamp[100];
-    timestamp_t ts;
-    struct timespec timespec;
-    clock_gettime(CLOCK_REALTIME, &timespec);
-    Logger::get_timestamp(ts, timespec);
-    Logger::format_timestamp(ts, timestamp, sizeof(timestamp));
-    RamRecorder::write(timestamp, strlen(timestamp));
-    RamRecorder::write(" ", 1);
-  }
+    // Space for the log line, and space for the timestamp
+    char logline[MAX_LOGLINE + 100];
 
-  {
-    char logline[MAX_LOGLINE];
+    // Fill out the timestamp
+    int timestamp_length;
+
+    {
+      timestamp_t ts;
+      struct timespec timespec;
+      clock_gettime(CLOCK_REALTIME, &timespec);
+      Logger::get_timestamp(ts, timespec);
+      Logger::format_timestamp(ts, logline, 100);
+      timestamp_length = strlen(logline);
+
+      logline[timestamp_length] = ' ';
+      timestamp_length += 1;
+    }
 
     // Fill out the log line
-    log_helper(logline, written, truncated, level, module, lineno, context, format, args);
+    int logline_length;
 
-    RamRecorder::write(logline, written);
+    log_helper(logline + timestamp_length, logline_length, truncated, level, module, lineno, context, format, args);
+
+    RamRecorder::write(logline, logline_length + timestamp_length);
   }
 
   if (truncated)
