@@ -138,6 +138,16 @@ extern "C" int poll(struct pollfd *fds, nfds_t nfds, int timeout)
   HANDLE_NON_FD_CALL(poll, fds, nfds, timeout);
 }
 
+extern "C" int __poll_chk(struct pollfd *fds, nfds_t nfds, int timeout, __SIZE_TYPE__ fds_len)
+{
+  HANDLE_NON_FD_CALL(__poll_chk, fds, nfds, timeout, fds_len);
+}
+
+extern "C" int __poll(struct pollfd *fds, nfds_t nfds, int timeout)
+{
+  HANDLE_NON_FD_CALL(__poll, fds, nfds, timeout);
+}
+
 extern "C" int ppoll(struct pollfd *fds, nfds_t nfds,
                      const struct timespec *tmo_p, const sigset_t *sigmask)
 {
