@@ -1303,7 +1303,12 @@ int LazySRVResolveIter::get_from_priority_level(std::vector<AddrInfo> &targets,
                                            _unprobed_gray_target,
                                            "graylisted");
 
+    // This lock must be held to safely call the select_for_probing method of
+    // BaseResolver.
+    pthread_mutex_lock(&(_resolver->_hosts_lock));
     _resolver->select_for_probing(_unprobed_gray_target);
+    pthread_mutex_unlock(&(_resolver->_hosts_lock));
+
     _gray_found = false;
     --num_targets_to_find;
     TRC_DEBUG("Added a graylisted server for probing to targets, now have 1 of %d", num_requested_targets);
