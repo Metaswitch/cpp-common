@@ -797,7 +797,7 @@ public:
     return _dict;
   }
 
-private:
+protected:
   const C* _cfg;
   const Dictionary* _dict;
 };
