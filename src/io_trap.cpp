@@ -9,6 +9,8 @@
  * Metaswitch Networks in a separate written agreement.
  */
 
+// LCOV_EXCL_START
+
 // C header files must be included with C linkage to prevent name mangling.
 extern "C" {
 #include <sys/types.h>
@@ -210,3 +212,5 @@ extern "C" int __poll(struct pollfd *fds, nfds_t nfds, int timeout)
 {
   HANDLE_NON_FD_CALL(__poll, fds, nfds, timeout);
 }
+
+// LCOV_EXCL_STOP
