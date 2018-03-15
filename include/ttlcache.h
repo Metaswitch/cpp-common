@@ -69,7 +69,11 @@ public:
     _expiry_list(),
     _cache()
   {
-    pthread_cond_init(&_cond, NULL);
+    pthread_condattr_t cond_attr;
+    pthread_condattr_init(&cond_attr);
+    pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
+    pthread_cond_init(&_cond, &cond_attr);
+    pthread_condattr_destroy(&cond_attr);
   }
 
   ~TTLCache()
@@ -135,6 +139,8 @@ public:
 
         populate_cache_entry(entry, key, ttl, data_ptr);
         retry_cache_lookup = false;
+
+        pthread_cond_broadcast(&_cond);
       }
       else
       {
