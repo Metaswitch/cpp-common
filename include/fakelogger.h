@@ -45,6 +45,7 @@ BaseTestLogger():
   void setPrinting(bool printing);
 
   void setLoggingLevel(int level);
+  void enableRamRecordEverything();
 
   void setupFromEnvironment();
   void take_over();
@@ -90,7 +91,7 @@ public:
   CapturingTestLogger();
   CapturingTestLogger(int level);
   ~CapturingTestLogger();
-  
+
   void write(const char* line);
   bool contains(const char* fragment);
 

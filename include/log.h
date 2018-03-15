@@ -16,12 +16,28 @@
 #include "logger.h"
 #include <cstdarg>
 
-#define TRC_ERROR(...) if (Log::enabled(Log::ERROR_LEVEL)) Log::write(Log::ERROR_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_WARNING(...) if (Log::enabled(Log::WARNING_LEVEL)) Log::write(Log::WARNING_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_STATUS(...) if (Log::enabled(Log::STATUS_LEVEL)) Log::write(Log::STATUS_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_INFO(...) if (Log::enabled(Log::INFO_LEVEL)) Log::write(Log::INFO_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_VERBOSE(...) if (Log::enabled(Log::VERBOSE_LEVEL)) Log::write(Log::VERBOSE_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_DEBUG(...) if (Log::enabled(Log::DEBUG_LEVEL)) Log::write(Log::DEBUG_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
+// The following macro caches the details of the trace call being made and
+// stores the associated instance it (the "trace ID") in a static variable so
+// that subsequent calls to this trace line can be stored in the RAM trace
+// buffer with maximal efficiency.
+#define TRC_RAMTRACE(...)                                                  \
+do {                                                                       \
+  if (Log::ramRecordEverything) {                                          \
+    static int trc_id = 0;                                                 \
+                                                                           \
+    Log::ramCacheTrcCall(&trc_id,__FILE__,__LINE__,__VA_ARGS__);           \
+    Log::ramTrace(trc_id,__VA_ARGS__);                                     \
+  }                                                                        \
+} while (0)
+
+#define TRC_LOG(level, ...) if (Log::enabled(level)) Log::write(level, __FILE__, __LINE__, __VA_ARGS__)
+
+#define TRC_ERROR(...) do { TRC_RAMTRACE(__VA_ARGS__); TRC_LOG(Log::ERROR_LEVEL, __VA_ARGS__); } while (0)
+#define TRC_WARNING(...) do { TRC_RAMTRACE(__VA_ARGS__); TRC_LOG(Log::WARNING_LEVEL, __VA_ARGS__); } while (0)
+#define TRC_STATUS(...) do { TRC_RAMTRACE(__VA_ARGS__); TRC_LOG(Log::STATUS_LEVEL, __VA_ARGS__); } while (0)
+#define TRC_INFO(...) do { TRC_RAMTRACE(__VA_ARGS__); TRC_LOG(Log::INFO_LEVEL, __VA_ARGS__); } while (0)
+#define TRC_VERBOSE(...) do { TRC_RAMTRACE(__VA_ARGS__); TRC_LOG(Log::VERBOSE_LEVEL, __VA_ARGS__); } while (0)
+#define TRC_DEBUG(...) do { TRC_RAMTRACE(__VA_ARGS__); TRC_LOG(Log::DEBUG_LEVEL, __VA_ARGS__); } while (0)
 #define TRC_BACKTRACE(...) Log::backtrace(__VA_ARGS__)
 #define TRC_BACKTRACE_ADV() Log::backtrace_adv()
 #define TRC_COMMIT() Log::commit()
@@ -36,6 +52,14 @@ namespace Log
   const int DEBUG_LEVEL = 5;
 
   extern int loggingLevel;
+  extern int ramRecordEverything;
+
+  extern pthread_mutex_t trc_ram_trc_cache_lock;
+
+  void ramCacheTrcCall(int *trc_id, const char *module, int lineno, const char*fmt, ...);
+  void ramTrace(int trc_id, const char *fmt, ...);
+  void ramDecode(FILE *output);
+  void dumpRamRecorder(std::string output_dir);
 
   inline bool enabled(int level)
   {
@@ -47,6 +71,7 @@ namespace Log
 #endif
   }
   void setLoggingLevel(int level);
+  void enableRamRecordEverything();
   Logger* setLogger(Logger *log);
   void write(int level, const char *module, int line_number, const char *fmt, ...);
   void _write(int level, const char *module, int line_number, const char *fmt, va_list args);
