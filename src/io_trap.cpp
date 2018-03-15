@@ -23,6 +23,14 @@ extern "C" {
 #include <atomic>
 #include "utils.h"
 
+static void on_library_load() __attribute__((constructor));
+
+void on_library_load() {
+  printf("*** IO trap loaded ***\n");
+  printf("Unsetting LD_PRELOAD environment variable\n");
+  unsetenv("LD_PRELOAD");
+}
+
 static void maybe_abort()
 {
   // Abort if we want to trap unexpected IO, and this IO is unexpected.
