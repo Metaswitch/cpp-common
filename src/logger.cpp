@@ -172,8 +172,13 @@ void Logger::write(const char* data)
 void Logger::get_timestamp(timestamp_t& ts)
 {
   struct timespec timespec;
-  struct tm dt;
   gettime(&timespec);
+  get_timestamp(ts, timespec);
+}
+
+void Logger::get_timestamp(timestamp_t& ts, struct timespec& timespec)
+{
+  struct tm dt;
   gmtime_r(&timespec.tv_sec, &dt);
   ts.year = dt.tm_year;
   ts.mon = dt.tm_mon;

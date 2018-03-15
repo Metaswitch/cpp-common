@@ -694,7 +694,11 @@ void Stack::logger(int fd_log_level, const char* fmt, va_list args)
       log_level = Log::DEBUG_LEVEL;
       break;
   }
+
+  va_list argsb;
+  va_copy(argsb, args);
   Log::_write(log_level, "freeDiameter", 0, fmt, args);
+  RamRecorder::_record(log_level, "freeDiameter", 0, nullptr, fmt, argsb);
 }
 
 void Stack::set_trail_id(struct msg* fd_msg, SAS::TrailId trail)
