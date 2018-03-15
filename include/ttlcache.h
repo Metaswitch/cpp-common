@@ -54,7 +54,6 @@ class TTLCache
   struct Entry
   {
     enum {PENDING, COMPLETE} state;
-    pthread_mutex_t lock;
     ExpiryIterator expiry_i;
     std::shared_ptr<V> data_ptr;
   };
@@ -70,76 +69,95 @@ public:
     _expiry_list(),
     _cache()
   {
+    pthread_cond_init(&_cond, NULL);
   }
 
   ~TTLCache()
   {
     pthread_mutex_destroy(&_lock);
+    pthread_cond_destroy(&_cond);
   }
 
   /// Get or create an entry in the cache.
   std::shared_ptr<V> get(K key, int& ttl, SAS::TrailId trail)
   {
+    bool retry_cache_lookup = true;
+    std::shared_ptr<V> data_ptr = NULL;
+
+    // Take the lock. We need to lock anytime we do anything with cache
+    // entries
     pthread_mutex_lock(&_lock);
 
     // Evict any old entries.
     evict();
 
-    KeyMapIterator i = _cache.find(key);
+    KeyMapIterator kmi = _cache.find(key);
 
-    if (i == _cache.end())
+    // We need to hold the lock if we're looking at cache entries, as otherwise
+    // the evict method could be called which potentially destroys the entry.
+    // However, we can't hold the lock while we're actually getting the DNS
+    // record as this blocks for too long. Instead the logic is:
+    // - Look in the cache. The entry is either:
+    //   - Not present:
+    //     - Create an entry in the cache with the state set to PENDING.
+    //     - Store a shared_ptr to the DNS result. We have to release the lock
+    //       at this stage.
+    //     - We've now got the DNS result. As we'd released the lock we can
+    //       no longer trust the entry we had at the start. Instead, re-get
+    //       the entry from the cache, creating it again if necessary. Set
+    //       the expiry time and the state to COMPLETE.
+    //     - Release the lock
+    //     - Return the shared_ptr
+    //   - Present in state pending:
+    //     - Wait on the lock. This releases the lock, then reclaims it when
+    //       it's next free
+    //     - As we've released the lock we can't look at the entry we had at
+    //       the start. Instead we just start again.
+    //     - There's an issue here where there's only one lock for every cache
+    //       entry. This means that this logic can be repeated many times before
+    //       there's a result
+    //   - Present in state complete:
+    //     - Store off the shared_ptr to the DNS result in the entry
+    //     - Release the lock
+    //     - Return the shared_ptr
+    while (retry_cache_lookup)
     {
-      // The entry is not in the cache, so create a placeholder.
-      TRC_DEBUG("Entry not in cache, so create new entry");
-      Entry& entry = _cache[key];
-      pthread_mutex_init(&entry.lock, NULL);
-      entry.state = Entry::PENDING;
-      entry.expiry_i = _expiry_list.end();
-      pthread_mutex_lock(&entry.lock);
-
-      // Release the global lock and invoke the factory to populate the
-      // cache data.
-      pthread_mutex_unlock(&_lock);
-      entry.data_ptr = _factory->get(key, ttl, trail);
-
-      // Cache data should now be populated, so get the global lock again,
-      // and mark the entry as complete.
-      pthread_mutex_lock(&_lock);
-      entry.state = Entry::COMPLETE;
-
-      // Add the entry to the expiry list.
-      TRC_DEBUG("Adding entry to expiry list, TTL=%d, expiry time = %d", ttl, ttl + time(NULL));
-      entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
-
-      // Unlock the entry, so other threads can read it.
-      pthread_mutex_unlock(&entry.lock);
-
-      pthread_mutex_unlock(&_lock);
-
-      return entry.data_ptr;
-    }
-    else
-    {
-      TRC_DEBUG("Found the entry in the cache");
-      Entry& entry = i->second;
-
-      // It's now safe to release the global lock.
-      pthread_mutex_unlock(&_lock);
-
-      if (entry.state == Entry::PENDING)
+      if (kmi == _cache.end())
       {
-        // This cache entry is still being populated, so release the global
-        // lock and block on the entry's lock.
-        TRC_DEBUG("Cache entry is pending, so wait for the factory to complete");
-        pthread_mutex_lock(&entry.lock);
-        TRC_DEBUG("Entry is complete");
+        TRC_DEBUG("Entry not in cache, so create new entry");
+        Entry& entry = _cache[key];
+        entry.state = Entry::PENDING;
+        entry.expiry_i = _expiry_list.end();
 
-        // The entry should now be complete, so release the lock on the entry.
-        pthread_mutex_unlock(&entry.lock);
+        pthread_mutex_unlock(&_lock);
+        data_ptr = _factory->get(key, ttl, trail);
+        pthread_mutex_lock(&_lock);
+
+        populate_cache_entry(entry, key, ttl, data_ptr);
+        retry_cache_lookup = false;
       }
+      else
+      {
+        TRC_DEBUG("Found the entry in the cache");
+        Entry& entry = kmi->second;
 
-      return entry.data_ptr;
+        if (entry.state == Entry::PENDING)
+        {
+          TRC_DEBUG("Cache entry pending, so wait for the factory to complete");
+          pthread_cond_wait(&_cond, &_lock);
+        }
+        else
+        {
+          TRC_DEBUG("Cache entry is complete, returning now");
+          retry_cache_lookup = false;
+          data_ptr = entry.data_ptr;
+        }
+      }
     }
+
+    pthread_mutex_unlock(&_lock);
+
+    return data_ptr;
   }
 
   /// Check whether an item exists in the cache.
@@ -194,9 +212,11 @@ private:
   void evict()
   {
     time_t now = time(NULL);
+
     while ((!_expiry_list.empty()) && (_expiry_list.begin()->first <= now))
     {
-      TRC_DEBUG("Time now is %d, expiry time of entry at head of expiry list is %d",
+      TRC_DEBUG("Current time is %d, expiry time of the entry at the head of "
+                "the expiry list is %d",
                 now, _expiry_list.begin()->first);
 
       ExpiryIterator i = _expiry_list.begin();
@@ -205,11 +225,9 @@ private:
       if (j != _cache.end())
       {
         // Set the expiry iterator to _expiry_list.end() as we are about to
-        // remove from the expiry list.
+        // remove it from the expiry list.
         Entry& entry = j->second;
         entry.expiry_i = _expiry_list.end();
-
-        pthread_mutex_destroy(&entry.lock);
 
         // Erasing the entry in the cache deletes this instance of the shared
         // pointer. This means new calls of get to the cache will get an
@@ -222,14 +240,45 @@ private:
     }
   }
 
+  // Populate the cache entry with the DNS record. There's a chance that the
+  // record has been deleted, so we might need to recreate the entry in the
+  // cache.
+  void populate_cache_entry(Entry& entry,
+                            K key,
+                            int ttl,
+                            std::shared_ptr<V> data_ptr)
+  {
+    KeyMapIterator kmi = _cache.find(key);
+
+    if (kmi == _cache.end())
+    {
+      entry = _cache[key];
+    }
+    else
+    {
+      entry = kmi->second;
+    }
+
+    entry.state = Entry::COMPLETE;
+
+    // Add the entry to the expiry list.
+    TRC_DEBUG("Adding entry to expiry list, TTL=%d, expiry time = %d",
+              ttl,
+              ttl + time(NULL));
+
+    entry.expiry_i = _expiry_list.insert(std::make_pair(ttl + time(NULL), key));
+    entry.data_ptr = data_ptr;
+  }
+
   /// Factory object used to get cache data.
   CacheFactory<K, V>* _factory;
 
-  /// Lock protecting the global structures in the cache.  This lock must be
-  /// held when accessing the global expiry list and key map structures.  It
-  /// must not be held when calling a factory get() method, but can be held
-  /// when calling an evict() method as these are assumed not to block.
+  /// Lock protecting the global structures in the cache. This lock must be
+  /// held when accessing the global expiry list, key map structures, or cache
+  /// entries. It must not be held when calling a factory get() method, but can
+  /// be held when calling an evict() method as these are assumed not to block.
   pthread_mutex_t _lock;
+  pthread_cond_t _cond;
 
   ExpiryList _expiry_list;
 
