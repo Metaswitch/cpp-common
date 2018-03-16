@@ -158,4 +158,37 @@ static const PDLog CL_DNS_FILE_BAD_ENTRY
   "/usr/share/clearwater/clearwater-config-manager/scripts/upload_dns_json"
 );
 
+static const PDLog CL_SAS_FILE_MISSING
+(
+  PDLogBase::CL_CPP_COMMON_ID + 15,
+  LOG_ERR,
+  "The SAS config file is missing.",
+  "The SAS config file /etc/clearwater/sas.json is missing.",
+  "The SAS config has not been updated.  The last valid configuration will "
+  "continue to be used",
+  "The SAS configuration should be defined in /etc/clearwater/sas.json. Populate this file according to the documentation."
+);
+
+static const PDLog CL_SAS_FILE_EMPTY
+(
+  PDLogBase::CL_CPP_COMMON_ID + 16,
+  LOG_ERR,
+  "The SAS config file is empty.",
+  "The SAS config file /etc/clearwater/sas.json is empty.",
+  "The SAS config has not been updated.  The last valid configuration will "
+  "continue to be used",
+  "The SAS configuration should be defined in /etc/clearwater/sas.json. Populate this file according to the documentation."
+);
+
+static const PDLog CL_SAS_FILE_INVALID
+(
+  PDLogBase::CL_CPP_COMMON_ID + 17,
+  LOG_ERR,
+  "The SAS config file is invalid.",
+  "The SAS config file /etc/clearwater/sas.json is invalid.",
+  "The SAS config has not been updated.  The last valid configuration will "
+  "continue to be used",
+  "The SAS configuration should be defined in /etc/clearwater/sas.json. Populate this file according to the documentation."
+);
+
 #endif
