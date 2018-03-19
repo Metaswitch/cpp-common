@@ -16,12 +16,25 @@
 #include "logger.h"
 #include <cstdarg>
 
-#define TRC_ERROR(...) if (Log::enabled(Log::ERROR_LEVEL)) Log::write(Log::ERROR_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_WARNING(...) if (Log::enabled(Log::WARNING_LEVEL)) Log::write(Log::WARNING_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_STATUS(...) if (Log::enabled(Log::STATUS_LEVEL)) Log::write(Log::STATUS_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_INFO(...) if (Log::enabled(Log::INFO_LEVEL)) Log::write(Log::INFO_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_VERBOSE(...) if (Log::enabled(Log::VERBOSE_LEVEL)) Log::write(Log::VERBOSE_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
-#define TRC_DEBUG(...) if (Log::enabled(Log::DEBUG_LEVEL)) Log::write(Log::DEBUG_LEVEL, __FILE__, __LINE__, __VA_ARGS__)
+#define TRC_RAMTRACE(level, ...) RamRecorder::record(level, __FILE__, __LINE__, ##__VA_ARGS__)
+
+#define TRC_MAYBE_RAMTRACE(...)                                            \
+do {                                                                       \
+  if (RamRecorder::record_everything) {                                    \
+    TRC_RAMTRACE(__VA_ARGS__);                                             \
+  }                                                                        \
+} while (0)
+
+#define TRC_LOG(level, ...) if (Log::enabled(level)) Log::write(level, __FILE__, __LINE__, ##__VA_ARGS__)
+#define TRC_BASE(level, ...) do { TRC_MAYBE_RAMTRACE(level, ##__VA_ARGS__); TRC_LOG(level, ##__VA_ARGS__); } while (0)
+
+#define TRC_ERROR(...) TRC_BASE(Log::ERROR_LEVEL, ##__VA_ARGS__)
+#define TRC_WARNING(...) TRC_BASE(Log::WARNING_LEVEL, ##__VA_ARGS__)
+#define TRC_STATUS(...) TRC_BASE(Log::STATUS_LEVEL, ##__VA_ARGS__)
+#define TRC_INFO(...) TRC_BASE(Log::INFO_LEVEL, ##__VA_ARGS__)
+#define TRC_VERBOSE(...) TRC_BASE(Log::VERBOSE_LEVEL, ##__VA_ARGS__)
+#define TRC_DEBUG(...) TRC_BASE(Log::DEBUG_LEVEL, ##__VA_ARGS__)
+
 #define TRC_BACKTRACE(...) Log::backtrace(__VA_ARGS__)
 #define TRC_BACKTRACE_ADV() Log::backtrace_adv()
 #define TRC_COMMIT() Log::commit()
@@ -53,6 +66,18 @@ namespace Log
   void backtrace(const char* fmt, ...);
   void backtrace_adv();
   void commit();
+}
+
+namespace RamRecorder
+{
+  extern bool record_everything;
+  void recordEverything();
+  void _record(int level, const char* module, int lineno, const char* context, const char* format, va_list args);
+  void record(int level, const char* module, int lineno, const char* format, ...);
+  void record_with_context(int level, const char* module, int lineno, const char* context, const char* format, ...);
+  void reset();
+  void write(const char* buffer, size_t length);
+  void dump(const std::string& output_dir);
 }
 
 #endif

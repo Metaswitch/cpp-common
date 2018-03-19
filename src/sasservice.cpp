@@ -16,12 +16,14 @@
 #include "rapidjson/document.h"
 #include "rapidjson/error/en.h"
 
+#include "cpp_common_pd_definitions.h"
 #include "json_parse_utils.h"
 #include "namespace_hop.h"
 #include "sasevent.h"
 #include "log.h"
 #include "saslogger.h"
 #include "sasservice.h"
+
 
 SasService::SasService(std::string system_name, std::string system_type, bool sas_signaling_if, std::string configuration) :
   _configuration(configuration),
@@ -50,6 +52,7 @@ void SasService::extract_config()
   {
     TRC_STATUS("No SAS configuration (file %s does not exist)",
                _configuration.c_str());
+    CL_SAS_FILE_MISSING.log();
     return;
   }
 
@@ -64,6 +67,7 @@ void SasService::extract_config()
   {
     TRC_ERROR("Failed to read SAS configuration data from %s",
               _configuration.c_str());
+    CL_SAS_FILE_EMPTY.log();
     return;
   }
 
@@ -76,6 +80,7 @@ void SasService::extract_config()
     TRC_ERROR("Failed to read SAS configuration data: %s\nError: %s",
               sas_str.c_str(),
               rapidjson::GetParseError_En(doc.GetParseError()));
+    CL_SAS_FILE_INVALID.log();
     return;
   }
 
@@ -110,6 +115,7 @@ void SasService::extract_config()
   catch (JsonFormatError err)
   {
     TRC_ERROR("Badly formed SAS configuration file");
+    CL_SAS_FILE_INVALID.log();
   }
 }
 
