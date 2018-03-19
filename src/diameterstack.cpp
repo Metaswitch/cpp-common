@@ -260,12 +260,12 @@ void Stack::fd_error_hook_cb(enum fd_hook_type type,
     dest_realm = "unknown";
   };
 
-  TRC_ERROR("Routing error: '%s' for message with "
-            "Command-Code %d, Destination-Host %s and Destination-Realm %s",
-            (char *)other,
-            msg2.command_code(),
-            dest_host.c_str(),
-            dest_realm.c_str());
+  TRC_INFO("Routing error: '%s' for message with "
+           "Command-Code %d, Destination-Host %s and Destination-Realm %s",
+           (char *)other,
+           msg2.command_code(),
+           dest_host.c_str(),
+           dest_realm.c_str());
 
   // Increment routing error stats if they're supported
   if ((_realm_counter != NULL) &&
@@ -694,7 +694,11 @@ void Stack::logger(int fd_log_level, const char* fmt, va_list args)
       log_level = Log::DEBUG_LEVEL;
       break;
   }
+
+  va_list argsb;
+  va_copy(argsb, args);
   Log::_write(log_level, "freeDiameter", 0, fmt, args);
+  RamRecorder::_record(log_level, "freeDiameter", 0, nullptr, fmt, argsb);
 }
 
 void Stack::set_trail_id(struct msg* fd_msg, SAS::TrailId trail)
