@@ -21,8 +21,8 @@ RealmManager::RealmManager(Diameter::Stack* stack,
                            int max_peers,
                            DiameterResolver* resolver,
                            Alarm& alarm,
-                           const PDLog& peer_comm_restored_log,
-                           const PDLog1<const char*>& peer_comm_error_log) :
+                           PDLog peer_comm_restored_log,
+                           PDLog1<const char*> peer_comm_error_log) :
                            _stack(stack),
                            _realm(realm),
                            _host(host),
@@ -79,6 +79,7 @@ void RealmManager::stop()
   _stack->unregister_rt_out_cb("realmmanager");
 }
 
+// This function is only safe to call when holding the _peers_lock.
 std::string RealmManager::create_failed_peers_string()
 {
   std::string failed_peers_string = "";
@@ -96,6 +97,8 @@ std::string RealmManager::create_failed_peers_string()
 // This function adds a new peer to the _failed_peers map or, if the peer is
 // already failed, updates the peer in the map. Returns false if the peer was
 // in the map already, otherwise returns true.
+//
+// This function is only safe to call when holding the _peers_lock.
 bool RealmManager::add_to_failed_peers(Diameter::Peer* peer)
 {
   if (_failed_peers.find(peer->addr_info()) == _failed_peers.end())
@@ -116,6 +119,8 @@ bool RealmManager::add_to_failed_peers(Diameter::Peer* peer)
 
 // This function ensures that the peer is not in _failed_peers map, removing
 // it if necessary. It returns whether the peer was in the map at the start.
+//
+// This function is only safe to call when holding the _peers_lock.
 bool RealmManager::remove_from_failed_peers(Diameter::Peer* peer)
 {
   if (_failed_peers.find(peer->addr_info()) == _failed_peers.end())
@@ -131,6 +136,7 @@ bool RealmManager::remove_from_failed_peers(Diameter::Peer* peer)
   }
 }
 
+// This function is only safe to call when holding the _peers_lock.
 void RealmManager::remove_old_failed_peers()
 {
   unsigned long current_time = Utils::current_time_ms();
