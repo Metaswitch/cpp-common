@@ -72,20 +72,19 @@ public:
     pthread_condattr_t cond_attr;
     pthread_condattr_init(&cond_attr);
     pthread_condattr_setclock(&cond_attr, CLOCK_MONOTONIC);
-    pthread_cond_init(&_cond, &cond_attr);
+    pthread_cond_init(&_result_available_cv, &cond_attr);
     pthread_condattr_destroy(&cond_attr);
   }
 
   ~TTLCache()
   {
     pthread_mutex_destroy(&_lock);
-    pthread_cond_destroy(&_cond);
+    pthread_cond_destroy(&_result_available_cv);
   }
 
   /// Get or create an entry in the cache.
   std::shared_ptr<V> get(K key, int& ttl, SAS::TrailId trail)
   {
-    bool retry_cache_lookup = true;
     std::shared_ptr<V> data_ptr = NULL;
 
     // Take the lock. We need to lock anytime we do anything with cache
@@ -95,8 +94,6 @@ public:
     // Evict any old entries.
     evict();
 
-    KeyMapIterator kmi = _cache.find(key);
-
     // We need to hold the lock if we're looking at cache entries, as otherwise
     // the evict method could be called which potentially destroys the entry.
     // However, we can't hold the lock while we're actually getting the DNS
@@ -104,43 +101,42 @@ public:
     // - Look in the cache. The entry is either:
     //   - Not present:
     //     - Create an entry in the cache with the state set to PENDING.
-    //     - Store a shared_ptr to the DNS result. We have to release the lock
-    //       at this stage.
-    //     - We've now got the DNS result. As we'd released the lock we can
-    //       no longer trust the entry we had at the start. Instead, re-get
-    //       the entry from the cache, creating it again if necessary. Set
-    //       the expiry time and the state to COMPLETE.
-    //     - Release the lock
-    //     - Return the shared_ptr
+    //     - Call out to the SRV factory to get the DNS result. We have to
+    //       release the lock at this stage, so then attempt to reclaim it.
+    //     - We've now got the DNS result - but as we'd released the lock we
+    //       can no longer trust the entry we had at the start to still exist.
+    //       Instead, re-get/create the entry in the cache, and set the expiry
+    //       time and the state to COMPLETE.
+    //     - Release the lock.
+    //     - Return the shared_ptr to the DNS result.
     //   - Present in state pending:
-    //     - Wait on the lock. This releases the lock, then reclaims it when
-    //       it's next free
+    //     - Wait on the condition variable. This releases the lock, then
+    //       reclaims it when it's next free.
     //     - As we've released the lock we can't look at the entry we had at
-    //       the start. Instead we just start again.
-    //     - There's an issue here where there's only one lock for every cache
-    //       entry. This means that this logic can be repeated many times before
-    //       there's a result
+    //       the start. Instead we just start again. Also, we might have been
+    //       woken up spuriously, so we need to recheck anyway.
     //   - Present in state complete:
-    //     - Store off the shared_ptr to the DNS result in the entry
-    //     - Release the lock
-    //     - Return the shared_ptr
-    while (retry_cache_lookup)
+    //     - Store off the shared_ptr to the DNS result in the entry.
+    //     - Release the lock.
+    //     - Return the shared_ptr.
+    while (true)
     {
+      KeyMapIterator kmi = _cache.find(key);
+
       if (kmi == _cache.end())
       {
         TRC_DEBUG("Entry not in cache, so create new entry");
-        Entry& entry = _cache[key];
-        entry.state = Entry::PENDING;
-        entry.expiry_i = _expiry_list.end();
+        populate_pending_cache_entry(key);
 
         pthread_mutex_unlock(&_lock);
         data_ptr = _factory->get(key, ttl, trail);
         pthread_mutex_lock(&_lock);
 
-        populate_cache_entry(entry, key, ttl, data_ptr);
-        retry_cache_lookup = false;
+        TRC_DEBUG("DNS query has returned, populate the cache entry");
+        populate_complete_cache_entry(key, ttl, data_ptr);
+        pthread_cond_broadcast(&_result_available_cv);
 
-        pthread_cond_broadcast(&_cond);
+        break;
       }
       else
       {
@@ -150,13 +146,13 @@ public:
         if (entry.state == Entry::PENDING)
         {
           TRC_DEBUG("Cache entry pending, so wait for the factory to complete");
-          pthread_cond_wait(&_cond, &_lock);
+          pthread_cond_wait(&_result_available_cv, &_lock);
         }
         else
         {
           TRC_DEBUG("Cache entry is complete, returning now");
-          retry_cache_lookup = false;
           data_ptr = entry.data_ptr;
+          break;
         }
       }
     }
@@ -246,25 +242,21 @@ private:
     }
   }
 
-  // Populate the cache entry with the DNS record. There's a chance that the
-  // record has been deleted, so we might need to recreate the entry in the
-  // cache.
-  void populate_cache_entry(Entry& entry,
-                            K key,
-                            int ttl,
-                            std::shared_ptr<V> data_ptr)
+  // Create a cache entry as a placeholder (by setting the state to pending).
+  void populate_pending_cache_entry(K& key)
   {
-    KeyMapIterator kmi = _cache.find(key);
+    Entry& entry = _cache[key];
+    entry.state = Entry::PENDING;
+    entry.expiry_i = _expiry_list.end();
+  }
 
-    if (kmi == _cache.end())
-    {
-      entry = _cache[key];
-    }
-    else
-    {
-      entry = kmi->second;
-    }
-
+  // Populate the cache entry with the DNS record. There's a chance that the
+  // record has been deleted, so this might recreate the entry in the cache.
+  void populate_complete_cache_entry(K& key,
+                                     int ttl,
+                                     std::shared_ptr<V> data_ptr)
+  {
+    Entry& entry = _cache[key];
     entry.state = Entry::COMPLETE;
 
     // Add the entry to the expiry list.
@@ -284,7 +276,9 @@ private:
   /// entries. It must not be held when calling a factory get() method, but can
   /// be held when calling an evict() method as these are assumed not to block.
   pthread_mutex_t _lock;
-  pthread_cond_t _cond;
+
+  /// Condition variable to wait on while waiting for the DNS query to complete.
+  pthread_cond_t _result_available_cv;
 
   ExpiryList _expiry_list;
 
