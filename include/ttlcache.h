@@ -134,7 +134,11 @@ public:
         entry.expiry_i = _expiry_list.end();
 
         pthread_mutex_unlock(&_lock);
-        data_ptr = _factory->get(key, ttl, trail);
+        CW_IO_STARTS("Performing DNS query")
+        {
+          data_ptr = _factory->get(key, ttl, trail);
+        }
+        CW_IO_COMPLETES()
         pthread_mutex_lock(&_lock);
 
         populate_cache_entry(entry, key, ttl, data_ptr);
@@ -150,7 +154,11 @@ public:
         if (entry.state == Entry::PENDING)
         {
           TRC_DEBUG("Cache entry pending, so wait for the factory to complete");
-          pthread_cond_wait(&_cond, &_lock);
+          CW_IO_STARTS("Waiting for DNS query")
+          {
+            pthread_cond_wait(&_cond, &_lock);
+          }
+          CW_IO_COMPLETES()
         }
         else
         {
