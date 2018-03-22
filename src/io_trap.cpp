@@ -54,22 +54,27 @@ static void about_to_block()
   if (!Utils::IOMonitor::thread_doing_overt_io() &&
       !Utils::IOMonitor::thread_allows_covert_io())
   {
+    fprintf(stderr, "Trapping disallowed I/o - abort\n"); fflush(stderr);
     abort();
   }
 }
 
 
-// Helper macro to create a pointer to an interposed function and populate.
+// Helper macro to call the real underlying function and return from the
+// surrounding function.
 //
 // @param [in] FUNCTION - The function being interposed.
-// @param [in[ VAR      - The variable in which to store the function pointer.
-#define STORE_REAL_FUNCTION(FUNCTION, VAR)                                     \
-  using FunctionType = decltype(&FUNCTION);                                    \
-  static std::atomic<FunctionType> VAR(nullptr);                               \
-  if (!VAR)                                                                    \
-  {                                                                            \
-    VAR = (FunctionType)dlsym(RTLD_NEXT, #FUNCTION);                           \
-  }
+// @param [in[ ...      - Arguments to call the real function with.
+#define RETURN_CALL_REAL_FUNCTION(FUNCTION, ...)                               \
+  do {                                                                         \
+    using FunctionType = decltype(&FUNCTION);                                  \
+    static std::atomic<FunctionType> func(nullptr);                            \
+    if (!func)                                                                 \
+    {                                                                          \
+      func = (FunctionType)dlsym(RTLD_NEXT, #FUNCTION);                        \
+    }                                                                          \
+    return func(__VA_ARGS__);                                                  \
+  } while (0)
 
 
 // Macro to commonalise the code to handle a system call that waits on multiple
@@ -84,9 +89,10 @@ static void about_to_block()
 // @param [in] FUNCTION - The function being interposed.
 // @param [in] ...      - The arguments passed to the function.
 #define HANDLE_NON_FD_CALL(FUNCTION, ...)                                      \
-  STORE_REAL_FUNCTION(FUNCTION, real_function);                                \
-  about_to_block();                                                            \
-  return real_function(__VA_ARGS__)
+  do {                                                                         \
+    about_to_block();                                                          \
+    RETURN_CALL_REAL_FUNCTION(FUNCTION, __VA_ARGS__);                          \
+  } while (0)
 
 
 // Macro to commonalise the code to handle a potentially blocking system call
@@ -100,14 +106,14 @@ static void about_to_block()
 // @param [in] ...      - The remaining arguments passed to the function
 //                        (beyond the file descriptor).
 #define HANDLE_FD_CALL(FUNCTION, FD, ...)                                      \
-  STORE_REAL_FUNCTION(FUNCTION, real_function);                                \
+  do {                                                                         \
+    if ((fcntl((FD), F_GETFL) & O_NONBLOCK) == 0)                              \
+    {                                                                          \
+      about_to_block();                                                        \
+    }                                                                          \
                                                                                \
-  if ((fcntl((FD), F_GETFL) & O_NONBLOCK) == 0)                                \
-  {                                                                            \
-    about_to_block();                                                          \
-  }                                                                            \
-                                                                               \
-  return real_function(FD, __VA_ARGS__)
+    RETURN_CALL_REAL_FUNCTION(FUNCTION, FD, __VA_ARGS__);                      \
+  } while (0)
 
 
 //
