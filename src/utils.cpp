@@ -256,27 +256,37 @@ bool Utils::is_user_numeric(const std::string& user)
 
 bool Utils::is_user_numeric(const char* user, size_t user_len)
 {
+  // The empty string is not considered numeric, so we want to return false
+  // unless we've seen a character in the 0-9 range.
+  bool ret = false;
   for (size_t i = 0; i < user_len; i++)
   {
-    if (((user[i] >= '0') &&
-         (user[i] <= '9')) ||
-        (user[i] == '+') ||
-        (user[i] == '-') ||
-        (user[i] == '.') ||
-        (user[i] == '(') ||
-        (user[i] == ')') ||
-        (user[i] == '[') ||
-        (user[i] == ']'))
+    if ((user[i] >= '0') &&
+        (user[i] <= '9'))
     {
+        // Numeric character, so we should return true if we don't seem a non-numeric character.
+        ret = true;
+        continue;
+    }
+    else if ((user[i] == '+') ||
+             (user[i] == '-') ||
+             (user[i] == '.') ||
+             (user[i] == '(') ||
+             (user[i] == ')') ||
+             (user[i] == '[') ||
+             (user[i] == ']'))
+    {
+      // These characters are valid alongside numbers, but "+++..." is not considered numeric.
       continue;
     }
     else
     {
+      // Non-numeric character, so return false immediately.
       return false;
     }
   }
 
-  return true;
+  return ret;
 }
 
 // LCOV_EXCL_START - This function is tested in Homestead's realmmanager_test.cpp
