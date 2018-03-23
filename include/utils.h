@@ -694,6 +694,52 @@ namespace Utils
     IOStartedCallback _io_started_cb;
     IOCompletedCallback _io_completed_cb;
   };
+
+  /// Class that is used to monitor how a thread does IO.
+  ///
+  /// This class uses a couple of terms:
+  ///
+  /// -  "Overt IO". This is IO that the thread has notified the IOMonitor of,
+  ///    via a call to CW_IO_STARTS.
+  /// -  "Covert IO". This is IO where the thread has not notified the
+  ///    IOMonitor.
+  ///
+  /// By default a thread is allowed to do covert IO. This setting can be
+  /// changed on a per-thread basis by calling CW_IO_CALLS_REQUIRED.
+  ///
+  /// There are no instances of this class - it is simply used as a wrapper to
+  /// prevent access to some private static per-thread variables, and to provide
+  /// a namespace for some static methods.
+  class IOMonitor
+  {
+  public:
+    /// Called to signal the start of an I/O operation.
+    /// @param reason - The reason for the I/O operation.
+    static void io_starts(const std::string& reason);
+
+    /// Called to signal the completion of an I/O operation.
+    /// @param reason - The reason for the I/O operation.
+    static void io_completes(const std::string& reason);
+
+    /// @return whether the thread is currently doing overt IO i.e. whether it
+    /// has called CW_IO_STARTS (without a matching call to CW_IO_COMPLETES).
+    static bool thread_doing_overt_io();
+
+    /// @return whether the thread is allowed to do covert IO.
+    static bool thread_allows_covert_io();
+
+    /// Sets whether a thread is allowed to do covert IO. Code should typically
+    /// not call this method directly, but use CW_IO_CALLS_REQUIRED instead.
+    static void set_thread_allows_covert_io(bool allowed);
+
+  private:
+    // Variable tracking (# CW_IO_STARTS calls) - (# CW_IO_COMPLETES) calls. Any
+    // IO done while this is non-zero is overt.
+    static thread_local int _overt_io_depth;
+
+    // Whether this thread is allows to do covert IO.
+    static thread_local bool _covert_io_allowed;
+  };
 } // namespace Utils
 
 /// Helper macros to make it easier to invoke an I/O hook, and that means the
@@ -709,10 +755,17 @@ namespace Utils
 #define CW_IO_STARTS(REASON)                                                   \
   {                                                                            \
     std::string description = REASON;                                          \
+    Utils::IOMonitor::io_starts(description);                                  \
     Utils::IOHook::io_starts(description);
 
 #define CW_IO_COMPLETES()                                                      \
     Utils::IOHook::io_completes(description);                                  \
+    Utils::IOMonitor::io_completes(description);                               \
   }
+
+/// Helper macro to flag that a thread must call CW_IO_(STARTS|COMPLETES) when
+/// doing IO.
+#define CW_IO_CALLS_REQUIRED()                                                 \
+  Utils::IOMonitor::set_thread_allows_covert_io(false)
 
 #endif /* UTILS_H_ */
