@@ -73,7 +73,7 @@ static void about_to_block()
     {                                                                          \
       func = (FunctionType)dlsym(RTLD_NEXT, #FUNCTION);                        \
     }                                                                          \
-    return func(__VA_ARGS__);                                                  \
+    return (*func)(__VA_ARGS__);                                               \
   } while (0)
 
 
