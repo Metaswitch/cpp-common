@@ -26,7 +26,7 @@ CommunicationMonitor::CommunicationMonitor(Alarm* alarm,
   _set_confirm_ms(set_confirm_sec * 1000),
   _previous_state(0)
 {
-  _next_check = current_time_ms() + _set_confirm_ms;
+  _next_check = Utils::current_time_ms() + _set_confirm_ms;
 }
 
 CommunicationMonitor::~CommunicationMonitor()
@@ -36,7 +36,7 @@ CommunicationMonitor::~CommunicationMonitor()
 
 void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
 {
-  now_ms = now_ms ? now_ms : current_time_ms();
+  now_ms = now_ms ? now_ms : Utils::current_time_ms();
 
   if (now_ms > _next_check)
   {
@@ -154,13 +154,4 @@ void CommunicationMonitor::track_communication_changes(unsigned long now_ms)
 
     pthread_mutex_unlock(&_lock);
   }
-}
-
-unsigned long CommunicationMonitor::current_time_ms()
-{
-  struct timespec ts;
-
-  clock_gettime(CLOCK_MONOTONIC, &ts);
-
-  return ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
 }

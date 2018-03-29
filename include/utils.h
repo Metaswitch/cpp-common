@@ -241,6 +241,13 @@ namespace Utils
     }
   }
 
+  inline unsigned long current_time_ms()
+  {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return ts.tv_sec * 1000 + (ts.tv_nsec / 1000000);
+  }
+
   std::string strip_uri_scheme(const std::string& uri);
   std::string remove_visual_separators(const std::string& number);
   bool is_user_numeric(const std::string& user);

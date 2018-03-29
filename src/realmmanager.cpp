@@ -19,12 +19,18 @@ RealmManager::RealmManager(Diameter::Stack* stack,
                            std::string realm,
                            std::string host,
                            int max_peers,
-                           DiameterResolver* resolver) :
+                           DiameterResolver* resolver,
+                           Alarm& alarm,
+                           PDLog peer_comm_restored_log,
+                           PDLog1<const char*> peer_comm_error_log) :
                            _stack(stack),
                            _realm(realm),
                            _host(host),
                            _max_peers(max_peers),
                            _resolver(resolver),
+                           _peer_connection_alarm(alarm),
+                           _peer_comm_restored_log(peer_comm_restored_log),
+                           _peer_comm_error_log(peer_comm_error_log),
                            _terminating(false)
 {
   pthread_mutex_init(&_main_thread_lock, NULL);
@@ -73,6 +79,140 @@ void RealmManager::stop()
   _stack->unregister_rt_out_cb("realmmanager");
 }
 
+// This function is only safe to call when holding the _peers_lock.
+std::string RealmManager::create_failed_peers_string()
+{
+  std::string failed_peers_string = "";
+  std::string sep = "";
+
+  for (std::pair<AddrInfo, unsigned long> failed_peer : _failed_peers)
+  {
+    failed_peers_string += sep + Utils::ip_addr_to_arpa(failed_peer.first.address);
+    sep = ", ";
+  }
+
+  return failed_peers_string;
+}
+
+// This function adds a new peer to the _failed_peers map or, if the peer is
+// already failed, updates the peer in the map. Returns false if the peer was
+// in the map already, otherwise returns true.
+//
+// This function is only safe to call when holding the _peers_lock.
+bool RealmManager::add_to_failed_peers(Diameter::Peer* peer)
+{
+  if (_failed_peers.find(peer->addr_info()) == _failed_peers.end())
+  {
+    // Peer wansn't failed before so add it to _failed_peers
+    _failed_peers.insert(std::pair<AddrInfo, unsigned long>(
+      peer->addr_info(),
+      Utils::current_time_ms()));
+    return true;
+  }
+  else
+  {
+    // Peer was already failed, update the timestamp
+    _failed_peers.find(peer->addr_info())->second = Utils::current_time_ms();
+    return false;
+  }
+}
+
+// This function ensures that the peer is not in _failed_peers map, removing
+// it if necessary. It returns whether the peer was in the map at the start.
+//
+// This function is only safe to call when holding the _peers_lock.
+bool RealmManager::remove_from_failed_peers(Diameter::Peer* peer)
+{
+  if (_failed_peers.find(peer->addr_info()) == _failed_peers.end())
+  {
+    // Peer wasn't failed before so nothing to remove
+    return false;
+  }
+  else
+  {
+    // Peer was failed so remove it
+    _failed_peers.erase(_failed_peers.find(peer->addr_info()));
+    return true;
+  }
+}
+
+// This function is only safe to call when holding the _peers_lock.
+void RealmManager::remove_old_failed_peers()
+{
+  unsigned long current_time = Utils::current_time_ms();
+
+  for (std::map<AddrInfo, unsigned long>::iterator ii = _failed_peers.begin();
+                                                   ii != _failed_peers.end();)
+  {
+    if (ii->second + FAILED_PEERS_TIMEOUT_MS <= current_time)
+    {
+      _failed_peers.erase(ii++);
+    }
+    else 
+    {
+      ++ii;
+    }
+  }
+}
+
+// This function is responsible for monitoring diameter peer connections.
+//
+// The _peer_connection_alarm is used to monitor the connection to diameter
+// peers. The parameter controlling the mechanics of the alarm is _max_peers.
+// We keep track of the peers we failed to connect to using the map
+// _failed_peers. We add the failed peer together with a timestamp to this
+// map, so that we can remove stale failed peers which no longer get returned
+// by the DNS (see Step 8 in manage_connections).
+// We raise the alarm whenever we get a callback and the number of connected
+// peers (num_connected_peers) is strictly less than _max_peers.
+// We clear the alarm whenever we get a callback and, either the number of
+// connected peers is at least _max_peers, or there are no failed peers.
+// This ensures we clear the alarm if the total number of available peers is
+// less than _max_peers and we successfully connect to all of them.
+// We also make ENT logs specifying the ip addresses of the failed peers,
+// thus helping us diagnose which peers we failed to connect to.
+void RealmManager::monitor_connections(const bool& failed_peers_changed)
+{
+  // First find the number of connected peers.
+  int num_connected_peers = 0;
+  for (std::pair<std::string, Diameter::Peer*> peer : _peers)
+  {
+    if ((peer.second)->connected())
+    {
+      num_connected_peers++;
+    }
+  }
+
+  const bool clear_condition = (num_connected_peers >= _max_peers) ||
+                                _failed_peers.empty();
+
+  if (_peer_connection_alarm.get_alarm_state() == AlarmState::ALARMED)
+  {
+    // Alarm is raised so consider clearing it
+    if (clear_condition)
+    {
+      _peer_connection_alarm.clear();
+      _peer_comm_restored_log.log();
+    }
+    else if (failed_peers_changed)
+    {
+      // We either failed to connect to a new peer or we successfully connected
+      // to a previously uncontactable peer. Make an ENT log updating the ip
+      // addresses of the uncontactable peers.
+      _peer_comm_error_log.log(create_failed_peers_string().c_str());
+    }
+  }
+  else
+  {
+    // Alarm is not raised so consider raising it
+    if (!clear_condition)
+    {
+      _peer_connection_alarm.set();
+      _peer_comm_error_log.log(create_failed_peers_string().c_str());
+    }
+  }
+}
+
 void RealmManager::peer_connection_cb(bool connection_success,
                                       const std::string& host,
                                       const std::string& realm)
@@ -93,7 +233,10 @@ void RealmManager::peer_connection_cb(bool connection_success,
                  realm.c_str());
         pthread_rwlock_unlock(&_peers_lock);
         pthread_rwlock_wrlock(&_peers_lock);
+        bool was_already_failed = remove_from_failed_peers(peer);
         peer->set_connected();
+
+        monitor_connections(was_already_failed);
       }
       else
       {
@@ -101,12 +244,16 @@ void RealmManager::peer_connection_cb(bool connection_success,
                   host.c_str(),
                   peer->realm().c_str(),
                   realm.c_str());
+
         _stack->remove(peer);
         _resolver->blacklist(peer->addr_info());
         pthread_rwlock_unlock(&_peers_lock);
         pthread_rwlock_wrlock(&_peers_lock);
+        bool wasnt_already_failed = add_to_failed_peers(peer);
         delete peer;
         _peers.erase(ii);
+
+        monitor_connections(wasnt_already_failed);
 
         pthread_cond_signal(&_cond);
       }
@@ -115,10 +262,14 @@ void RealmManager::peer_connection_cb(bool connection_success,
     {
       TRC_ERROR("Failed to connect to %s", host.c_str());
       _resolver->blacklist(peer->addr_info());
+
       pthread_rwlock_unlock(&_peers_lock);
       pthread_rwlock_wrlock(&_peers_lock);
+      bool wasnt_already_failed = add_to_failed_peers(peer);
       delete peer;
       _peers.erase(ii);
+
+      monitor_connections(wasnt_already_failed);
 
       pthread_cond_signal(&_cond);
     }
@@ -262,6 +413,9 @@ void RealmManager::thread_function()
 //    peers we're connected to. This is so that the stack can raise appropriate
 //    logs when we have no connections and routing messages inevitably fails.
 // 7. Update _peers.
+// 8. _failed_peers contains diameter peers that we failed to connect to. 
+//    We remove entries that are more than a day old to prevent reporting 
+//    them as failed once they're no longer being returned by DNS.
 //
 // On the first run through this function, a lot of this processing is
 // irrelevant since we just get a list of targets and try to connect to
@@ -387,5 +541,9 @@ void RealmManager::manage_connections(int& ttl)
   // 7. Update the stored _peers map.
   pthread_rwlock_wrlock(&_peers_lock);
   _peers = locked_peers;
+
+  // 8.
+  remove_old_failed_peers();
+
   pthread_rwlock_unlock(&_peers_lock);
 }
