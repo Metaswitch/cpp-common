@@ -28,6 +28,7 @@ extern "C" {
 #include "faketransport_tcp.hpp"
 #include "test_interposer.hpp"
 #include "sip_common.hpp"
+#include "custom_headers.h"
 
 using namespace std;
 
@@ -58,6 +59,7 @@ void SipCommonTest::SetUpTestCase()
 
   // Then init PJLIB-UTIL:
   pjlib_util_init();
+  register_custom_headers();
 
   // Must create a pool factory before we can allocate any memory.
   pj_caching_pool_init(&_cp, &pj_pool_factory_default_policy, 0);
