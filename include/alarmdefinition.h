@@ -46,6 +46,7 @@ namespace AlarmDef {
   // Alarms 12000->12499 are reserved
   // Alarms 12500->12999 are reserved
   // Rogers alarms: 13000->13499
+  // NTP alarms: 13500->13699
 
   enum Severity {
     UNDEFINED_SEVERITY,
