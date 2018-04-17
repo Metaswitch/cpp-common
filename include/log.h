@@ -61,7 +61,7 @@ namespace Log
   }
   void setLoggingLevel(int level);
   Logger* setLogger(Logger *log);
-  void write(int level, const char *module, int line_number, const char *fmt, ...);
+  void write(int level, const char *module, int line_number, const char *fmt, ...) __attribute__ ((__format__(printf, 4, 5)));
   void _write(int level, const char *module, int line_number, const char *fmt, va_list args);
   void backtrace(const char* fmt, ...);
   void backtrace_adv();
