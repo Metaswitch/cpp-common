@@ -2,7 +2,7 @@ GEM
   remote: https://rubygems.org/
   specs:
     coderay (1.0.9)
-    ffi (1.4.0)
+    ffi (1.11.3)
     ffi-rzmq (1.0.0)
       ffi
     method_source (0.8.1)
