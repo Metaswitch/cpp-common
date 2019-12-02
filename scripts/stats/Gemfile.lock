@@ -11,7 +11,7 @@ GEM
       method_source (~> 0.8)
       slop (~> 3.4)
     slop (3.4.4)
-    yard (0.8.5.2)
+    yard (0.9.20)
 
 PLATFORMS
   ruby
